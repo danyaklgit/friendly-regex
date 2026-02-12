@@ -1,0 +1,78 @@
+{
+  "TagSpecDefinitions": [
+    {
+      "Id": 261,
+      "Context": {
+        "Side": "CR",
+        "TxnType": "TRF"
+      },
+      "Tag": "A2AIn",
+      "StatusTag": "ACTIVE",
+      "CertaintyLevelTag": "HIGH",
+      "Validity": {
+        "StartDate": "2026-01-01",
+        "EndDate": null
+      },
+      "TagRuleExpressions": [
+        [
+          {
+            "SourceField": "Field86",
+            "ExpressionPrompt": "Begin with 'TNXT/56'",
+            "ExpressionId": null,
+            "Regex": "^TNXT/56"
+          },
+          {
+            "SourceField": "Field87",
+            "ExpressionPrompt": "Begin with 'TNXT/57'",
+            "ExpressionId": null,
+            "Regex": "^TNXT/57"
+          }
+        ],
+        [
+          {
+            "SourceField": "Field88",
+            "ExpressionPrompt": "Begin with 'TNXT/58'",
+            "ExpressionId": null,
+            "Regex": "^TNXT/58"
+          },
+          {
+            "SourceField": "Field89",
+            "ExpressionPrompt": "Begin with 'TNXT/59'",
+            "ExpressionId": null,
+            "Regex": "^TNXT/59"
+          },
+          {
+            "SourceField": "Field86",
+            "ExpressionPrompt": "Begin with 'TNXT/56'",
+            "ExpressionId": null,
+            "Regex": "^TNXT/56"
+          }
+        ]
+      ],
+      "Attributes": [
+        {
+          "AttributeTag": "OrderingParty",
+          "IsMandatory": true,
+          "DataType": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "Field86",
+            "ExpressionPrompt": "Extract between '/ORDP/' and '/'",
+            "ExpressionId": "uuid-261-attr-1",
+            "Regex": "/ORDP\/(.*?)\//"
+          }
+        },
+        {
+          "AttributeTag": "BeneficiaryName",
+          "IsMandatory": true,
+          "DataType": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "Field86",
+            "ExpressionPrompt": "Extract between '/BENM/' and '/'",
+            "ExpressionId": "uuid-261-attr-2",
+            "Regex": "/BENM/(.*?)/"
+          }
+        }
+      ]
+    }
+  ]
+}
