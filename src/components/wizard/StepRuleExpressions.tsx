@@ -20,9 +20,9 @@ export function StepRuleExpressions({
   onUpdateCondition,
 }: StepRuleExpressionsProps) {
   return (
-    <div className="space-y-0">
-      <p className="text-sm text-gray-500 mb-4">
-        Define when this tag should be applied. Each rule set uses AND logic (all conditions must match).
+    <div className="space-y-0 flex flex-col">
+      <p className="text-xs text-gray-500 mb-2">
+        Each rule set uses AND logic (all conditions must match).
         Multiple rule sets use OR logic (any set can match).
       </p>
 
@@ -49,7 +49,7 @@ export function StepRuleExpressions({
         </div>
       ))}
 
-      <div className="mt-4">
+      <div className="mt-4 self-center">
         <Button variant="secondary" size="sm" onClick={onAddGroup}>
           + Add OR group
         </Button>

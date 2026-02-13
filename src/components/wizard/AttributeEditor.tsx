@@ -120,7 +120,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions }:
       )}
 
       <div className="flex items-center gap-2 justify-between">
-        <p className="text-xs text-blue-500 italic">
+        <p className="text-xs text-blue-500 italic border-dashed border w-fit px-2 py-1">
           {attribute.sourceField} &rarr; <span className='text-orange-500'>{preview}</span>
         </p>
         {transactions && distinctValues.length > 0 && (

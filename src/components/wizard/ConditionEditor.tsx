@@ -33,13 +33,14 @@ export function ConditionEditor({
   return (
     <div>
       {showAnd && (
-        <div className="flex items-center justify-center my-2">
-          <span className="text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded">
+        <div className="flex items-center justify-start my-2 px-3">
+          <span className="text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border-dashed border w-fit px-2 py-1">
             AND
           </span>
         </div>
       )}
-      <div className="flex items-start gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+      <div className="flex items-end gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+        
         <div className={`flex-1 grid gap-2 ${selectedOp?.requiresExtraction ? 'grid-cols-3' : 'grid-cols-3'}`}>
           <Select
             label='Source Field'
@@ -95,18 +96,17 @@ export function ConditionEditor({
           )}
         </div>
         {canRemove && (
-          <Button variant="ghost" size="sm" onClick={onRemove} className="mt-0.5 text-gray-400 hover:text-red-500">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+          <Button variant="ghost" size="sm" onClick={onRemove} className=" text-gray-400 hover:text-red-500">
+            Remove Condition
           </Button>
         )}
       </div>
-      {preview && (
-        <p className="mt-1 ml-3 text-xs text-blue-500 italic">
+       {preview && (
+        <p className="mt-1 ml-3 text-xs text-blue-500 italic text-left border-dashed border w-fit px-2 py-1">
           {condition.sourceField} <span className='text-orange-500'>{preview}</span>
         </p>
       )}
+     
     </div>
   );
 }

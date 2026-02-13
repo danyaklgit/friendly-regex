@@ -126,7 +126,19 @@ export function TransactionsTab() {
     return tempDefinition.TagRuleExpressions.flat();
   }, [tempDefinition]);
 
+  // Compute sticky fields from builder ruleset conditions only
+  const stickyFields = useMemo(() => {
+    if (!builderOpen) return undefined;
+    const fields = new Set<string>();
 
+    for (const group of builder.formState.ruleGroups) {
+      for (const c of group.conditions) {
+        if (c.value.trim().length > 0) fields.add(c.sourceField);
+      }
+    }
+
+    return fields.size > 0 ? fields : undefined;
+  }, [builderOpen, builder.formState]);
 
   const handleCreateFromBuilder = useCallback(() => {
     setWizardInitialState({ ...builder.formState });
@@ -177,15 +189,17 @@ export function TransactionsTab() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <div className='flex items-center gap-2'>
-          <h2 className="text-base font-semibold text-gray-900">Transactions</h2>
+          {!builderOpen && <h2 className="text-base font-semibold text-gray-900">Transactions</h2>}
           {/* <p className="text-sm text-gray-500">
             Tags and attributes are computed automatically based on your defined rules.
           </p> */}
+          {!builderOpen && <span className='text-sm'>{filteredData.length}</span>}
           {!builderOpen && <Toggle
             label="Show only untagged"
             checked={showOnlyUntagged}
             onChange={setShowOnlyUntagged}
           />}
+          
         </div>
         <div className="flex items-center gap-3">
           <input
@@ -195,9 +209,9 @@ export function TransactionsTab() {
             className="hidden"
             onChange={handleFileUpload}
           />
-          <Button variant="primary" size="sm" onClick={() => fileInputRef.current?.click()}>
+          {!builderOpen && <Button variant="primary" size="sm" onClick={() => fileInputRef.current?.click()}>
             Upload Data
-          </Button>
+          </Button>}
           {isCustomData && (
             <Button variant="danger" size="sm" onClick={resetToSample}>
               Reset to Sample
@@ -240,7 +254,7 @@ export function TransactionsTab() {
           </div>
 
 
-          <div className="p-5 space-y-5 flex flex-col md:flex-row  flex-1 gap-5">
+          <div className="p-5 flex flex-col md:flex-row  flex-1 gap-5">
             {/* Matching rules section */}
             <div className='w-full md:w-1/2'>
               <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">
@@ -279,7 +293,7 @@ export function TransactionsTab() {
         </div>
       )}
 
-      <TransactionTable data={filteredData} tagDefinitions={allDefinitions} highlightExpressions={highlightExpressions} />
+      <TransactionTable data={filteredData} tagDefinitions={allDefinitions} highlightExpressions={highlightExpressions} stickyFields={stickyFields} />
 
       {wizardOpen && (
         <TagWizardModal
