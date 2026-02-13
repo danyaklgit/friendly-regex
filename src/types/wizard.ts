@@ -19,7 +19,8 @@ export type ExtractionOperation =
   | 'extract_between'
   | 'extract_after'
   | 'extract_before'
-  | 'extract_matching';
+  | 'extract_matching'
+  | `predefined:${string}`;
 
 export interface ConditionFormValue {
   id: string;

@@ -83,7 +83,7 @@ export function useWizardForm(
       isMandatory: false,
       dataType: 'STRING',
       sourceField: defaultSourceField,
-      extractionOperation: 'extract_between',
+      extractionOperation: 'predefined:ksa_iban',
       prefix: '',
       suffix: '',
     };
@@ -99,7 +99,7 @@ export function useWizardForm(
         StartDate: new Date().toISOString().split('T')[0],
         EndDate: null,
       },
-      ruleGroups: [createEmptyGroup()],
+      ruleGroups: [],
       attributes: [],
     };
   }

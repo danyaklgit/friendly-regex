@@ -23,7 +23,7 @@ export function RuleGroupEditor({
 }: RuleGroupEditorProps) {
   return (
     <div className="border border-gray-200 rounded-lg p-3 bg-white flex flex-col items-start">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-3 w-full">
         <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
           Rule Set {groupIndex + 1}
         </span>

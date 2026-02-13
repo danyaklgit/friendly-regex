@@ -257,7 +257,7 @@ export function TransactionsTab() {
           <div className="p-5 flex flex-col md:flex-row  flex-1 gap-5">
             {/* Matching rules section */}
             <div className='w-full md:w-1/2'>
-              <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">
+              <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">
                 Matching Rules
               </h4>
               <StepRuleExpressions
@@ -273,7 +273,7 @@ export function TransactionsTab() {
             {/* Attributes section */}
             <div className='w-full md:w-1/2 relative'>
               {/* <div className='absolute flex bg-blue-50/50 w-full h-full opacity-100 rounded-sm'></div> */}
-              <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">
+              <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">
                 Attributes
               </h4>
               <StepAttributes

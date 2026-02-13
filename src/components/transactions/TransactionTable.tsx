@@ -1,6 +1,7 @@
 import { useMemo, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { AnalyzedTransaction, TagSpecDefinition, RuleExpression } from '../../types';
 import { useTransactionData } from '../../hooks/useTransactionData';
+import { PREDEFINED_PATTERNS } from '../../constants/operations';
 import { TagBadge } from './TagBadge';
 
 interface TransactionTableProps {
@@ -104,6 +105,27 @@ export function TransactionTable({ data, tagDefinitions, highlightExpressions, s
       for (const attr of def.Attributes) {
         if (!map.has(attr.AttributeTag)) {
           map.set(attr.AttributeTag, attr.AttributeRuleExpression.SourceField);
+        }
+      }
+    }
+    return map;
+  }, [tagDefinitions]);
+
+  // Map attribute names to their validation regex (for predefined patterns with validate: true)
+  const attrValidationMap = useMemo(() => {
+    const map = new Map<string, { regex: RegExp; sourceField: string }>();
+    for (const def of tagDefinitions) {
+      for (const attr of def.Attributes) {
+        const op = attr.AttributeRuleExpression.Regex;
+        // Find matching predefined pattern by checking the regex
+        const predefined = PREDEFINED_PATTERNS.find((p) => {
+          if (!p.validate) return false;
+          try { return new RegExp(p.regex).source === new RegExp(op).source; } catch { return false; }
+        });
+        if (predefined) {
+          try {
+            map.set(attr.AttributeTag, { regex: new RegExp(predefined.regex), sourceField: attr.AttributeRuleExpression.SourceField });
+          } catch { /* skip */ }
         }
       }
     }
@@ -252,9 +274,8 @@ export function TransactionTable({ data, tagDefinitions, highlightExpressions, s
               return (
                 <th
                   key={col.key}
-                  className={`px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap ${
-                    isAttr ? 'text-indigo-600 bg-indigo-50' : 'text-gray-600 bg-gray-50'
-                  }`}
+                  className={`px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap ${isAttr ? 'text-indigo-600 bg-indigo-50' : 'text-gray-600 bg-gray-50'
+                    }`}
                   style={getCellStyle(idx, true)}
                 >
                   {col.type === 'identifier' && `Identifier (${fieldMeta.identifierField})`}
@@ -298,13 +319,28 @@ export function TransactionTable({ data, tagDefinitions, highlightExpressions, s
                       );
                     case 'attribute': {
                       const val = getAttributeValue(item, col.name);
+                      const validation = attrValidationMap.get(col.name);
+                      let validationIcon: ReactNode = null;
+                      let validationPassed: boolean | null = null;
+                      if (validation) {
+                        const sourceVal = String(item.row[validation.sourceField] ?? '');
+                        validationPassed = validation.regex.test(sourceVal);
+                        validationIcon = validationPassed
+                          ? <span className="text-emerald-500 mr-1" title="Valid">&#10003;</span>
+                          : <span className="text-red-400 mr-1" title="Invalid">&#10007;</span>;
+                      }
+                      // When validation fails and extraction returned null, show source field value
+                      const displayVal = val ?? (validation ? String(item.row[validation.sourceField] ?? '') : null);
                       return (
                         <td
                           key={col.key}
-                          className={`px-3 py-2 text-xs text-indigo-700 ${isStickyCol ? 'bg-indigo-50/80 group-hover:bg-indigo-100/60' : 'bg-indigo-50/30'}`}
+                          className={`px-3 py-2 text-xs
+                            ${validationIcon ? 'text-center' : 'text-left'}
+                            ${validationPassed === true ? 'text-emerald-500' : validationPassed === false ? 'text-red-400' : 'text-indigo-700'}
+                            ${isStickyCol ? 'bg-indigo-50/80 group-hover:bg-indigo-100/60' : 'bg-indigo-50/30'}`}
                           style={getCellStyle(colIdx, false)}
                         >
-                          {val ?? <span className="text-gray-300">-</span>}
+                          {displayVal ? <>{validationIcon}{displayVal}</> : <span className="text-gray-300">-</span>}
                         </td>
                       );
                     }

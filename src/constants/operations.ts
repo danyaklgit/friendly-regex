@@ -25,7 +25,21 @@ export interface ExtractionOperationDef {
   fields: ('prefix' | 'suffix' | 'pattern')[];
 }
 
+/** Predefined regex patterns that require no user input fields. */
+export interface PredefinedPatternDef {
+  key: `predefined:${string}`;
+  label: string;
+  regex: string;
+  /** When true, cells show a checkmark/X indicating whether the source field matches the regex. */
+  validate: boolean;
+}
+
+export const PREDEFINED_PATTERNS: PredefinedPatternDef[] = [
+  { key: 'predefined:ksa_iban', label: 'Verify KSA IBAN', regex: '(SA\\d{22})', validate: true },
+];
+
 export const EXTRACTION_OPERATIONS: ExtractionOperationDef[] = [
+  ...PREDEFINED_PATTERNS.map((p) => ({ key: p.key as ExtractionOperation, label: p.label, fields: [] as ('prefix' | 'suffix' | 'pattern')[] })),
   { key: 'extract_between', label: 'Extract between [prefix] and [suffix]', fields: ['prefix', 'suffix'] },
   { key: 'extract_after', label: 'Extract after [prefix]', fields: ['prefix'] },
   { key: 'extract_before', label: 'Extract before [suffix]', fields: ['suffix'] },

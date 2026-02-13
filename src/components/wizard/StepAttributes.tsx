@@ -31,13 +31,13 @@ export function StepAttributes({ attributes, onAdd, onRemove, onUpdate, transact
           ))}
         </div>
       ) : (
-        <div className="text-center py-8 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-          <p className="text-sm text-gray-500 mb-2">No attributes defined yet</p>
+        <div className="text-center py-4 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+          <p className="text-sm text-gray-500 my-2">No attributes defined yet</p>
         </div>
       )}
 
       <Button variant="secondary" size="sm" onClick={onAdd} className="mt-4">
-        + Add Attribute
+        Add Attribute
       </Button>
     </div>
   );

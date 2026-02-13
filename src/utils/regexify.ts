@@ -1,4 +1,5 @@
 import type { MatchOperation, ExtractionOperation } from '../types';
+import { PREDEFINED_PATTERNS } from '../constants/operations';
 
 function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -40,6 +41,10 @@ export function regexifyExtraction(
   operation: ExtractionOperation,
   params: { prefix?: string; suffix?: string; pattern?: string }
 ): string {
+  if (operation.startsWith('predefined:')) {
+    const def = PREDEFINED_PATTERNS.find((p) => p.key === operation);
+    return def?.regex ?? '(.*)';
+  }
   switch (operation) {
     case 'extract_between':
       return `${escapeRegex(params.prefix ?? '')}(.*?)${escapeRegex(params.suffix ?? '')}`;
@@ -88,6 +93,10 @@ export function generateExtractionPrompt(
   operation: ExtractionOperation,
   params: { prefix?: string; suffix?: string; pattern?: string }
 ): string {
+  if (operation.startsWith('predefined:')) {
+    const def = PREDEFINED_PATTERNS.find((p) => p.key === operation);
+    return def ? `Match ${def.label}` : 'Extract value';
+  }
   switch (operation) {
     case 'extract_between':
       return `Extract between '${params.prefix ?? ''}' and '${params.suffix ?? ''}'`;
