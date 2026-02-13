@@ -22,7 +22,7 @@ export function ConditionRow({ condition, showAnd }: ConditionRowProps) {
         <span className="text-xs font-mono font-medium text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">
           {condition.SourceField}
         </span>
-        <span className="text-sm text-gray-700">{humanText}</span>
+        <span className="text-sm text-orange-500">{humanText}</span>
       </div>
     </div>
   );

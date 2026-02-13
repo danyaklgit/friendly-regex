@@ -7,6 +7,7 @@ import { TagWizardModal } from '../wizard/TagWizardModal';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { Button } from '../shared/Button';
 import { EmptyState } from '../shared/EmptyState';
+import { Toast } from '../shared/Toast';
 
 export function TagRulesTab() {
   const { tagDefinitions, dispatch } = useTagSpecs();
@@ -14,6 +15,7 @@ export function TagRulesTab() {
   const [editingDef, setEditingDef] = useState<TagSpecDefinition | undefined>(undefined);
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; tag: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
   const handleCreate = () => {
     setEditingDef(undefined);
@@ -28,8 +30,10 @@ export function TagRulesTab() {
   const handleWizardSave = (def: TagSpecDefinition) => {
     if (editingDef) {
       dispatch({ type: 'UPDATE', payload: def });
+      setToast(`Tag '${def.Tag}' updated`);
     } else {
       dispatch({ type: 'ADD', payload: def });
+      setToast(`Tag '${def.Tag}' created`);
     }
     setWizardOpen(false);
     setEditingDef(undefined);
@@ -143,6 +147,8 @@ export function TagRulesTab() {
         confirmLabel="Delete"
         variant="danger"
       />
+
+      {toast && <Toast message={toast} type="success" onClose={() => setToast(null)} />}
     </div>
   );
 }

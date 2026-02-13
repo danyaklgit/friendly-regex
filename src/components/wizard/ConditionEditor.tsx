@@ -23,7 +23,10 @@ export function ConditionEditor({
 }: ConditionEditorProps) {
   const selectedOp = MATCH_OPERATIONS.find((op) => op.key === condition.operation);
   const preview = condition.value
-    ? generateExpressionPrompt(condition.operation, condition.value, condition.values)
+    ? generateExpressionPrompt(condition.operation, condition.value, condition.values, {
+      prefix: condition.prefix,
+      suffix: condition.suffix,
+    })
     : '';
 
   return (
@@ -36,19 +39,22 @@ export function ConditionEditor({
         </div>
       )}
       <div className="flex items-start gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
-        <div className="flex-1 grid grid-cols-3 gap-2">
+        <div className={`flex-1 grid gap-2 ${selectedOp?.requiresExtraction ? 'grid-cols-3' : 'grid-cols-3'}`}>
           <Select
+            label='Source Field'
             value={condition.sourceField}
             onChange={(e) => onUpdate({ sourceField: e.target.value })}
             options={SOURCE_FIELDS.map((f) => ({ value: f, label: f }))}
           />
           <Select
+            label='Operation'
             value={condition.operation}
             onChange={(e) => onUpdate({ operation: e.target.value as ConditionFormValue['operation'] })}
             options={MATCH_OPERATIONS.map((op) => ({ value: op.key, label: op.label }))}
           />
           {selectedOp?.requiresMultipleValues ? (
             <Input
+              label='Value'
               placeholder="Value1, Value2, ..."
               value={(condition.values ?? []).join(', ')}
               onChange={(e) => {
@@ -56,8 +62,31 @@ export function ConditionEditor({
                 onUpdate({ values, value: values[0] ?? '' });
               }}
             />
+          ) : selectedOp?.requiresExtraction ? (
+            <div className='flex flex-col gap-1'>
+              <Input
+                label='Prefix'
+                placeholder="Prefix..."
+                value={condition.prefix ?? ''}
+                onChange={(e) => onUpdate({ prefix: e.target.value })}
+              />
+              <Input
+                label='Suffix'
+                placeholder="Suffix..."
+                value={condition.suffix ?? ''}
+                onChange={(e) => onUpdate({ suffix: e.target.value })}
+              />
+              <Input
+                label='Value'
+                placeholder="Equals value..."
+                value={condition.value}
+                onChange={(e) => onUpdate({ value: e.target.value })}
+              />
+
+            </div>
           ) : (
             <Input
+              label='Value'
               placeholder="Enter value..."
               value={condition.value}
               onChange={(e) => onUpdate({ value: e.target.value })}

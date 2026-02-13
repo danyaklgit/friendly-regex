@@ -4,7 +4,12 @@ function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-export function regexify(operation: MatchOperation, value: string, values?: string[]): string {
+export function regexify(
+  operation: MatchOperation,
+  value: string,
+  values?: string[],
+  params?: { prefix?: string; suffix?: string }
+): string {
   const escaped = escapeRegex(value);
 
   switch (operation) {
@@ -24,6 +29,8 @@ export function regexify(operation: MatchOperation, value: string, values?: stri
       const vals = values && values.length > 0 ? values : [value];
       return vals.map(escapeRegex).join('|');
     }
+    case 'extract_and_compare':
+      return `(?:${escapeRegex(params?.prefix ?? '')})${escaped}(?:${escapeRegex(params?.suffix ?? '')})`;
     default:
       return escaped;
   }
@@ -47,7 +54,12 @@ export function regexifyExtraction(
   }
 }
 
-export function generateExpressionPrompt(operation: MatchOperation, value: string, values?: string[]): string {
+export function generateExpressionPrompt(
+  operation: MatchOperation,
+  value: string,
+  values?: string[],
+  params?: { prefix?: string; suffix?: string }
+): string {
   switch (operation) {
     case 'begins_with':
       return `Start with '${value}'`;
@@ -65,6 +77,8 @@ export function generateExpressionPrompt(operation: MatchOperation, value: strin
       const vals = values && values.length > 0 ? values : [value];
       return `Match one of: ${vals.map(v => `'${v}'`).join(', ')}`;
     }
+    case 'extract_and_compare':
+      return `Extract between '${params?.prefix ?? ''}' and '${params?.suffix ?? ''}' equals '${value}'`;
     default:
       return value;
   }

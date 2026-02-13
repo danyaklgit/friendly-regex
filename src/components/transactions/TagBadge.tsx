@@ -14,7 +14,7 @@ const certaintyColors: Record<CertaintyLevelTag, string> = {
 export function TagBadge({ tag, certainty = 'HIGH' }: TagBadgeProps) {
   return (
     <span
-      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border
+      className={`inline-flex items-center text-center px-2.5 py-0.5 rounded-full text-xs font-semibold border
         ${certaintyColors[certainty]}`}
     >
       {tag}

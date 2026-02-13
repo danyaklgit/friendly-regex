@@ -77,6 +77,8 @@ function fromExistingDefinition(def: TagSpecDefinition): WizardFormState {
           operation: decomposed.operation,
           value: decomposed.value,
           values: decomposed.values,
+          prefix: decomposed.prefix,
+          suffix: decomposed.suffix,
         };
       }),
     })),
@@ -230,9 +232,15 @@ export function useWizardForm(existingDef?: TagSpecDefinition, initialFormState?
       TagRuleExpressions: formState.ruleGroups.map((group) =>
         group.conditions.map((c) => ({
           SourceField: c.sourceField,
-          ExpressionPrompt: generateExpressionPrompt(c.operation, c.value, c.values),
+          ExpressionPrompt: generateExpressionPrompt(c.operation, c.value, c.values, {
+            prefix: c.prefix,
+            suffix: c.suffix,
+          }),
           ExpressionId: null,
-          Regex: regexify(c.operation, c.value, c.values),
+          Regex: regexify(c.operation, c.value, c.values, {
+            prefix: c.prefix,
+            suffix: c.suffix,
+          }),
         }))
       ),
       Attributes: formState.attributes.map((attr, index) => ({

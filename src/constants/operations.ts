@@ -5,6 +5,7 @@ export interface MatchOperationDef {
   label: string;
   description: string;
   requiresMultipleValues: boolean;
+  requiresExtraction?: boolean;
 }
 
 export const MATCH_OPERATIONS: MatchOperationDef[] = [
@@ -15,6 +16,7 @@ export const MATCH_OPERATIONS: MatchOperationDef[] = [
   { key: 'equals', label: 'Equals', description: 'Value exactly matches the given text', requiresMultipleValues: false },
   { key: 'does_not_equal', label: 'Does not equal', description: 'Value does not match the given text', requiresMultipleValues: false },
   { key: 'matches_pattern', label: 'Matches one of', description: 'Value matches one of the given patterns', requiresMultipleValues: true },
+  { key: 'extract_and_compare', label: 'Extract between and compare', description: 'Extract text between prefix and suffix, then compare to a value', requiresMultipleValues: false, requiresExtraction: true },
 ];
 
 export interface ExtractionOperationDef {

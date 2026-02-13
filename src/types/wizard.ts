@@ -12,7 +12,8 @@ export type MatchOperation =
   | 'does_not_contain'
   | 'equals'
   | 'does_not_equal'
-  | 'matches_pattern';
+  | 'matches_pattern'
+  | 'extract_and_compare';
 
 export type ExtractionOperation =
   | 'extract_between'
@@ -26,6 +27,8 @@ export interface ConditionFormValue {
   operation: MatchOperation;
   value: string;
   values?: string[];
+  prefix?: string;
+  suffix?: string;
 }
 
 export interface AndGroupFormValue {

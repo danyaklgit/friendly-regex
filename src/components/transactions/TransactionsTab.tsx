@@ -11,6 +11,7 @@ import { StepAttributes } from '../wizard/StepAttributes';
 import { TagWizardModal } from '../wizard/TagWizardModal';
 import { Button } from '../shared/Button';
 import { Toggle } from '../shared/Toggle';
+import { Toast } from '../shared/Toast';
 import sampleTransactionData from '../../data/sampleData.json';
 
 function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinition | null {
@@ -36,9 +37,15 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
         .filter((c) => c.value.trim().length > 0)
         .map((c) => ({
           SourceField: c.sourceField,
-          ExpressionPrompt: generateExpressionPrompt(c.operation, c.value, c.values),
+          ExpressionPrompt: generateExpressionPrompt(c.operation, c.value, c.values, {
+            prefix: c.prefix,
+            suffix: c.suffix,
+          }),
           ExpressionId: null,
-          Regex: regexify(c.operation, c.value, c.values),
+          Regex: regexify(c.operation, c.value, c.values, {
+            prefix: c.prefix,
+            suffix: c.suffix,
+          }),
         }))
     ).filter((group) => group.length > 0),
     Attributes: formState.attributes
@@ -75,6 +82,7 @@ export function TransactionsTab() {
   const [showOnlyUntagged, setShowOnlyUntagged] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardInitialState, setWizardInitialState] = useState<WizardFormState | undefined>(undefined);
+  const [toast, setToast] = useState<string | null>(null);
 
   // Build the temporary definition from the builder's form state
   const tempDefinition = useMemo(
@@ -123,15 +131,14 @@ export function TransactionsTab() {
   }, []);
 
   const handleWizardSave = useCallback((def: TagSpecDefinition) => {
-    // Assign a real ID
     def.Id = generateId();
     dispatch({ type: 'ADD', payload: def });
     setWizardOpen(false);
     setWizardInitialState(undefined);
     setBuilderOpen(false);
-    // builder.resetForm();
-
-  }, [dispatch]);
+    builder.resetForm();
+    setToast(`Tag '${def.Tag}' created`);
+  }, [dispatch, builder]);
 
   const handleWizardClose = useCallback(() => {
     setWizardOpen(false);
@@ -233,6 +240,8 @@ export function TransactionsTab() {
           onClose={handleWizardClose}
         />
       )}
+
+      {toast && <Toast message={toast} type="success" onClose={() => setToast(null)} />}
     </div>
   );
 }

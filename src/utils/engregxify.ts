@@ -15,6 +15,12 @@ function unescapeRegex(str: string): string {
  * /ORDP/(.*?)/     → "Extract between '/ORDP/' and '/'"
  */
 export function engregxify(regex: string): string {
+  // Extract and compare: (?:prefix)value(?:suffix)
+  const extractAndCompareMatch = regex.match(/^\(\?:(.+?)\)(.+)\(\?:(.+)\)$/);
+  if (extractAndCompareMatch) {
+    return `Extract between '${unescapeRegex(extractAndCompareMatch[1])}' and '${unescapeRegex(extractAndCompareMatch[3])}' equals '${unescapeRegex(extractAndCompareMatch[2])}'`;
+  }
+
   // Negative lookahead: does not contain
   const doesNotContainMatch = regex.match(/^\^\(\?!\.\*(.+)\)$/);
   if (doesNotContainMatch) {
@@ -81,7 +87,20 @@ export function decomposeRegex(regex: string): {
   operation: MatchOperation;
   value: string;
   values?: string[];
+  prefix?: string;
+  suffix?: string;
 } {
+  // Extract and compare: (?:prefix)value(?:suffix)
+  const extractAndCompareMatch = regex.match(/^\(\?:(.+?)\)(.+)\(\?:(.+)\)$/);
+  if (extractAndCompareMatch) {
+    return {
+      operation: 'extract_and_compare',
+      value: unescapeRegex(extractAndCompareMatch[2]),
+      prefix: unescapeRegex(extractAndCompareMatch[1]),
+      suffix: unescapeRegex(extractAndCompareMatch[3]),
+    };
+  }
+
   // Negative lookahead: does not contain
   const doesNotContainMatch = regex.match(/^\^\(\?!\.\*(.+)\)$/);
   if (doesNotContainMatch) {

@@ -42,9 +42,12 @@ export function RulePreview({ ruleGroups, attributes }: RulePreviewProps) {
                             <span className="text-xs font-semibold text-amber-600">AND</span>
                           </div>
                         )}
-                        <p className="text-sm text-gray-700">
+                        <p className="text-sm text-orange-500">
                           <span className="font-mono text-xs text-blue-700">{c.sourceField}</span>{' '}
-                          {generateExpressionPrompt(c.operation, c.value, c.values)}
+                          {generateExpressionPrompt(c.operation, c.value, c.values, {
+                            prefix: c.prefix,
+                            suffix: c.suffix,
+                          })}
                         </p>
                       </div>
                     ))}
