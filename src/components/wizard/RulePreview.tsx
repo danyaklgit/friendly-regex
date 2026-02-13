@@ -66,10 +66,10 @@ export function RulePreview({ ruleGroups, attributes }: RulePreviewProps) {
               .filter((a) => a.attributeTag)
               .map((a) => (
                 <p key={a.id} className="text-sm text-gray-700">
-                  <span className="font-medium">{a.attributeTag}</span>{' '}
+                  <span className="font-medium text-blue-500">{a.attributeTag}</span>{' '}
                   <span className="text-gray-500">from</span>{' '}
                   <span className="font-mono text-xs text-blue-700">{a.sourceField}</span>{' '}
-                  <span className="text-gray-500">
+                  <span className="text-orange-500">
                     {generateExtractionPrompt(a.extractionOperation, {
                       prefix: a.prefix,
                       suffix: a.suffix,

@@ -1,13 +1,8 @@
 import { useMemo } from 'react';
 import { useTagSpecs } from './useTagSpecs';
 import { analyzeRow } from '../utils';
-import type { TransactionRow, RowAnalysisResult } from '../types';
+import type { TransactionRow, AnalyzedTransaction } from '../types';
 import sampleTransactionData from '../data/sampleData.json';
-
-export interface AnalyzedTransaction {
-  row: TransactionRow;
-  analysis: RowAnalysisResult;
-}
 
 export function useTransactionAnalysis(): AnalyzedTransaction[] {
   const { tagDefinitions } = useTagSpecs();

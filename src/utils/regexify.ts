@@ -50,7 +50,7 @@ export function regexifyExtraction(
 export function generateExpressionPrompt(operation: MatchOperation, value: string, values?: string[]): string {
   switch (operation) {
     case 'begins_with':
-      return `Begin with '${value}'`;
+      return `Start with '${value}'`;
     case 'ends_with':
       return `End with '${value}'`;
     case 'contains':

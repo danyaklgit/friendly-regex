@@ -54,7 +54,7 @@ export function engregxify(regex: string): string {
   // Begins with: ^value
   const beginsWithMatch = regex.match(/^\^(.+)$/);
   if (beginsWithMatch) {
-    return `Begins with '${unescapeRegex(beginsWithMatch[1])}'`;
+    return `Starts with '${unescapeRegex(beginsWithMatch[1])}'`;
   }
 
   // Ends with: value$

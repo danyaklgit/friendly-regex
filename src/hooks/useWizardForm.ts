@@ -97,10 +97,14 @@ function fromExistingDefinition(def: TagSpecDefinition): WizardFormState {
   };
 }
 
-export function useWizardForm(existingDef?: TagSpecDefinition) {
+export function useWizardForm(existingDef?: TagSpecDefinition, initialFormState?: WizardFormState) {
   const [currentStep, setCurrentStep] = useState<WizardStep>(1);
   const [formState, setFormState] = useState<WizardFormState>(
-    existingDef ? fromExistingDefinition(existingDef) : createInitialState()
+    existingDef
+      ? fromExistingDefinition(existingDef)
+      : initialFormState
+      ? { ...initialFormState }
+      : createInitialState()
   );
 
   const isEditing = !!existingDef;
@@ -116,6 +120,10 @@ export function useWizardForm(existingDef?: TagSpecDefinition) {
   const goToStep = useCallback((step: WizardStep) => {
     setCurrentStep(step);
   }, []);
+
+  const resetForm = useCallback(() => {
+    setFormState(createInitialState())
+  },[])
 
   // --- Basic info updates ---
   const updateBasicInfo = useCallback(
@@ -256,6 +264,7 @@ export function useWizardForm(existingDef?: TagSpecDefinition) {
     goNext,
     goBack,
     goToStep,
+    resetForm,
     updateBasicInfo,
     addRuleGroup,
     removeRuleGroup,

@@ -58,7 +58,7 @@
             "SourceField": "Field86",
             "ExpressionPrompt": "Extract between '/ORDP/' and '/'",
             "ExpressionId": "uuid-261-attr-1",
-            "Regex": "/ORDP\/(.*?)\//"
+            "Regex": "ORDP(.*?)RAP"
           }
         },
         {

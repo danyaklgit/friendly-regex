@@ -73,8 +73,8 @@ export function ConditionEditor({
         )}
       </div>
       {preview && (
-        <p className="mt-1 ml-3 text-xs text-gray-500 italic">
-          {condition.sourceField} {preview}
+        <p className="mt-1 ml-3 text-xs text-blue-500 italic">
+          {condition.sourceField} <span className='text-orange-500'>{preview}</span>
         </p>
       )}
     </div>

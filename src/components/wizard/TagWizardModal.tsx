@@ -1,4 +1,4 @@
-import type { TagSpecDefinition } from '../../types';
+import type { TagSpecDefinition, WizardFormState } from '../../types';
 import { useWizardForm } from '../../hooks/useWizardForm';
 import { Modal } from '../shared/Modal';
 import { Button } from '../shared/Button';
@@ -10,12 +10,13 @@ import { StepReview } from './StepReview';
 
 interface TagWizardModalProps {
   existingDef?: TagSpecDefinition;
+  initialFormState?: WizardFormState;
   onSave: (def: TagSpecDefinition) => void;
   onClose: () => void;
 }
 
-export function TagWizardModal({ existingDef, onSave, onClose }: TagWizardModalProps) {
-  const wizard = useWizardForm(existingDef);
+export function TagWizardModal({ existingDef, initialFormState, onSave, onClose }: TagWizardModalProps) {
+  const wizard = useWizardForm(existingDef, initialFormState);
 
   const canProceed = () => {
     switch (wizard.currentStep) {

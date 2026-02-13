@@ -1,3 +1,5 @@
+import type { TransactionRow } from './transaction';
+
 export interface RuleExpression {
   SourceField: string;
   ExpressionPrompt: string;
@@ -57,4 +59,9 @@ export interface RowAnalysisResult {
   tags: string[];
   attributes: Record<string, Record<string, string | null>>;
   matchedDefinitions: TagSpecDefinition[];
+}
+
+export interface AnalyzedTransaction {
+  row: TransactionRow;
+  analysis: RowAnalysisResult;
 }

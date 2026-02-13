@@ -8,7 +8,7 @@ export interface MatchOperationDef {
 }
 
 export const MATCH_OPERATIONS: MatchOperationDef[] = [
-  { key: 'begins_with', label: 'Begins with', description: 'Value starts with the given text', requiresMultipleValues: false },
+  { key: 'begins_with', label: 'Starts with', description: 'Value starts with the given text', requiresMultipleValues: false },
   { key: 'ends_with', label: 'Ends with', description: 'Value ends with the given text', requiresMultipleValues: false },
   { key: 'contains', label: 'Contains', description: 'Value contains the given text', requiresMultipleValues: false },
   { key: 'does_not_contain', label: 'Does not contain', description: 'Value does not contain the given text', requiresMultipleValues: false },

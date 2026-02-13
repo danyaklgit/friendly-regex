@@ -1,20 +1,238 @@
-import { useTransactionAnalysis } from '../../hooks/useTransactionAnalysis';
+import { useState, useMemo, useCallback } from 'react';
 import { useTagSpecs } from '../../hooks/useTagSpecs';
+import { useWizardForm } from '../../hooks/useWizardForm';
+import type { TransactionRow, TagSpecDefinition, AnalyzedTransaction, WizardFormState } from '../../types';
+import { analyzeRow } from '../../utils/analyzeRow';
+import { regexify, regexifyExtraction, generateExpressionPrompt, generateExtractionPrompt } from '../../utils/regexify';
+import { generateId, generateExpressionId } from '../../utils/uuid';
 import { TransactionTable } from './TransactionTable';
+import { StepRuleExpressions } from '../wizard/StepRuleExpressions';
+import { StepAttributes } from '../wizard/StepAttributes';
+import { TagWizardModal } from '../wizard/TagWizardModal';
+import { Button } from '../shared/Button';
+import { Toggle } from '../shared/Toggle';
+import sampleTransactionData from '../../data/sampleData.json';
+
+function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinition | null {
+  // Only create a temp definition if there's at least one condition with a value
+  const hasCondition = formState.ruleGroups.some((g) =>
+    g.conditions.some((c) => c.value.trim().length > 0)
+  );
+  if (!hasCondition) return null;
+
+  const id = -1; // Sentinel ID for the temporary rule
+  return {
+    Id: id,
+    Tag: 'Preview',
+    Context: { Side: 'CR', TxnType: 'TRF' },
+    StatusTag: 'ACTIVE',
+    CertaintyLevelTag: 'MEDIUM',
+    Validity: {
+      StartDate: '2000-01-01',
+      EndDate: null,
+    },
+    TagRuleExpressions: formState.ruleGroups.map((group) =>
+      group.conditions
+        .filter((c) => c.value.trim().length > 0)
+        .map((c) => ({
+          SourceField: c.sourceField,
+          ExpressionPrompt: generateExpressionPrompt(c.operation, c.value, c.values),
+          ExpressionId: null,
+          Regex: regexify(c.operation, c.value, c.values),
+        }))
+    ).filter((group) => group.length > 0),
+    Attributes: formState.attributes
+      .filter((a) => a.attributeTag.trim().length > 0)
+      .map((attr, index) => ({
+        AttributeTag: attr.attributeTag,
+        IsMandatory: attr.isMandatory,
+        DataType: attr.dataType,
+        AttributeRuleExpression: {
+          SourceField: attr.sourceField,
+          ExpressionPrompt: generateExtractionPrompt(attr.extractionOperation, {
+            prefix: attr.prefix,
+            suffix: attr.suffix,
+            pattern: attr.pattern,
+          }),
+          ExpressionId: generateExpressionId(id, 'attr', index),
+          Regex: regexifyExtraction(attr.extractionOperation, {
+            prefix: attr.prefix,
+            suffix: attr.suffix,
+            pattern: attr.pattern,
+          }),
+        },
+      })),
+  };
+}
 
 export function TransactionsTab() {
-  const data = useTransactionAnalysis();
-  const { tagDefinitions } = useTagSpecs();
+  const { tagDefinitions, dispatch } = useTagSpecs();
+  const transactions = (sampleTransactionData as { Transactions: TransactionRow[] }).Transactions;
+
+  // Rule builder state (reuses the wizard form hook)
+  const builder = useWizardForm();
+  const [builderOpen, setBuilderOpen] = useState(false);
+  const [showOnlyUntagged, setShowOnlyUntagged] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [wizardInitialState, setWizardInitialState] = useState<WizardFormState | undefined>(undefined);
+
+  // Build the temporary definition from the builder's form state
+  const tempDefinition = useMemo(
+    () => (builderOpen ? formStateToTempDefinition(builder.formState) : null),
+    [builderOpen, builder.formState]
+  );
+
+  // Combine real definitions + temp definition for analysis
+  const allDefinitions = useMemo(() => {
+    // if (tempDefinition) return [...tagDefinitions, tempDefinition];
+    if (tempDefinition) return [...tagDefinitions, tempDefinition];
+    return tagDefinitions;
+  }, [tagDefinitions, tempDefinition]);
+
+  // Check if builder has any real content
+  const builderHasContent = builder.formState.ruleGroups.some((g) =>
+    g.conditions.some((c) => c.value.trim().length > 0)
+  ) || builder.formState.attributes.some((a) => a.attributeTag.trim().length > 0);
+
+  // Analyze all rows
+
+  const analyzedData: AnalyzedTransaction[] = useMemo(
+    () =>
+      transactions.map((row) => ({
+        row,
+        analysis: analyzeRow(row, allDefinitions),
+      })).filter(item => (builderOpen && builderHasContent) ? Object.keys(item.analysis.attributes ?? {}).includes('Preview') : true),
+    [transactions, allDefinitions]
+  );
+
+  // Filter: show only untagged rows
+  const filteredData = useMemo(() => {
+    if (!showOnlyUntagged) return analyzedData;
+    return analyzedData.filter((item) => item.analysis.tags.length === 0);
+  }, [analyzedData, showOnlyUntagged]);
+
+
+
+  const handleCreateFromBuilder = useCallback(() => {
+    setWizardInitialState({ ...builder.formState });
+    setWizardOpen(true);
+  }, [builder.formState]);
+
+  const handleDiscard = useCallback(() => {
+    setBuilderOpen(false);
+  }, []);
+
+  const handleWizardSave = useCallback((def: TagSpecDefinition) => {
+    // Assign a real ID
+    def.Id = generateId();
+    dispatch({ type: 'ADD', payload: def });
+    setWizardOpen(false);
+    setWizardInitialState(undefined);
+    setBuilderOpen(false);
+    // builder.resetForm();
+
+  }, [dispatch]);
+
+  const handleWizardClose = useCallback(() => {
+    setWizardOpen(false);
+    setWizardInitialState(undefined);
+  }, []);
 
   return (
     <div>
-      <div className="mb-4">
-        <h2 className="text-base font-semibold text-gray-900">Transactions</h2>
-        <p className="text-sm text-gray-500">
-          Tags and attributes are computed automatically based on your defined rules.
-        </p>
+      <div className="flex items-center justify-between mb-4">
+        <div className='flex items-center gap-2'>
+          <h2 className="text-base font-semibold text-gray-900">Transactions</h2>
+          {/* <p className="text-sm text-gray-500">
+            Tags and attributes are computed automatically based on your defined rules.
+          </p> */}
+          {!builderOpen && <Toggle
+            label="Show only untagged"
+            checked={showOnlyUntagged}
+            onChange={setShowOnlyUntagged}
+          />}
+        </div>
+        <div className="flex items-center gap-3">
+
+          {!builderOpen && (
+            <Button variant="secondary" size="sm" onClick={() => {
+              setShowOnlyUntagged(false)
+              setBuilderOpen(true)
+            }}>
+              Test a Rule
+            </Button>
+          )}
+        </div>
       </div>
-      <TransactionTable data={data} tagDefinitions={tagDefinitions} />
+
+      {/* Rule builder panel */}
+      {builderOpen && (
+        <div className="mb-6 border border-blue-200 rounded-xl bg-blue-50/50 overflow-hidden">
+          <div className="px-5 py-3 bg-blue-100/60 border-b border-blue-200 flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-blue-900">Rule Builder</h3>
+              <p className="text-xs text-blue-700">
+                Build rules and see their effect on the table in real time.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" onClick={handleDiscard}>
+                Discard
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleCreateFromBuilder}
+                disabled={!builderHasContent}
+              >
+                Create Rule with current settings
+              </Button>
+            </div>
+          </div>
+
+
+          <div className="p-5 space-y-5 flex flex-1 gap-5">
+            {/* Matching rules section */}
+            <div className='w-1/2'>
+              <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">
+                Matching Rules
+              </h4>
+              <StepRuleExpressions
+                ruleGroups={builder.formState.ruleGroups}
+                onAddGroup={builder.addRuleGroup}
+                onRemoveGroup={builder.removeRuleGroup}
+                onAddCondition={builder.addCondition}
+                onRemoveCondition={builder.removeCondition}
+                onUpdateCondition={builder.updateCondition}
+              />
+            </div>
+
+            {/* Attributes section */}
+            <div className='w-1/2 relative'>
+              {!builderHasContent && <div className='absolute flex bg-blue-50/50 w-full h-full opacity-100 rounded-sm'></div>}
+              <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">
+                Attributes
+              </h4>
+              <StepAttributes
+                attributes={builder.formState.attributes}
+                onAdd={builder.addAttribute}
+                onRemove={builder.removeAttribute}
+                onUpdate={builder.updateAttribute}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      <TransactionTable data={filteredData} tagDefinitions={allDefinitions} />
+
+      {wizardOpen && (
+        <TagWizardModal
+          initialFormState={wizardInitialState}
+          onSave={handleWizardSave}
+          onClose={handleWizardClose}
+        />
+      )}
     </div>
   );
 }

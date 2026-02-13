@@ -44,10 +44,11 @@ export function AttributeEditor({ attribute, onUpdate, onRemove }: AttributeEdit
             />
           </div>
         </div>
-        <Button variant="ghost" size="sm" onClick={onRemove} className="ml-2 text-gray-400 hover:text-red-500">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <Button variant="ghost" size="sm" onClick={onRemove} className="ml-2 text-red-400 hover:text-red-500">
+          Remove Attribute
+          {/* <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
+          </svg> */}
         </Button>
       </div>
 
@@ -95,8 +96,8 @@ export function AttributeEditor({ attribute, onUpdate, onRemove }: AttributeEdit
         </div>
       )}
 
-      <p className="text-xs text-gray-500 italic">
-        {attribute.sourceField} &rarr; {preview}
+      <p className="text-xs text-blue-500 italic">
+        {attribute.sourceField} &rarr; <span className='text-orange-500'>{preview}</span>
       </p>
     </div>
   );
