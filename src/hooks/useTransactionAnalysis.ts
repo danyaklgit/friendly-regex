@@ -1,12 +1,12 @@
 import { useMemo } from 'react';
 import { useTagSpecs } from './useTagSpecs';
+import { useTransactionData } from './useTransactionData';
 import { analyzeRow } from '../utils';
-import type { TransactionRow, AnalyzedTransaction } from '../types';
-import sampleTransactionData from '../data/sampleData.json';
+import type { AnalyzedTransaction } from '../types';
 
 export function useTransactionAnalysis(): AnalyzedTransaction[] {
   const { tagDefinitions } = useTagSpecs();
-  const transactions = (sampleTransactionData as { Transactions: TransactionRow[] }).Transactions;
+  const { transactions } = useTransactionData();
 
   return useMemo(
     () =>

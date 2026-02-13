@@ -1,4 +1,5 @@
 # default gitingore 
+/node_modules
 ./node_modules
 .vercel
-./dist
+/dist

@@ -22,7 +22,7 @@ export function RuleGroupEditor({
   canRemoveGroup,
 }: RuleGroupEditorProps) {
   return (
-    <div className="border border-gray-200 rounded-lg p-4 bg-white">
+    <div className="border border-gray-200 rounded-lg p-3 bg-white">
       <div className="flex items-center justify-between mb-3">
         <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
           Rule Set {groupIndex + 1}

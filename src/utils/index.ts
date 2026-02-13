@@ -5,3 +5,4 @@ export { extractAttributes } from './extractAttributes';
 export { analyzeRow } from './analyzeRow';
 export { exportTagDefinitions, exportSingleTag, importTagDefinitions } from './persistence';
 export { generateId, generateExpressionId } from './uuid';
+export { deriveFieldMeta } from './deriveFieldMeta';

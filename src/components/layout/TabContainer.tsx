@@ -15,7 +15,7 @@ export function TabContainer({ tabs }: TabContainerProps) {
   return (
     <div>
       <div className="border-b border-gray-200 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-10xl mx-auto px-4 sm:px-6 lg:px-8">
           <nav className="flex gap-6" aria-label="Tabs">
             {tabs.map((tab, i) => (
               <button
@@ -34,7 +34,7 @@ export function TabContainer({ tabs }: TabContainerProps) {
           </nav>
         </div>
       </div>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div className="max-w-10xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {tabs[activeIndex].content}
       </div>
     </div>

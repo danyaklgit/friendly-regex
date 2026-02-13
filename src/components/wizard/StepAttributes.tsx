@@ -1,4 +1,4 @@
-import type { AttributeFormValue } from '../../types';
+import type { AttributeFormValue, TransactionRow } from '../../types';
 import { AttributeEditor } from './AttributeEditor';
 import { Button } from '../shared/Button';
 
@@ -7,9 +7,10 @@ interface StepAttributesProps {
   onAdd: () => void;
   onRemove: (attrId: string) => void;
   onUpdate: (attrId: string, updates: Partial<AttributeFormValue>) => void;
+  transactions?: TransactionRow[];
 }
 
-export function StepAttributes({ attributes, onAdd, onRemove, onUpdate }: StepAttributesProps) {
+export function StepAttributes({ attributes, onAdd, onRemove, onUpdate, transactions }: StepAttributesProps) {
   return (
     <div>
       <p className="text-sm text-gray-500 mb-4">
@@ -25,6 +26,7 @@ export function StepAttributes({ attributes, onAdd, onRemove, onUpdate }: StepAt
               attribute={attr}
               onUpdate={(updates) => onUpdate(attr.id, updates)}
               onRemove={() => onRemove(attr.id)}
+              transactions={transactions}
             />
           ))}
         </div>

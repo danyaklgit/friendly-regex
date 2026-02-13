@@ -1,5 +1,6 @@
 import type { TagSpecDefinition, WizardFormState } from '../../types';
 import { useWizardForm } from '../../hooks/useWizardForm';
+import { useTransactionData } from '../../hooks/useTransactionData';
 import { Modal } from '../shared/Modal';
 import { Button } from '../shared/Button';
 import { WizardStepIndicator } from './WizardStepIndicator';
@@ -16,7 +17,8 @@ interface TagWizardModalProps {
 }
 
 export function TagWizardModal({ existingDef, initialFormState, onSave, onClose }: TagWizardModalProps) {
-  const wizard = useWizardForm(existingDef, initialFormState);
+  const { fieldMeta } = useTransactionData();
+  const wizard = useWizardForm(existingDef, initialFormState, fieldMeta.sourceFields[0]);
 
   const canProceed = () => {
     switch (wizard.currentStep) {

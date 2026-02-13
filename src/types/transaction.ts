@@ -1,6 +1,5 @@
 export interface TransactionRow {
-  Name: string;
-  [fieldKey: string]: string;
+  [key: string]: string | number | boolean | null;
 }
 
 export interface TransactionData {

@@ -1,5 +1,3 @@
-export const SOURCE_FIELDS = ['Field86', 'Field87', 'Field88', 'Field89'] as const;
-
 export const STATUS_OPTIONS = ['ACTIVE', 'INACTIVE', 'DRAFT'] as const;
 export const CERTAINTY_OPTIONS = ['HIGH', 'MEDIUM', 'LOW'] as const;
 export const SIDE_OPTIONS = ['CR', 'DR'] as const;

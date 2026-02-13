@@ -10,7 +10,7 @@ export function evaluateRuleSet(andGroup: AndGroup, row: TransactionRow): boolea
     if (fieldValue === undefined || fieldValue === null) return false;
     try {
       const regex = new RegExp(condition.Regex);
-      return regex.test(fieldValue);
+      return regex.test(String(fieldValue));
     } catch {
       return false;
     }

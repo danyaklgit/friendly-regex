@@ -2,8 +2,8 @@ import type { ConditionFormValue } from '../../types';
 import { Select } from '../shared/Select';
 import { Input } from '../shared/Input';
 import { Button } from '../shared/Button';
-import { SOURCE_FIELDS } from '../../constants/fields';
 import { MATCH_OPERATIONS } from '../../constants/operations';
+import { useTransactionData } from '../../hooks/useTransactionData';
 import { generateExpressionPrompt } from '../../utils/regexify';
 
 interface ConditionEditorProps {
@@ -21,6 +21,7 @@ export function ConditionEditor({
   canRemove,
   showAnd,
 }: ConditionEditorProps) {
+  const { fieldMeta } = useTransactionData();
   const selectedOp = MATCH_OPERATIONS.find((op) => op.key === condition.operation);
   const preview = condition.value
     ? generateExpressionPrompt(condition.operation, condition.value, condition.values, {
@@ -44,7 +45,7 @@ export function ConditionEditor({
             label='Source Field'
             value={condition.sourceField}
             onChange={(e) => onUpdate({ sourceField: e.target.value })}
-            options={SOURCE_FIELDS.map((f) => ({ value: f, label: f }))}
+            options={fieldMeta.sourceFields.map((f) => ({ value: f, label: f }))}
           />
           <Select
             label='Operation'

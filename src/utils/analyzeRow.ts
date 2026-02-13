@@ -22,9 +22,11 @@ export function analyzeRow(
     if (def.Validity.EndDate && now > def.Validity.EndDate) continue;
 
     // OR logic: any AND group matching is sufficient
-    const matches = def.TagRuleExpressions.some((andGroup) =>
-      evaluateRuleSet(andGroup, row)
-    );
+    // Empty rule expressions = unconditional match (for attribute-only testing)
+    const matches = def.TagRuleExpressions.length === 0 ||
+      def.TagRuleExpressions.some((andGroup) =>
+        evaluateRuleSet(andGroup, row)
+      );
 
     if (matches) {
       tags.push(def.Tag);

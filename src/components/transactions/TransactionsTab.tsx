@@ -1,7 +1,8 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import { useTagSpecs } from '../../hooks/useTagSpecs';
+import { useTransactionData } from '../../hooks/useTransactionData';
 import { useWizardForm } from '../../hooks/useWizardForm';
-import type { TransactionRow, TagSpecDefinition, AnalyzedTransaction, WizardFormState } from '../../types';
+import type { TagSpecDefinition, AnalyzedTransaction, WizardFormState, RuleExpression } from '../../types';
 import { analyzeRow } from '../../utils/analyzeRow';
 import { regexify, regexifyExtraction, generateExpressionPrompt, generateExtractionPrompt } from '../../utils/regexify';
 import { generateId, generateExpressionId } from '../../utils/uuid';
@@ -12,14 +13,13 @@ import { TagWizardModal } from '../wizard/TagWizardModal';
 import { Button } from '../shared/Button';
 import { Toggle } from '../shared/Toggle';
 import { Toast } from '../shared/Toast';
-import sampleTransactionData from '../../data/sampleData.json';
 
 function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinition | null {
-  // Only create a temp definition if there's at least one condition with a value
   const hasCondition = formState.ruleGroups.some((g) =>
     g.conditions.some((c) => c.value.trim().length > 0)
   );
-  if (!hasCondition) return null;
+  const hasAttribute = formState.attributes.some((a) => a.attributeTag.trim().length > 0);
+  if (!hasCondition && !hasAttribute) return null;
 
   const id = -1; // Sentinel ID for the temporary rule
   return {
@@ -74,10 +74,11 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
 
 export function TransactionsTab() {
   const { tagDefinitions, dispatch } = useTagSpecs();
-  const transactions = (sampleTransactionData as { Transactions: TransactionRow[] }).Transactions;
+  const { transactions, fieldMeta, loadTransactions, resetToSample, isCustomData } = useTransactionData();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Rule builder state (reuses the wizard form hook)
-  const builder = useWizardForm();
+  const builder = useWizardForm(undefined, undefined, fieldMeta.sourceFields[0]);
   const [builderOpen, setBuilderOpen] = useState(false);
   const [showOnlyUntagged, setShowOnlyUntagged] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -119,6 +120,12 @@ export function TransactionsTab() {
     return analyzedData.filter((item) => item.analysis.tags.length === 0);
   }, [analyzedData, showOnlyUntagged]);
 
+  // Flatten temp definition's rule expressions for highlighting
+  const highlightExpressions: RuleExpression[] | undefined = useMemo(() => {
+    if (!tempDefinition) return undefined;
+    return tempDefinition.TagRuleExpressions.flat();
+  }, [tempDefinition]);
+
 
 
   const handleCreateFromBuilder = useCallback(() => {
@@ -145,6 +152,27 @@ export function TransactionsTab() {
     setWizardInitialState(undefined);
   }, []);
 
+  const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const parsed = JSON.parse(event.target?.result as string);
+        if (parsed?.Transactions && Array.isArray(parsed.Transactions)) {
+          loadTransactions(parsed.Transactions);
+          setToast(`Loaded ${parsed.Transactions.length} transactions`);
+        } else {
+          setToast('Invalid format: expected { "Transactions": [...] }');
+        }
+      } catch {
+        setToast('Failed to parse JSON file');
+      }
+    };
+    reader.readAsText(file);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }, [loadTransactions]);
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -160,7 +188,21 @@ export function TransactionsTab() {
           />}
         </div>
         <div className="flex items-center gap-3">
-
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            className="hidden"
+            onChange={handleFileUpload}
+          />
+          <Button variant="primary" size="sm" onClick={() => fileInputRef.current?.click()}>
+            Upload Data
+          </Button>
+          {isCustomData && (
+            <Button variant="danger" size="sm" onClick={resetToSample}>
+              Reset to Sample
+            </Button>
+          )}
           {!builderOpen && (
             <Button variant="secondary" size="sm" onClick={() => {
               setShowOnlyUntagged(false)
@@ -174,7 +216,7 @@ export function TransactionsTab() {
 
       {/* Rule builder panel */}
       {builderOpen && (
-        <div className="mb-6 border border-blue-200 rounded-xl bg-blue-50/50 overflow-hidden">
+        <div className="flex flex-col mb-6 border border-blue-200 rounded-xl bg-blue-50/50 overflow-hidden">
           <div className="px-5 py-3 bg-blue-100/60 border-b border-blue-200 flex items-center justify-between">
             <div>
               <h3 className="text-sm font-semibold text-blue-900">Rule Builder</h3>
@@ -182,7 +224,7 @@ export function TransactionsTab() {
                 Build rules and see their effect on the table in real time.
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col md:flex-row items-center gap-2">
               <Button variant="ghost" size="sm" onClick={handleDiscard}>
                 Discard
               </Button>
@@ -198,9 +240,9 @@ export function TransactionsTab() {
           </div>
 
 
-          <div className="p-5 space-y-5 flex flex-1 gap-5">
+          <div className="p-5 space-y-5 flex flex-col md:flex-row  flex-1 gap-5">
             {/* Matching rules section */}
-            <div className='w-1/2'>
+            <div className='w-full md:w-1/2'>
               <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">
                 Matching Rules
               </h4>
@@ -215,8 +257,8 @@ export function TransactionsTab() {
             </div>
 
             {/* Attributes section */}
-            <div className='w-1/2 relative'>
-              {!builderHasContent && <div className='absolute flex bg-blue-50/50 w-full h-full opacity-100 rounded-sm'></div>}
+            <div className='w-full md:w-1/2 relative'>
+              {/* <div className='absolute flex bg-blue-50/50 w-full h-full opacity-100 rounded-sm'></div> */}
               <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">
                 Attributes
               </h4>
@@ -225,13 +267,19 @@ export function TransactionsTab() {
                 onAdd={builder.addAttribute}
                 onRemove={builder.removeAttribute}
                 onUpdate={builder.updateAttribute}
+                transactions={filteredData.map((d) => d.row)}
               />
             </div>
           </div>
+
+          <span className='flex justify-center items-baseline w-full text-slate-500 text-xs pb-2'>
+            Records: <span className='text-blue-500 pl-1 text-base'>{filteredData.length}</span>
+          </span>
+
         </div>
       )}
 
-      <TransactionTable data={filteredData} tagDefinitions={allDefinitions} />
+      <TransactionTable data={filteredData} tagDefinitions={allDefinitions} highlightExpressions={highlightExpressions} />
 
       {wizardOpen && (
         <TagWizardModal

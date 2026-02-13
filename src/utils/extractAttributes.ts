@@ -12,13 +12,13 @@ export function extractAttributes(
 
   for (const attr of attributes) {
     const fieldValue = row[attr.AttributeRuleExpression.SourceField];
-    if (!fieldValue) {
+    if (fieldValue === undefined || fieldValue === null) {
       result[attr.AttributeTag] = null;
       continue;
     }
     try {
       const regex = new RegExp(attr.AttributeRuleExpression.Regex);
-      const match = fieldValue.match(regex);
+      const match = String(fieldValue).match(regex);
       result[attr.AttributeTag] = match?.[1] ?? null;
     } catch {
       result[attr.AttributeTag] = null;

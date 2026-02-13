@@ -16,50 +16,6 @@ import {
 } from '../utils/regexify';
 import { generateId, generateExpressionId } from '../utils/uuid';
 
-function createEmptyCondition(): ConditionFormValue {
-  return {
-    id: crypto.randomUUID(),
-    sourceField: 'Field86',
-    operation: 'begins_with',
-    value: '',
-  };
-}
-
-function createEmptyGroup(): AndGroupFormValue {
-  return {
-    id: crypto.randomUUID(),
-    conditions: [createEmptyCondition()],
-  };
-}
-
-function createEmptyAttribute(): AttributeFormValue {
-  return {
-    id: crypto.randomUUID(),
-    attributeTag: '',
-    isMandatory: false,
-    dataType: 'STRING',
-    sourceField: 'Field86',
-    extractionOperation: 'extract_between',
-    prefix: '',
-    suffix: '',
-  };
-}
-
-function createInitialState(): WizardFormState {
-  return {
-    tag: '',
-    context: { Side: 'CR', TxnType: 'TRF' },
-    statusTag: 'ACTIVE',
-    certaintyLevelTag: 'HIGH',
-    validity: {
-      StartDate: new Date().toISOString().split('T')[0],
-      EndDate: null,
-    },
-    ruleGroups: [createEmptyGroup()],
-    attributes: [],
-  };
-}
-
 function fromExistingDefinition(def: TagSpecDefinition): WizardFormState {
   return {
     tag: def.Tag,
@@ -99,7 +55,55 @@ function fromExistingDefinition(def: TagSpecDefinition): WizardFormState {
   };
 }
 
-export function useWizardForm(existingDef?: TagSpecDefinition, initialFormState?: WizardFormState) {
+export function useWizardForm(
+  existingDef?: TagSpecDefinition,
+  initialFormState?: WizardFormState,
+  defaultSourceField: string = 'Field86',
+) {
+  function createEmptyCondition(): ConditionFormValue {
+    return {
+      id: crypto.randomUUID(),
+      sourceField: defaultSourceField,
+      operation: 'begins_with',
+      value: '',
+    };
+  }
+
+  function createEmptyGroup(): AndGroupFormValue {
+    return {
+      id: crypto.randomUUID(),
+      conditions: [createEmptyCondition()],
+    };
+  }
+
+  function createEmptyAttribute(): AttributeFormValue {
+    return {
+      id: crypto.randomUUID(),
+      attributeTag: '',
+      isMandatory: false,
+      dataType: 'STRING',
+      sourceField: defaultSourceField,
+      extractionOperation: 'extract_between',
+      prefix: '',
+      suffix: '',
+    };
+  }
+
+  function createInitialState(): WizardFormState {
+    return {
+      tag: '',
+      context: { Side: 'CR', TxnType: 'TRF' },
+      statusTag: 'ACTIVE',
+      certaintyLevelTag: 'HIGH',
+      validity: {
+        StartDate: new Date().toISOString().split('T')[0],
+        EndDate: null,
+      },
+      ruleGroups: [createEmptyGroup()],
+      attributes: [],
+    };
+  }
+
   const [currentStep, setCurrentStep] = useState<WizardStep>(1);
   const [formState, setFormState] = useState<WizardFormState>(
     existingDef
@@ -124,8 +128,8 @@ export function useWizardForm(existingDef?: TagSpecDefinition, initialFormState?
   }, []);
 
   const resetForm = useCallback(() => {
-    setFormState(createInitialState())
-  },[])
+    setFormState(createInitialState());
+  }, []);
 
   // --- Basic info updates ---
   const updateBasicInfo = useCallback(
