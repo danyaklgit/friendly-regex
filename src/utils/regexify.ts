@@ -39,7 +39,7 @@ export function regexify(
 
 export function regexifyExtraction(
   operation: ExtractionOperation,
-  params: { prefix?: string; suffix?: string; pattern?: string }
+  params: { prefix?: string; suffix?: string; pattern?: string; verifyValue?: string }
 ): string {
   if (operation.startsWith('predefined:')) {
     const def = PREDEFINED_PATTERNS.find((p) => p.key === operation);
@@ -54,6 +54,8 @@ export function regexifyExtraction(
       return `(.*?)${escapeRegex(params.suffix ?? '')}`;
     case 'extract_matching':
       return `(${params.pattern ?? '.*'})`;
+    case 'extract_between_and_verify':
+      return `${escapeRegex(params.prefix ?? '')}(.*?)${escapeRegex(params.suffix ?? '')}`;
     default:
       return '(.*)';
   }
@@ -91,7 +93,7 @@ export function generateExpressionPrompt(
 
 export function generateExtractionPrompt(
   operation: ExtractionOperation,
-  params: { prefix?: string; suffix?: string; pattern?: string }
+  params: { prefix?: string; suffix?: string; pattern?: string; verifyValue?: string }
 ): string {
   if (operation.startsWith('predefined:')) {
     const def = PREDEFINED_PATTERNS.find((p) => p.key === operation);
@@ -106,6 +108,8 @@ export function generateExtractionPrompt(
       return `Extract before '${params.suffix ?? ''}'`;
     case 'extract_matching':
       return `Extract matching '${params.pattern ?? ''}'`;
+    case 'extract_between_and_verify':
+      return `Extract between '${params.prefix ?? ''}' and '${params.suffix ?? ''}', verify = '${params.verifyValue ?? ''}'`;
     default:
       return 'Extract value';
   }

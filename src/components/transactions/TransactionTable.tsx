@@ -111,12 +111,25 @@ export function TransactionTable({ data, tagDefinitions, highlightExpressions, s
     return map;
   }, [tagDefinitions]);
 
-  // Map attribute names to their validation regex (for predefined patterns with validate: true)
+  // Map attribute names to their validation info (predefined patterns or extract_between_and_verify)
   const attrValidationMap = useMemo(() => {
-    const map = new Map<string, { regex: RegExp; sourceField: string }>();
+    const map = new Map<string, { regex: RegExp; sourceField: string; verifyValue?: string }>();
     for (const def of tagDefinitions) {
       for (const attr of def.Attributes) {
         const op = attr.AttributeRuleExpression.Regex;
+
+        // Check for extract_between_and_verify (has VerifyValue)
+        if (attr.AttributeRuleExpression.VerifyValue) {
+          try {
+            map.set(attr.AttributeTag, {
+              regex: new RegExp(op),
+              sourceField: attr.AttributeRuleExpression.SourceField,
+              verifyValue: attr.AttributeRuleExpression.VerifyValue,
+            });
+          } catch { /* skip */ }
+          continue;
+        }
+
         // Find matching predefined pattern by checking the regex
         const predefined = PREDEFINED_PATTERNS.find((p) => {
           if (!p.validate) return false;
@@ -323,8 +336,14 @@ export function TransactionTable({ data, tagDefinitions, highlightExpressions, s
                       let validationIcon: ReactNode = null;
                       let validationPassed: boolean | null = null;
                       if (validation) {
-                        const sourceVal = String(item.row[validation.sourceField] ?? '');
-                        validationPassed = validation.regex.test(sourceVal);
+                        if (validation.verifyValue) {
+                          // extract_between_and_verify: compare extracted value against verifyValue
+                          validationPassed = val === validation.verifyValue;
+                        } else {
+                          // predefined pattern: test source field against regex
+                          const sourceVal = String(item.row[validation.sourceField] ?? '');
+                          validationPassed = validation.regex.test(sourceVal);
+                        }
                         validationIcon = validationPassed
                           ? <span className="text-emerald-500 mr-1" title="Valid">&#10003;</span>
                           : <span className="text-red-400 mr-1" title="Invalid">&#10007;</span>;

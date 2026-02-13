@@ -27,6 +27,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions }:
     prefix: attribute.prefix,
     suffix: attribute.suffix,
     pattern: attribute.pattern,
+    verifyValue: attribute.verifyValue,
   });
 
   const distinctValues = useMemo(() => {
@@ -36,6 +37,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions }:
         prefix: attribute.prefix,
         suffix: attribute.suffix,
         pattern: attribute.pattern,
+        verifyValue: attribute.verifyValue,
       }));
       const values = new Set<string>();
       for (const row of transactions) {
@@ -48,11 +50,43 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions }:
     } catch {
       return [];
     }
-  }, [transactions, attribute.sourceField, attribute.extractionOperation, attribute.prefix, attribute.suffix, attribute.pattern, selectedOp]);
+  }, [transactions, attribute.sourceField, attribute.extractionOperation, attribute.prefix, attribute.suffix, attribute.pattern, attribute.verifyValue, selectedOp]);
 
-  // For predefined patterns with validate: true, check if all rows pass
+  // For predefined patterns with validate: true or extract_between_and_verify, check if all rows pass
   const validationSummary = useMemo(() => {
-    if (!transactions || !attribute.extractionOperation.startsWith('predefined:')) return null;
+    if (!transactions) return null;
+
+    // Handle extract_between_and_verify
+    if (attribute.extractionOperation === 'extract_between_and_verify' && attribute.verifyValue) {
+      try {
+        const regex = new RegExp(regexifyExtraction(attribute.extractionOperation, {
+          prefix: attribute.prefix,
+          suffix: attribute.suffix,
+          verifyValue: attribute.verifyValue,
+        }));
+        let total = 0;
+        let passed = 0;
+        let notPassed = 0;
+        for (const row of transactions) {
+          const fieldValue = row[attribute.sourceField];
+          if (fieldValue === undefined || fieldValue === null) continue;
+          total++;
+          const match = String(fieldValue).match(regex);
+          if (match?.[1] === attribute.verifyValue) {
+            passed++
+          } else {
+            notPassed++
+          };
+        }
+        if (total === 0) return null;
+        return { allValid: passed === total, passed, total, notPassed };
+      } catch {
+        return null;
+      }
+    }
+
+    // Handle predefined patterns
+    if (!attribute.extractionOperation.startsWith('predefined:')) return null;
     const predefined = PREDEFINED_PATTERNS.find((p) => p.key === attribute.extractionOperation);
     if (!predefined?.validate) return null;
     try {
@@ -70,7 +104,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions }:
     } catch {
       return null;
     }
-  }, [transactions, attribute.sourceField, attribute.extractionOperation]);
+  }, [transactions, attribute.sourceField, attribute.extractionOperation, attribute.prefix, attribute.suffix, attribute.verifyValue]);
 
   return (
     <div className="border border-gray-200 rounded-lg p-3 bg-white space-y-3">
@@ -89,8 +123,8 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions }:
                 options={DATA_TYPE_OPTIONS.map((t) => ({ value: t, label: t }))}
               />
             </div>
-            
-            
+
+
             <Button variant="ghost" size="sm" onClick={onRemove} className="ml-2 text-red-400 hover:text-red-500">
               Remove Attribute
             </Button>
@@ -137,6 +171,14 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions }:
                   onChange={(e) => onUpdate({ pattern: e.target.value })}
                 />
               )}
+              {selectedOp.fields.includes('verifyValue') && (
+                <Input
+                  label="Verify Value"
+                  placeholder="Expected extracted value"
+                  value={attribute.verifyValue ?? ''}
+                  onChange={(e) => onUpdate({ verifyValue: e.target.value })}
+                />
+              )}
             </div>
           )}
 
@@ -151,10 +193,10 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions }:
                 </Button>
               )}
             </div>
-              {validationSummary && (
+            {validationSummary && (
               <span className={`text-xs font-medium flex gap-2 mx-2`}>
-                <span className='text-emerald-600'>{'\u2713'} {validationSummary.passed}</span>
-                <span className='text-red-600'>{'\u2717'} {validationSummary.total - validationSummary.passed}</span>
+                {validationSummary.passed > 0 && <span className='text-emerald-600'>{'\u2713'} {validationSummary.passed}</span>}
+                {(validationSummary.notPassed || 0) > 0 && <span className='text-red-600'>{'\u2717'} {validationSummary.notPassed}</span>}
               </span>
             )}
             {transactions && distinctValues.length > 0 && (
@@ -162,7 +204,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions }:
                 variant="ghost" className='!text-purple-500' size="sm"
                 onClick={() => setShowDistinct(true)}
               >
-                See all distinct possible values ({distinctValues.length})
+                See all distinct values ({distinctValues.length})
               </Button>
             )}
           </div>
@@ -184,8 +226,8 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions }:
           <div className="flex items-center gap-1">
              {validationSummary && (
               <span className={`text-xs font-medium flex gap-2 mx-2`}>
-                <span className='text-emerald-600'>{'\u2713'} {validationSummary.passed}</span>
-                <span className='text-red-600'>{'\u2717'} {validationSummary.total - validationSummary.passed}</span>
+                {validationSummary.passed > 0 && <span className='text-emerald-600'>{'\u2713'} {validationSummary.passed}</span>}
+                {(validationSummary.notPassed || 0) > 0 && <span className='text-red-600'>{'\u2717'} {validationSummary.notPassed}</span>}
               </span>
             )}
             {transactions && distinctValues.length > 0 && (
@@ -193,7 +235,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions }:
                 variant="ghost" className='!text-purple-500' size="sm"
                 onClick={() => setShowDistinct(true)}
               >
-                See all distinct possible values ({distinctValues.length})
+                See all distinct values ({distinctValues.length})
               </Button>
             )}
             <Button variant="ghost" size="sm" onClick={onRemove} className="ml-1 text-red-400 hover:text-red-500">

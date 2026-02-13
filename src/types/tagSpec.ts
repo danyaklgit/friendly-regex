@@ -18,6 +18,7 @@ export interface AttributeRuleExpression {
   ExpressionPrompt: string;
   ExpressionId: string;
   Regex: string;
+  VerifyValue?: string;
 }
 
 export interface TagAttribute {

@@ -20,6 +20,7 @@ export type ExtractionOperation =
   | 'extract_after'
   | 'extract_before'
   | 'extract_matching'
+  | 'extract_between_and_verify'
   | `predefined:${string}`;
 
 export interface ConditionFormValue {
@@ -47,6 +48,7 @@ export interface AttributeFormValue {
   prefix?: string;
   suffix?: string;
   pattern?: string;
+  verifyValue?: string;
 }
 
 export interface WizardFormState {

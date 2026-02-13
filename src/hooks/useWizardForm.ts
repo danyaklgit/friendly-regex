@@ -6,6 +6,7 @@ import type {
   AndGroupFormValue,
   ConditionFormValue,
   AttributeFormValue,
+  ExtractionOperation,
 } from '../types';
 import { decomposeRegex, decomposeExtractionRegex } from '../utils/engregxify';
 import {
@@ -46,10 +47,11 @@ function fromExistingDefinition(def: TagSpecDefinition): WizardFormState {
         isMandatory: attr.IsMandatory,
         dataType: attr.DataType,
         sourceField: attr.AttributeRuleExpression.SourceField,
-        extractionOperation: decomposed.operation,
+        extractionOperation: attr.AttributeRuleExpression.VerifyValue ? 'extract_between_and_verify' as ExtractionOperation : decomposed.operation,
         prefix: decomposed.prefix,
         suffix: decomposed.suffix,
         pattern: decomposed.pattern,
+        verifyValue: attr.AttributeRuleExpression.VerifyValue,
       };
     }),
   };
@@ -257,13 +259,16 @@ export function useWizardForm(
             prefix: attr.prefix,
             suffix: attr.suffix,
             pattern: attr.pattern,
+            verifyValue: attr.verifyValue,
           }),
           ExpressionId: generateExpressionId(id, 'attr', index),
           Regex: regexifyExtraction(attr.extractionOperation, {
             prefix: attr.prefix,
             suffix: attr.suffix,
             pattern: attr.pattern,
+            verifyValue: attr.verifyValue,
           }),
+          ...(attr.verifyValue ? { VerifyValue: attr.verifyValue } : {}),
         },
       })),
     };

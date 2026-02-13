@@ -22,7 +22,7 @@ export const MATCH_OPERATIONS: MatchOperationDef[] = [
 export interface ExtractionOperationDef {
   key: ExtractionOperation;
   label: string;
-  fields: ('prefix' | 'suffix' | 'pattern')[];
+  fields: ('prefix' | 'suffix' | 'pattern' | 'verifyValue')[];
 }
 
 /** Predefined regex patterns that require no user input fields. */
@@ -44,4 +44,5 @@ export const EXTRACTION_OPERATIONS: ExtractionOperationDef[] = [
   { key: 'extract_after', label: 'Extract after [prefix]', fields: ['prefix'] },
   { key: 'extract_before', label: 'Extract before [suffix]', fields: ['suffix'] },
   { key: 'extract_matching', label: 'Extract matching pattern', fields: ['pattern'] },
+  { key: 'extract_between_and_verify', label: 'Extract between [prefix] and [suffix] and verify', fields: ['prefix', 'suffix', 'verifyValue']},
 ];
