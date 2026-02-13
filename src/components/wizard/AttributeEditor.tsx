@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import type { AttributeFormValue, TransactionRow } from '../../types';
 import { Input } from '../shared/Input';
 import { Select } from '../shared/Select';
-import { Toggle } from '../shared/Toggle';
+// import { Toggle } from '../shared/Toggle';
 import { Button } from '../shared/Button';
 import { Modal } from '../shared/Modal';
 import { DATA_TYPE_OPTIONS } from '../../constants/fields';

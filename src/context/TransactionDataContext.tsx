@@ -13,7 +13,7 @@ export interface TransactionDataContextValue {
 
 export const TransactionDataContext = createContext<TransactionDataContextValue | null>(null);
 
-const defaultTransactions = (sampleTransactionData as { Transactions: TransactionRow[] }).Transactions;
+const defaultTransactions = (sampleTransactionData as unknown as { Transactions: TransactionRow[] }).Transactions;
 
 export function TransactionDataProvider({ children }: { children: ReactNode }) {
   const [transactions, setTransactions] = useState<TransactionRow[]>(defaultTransactions);

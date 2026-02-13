@@ -209,7 +209,10 @@ export function TransactionsTab() {
             className="hidden"
             onChange={handleFileUpload}
           />
-          {!builderOpen && <Button variant="primary" size="sm" onClick={() => fileInputRef.current?.click()}>
+          {!builderOpen && <Button variant="primary" size="sm" onClick={() => {
+            alert('Please make sure you\'re uploading a json with this format \n {\n "Transactions": [ ]\n } ')
+            fileInputRef.current?.click()
+          }}>
             Upload Data
           </Button>}
           {isCustomData && (
