@@ -68,7 +68,7 @@ export function TagWizardModal({ existingDef, initialFormState, onSave, onClose 
         </>
       }
     >
-      <WizardStepIndicator currentStep={wizard.currentStep} onStepClick={wizard.goToStep} />
+      <WizardStepIndicator currentStep={wizard.currentStep} onStepClick={wizard.goToStep} canLeaveCurrentStep={canProceed()} />
 
       {wizard.currentStep === 1 && (
         <StepBasicInfo formState={wizard.formState} onUpdate={wizard.updateBasicInfo} />

@@ -3,6 +3,7 @@ import type { WizardStep } from '../../types';
 interface WizardStepIndicatorProps {
   currentStep: WizardStep;
   onStepClick: (step: WizardStep) => void;
+  canLeaveCurrentStep?: boolean;
 }
 
 const steps: { step: WizardStep; label: string }[] = [
@@ -12,12 +13,13 @@ const steps: { step: WizardStep; label: string }[] = [
   { step: 4, label: 'Review' },
 ];
 
-export function WizardStepIndicator({ currentStep, onStepClick }: WizardStepIndicatorProps) {
+export function WizardStepIndicator({ currentStep, onStepClick, canLeaveCurrentStep = true }: WizardStepIndicatorProps) {
   return (
     <nav className="flex items-center justify-center gap-2 mb-6">
       {steps.map(({ step, label }, i) => {
         const isActive = step === currentStep;
         const isCompleted = step < currentStep;
+        const isDisabled = !isActive && !canLeaveCurrentStep;
         return (
           <div key={step} className="flex items-center">
             {i > 0 && (
@@ -29,13 +31,16 @@ export function WizardStepIndicator({ currentStep, onStepClick }: WizardStepIndi
             )}
             <button
               onClick={() => onStepClick(step)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer
+              disabled={isDisabled}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors
                 ${
-                  isActive
-                    ? 'bg-blue-600 text-white'
+                  isDisabled
+                    ? 'bg-gray-100 text-gray-400 opacity-50 cursor-not-allowed'
+                    : isActive
+                    ? 'bg-blue-600 text-white cursor-pointer'
                     : isCompleted
-                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-200 cursor-pointer'
+                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200 cursor-pointer'
                 }`}
             >
               <span
