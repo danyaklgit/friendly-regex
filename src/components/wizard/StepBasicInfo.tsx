@@ -1,11 +1,11 @@
 import type { WizardFormState } from '../../types';
 import { Input } from '../shared/Input';
 import { Select } from '../shared/Select';
-import { STATUS_OPTIONS, CERTAINTY_OPTIONS, SIDE_OPTIONS, TXN_TYPE_OPTIONS } from '../../constants/fields';
+import { STATUS_OPTIONS, CERTAINTY_OPTIONS, SIDE_OPTIONS, TXN_TYPE_OPTIONS, BANK_SWIFT_CODE_OPTIONS } from '../../constants/fields';
 
 interface StepBasicInfoProps {
   formState: WizardFormState;
-  onUpdate: (updates: Partial<Pick<WizardFormState, 'tag' | 'context' | 'statusTag' | 'certaintyLevelTag' | 'validity'>>) => void;
+  onUpdate: (updates: Partial<Pick<WizardFormState, 'tag' | 'side' | 'bankSwiftCode' | 'transactionTypeCode' | 'statusTag' | 'certaintyLevelTag' | 'validity'>>) => void;
 }
 
 export function StepBasicInfo({ formState, onUpdate }: StepBasicInfoProps) {
@@ -18,17 +18,23 @@ export function StepBasicInfo({ formState, onUpdate }: StepBasicInfoProps) {
         onChange={(e) => onUpdate({ tag: e.target.value })}
       />
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <Select
           label="Side"
-          value={formState.context.Side}
-          onChange={(e) => onUpdate({ context: { ...formState.context, Side: e.target.value } })}
+          value={formState.side}
+          onChange={(e) => onUpdate({ side: e.target.value })}
           options={SIDE_OPTIONS.map((s) => ({ value: s, label: s }))}
         />
         <Select
+          label="Bank Swift Code"
+          value={formState.bankSwiftCode}
+          onChange={(e) => onUpdate({ bankSwiftCode: e.target.value })}
+          options={BANK_SWIFT_CODE_OPTIONS.map((s) => ({ value: s, label: s }))}
+        />
+        <Select
           label="Transaction Type"
-          value={formState.context.TxnType}
-          onChange={(e) => onUpdate({ context: { ...formState.context, TxnType: e.target.value } })}
+          value={formState.transactionTypeCode}
+          onChange={(e) => onUpdate({ transactionTypeCode: e.target.value })}
           options={TXN_TYPE_OPTIONS.map((s) => ({ value: s, label: s }))}
         />
       </div>

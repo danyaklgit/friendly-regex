@@ -12,7 +12,6 @@ const FILTER_EXCLUSIONS = new Set([
   'TransactionDetails',
   'Description1',
   'Description2',
-  'BankSwiftCode'
 ]);
 
 interface DynamicFiltersProps {
@@ -100,7 +99,7 @@ export function DynamicFilters({
   showOnlyUntagged,
   onShowOnlyUntaggedChange,
 }: DynamicFiltersProps) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, _setExpanded] = useState(true);
 
   const filterableColumns = useMemo(() => {
     const excluded = new Set([...FILTER_EXCLUSIONS, fieldMeta.identifierField]);

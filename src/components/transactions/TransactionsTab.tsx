@@ -2,10 +2,11 @@ import { useState, useMemo, useCallback, useRef } from 'react';
 import { useTagSpecs } from '../../hooks/useTagSpecs';
 import { useTransactionData } from '../../hooks/useTransactionData';
 import { useWizardForm } from '../../hooks/useWizardForm';
-import type { TagSpecDefinition, AnalyzedTransaction, WizardFormState, RuleExpression } from '../../types';
+import type { TagSpecDefinition, TagSpecLibrary, AnalyzedTransaction, WizardFormState, RuleExpression } from '../../types';
+import type { WizardFormResult } from '../../hooks/useWizardForm';
 import { analyzeRow } from '../../utils/analyzeRow';
 import { regexify, regexifyExtraction, generateExpressionPrompt, generateExtractionPrompt } from '../../utils/regexify';
-import { generateId, generateExpressionId } from '../../utils/uuid';
+import { generateExpressionId } from '../../utils/uuid';
 import { TransactionTable } from './TransactionTable';
 import { StepRuleExpressions } from '../wizard/StepRuleExpressions';
 import { StepAttributes } from '../wizard/StepAttributes';
@@ -21,11 +22,11 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
   const hasAttribute = formState.attributes.some((a) => a.attributeTag.trim().length > 0);
   if (!hasCondition && !hasAttribute) return null;
 
-  const id = -1; // Sentinel ID for the temporary rule
+  const id = 'preview-temp';
   return {
     Id: id,
     Tag: 'Preview',
-    Context: { Side: 'CR', TxnType: 'TRF' },
+    Context: [], // Empty context — matches all rows for preview
     StatusTag: 'ACTIVE',
     CertaintyLevelTag: 'MEDIUM',
     Validity: {
@@ -35,45 +36,54 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
     TagRuleExpressions: formState.ruleGroups.map((group) =>
       group.conditions
         .filter((c) => c.value.trim().length > 0)
-        .map((c) => ({
-          SourceField: c.sourceField,
-          ExpressionPrompt: generateExpressionPrompt(c.operation, c.value, c.values, {
+        .map((c) => {
+          const prompt = generateExpressionPrompt(c.operation, c.value, c.values, {
             prefix: c.prefix,
             suffix: c.suffix,
-          }),
-          ExpressionId: null,
-          Regex: regexify(c.operation, c.value, c.values, {
-            prefix: c.prefix,
-            suffix: c.suffix,
-          }),
-        }))
+          });
+          return {
+            SourceField: c.sourceField,
+            ExpressionPrompt: null,
+            ExpressionId: null,
+            Regex: regexify(c.operation, c.value, c.values, {
+              prefix: c.prefix,
+              suffix: c.suffix,
+            }),
+            RegexDetails: [{ LanguageCode: 'en', Description: prompt }],
+          };
+        })
     ).filter((group) => group.length > 0),
     Attributes: formState.attributes
       .filter((a) => a.attributeTag.trim().length > 0)
-      .map((attr, index) => ({
-        AttributeTag: attr.attributeTag,
-        IsMandatory: attr.isMandatory,
-        DataType: attr.dataType,
-        AttributeRuleExpression: {
-          SourceField: attr.sourceField,
-          ExpressionPrompt: generateExtractionPrompt(attr.extractionOperation, {
-            prefix: attr.prefix,
-            suffix: attr.suffix,
-            pattern: attr.pattern,
-          }),
-          ExpressionId: generateExpressionId(id, 'attr', index),
-          Regex: regexifyExtraction(attr.extractionOperation, {
-            prefix: attr.prefix,
-            suffix: attr.suffix,
-            pattern: attr.pattern,
-          }),
-        },
-      })),
+      .map((attr, index) => {
+        const prompt = generateExtractionPrompt(attr.extractionOperation, {
+          prefix: attr.prefix,
+          suffix: attr.suffix,
+          pattern: attr.pattern,
+        });
+        return {
+          AttributeTag: attr.attributeTag,
+          IsMandatory: attr.isMandatory,
+          LOVTag: null,
+          ValidationRuleTag: attr.validationRuleTag,
+          AttributeRuleExpression: {
+            SourceField: attr.sourceField,
+            ExpressionPrompt: null,
+            ExpressionId: generateExpressionId(id, 'attr', index),
+            Regex: regexifyExtraction(attr.extractionOperation, {
+              prefix: attr.prefix,
+              suffix: attr.suffix,
+              pattern: attr.pattern,
+            }),
+            RegexDetails: [{ LanguageCode: 'en', Description: prompt }],
+          },
+        };
+      }),
   };
 }
 
 export function TransactionsTab() {
-  const { tagDefinitions, dispatch } = useTagSpecs();
+  const { libraries, tagDefinitions, dispatch } = useTagSpecs();
   const { transactions, fieldMeta, loadTransactions, resetToSample, isCustomData } = useTransactionData();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -92,9 +102,28 @@ export function TransactionsTab() {
     [builderOpen, builder.formState]
   );
 
-  // Combine real definitions + temp definition for analysis
+  // Combine real libraries + temp definition wrapped in a synthetic library for analysis
+  const allLibraries: TagSpecLibrary[] = useMemo(() => {
+    if (tempDefinition) {
+      const previewLib: TagSpecLibrary = {
+        Id: 'preview-lib',
+        ActiveTagSpecLibId: null,
+        OperatorId: '',
+        StatusTag: 'ACTIVE',
+        DataSetType: 'MT940',
+        Version: 1,
+        IsLatestVersion: true,
+        VersionDate: '',
+        Context: [], // Empty context — matches all rows for preview
+        TagSpecDefinitions: [tempDefinition],
+      };
+      return [...libraries, previewLib];
+    }
+    return libraries;
+  }, [libraries, tempDefinition]);
+
+  // Flat definitions including preview (for table column ordering)
   const allDefinitions = useMemo(() => {
-    // if (tempDefinition) return [...tagDefinitions, tempDefinition];
     if (tempDefinition) return [...tagDefinitions, tempDefinition];
     return tagDefinitions;
   }, [tagDefinitions, tempDefinition]);
@@ -110,9 +139,9 @@ export function TransactionsTab() {
     () =>
       transactions.map((row) => ({
         row,
-        analysis: analyzeRow(row, allDefinitions),
+        analysis: analyzeRow(row, allLibraries),
       })).filter(item => (builderOpen && builderHasContent) ? Object.keys(item.analysis.attributes ?? {}).includes('Preview') : true),
-    [transactions, allDefinitions]
+    [transactions, allLibraries]
   );
 
   // Apply all filters
@@ -169,14 +198,13 @@ export function TransactionsTab() {
     setBuilderOpen(false);
   }, []);
 
-  const handleWizardSave = useCallback((def: TagSpecDefinition) => {
-    def.Id = generateId();
-    dispatch({ type: 'ADD', payload: def });
+  const handleWizardSave = useCallback((result: WizardFormResult) => {
+    dispatch({ type: 'ADD', payload: result });
     setWizardOpen(false);
     setWizardInitialState(undefined);
     setBuilderOpen(false);
     builder.resetForm();
-    setToast({ message: `Tag '${def.Tag}' created`, type: 'success' });
+    setToast({ message: `Tag '${result.definition.Tag}' created`, type: 'success' });
   }, [dispatch, builder]);
 
   const handleWizardClose = useCallback(() => {
@@ -221,7 +249,6 @@ export function TransactionsTab() {
             onChange={handleFileUpload}
           />
           {!builderOpen && <Button variant="primary" size="sm" onClick={() => {
-            // alert('Please make sure you\'re uploading a json with this format \n {\n "Transactions": [ ]\n } ')
             fileInputRef.current?.click()
           }}>
             Upload Data

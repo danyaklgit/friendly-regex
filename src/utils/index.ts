@@ -3,6 +3,6 @@ export { engregxify, decomposeRegex, decomposeExtractionRegex } from './engregxi
 export { evaluateRuleSet } from './evaluateRuleSet';
 export { extractAttributes } from './extractAttributes';
 export { analyzeRow } from './analyzeRow';
-export { exportTagDefinitions, exportSingleTag, importTagDefinitions } from './persistence';
+export { exportTagLibraries, exportSingleDefinition, importTagLibraries } from './persistence';
 export { generateId, generateExpressionId } from './uuid';
 export { deriveFieldMeta } from './deriveFieldMeta';

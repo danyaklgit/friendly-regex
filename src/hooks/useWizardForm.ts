@@ -1,6 +1,8 @@
 import { useState, useCallback } from 'react';
 import type {
   TagSpecDefinition,
+  TagSpecLibrary,
+  ContextEntry,
   WizardFormState,
   WizardStep,
   AndGroupFormValue,
@@ -8,6 +10,7 @@ import type {
   AttributeFormValue,
   ExtractionOperation,
 } from '../types';
+import { getContextValue } from '../types/tagSpec';
 import { decomposeRegex, decomposeExtractionRegex } from '../utils/engregxify';
 import {
   regexify,
@@ -17,10 +20,15 @@ import {
 } from '../utils/regexify';
 import { generateId, generateExpressionId } from '../utils/uuid';
 
-function fromExistingDefinition(def: TagSpecDefinition): WizardFormState {
+function fromExistingDefinition(
+  def: TagSpecDefinition,
+  parentLib?: TagSpecLibrary
+): WizardFormState {
   return {
     tag: def.Tag,
-    context: { ...def.Context },
+    side: parentLib ? (getContextValue(parentLib.Context, 'Side') ?? 'CR') : 'CR',
+    bankSwiftCode: parentLib ? (getContextValue(parentLib.Context, 'BankSwiftCode') ?? '') : '',
+    transactionTypeCode: getContextValue(def.Context, 'TransactionTypeCode') ?? '',
     statusTag: def.StatusTag,
     certaintyLevelTag: def.CertaintyLevelTag,
     validity: { ...def.Validity },
@@ -45,9 +53,11 @@ function fromExistingDefinition(def: TagSpecDefinition): WizardFormState {
         id: crypto.randomUUID(),
         attributeTag: attr.AttributeTag,
         isMandatory: attr.IsMandatory,
-        dataType: attr.DataType,
+        validationRuleTag: attr.ValidationRuleTag,
         sourceField: attr.AttributeRuleExpression.SourceField,
-        extractionOperation: attr.AttributeRuleExpression.VerifyValue ? 'extract_between_and_verify' as ExtractionOperation : decomposed.operation,
+        extractionOperation: attr.AttributeRuleExpression.VerifyValue
+          ? ('extract_between_and_verify' as ExtractionOperation)
+          : decomposed.operation,
         prefix: decomposed.prefix,
         suffix: decomposed.suffix,
         pattern: decomposed.pattern,
@@ -57,10 +67,16 @@ function fromExistingDefinition(def: TagSpecDefinition): WizardFormState {
   };
 }
 
+export interface WizardFormResult {
+  parentContext: ContextEntry[];
+  definition: TagSpecDefinition;
+}
+
 export function useWizardForm(
   existingDef?: TagSpecDefinition,
   initialFormState?: WizardFormState,
   defaultSourceField: string = 'Field86',
+  parentLib?: TagSpecLibrary,
 ) {
   function createEmptyCondition(): ConditionFormValue {
     return {
@@ -83,7 +99,7 @@ export function useWizardForm(
       id: crypto.randomUUID(),
       attributeTag: '',
       isMandatory: false,
-      dataType: 'STRING',
+      validationRuleTag: 'STRING',
       sourceField: defaultSourceField,
       extractionOperation: 'predefined:ksa_iban',
       prefix: '',
@@ -94,7 +110,9 @@ export function useWizardForm(
   function createInitialState(): WizardFormState {
     return {
       tag: '',
-      context: { Side: 'CR', TxnType: 'TRF' },
+      side: 'CR',
+      bankSwiftCode: 'ARNBSARI',
+      transactionTypeCode: 'TRF',
       statusTag: 'ACTIVE',
       certaintyLevelTag: 'HIGH',
       validity: {
@@ -109,7 +127,7 @@ export function useWizardForm(
   const [currentStep, setCurrentStep] = useState<WizardStep>(1);
   const [formState, setFormState] = useState<WizardFormState>(
     existingDef
-      ? fromExistingDefinition(existingDef)
+      ? fromExistingDefinition(existingDef, parentLib)
       : initialFormState
       ? { ...initialFormState }
       : createInitialState()
@@ -135,7 +153,7 @@ export function useWizardForm(
 
   // --- Basic info updates ---
   const updateBasicInfo = useCallback(
-    (updates: Partial<Pick<WizardFormState, 'tag' | 'context' | 'statusTag' | 'certaintyLevelTag' | 'validity'>>) => {
+    (updates: Partial<Pick<WizardFormState, 'tag' | 'side' | 'bankSwiftCode' | 'transactionTypeCode' | 'statusTag' | 'certaintyLevelTag' | 'validity'>>) => {
       setFormState((prev) => ({ ...prev, ...updates }));
     },
     []
@@ -224,54 +242,74 @@ export function useWizardForm(
     []
   );
 
-  // --- Convert form state to TagSpecDefinition ---
-  const toTagSpecDefinition = useCallback((): TagSpecDefinition => {
+  // --- Convert form state to TagSpecDefinition + parentContext ---
+  const toTagSpecDefinition = useCallback((): WizardFormResult => {
     const id = existingDef?.Id ?? generateId();
 
-    return {
+    const parentContext: ContextEntry[] = [
+      { Key: 'Side', Value: formState.side },
+      { Key: 'BankSwiftCode', Value: formState.bankSwiftCode },
+    ];
+
+    const childContext: ContextEntry[] = formState.transactionTypeCode
+      ? [{ Key: 'TransactionTypeCode', Value: formState.transactionTypeCode }]
+      : [];
+
+    const definition: TagSpecDefinition = {
       Id: id,
       Tag: formState.tag,
-      Context: formState.context,
+      Context: childContext,
       StatusTag: formState.statusTag,
       CertaintyLevelTag: formState.certaintyLevelTag,
       Validity: formState.validity,
       TagRuleExpressions: formState.ruleGroups.map((group) =>
-        group.conditions.map((c) => ({
-          SourceField: c.sourceField,
-          ExpressionPrompt: generateExpressionPrompt(c.operation, c.value, c.values, {
+        group.conditions.map((c) => {
+          const prompt = generateExpressionPrompt(c.operation, c.value, c.values, {
             prefix: c.prefix,
             suffix: c.suffix,
-          }),
-          ExpressionId: null,
-          Regex: regexify(c.operation, c.value, c.values, {
-            prefix: c.prefix,
-            suffix: c.suffix,
-          }),
-        }))
+          });
+          return {
+            SourceField: c.sourceField,
+            ExpressionPrompt: null,
+            ExpressionId: null,
+            Regex: regexify(c.operation, c.value, c.values, {
+              prefix: c.prefix,
+              suffix: c.suffix,
+            }),
+            RegexDetails: [{ LanguageCode: 'en', Description: prompt }],
+          };
+        })
       ),
-      Attributes: formState.attributes.map((attr, index) => ({
-        AttributeTag: attr.attributeTag,
-        IsMandatory: attr.isMandatory,
-        DataType: attr.dataType,
-        AttributeRuleExpression: {
-          SourceField: attr.sourceField,
-          ExpressionPrompt: generateExtractionPrompt(attr.extractionOperation, {
-            prefix: attr.prefix,
-            suffix: attr.suffix,
-            pattern: attr.pattern,
-            verifyValue: attr.verifyValue,
-          }),
-          ExpressionId: generateExpressionId(id, 'attr', index),
-          Regex: regexifyExtraction(attr.extractionOperation, {
-            prefix: attr.prefix,
-            suffix: attr.suffix,
-            pattern: attr.pattern,
-            verifyValue: attr.verifyValue,
-          }),
-          ...(attr.verifyValue ? { VerifyValue: attr.verifyValue } : {}),
-        },
-      })),
+      Attributes: formState.attributes.map((attr, index) => {
+        const prompt = generateExtractionPrompt(attr.extractionOperation, {
+          prefix: attr.prefix,
+          suffix: attr.suffix,
+          pattern: attr.pattern,
+          verifyValue: attr.verifyValue,
+        });
+        return {
+          AttributeTag: attr.attributeTag,
+          IsMandatory: attr.isMandatory,
+          LOVTag: null,
+          ValidationRuleTag: attr.validationRuleTag,
+          AttributeRuleExpression: {
+            SourceField: attr.sourceField,
+            ExpressionPrompt: null,
+            ExpressionId: generateExpressionId(id, 'attr', index),
+            Regex: regexifyExtraction(attr.extractionOperation, {
+              prefix: attr.prefix,
+              suffix: attr.suffix,
+              pattern: attr.pattern,
+              verifyValue: attr.verifyValue,
+            }),
+            RegexDetails: [{ LanguageCode: 'en', Description: prompt }],
+            ...(attr.verifyValue ? { VerifyValue: attr.verifyValue } : {}),
+          },
+        };
+      }),
     };
+
+    return { parentContext, definition };
   }, [formState, existingDef]);
 
   return {

@@ -23,9 +23,14 @@ export function StepReview({ formState, isEditing }: StepReviewProps) {
           <span className="text-gray-500">Tag Name</span>
           <span className="font-medium text-gray-900">{formState.tag || '(not set)'}</span>
 
-          <span className="text-gray-500">Side / Type</span>
+          <span className="text-gray-500">Side / Bank</span>
           <span className="text-gray-900">
-            {formState.context.Side} / {formState.context.TxnType}
+            {formState.side} / {formState.bankSwiftCode}
+          </span>
+
+          <span className="text-gray-500">Transaction Type</span>
+          <span className="text-gray-900">
+            {formState.transactionTypeCode || '(not set)'}
           </span>
 
           <span className="text-gray-500">Status</span>

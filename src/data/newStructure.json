@@ -1,0 +1,77 @@
+[
+  {
+    "Id": "3a6e5310-fd7d-4dfe-93fc-a6be665ce544",
+    "ActiveTagSpecLibId": null,
+    "OperatorId": "userid",
+    "StatusTag": "ACTIVE",
+    "DataSetType": "MT940",
+    "Version": 1,
+    "IsLatestVersion": true,
+    "VersionDate": "2026-01-01",
+    "Context": [
+      {
+        "Key": "Side",
+        "Value": "CR"
+      },
+      {
+        "Key": "BankSwiftCode",
+        "Value": "ARNBSARI"
+      }
+    ],
+    "TagSpecDefinitions": [
+      {
+        "Id": "8ed54646-e754-4b73-9867-bb8b910ac217",
+        "Context": [
+          {
+            "Key": "TransactionTypeCode",
+            "Value": "TRF"
+          }
+        ],
+        "Tag": "A2AIn",
+        "StatusTag": "ACTIVE",
+        "CertaintyLevelTag": "HIGH",
+        "Validity": {
+          "StartDate": "2026-01-01",
+          "EndDate": null
+        },
+        "TagRuleExpressions": [
+          [
+            {
+              "SourceField": "AdditionalInformation",
+              "ExpressionPrompt": null,
+              "ExpressionId": null,
+              "Regex": "TNXT/56",
+              "RegexDetails": [
+                {
+                  "LanguageCode": "en",
+                  "Description": "Contains TNXT/56 in AdditionalInformation"
+                }
+              ]
+            }
+          ]
+        ],
+        "Attributes": [
+          {
+            "AttributeTag": "OrderingParty",
+            "IsMandatory": true,
+            "LOVTag": null,
+            "ValidationRuleTag": "STRING",
+            "AttributeRuleExpression": {
+              "SourceField": "AdditionalInformation",
+              "ExpressionPrompt": null,
+              "ExpressionId": null,
+              "Regex": "/ORDP/(.*?)/",
+              "RegexDetails": [
+                {
+                  "LanguageCode": "en",
+                  "Description": "Extracted via BETWEEN from 86"
+                }
+              ]
+            }
+          }
+         
+        ]
+      }
+    ]
+  }
+]

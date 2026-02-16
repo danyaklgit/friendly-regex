@@ -1,0 +1,42 @@
+{
+  "TagSpecDefinitions": [
+    {
+      "Id": "8ed54646-e754-4b73-9867-bb8b910ac217",
+      "Context": {
+        "Side": "CR",
+        "BankSwiftCode": "ARNBSARI",
+        "TxnType": "TRF"
+      },
+      "Tag": "A2AIn",
+      "StatusTag": "ACTIVE",
+      "CertaintyLevelTag": "HIGH",
+      "Validity": {
+        "StartDate": "2026-01-01",
+        "EndDate": null
+      },
+      "TagRuleExpressions": [
+        [
+          {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": "Contains TNXT/56 in AdditionalInformation",
+            "ExpressionId": null,
+            "Regex": "TNXT/56"
+          }
+        ]
+      ],
+      "Attributes": [
+        {
+          "AttributeTag": "OrderingParty",
+          "IsMandatory": false,
+          "DataType": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": "Extracted via BETWEEN from 86",
+            "ExpressionId": null,
+            "Regex": "/ORDP/(.*?)/"
+          }
+        }
+      ]
+    }
+  ]
+}

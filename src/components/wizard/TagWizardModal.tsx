@@ -1,4 +1,5 @@
-import type { TagSpecDefinition, WizardFormState, WizardStep } from '../../types';
+import type { TagSpecDefinition, TagSpecLibrary, WizardFormState, WizardStep } from '../../types';
+import type { WizardFormResult } from '../../hooks/useWizardForm';
 import { useWizardForm } from '../../hooks/useWizardForm';
 import { useTransactionData } from '../../hooks/useTransactionData';
 import { Modal } from '../shared/Modal';
@@ -11,19 +12,24 @@ import { StepReview } from './StepReview';
 
 interface TagWizardModalProps {
   existingDef?: TagSpecDefinition;
+  parentLib?: TagSpecLibrary;
   initialFormState?: WizardFormState;
-  onSave: (def: TagSpecDefinition) => void;
+  onSave: (result: WizardFormResult) => void;
   onClose: () => void;
 }
 
-export function TagWizardModal({ existingDef, initialFormState, onSave, onClose }: TagWizardModalProps) {
+export function TagWizardModal({ existingDef, parentLib, initialFormState, onSave, onClose }: TagWizardModalProps) {
   const { fieldMeta } = useTransactionData();
-  const wizard = useWizardForm(existingDef, initialFormState, fieldMeta.sourceFields[0]);
+  const wizard = useWizardForm(existingDef, initialFormState, fieldMeta.sourceFields[0], parentLib);
 
   const isStepValid = (step: WizardStep): boolean => {
     switch (step) {
       case 1:
-        return wizard.formState.tag.trim().length > 0;
+        return (
+          wizard.formState.tag.trim().length > 0 &&
+          wizard.formState.side.trim().length > 0 &&
+          wizard.formState.bankSwiftCode.trim().length > 0
+        );
       case 2:
         return wizard.formState.ruleGroups.some((g) =>
           g.conditions.some((c) => c.value.trim().length > 0)
@@ -48,8 +54,8 @@ export function TagWizardModal({ existingDef, initialFormState, onSave, onClose 
   };
 
   const handleFinish = () => {
-    const def = wizard.toTagSpecDefinition();
-    onSave(def);
+    const result = wizard.toTagSpecDefinition();
+    onSave(result);
   };
 
   return (

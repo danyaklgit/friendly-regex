@@ -1,9 +1,7 @@
-let counter = 1000;
-
-export function generateId(): number {
-  return Date.now() + counter++;
+export function generateId(): string {
+  return crypto.randomUUID();
 }
 
-export function generateExpressionId(tagId: number, prefix: string, index: number): string {
-  return `uuid-${tagId}-${prefix}-${index}`;
+export function generateExpressionId(tagId: string, prefix: string, index: number): string {
+  return `${tagId}-${prefix}-${index}`;
 }

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { TagSpecDefinition } from '../../types';
+import type { TagSpecDefinition, TagSpecLibrary } from '../../types';
 import { TagMetaBadges } from './TagMetaBadges';
 import { RuleExpressionView } from './RuleExpressionView';
 import { AttributeListView } from './AttributeListView';
@@ -7,12 +7,13 @@ import { Button } from '../shared/Button';
 
 interface TagRuleCardProps {
   definition: TagSpecDefinition;
-  onEdit: (def: TagSpecDefinition) => void;
-  onDelete: (id: number) => void;
-  onExport: (def: TagSpecDefinition) => void;
+  parentLib?: TagSpecLibrary;
+  onEdit: (def: TagSpecDefinition, parentLib?: TagSpecLibrary) => void;
+  onDelete: (id: string) => void;
+  onExport: (def: TagSpecDefinition, parentLib?: TagSpecLibrary) => void;
 }
 
-export function TagRuleCard({ definition, onEdit, onDelete, onExport }: TagRuleCardProps) {
+export function TagRuleCard({ definition, parentLib, onEdit, onDelete, onExport }: TagRuleCardProps) {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -23,7 +24,7 @@ export function TagRuleCard({ definition, onEdit, onDelete, onExport }: TagRuleC
       >
         <div className="flex items-center gap-3">
           <span className="text-base font-semibold text-gray-900">{definition.Tag}</span>
-          <TagMetaBadges definition={definition} />
+          <TagMetaBadges definition={definition} parentContext={parentLib?.Context} />
         </div>
         <svg
           className={`w-5 h-5 text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`}
@@ -61,8 +62,8 @@ export function TagRuleCard({ definition, onEdit, onDelete, onExport }: TagRuleC
 
             {/* Actions */}
             <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
-              <Button size="sm" onClick={() => onEdit(definition)}>Edit</Button>
-              <Button size="sm" variant="ghost" onClick={() => onExport(definition)}>Export</Button>
+              <Button size="sm" onClick={() => onEdit(definition, parentLib)}>Edit</Button>
+              <Button size="sm" variant="ghost" onClick={() => onExport(definition, parentLib)}>Export</Button>
               <Button size="sm" variant="danger" onClick={() => onDelete(definition.Id)}>
                 Delete
               </Button>

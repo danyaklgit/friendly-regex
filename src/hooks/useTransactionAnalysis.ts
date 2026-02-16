@@ -5,15 +5,15 @@ import { analyzeRow } from '../utils';
 import type { AnalyzedTransaction } from '../types';
 
 export function useTransactionAnalysis(): AnalyzedTransaction[] {
-  const { tagDefinitions } = useTagSpecs();
+  const { libraries } = useTagSpecs();
   const { transactions } = useTransactionData();
 
   return useMemo(
     () =>
       transactions.map((row) => ({
         row,
-        analysis: analyzeRow(row, tagDefinitions),
+        analysis: analyzeRow(row, libraries),
       })),
-    [transactions, tagDefinitions]
+    [transactions, libraries]
   );
 }

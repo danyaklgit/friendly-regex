@@ -1,4 +1,5 @@
 import type { TagAttribute } from '../../types';
+import { getRegexDescription } from '../../types/tagSpec';
 import { engregxify } from '../../utils';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
 
@@ -8,6 +9,7 @@ interface AttributeRuleRowProps {
 
 export function AttributeRuleRow({ attribute }: AttributeRuleRowProps) {
   const humanText =
+    getRegexDescription(attribute.AttributeRuleExpression.RegexDetails) ||
     attribute.AttributeRuleExpression.ExpressionPrompt ||
     engregxify(attribute.AttributeRuleExpression.Regex);
 

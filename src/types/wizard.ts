@@ -1,5 +1,4 @@
 import type {
-  TagContext,
   TagValidity,
   StatusTag,
   CertaintyLevelTag,
@@ -46,7 +45,7 @@ export interface AttributeFormValue {
   id: string;
   attributeTag: string;
   isMandatory: boolean;
-  dataType: 'STRING' | 'NUMBER' | 'DATE';
+  validationRuleTag: 'STRING' | 'NUMBER' | 'DATE';
   sourceField: string;
   extractionOperation: ExtractionOperation;
   prefix?: string;
@@ -57,7 +56,9 @@ export interface AttributeFormValue {
 
 export interface WizardFormState {
   tag: string;
-  context: TagContext;
+  side: string;
+  bankSwiftCode: string;
+  transactionTypeCode: string;
   statusTag: StatusTag;
   certaintyLevelTag: CertaintyLevelTag;
   validity: TagValidity;

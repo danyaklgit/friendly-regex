@@ -5,7 +5,7 @@ import { Select } from '../shared/Select';
 // import { Toggle } from '../shared/Toggle';
 import { Button } from '../shared/Button';
 import { Modal } from '../shared/Modal';
-import { DATA_TYPE_OPTIONS } from '../../constants/fields';
+import { VALIDATION_RULE_TAG_OPTIONS } from '../../constants/fields';
 import { useTransactionData } from '../../hooks/useTransactionData';
 import { EXTRACTION_OPERATIONS, PREDEFINED_PATTERNS } from '../../constants/operations';
 import { generateExtractionPrompt, regexifyExtraction } from '../../utils/regexify';
@@ -119,9 +119,9 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions }:
                 onChange={(e) => onUpdate({ attributeTag: e.target.value })}
               />
               <Select
-                value={attribute.dataType}
-                onChange={(e) => onUpdate({ dataType: e.target.value as AttributeFormValue['dataType'] })}
-                options={DATA_TYPE_OPTIONS.map((t) => ({ value: t, label: t }))}
+                value={attribute.validationRuleTag}
+                onChange={(e) => onUpdate({ validationRuleTag: e.target.value as AttributeFormValue['validationRuleTag'] })}
+                options={VALIDATION_RULE_TAG_OPTIONS.map((t) => ({ value: t, label: t }))}
               />
             </div>
 

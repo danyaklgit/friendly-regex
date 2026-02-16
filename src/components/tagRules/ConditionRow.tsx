@@ -1,4 +1,5 @@
 import type { RuleExpression } from '../../types';
+import { getRegexDescription } from '../../types/tagSpec';
 import { engregxify } from '../../utils';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
 
@@ -8,7 +9,7 @@ interface ConditionRowProps {
 }
 
 export function ConditionRow({ condition, showAnd }: ConditionRowProps) {
-  const humanText = condition.ExpressionPrompt || engregxify(condition.Regex);
+  const humanText = getRegexDescription(condition.RegexDetails) || condition.ExpressionPrompt || engregxify(condition.Regex);
 
   return (
     <div>
