@@ -70,19 +70,19 @@ export function ConditionEditor({
             ) : selectedOp?.requiresExtraction ? (
               <div className='flex flex-col gap-1'>
                 <Input
-                  label='Prefix'
+                  label='Starting Character'
                   placeholder="Prefix..."
                   value={condition.prefix ?? ''}
                   onChange={(e) => onUpdate({ prefix: e.target.value })}
                 />
                 <Input
-                  label='Suffix'
+                  label='End Character'
                   placeholder="Suffix..."
                   value={condition.suffix ?? ''}
                   onChange={(e) => onUpdate({ suffix: e.target.value })}
                 />
                 <Input
-                  label='Value'
+                  label='Compare value to'
                   placeholder="Equals value..."
                   value={condition.value}
                   onChange={(e) => onUpdate({ value: e.target.value })}

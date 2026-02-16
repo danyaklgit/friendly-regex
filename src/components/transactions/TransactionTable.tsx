@@ -183,20 +183,23 @@ export function TransactionTable({ data, tagDefinitions, highlightExpressions, s
 
   // Determine which column indices should be sticky, split into left/right groups
   const { leftIndices, rightIndices } = useMemo(() => {
-    if (!stickyFields || stickyFields.size === 0) return { leftIndices: new Set<number>(), rightIndices: new Set<number>() };
-    const all: number[] = [];
-    columns.forEach((col, idx) => {
-      if (col.type === 'data' && stickyFields.has(col.field)) all.push(idx);
-    });
-    if (all.length === 0) return { leftIndices: new Set<number>(), rightIndices: new Set<number>() };
-
-    const midpoint = columns.length / 2;
     const left = new Set<number>();
     const right = new Set<number>();
-    for (const idx of all) {
-      if (idx < midpoint) left.add(idx);
-      else right.add(idx);
+
+    // Tags column is always sticky right
+    const tagsIdx = columns.findIndex((col) => col.type === 'tags');
+    if (tagsIdx !== -1) right.add(tagsIdx);
+
+    if (stickyFields && stickyFields.size > 0) {
+      const midpoint = columns.length / 2;
+      columns.forEach((col, idx) => {
+        if (col.type === 'data' && stickyFields.has(col.field)) {
+          if (idx < midpoint) left.add(idx);
+          else right.add(idx);
+        }
+      });
     }
+
     return { leftIndices: left, rightIndices: right };
   }, [columns, stickyFields]);
 
