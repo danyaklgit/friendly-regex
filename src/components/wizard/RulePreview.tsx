@@ -1,5 +1,6 @@
 import type { AndGroupFormValue, AttributeFormValue } from '../../types';
 import { generateExpressionPrompt, generateExtractionPrompt } from '../../utils/regexify';
+import { humanizeFieldName } from '../../utils/humanizeFieldName';
 
 interface RulePreviewProps {
   ruleGroups: AndGroupFormValue[];
@@ -43,7 +44,7 @@ export function RulePreview({ ruleGroups, attributes }: RulePreviewProps) {
                           </div>
                         )}
                         <p className="text-sm text-orange-500">
-                          <span className="font-mono text-xs text-blue-700">{c.sourceField}</span>{' '}
+                          <span className="font-mono text-xs text-blue-700">{humanizeFieldName(c.sourceField)}</span>{' '}
                           {generateExpressionPrompt(c.operation, c.value, c.values, {
                             prefix: c.prefix,
                             suffix: c.suffix,
@@ -71,7 +72,7 @@ export function RulePreview({ ruleGroups, attributes }: RulePreviewProps) {
                 <p key={a.id} className="text-sm text-gray-700">
                   <span className="font-medium text-blue-500">{a.attributeTag}</span>{' '}
                   <span className="text-gray-500">from</span>{' '}
-                  <span className="font-mono text-xs text-blue-700">{a.sourceField}</span>{' '}
+                  <span className="font-mono text-xs text-blue-700">{humanizeFieldName(a.sourceField)}</span>{' '}
                   <span className="text-orange-500">
                     {generateExtractionPrompt(a.extractionOperation, {
                       prefix: a.prefix,

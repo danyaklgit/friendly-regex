@@ -15,7 +15,7 @@ export function TagRulesTab() {
   const [editingDef, setEditingDef] = useState<TagSpecDefinition | undefined>(undefined);
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; tag: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const handleCreate = () => {
     setEditingDef(undefined);
@@ -30,10 +30,10 @@ export function TagRulesTab() {
   const handleWizardSave = (def: TagSpecDefinition) => {
     if (editingDef) {
       dispatch({ type: 'UPDATE', payload: def });
-      setToast(`Tag '${def.Tag}' updated`);
+      setToast({ message: `Tag '${def.Tag}' updated`, type: 'success' });
     } else {
       dispatch({ type: 'ADD', payload: def });
-      setToast(`Tag '${def.Tag}' created`);
+      setToast({ message: `Tag '${def.Tag}' created`, type: 'success' });
     }
     setWizardOpen(false);
     setEditingDef(undefined);
@@ -71,7 +71,7 @@ export function TagRulesTab() {
       const defs = await importTagDefinitions(file);
       dispatch({ type: 'IMPORT', payload: defs });
     } catch (err) {
-      alert('Failed to import: ' + (err instanceof Error ? err.message : 'Invalid file'));
+      setToast({ message: 'Failed to import: ' + (err instanceof Error ? err.message : 'Invalid file'), type: 'error' });
     }
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -148,7 +148,7 @@ export function TagRulesTab() {
         variant="danger"
       />
 
-      {toast && <Toast message={toast} type="success" onClose={() => setToast(null)} />}
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }

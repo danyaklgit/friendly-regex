@@ -15,6 +15,12 @@ function unescapeRegex(str: string): string {
  * /ORDP/(.*?)/     → "Extract between '/ORDP/' and '/'"
  */
 export function engregxify(regex: string): string {
+  // Numeric comparisons
+  if (regex.startsWith('__NUMERIC_GT:')) return `Greater than '${regex.slice('__NUMERIC_GT:'.length)}'`;
+  if (regex.startsWith('__NUMERIC_LT:')) return `Less than '${regex.slice('__NUMERIC_LT:'.length)}'`;
+  if (regex.startsWith('__NUMERIC_GTE:')) return `Greater than or equal to '${regex.slice('__NUMERIC_GTE:'.length)}'`;
+  if (regex.startsWith('__NUMERIC_LTE:')) return `Less than or equal to '${regex.slice('__NUMERIC_LTE:'.length)}'`;
+
   // Extract and compare: (?:prefix)value(?:suffix)
   const extractAndCompareMatch = regex.match(/^\(\?:(.+?)\)(.+)\(\?:(.+)\)$/);
   if (extractAndCompareMatch) {
@@ -90,6 +96,19 @@ export function decomposeRegex(regex: string): {
   prefix?: string;
   suffix?: string;
 } {
+  // Numeric comparisons
+  const numericOps: { prefix: string; operation: MatchOperation }[] = [
+    { prefix: '__NUMERIC_GT:', operation: 'greater_than' },
+    { prefix: '__NUMERIC_LT:', operation: 'less_than' },
+    { prefix: '__NUMERIC_GTE:', operation: 'greater_than_or_equal' },
+    { prefix: '__NUMERIC_LTE:', operation: 'less_than_or_equal' },
+  ];
+  for (const { prefix, operation } of numericOps) {
+    if (regex.startsWith(prefix)) {
+      return { operation, value: regex.slice(prefix.length) };
+    }
+  }
+
   // Extract and compare: (?:prefix)value(?:suffix)
   const extractAndCompareMatch = regex.match(/^\(\?:(.+?)\)(.+)\(\?:(.+)\)$/);
   if (extractAndCompareMatch) {

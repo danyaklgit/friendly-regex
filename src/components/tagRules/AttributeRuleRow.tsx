@@ -1,5 +1,6 @@
 import type { TagAttribute } from '../../types';
 import { engregxify } from '../../utils';
+import { humanizeFieldName } from '../../utils/humanizeFieldName';
 
 interface AttributeRuleRowProps {
   attribute: TagAttribute;
@@ -20,7 +21,7 @@ export function AttributeRuleRow({ attribute }: AttributeRuleRowProps) {
       </div>
       <div className="text-sm text-orange-500 flex-1">
         <span className="font-mono text-xs text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded mr-1.5">
-          {attribute.AttributeRuleExpression.SourceField}
+          {humanizeFieldName(attribute.AttributeRuleExpression.SourceField)}
         </span>
         {humanText}
       </div>

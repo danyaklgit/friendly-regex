@@ -3,6 +3,7 @@ import type { AnalyzedTransaction, TagSpecDefinition, RuleExpression } from '../
 import { useTransactionData } from '../../hooks/useTransactionData';
 import { PREDEFINED_PATTERNS } from '../../constants/operations';
 import { TagBadge } from './TagBadge';
+import { humanizeFieldName } from '../../utils/humanizeFieldName';
 
 interface TransactionTableProps {
   data: AnalyzedTransaction[];
@@ -203,6 +204,19 @@ export function TransactionTable({ data, tagDefinitions, highlightExpressions, s
     return { leftIndices: left, rightIndices: right };
   }, [columns, stickyFields]);
 
+  // Boundary columns: last left-sticky gets right shadow, first right-sticky gets left shadow
+  const { lastLeftIdx, firstRightIdx } = useMemo(() => {
+    let lastLeft = -1;
+    let firstRight = -1;
+    for (const idx of leftIndices) {
+      if (idx > lastLeft) lastLeft = idx;
+    }
+    for (const idx of rightIndices) {
+      if (firstRight === -1 || idx < firstRight) firstRight = idx;
+    }
+    return { lastLeftIdx: lastLeft, firstRightIdx: firstRight };
+  }, [leftIndices, rightIndices]);
+
   // Measure header cell widths and compute left/right offsets for sticky columns
   useLayoutEffect(() => {
     if (!theadRef.current || (leftIndices.size === 0 && rightIndices.size === 0)) {
@@ -280,6 +294,32 @@ export function TransactionTable({ data, tagDefinitions, highlightExpressions, s
     return style;
   };
 
+  const stickyEdgeShadow = (colIdx: number): ReactNode => {
+    if (colIdx === lastLeftIdx) {
+      return (
+        <div
+          style={{
+            position: 'absolute', top: 0, bottom: 0, left: '100%', width: 6,
+            background: 'linear-gradient(to right, rgba(0,0,0,0.08), transparent)',
+            pointerEvents: 'none',
+          }}
+        />
+      );
+    }
+    if (colIdx === firstRightIdx) {
+      return (
+        <div
+          style={{
+            position: 'absolute', top: 0, bottom: 0, right: '100%', width: 6,
+            background: 'linear-gradient(to left, rgba(0,0,0,0.08), transparent)',
+            pointerEvents: 'none',
+          }}
+        />
+      );
+    }
+    return null;
+  };
+
   return (
     <div className="overflow-auto rounded-lg border border-gray-200" style={{ maxHeight: 'calc(100vh - 14rem)' }}>
       <table className="min-w-full divide-y divide-gray-200">
@@ -295,9 +335,10 @@ export function TransactionTable({ data, tagDefinitions, highlightExpressions, s
                   style={getCellStyle(idx, true)}
                 >
                   {col.type === 'identifier' && `Identifier (${fieldMeta.identifierField})`}
-                  {col.type === 'data' && col.field}
+                  {col.type === 'data' && humanizeFieldName(col.field)}
                   {col.type === 'attribute' && col.name}
                   {col.type === 'tags' && 'Tags'}
+                  {stickyEdgeShadow(idx)}
                 </th>
               );
             })}
@@ -325,12 +366,14 @@ export function TransactionTable({ data, tagDefinitions, highlightExpressions, s
                       return (
                         <td key={col.key} className={`px-3 py-2 text-xs font-medium text-gray-900 whitespace-nowrap ${stickyBg}`} style={getCellStyle(colIdx, false)}>
                           {String(item.row[fieldMeta.identifierField] ?? '')}
+                          {stickyEdgeShadow(colIdx)}
                         </td>
                       );
                     case 'data':
                       return (
                         <td key={col.key} className={`px-3 py-2 text-xs text-gray-600 max-w-200 ${stickyBg}`} style={getCellStyle(colIdx, false)}>
                           {renderCellContent(col.field, item.row[col.field])}
+                          {stickyEdgeShadow(colIdx)}
                         </td>
                       );
                     case 'attribute': {
@@ -363,6 +406,7 @@ export function TransactionTable({ data, tagDefinitions, highlightExpressions, s
                           style={getCellStyle(colIdx, false)}
                         >
                           {displayVal ? <>{validationIcon}{displayVal}</> : <span className="text-gray-300">-</span>}
+                          {stickyEdgeShadow(colIdx)}
                         </td>
                       );
                     }
@@ -378,6 +422,7 @@ export function TransactionTable({ data, tagDefinitions, highlightExpressions, s
                           ) : (
                             <span className="text-gray-400 text-xs">-</span>
                           )}
+                          {stickyEdgeShadow(colIdx)}
                         </td>
                       );
                   }

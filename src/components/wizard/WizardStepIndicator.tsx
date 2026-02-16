@@ -3,7 +3,7 @@ import type { WizardStep } from '../../types';
 interface WizardStepIndicatorProps {
   currentStep: WizardStep;
   onStepClick: (step: WizardStep) => void;
-  canLeaveCurrentStep?: boolean;
+  canReachStep?: (step: WizardStep) => boolean;
 }
 
 const steps: { step: WizardStep; label: string }[] = [
@@ -13,13 +13,13 @@ const steps: { step: WizardStep; label: string }[] = [
   { step: 4, label: 'Review' },
 ];
 
-export function WizardStepIndicator({ currentStep, onStepClick, canLeaveCurrentStep = true }: WizardStepIndicatorProps) {
+export function WizardStepIndicator({ currentStep, onStepClick, canReachStep }: WizardStepIndicatorProps) {
   return (
     <nav className="flex items-center justify-center gap-2 mb-6">
       {steps.map(({ step, label }, i) => {
         const isActive = step === currentStep;
         const isCompleted = step < currentStep;
-        const isDisabled = !isActive && !canLeaveCurrentStep;
+        const isDisabled = !isActive && canReachStep ? !canReachStep(step) : false;
         return (
           <div key={step} className="flex items-center">
             {i > 0 && (

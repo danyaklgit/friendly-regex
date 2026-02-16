@@ -11,8 +11,8 @@ import { StepRuleExpressions } from '../wizard/StepRuleExpressions';
 import { StepAttributes } from '../wizard/StepAttributes';
 import { TagWizardModal } from '../wizard/TagWizardModal';
 import { Button } from '../shared/Button';
-import { Toggle } from '../shared/Toggle';
 import { Toast } from '../shared/Toast';
+import { DynamicFilters } from './DynamicFilters';
 
 function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinition | null {
   const hasCondition = formState.ruleGroups.some((g) =>
@@ -81,9 +81,10 @@ export function TransactionsTab() {
   const builder = useWizardForm(undefined, undefined, fieldMeta.sourceFields[0]);
   const [builderOpen, setBuilderOpen] = useState(false);
   const [showOnlyUntagged, setShowOnlyUntagged] = useState(false);
+  const [filters, setFilters] = useState<Record<string, Set<string>>>({});
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardInitialState, setWizardInitialState] = useState<WizardFormState | undefined>(undefined);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   // Build the temporary definition from the builder's form state
   const tempDefinition = useMemo(
@@ -114,11 +115,30 @@ export function TransactionsTab() {
     [transactions, allDefinitions]
   );
 
-  // Filter: show only untagged rows
+  // Apply all filters
   const filteredData = useMemo(() => {
-    if (!showOnlyUntagged) return analyzedData;
-    return analyzedData.filter((item) => item.analysis.tags.length === 0);
-  }, [analyzedData, showOnlyUntagged]);
+    let result = analyzedData;
+
+    if (showOnlyUntagged) {
+      result = result.filter((item) => item.analysis.tags.length === 0);
+    }
+
+    for (const [field, selectedValues] of Object.entries(filters)) {
+      if (selectedValues.size === 0) continue;
+      if (field === '__tags') {
+        result = result.filter((item) =>
+          item.analysis.tags.some((tag) => selectedValues.has(tag))
+        );
+      } else {
+        result = result.filter((item) => {
+          const val = item.row[field];
+          return val !== null && val !== undefined && selectedValues.has(String(val));
+        });
+      }
+    }
+
+    return result;
+  }, [analyzedData, showOnlyUntagged, filters]);
 
   // Flatten temp definition's rule expressions for highlighting
   const highlightExpressions: RuleExpression[] | undefined = useMemo(() => {
@@ -156,7 +176,7 @@ export function TransactionsTab() {
     setWizardInitialState(undefined);
     setBuilderOpen(false);
     builder.resetForm();
-    setToast(`Tag '${def.Tag}' created`);
+    setToast({ message: `Tag '${def.Tag}' created`, type: 'success' });
   }, [dispatch, builder]);
 
   const handleWizardClose = useCallback(() => {
@@ -173,12 +193,12 @@ export function TransactionsTab() {
         const parsed = JSON.parse(event.target?.result as string);
         if (parsed?.Transactions && Array.isArray(parsed.Transactions)) {
           loadTransactions(parsed.Transactions);
-          setToast(`Loaded ${parsed.Transactions.length} transactions`);
+          setToast({ message: `Loaded ${parsed.Transactions.length} transactions`, type: 'success' });
         } else {
-          setToast('Invalid format: expected { "Transactions": [...] }');
+          setToast({ message: 'Invalid format: expected { "Transactions": [...] }', type: 'error' });
         }
       } catch {
-        setToast('Failed to parse JSON file');
+        setToast({ message: 'Failed to parse JSON file', type: 'error' });
       }
     };
     reader.readAsText(file);
@@ -187,19 +207,10 @@ export function TransactionsTab() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-1">
         <div className='flex items-center gap-2'>
           {!builderOpen && <h2 className="text-base font-semibold text-gray-900">Transactions</h2>}
-          {/* <p className="text-sm text-gray-500">
-            Tags and attributes are computed automatically based on your defined rules.
-          </p> */}
           {!builderOpen && <span className='text-sm'>{filteredData.length}</span>}
-          {!builderOpen && <Toggle
-            label="Show only untagged"
-            checked={showOnlyUntagged}
-            onChange={setShowOnlyUntagged}
-          />}
-          
         </div>
         <div className="flex items-center gap-3">
           <input
@@ -210,7 +221,7 @@ export function TransactionsTab() {
             onChange={handleFileUpload}
           />
           {!builderOpen && <Button variant="primary" size="sm" onClick={() => {
-            alert('Please make sure you\'re uploading a json with this format \n {\n "Transactions": [ ]\n } ')
+            // alert('Please make sure you\'re uploading a json with this format \n {\n "Transactions": [ ]\n } ')
             fileInputRef.current?.click()
           }}>
             Upload Data
@@ -230,6 +241,18 @@ export function TransactionsTab() {
           )}
         </div>
       </div>
+
+      {/* {!builderOpen && ( */}
+        <DynamicFilters
+          data={analyzedData}
+          fieldMeta={fieldMeta}
+          tagDefinitions={tagDefinitions}
+          filters={filters}
+          onFiltersChange={setFilters}
+          showOnlyUntagged={showOnlyUntagged}
+          onShowOnlyUntaggedChange={setShowOnlyUntagged}
+        />
+      {/* )} */}
 
       {/* Rule builder panel */}
       {builderOpen && (
@@ -306,7 +329,7 @@ export function TransactionsTab() {
         />
       )}
 
-      {toast && <Toast message={toast} type="success" onClose={() => setToast(null)} />}
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }

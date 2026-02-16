@@ -1,4 +1,2862 @@
 {
   "TagSpecDefinitions": [
+    {
+      "Id": "52269ab6-e1ab-4882-9c13-6bce55a685c1",
+      "Context": [
+        {
+          "Key": "TransactionTypeCode",
+          "Value": "TRF"
+        }
+      ],
+      "Tag": "A2AIn",
+      "StatusTag": "ACTIVE",
+      "CertaintyLevelTag": "HIGH",
+      "Validity": {
+        "StartDate": "2026-01-01",
+        "EndDate": null
+      },
+      "TagRuleExpressions": [
+        [
+          {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "TNXT/56",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Contains TNXT/56 in AdditionalInformation"
+              }
+            ]
+          }
+        ]
+      ],
+      "Attributes": [
+        {
+          "AttributeTag": "OrderingParty",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/ORDP/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "BeneficiaryName",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/BENM/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "SenderBank",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/BANK/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "SenderAccountNumber",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/IBAN/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "Narrative",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/NAR3/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "FXRate",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/EXCH/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "BankRef",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/CBS/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "TransactionDetails",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "Description1",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "(.*)",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via SUBSTRING from 611"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "TransactionDetails2",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "Description2",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "(.*)",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via SUBSTRING from 612"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "Id": "ede114b3-b4b6-453b-a439-fa6b9a8e5e32",
+      "Context": [
+        {
+          "Key": "TransactionTypeCode",
+          "Value": "TRF"
+        }
+      ],
+      "Tag": "A2AIn",
+      "StatusTag": "ACTIVE",
+      "CertaintyLevelTag": "HIGH",
+      "Validity": {
+        "StartDate": "2026-01-01",
+        "EndDate": null
+      },
+      "TagRuleExpressions": [
+        [
+          {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/TNXT/TT",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Contains /TNXT/TT in AdditionalInformation"
+              }
+            ]
+          },
+          {
+            "SourceField": "Field61",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "^Own\\ Account\\ Transfer",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Starts With Own Account Transfer in Field61"
+              }
+            ]
+          }
+        ],
+        [
+          {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/TNXT/TT",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Contains /TNXT/TT in AdditionalInformation"
+              }
+            ]
+          },
+          {
+            "SourceField": "Field61",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "^eB\\\u002B\\ Intra\\ Co\\.Transfer",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Starts With eB\u002B Intra Co.Transfer in Field61"
+              }
+            ]
+          }
+        ]
+      ],
+      "Attributes": [
+        {
+          "AttributeTag": "OrderingParty",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/ORDP/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "BeneficiaryName",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/BENM/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "SenderBank",
+          "IsMandatory": true,
+          "LOVTag": "KSABankCode",
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "IBAN/SA\\d{2}",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via AFTER from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "SenderAccountNumber",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/IBAN/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "Narrative",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/NAR3/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "FXRate",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/EXCH/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "BankRef",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/CBS/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "Id": "812f357f-9417-4d79-91f6-4996c805a9a2",
+      "Context": [
+        {
+          "Key": "TransactionTypeCode",
+          "Value": "MSC"
+        }
+      ],
+      "Tag": "CashIn",
+      "StatusTag": "ACTIVE",
+      "CertaintyLevelTag": "HIGH",
+      "Validity": {
+        "StartDate": "2026-01-01",
+        "EndDate": null
+      },
+      "TagRuleExpressions": [
+        [
+          {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "TNXT/02\\ ",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Contains TNXT/02  in AdditionalInformation"
+              }
+            ]
+          }
+        ]
+      ],
+      "Attributes": [
+        {
+          "AttributeTag": "BeneficiaryName",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/BENM/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "DepositorName",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/NAR3/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "FXRate",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/EXCH/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "BankRef",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/CBS/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "TransactionDetails",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "Description1",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "(.*)",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via SUBSTRING from 611"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "TransactionDetails2",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "Description2",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "(.*)",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via SUBSTRING from 612"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "Id": "1fdf5014-906f-442d-8e7a-6769f264fbb3",
+      "Context": [
+        {
+          "Key": "TransactionTypeCode",
+          "Value": "CHK"
+        }
+      ],
+      "Tag": "DirectDebitProc",
+      "StatusTag": "ACTIVE",
+      "CertaintyLevelTag": "HIGH",
+      "Validity": {
+        "StartDate": "2026-01-01",
+        "EndDate": null
+      },
+      "TagRuleExpressions": [
+        [
+          {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "TNXT/06",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Contains TNXT/06 in AdditionalInformation"
+              }
+            ]
+          }
+        ]
+      ],
+      "Attributes": [
+        {
+          "AttributeTag": "OrderingParty",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/ORDP/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "Narrative",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/NAR3/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "FXRate",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/EXCH/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "BankRef",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/CBS/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "TransactionDetails",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "Description1",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "(.*)",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via SUBSTRING from 611"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "TransactionDetails2",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "Description2",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "(.*)",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via SUBSTRING from 612"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "Id": "d5af9f6a-a0a9-49e9-b55a-15e686f2eeb6",
+      "Context": [
+        {
+          "Key": "TransactionTypeCode",
+          "Value": "MSC"
+        }
+      ],
+      "Tag": "LCExpSettlement",
+      "StatusTag": "ACTIVE",
+      "CertaintyLevelTag": "HIGH",
+      "Validity": {
+        "StartDate": "2026-01-01",
+        "EndDate": null
+      },
+      "TagRuleExpressions": [
+        [
+          {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "TNXT/39",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Contains TNXT/39 in AdditionalInformation"
+              }
+            ]
+          },
+          {
+            "SourceField": "Field61",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "^\u062A\u0633\u062F\u064A\u062F\\ \u0627\u0639\u062A\u0645\u0627\u062F\\ \u0648\u0627\u0631\u062F",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Starts With \u062A\u0633\u062F\u064A\u062F \u0627\u0639\u062A\u0645\u0627\u062F \u0648\u0627\u0631\u062F in Field61"
+              }
+            ]
+          }
+        ]
+      ],
+      "Attributes": [
+        {
+          "AttributeTag": "OrderingParty",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/ORDP/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "BeneficiaryName",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/BENM/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "SenderBank",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/BANK/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "SenderAccountNumber",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/IBAN/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "Narrative",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/NAR3/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "FXRate",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/EXCH/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "BankRef",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/CBS/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "LCRef",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "Description1",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "(.*)",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via SUBSTRING from 611"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "Id": "36d817a0-6ca2-4bb6-a8dd-8d6ecc61ddc8",
+      "Context": [
+        {
+          "Key": "TransactionTypeCode",
+          "Value": "MSC"
+        }
+      ],
+      "Tag": "MiscCredit",
+      "StatusTag": "ACTIVE",
+      "CertaintyLevelTag": "HIGH",
+      "Validity": {
+        "StartDate": "2026-01-01",
+        "EndDate": null
+      },
+      "TagRuleExpressions": [
+        [
+          {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "TNXT/36\\ ",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Contains TNXT/36  in AdditionalInformation"
+              }
+            ]
+          }
+        ]
+      ],
+      "Attributes": [
+        {
+          "AttributeTag": "OrderingParty",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/ORDP/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "BeneficiaryName",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/BENM/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "SenderBank",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/BANK/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "SenderAccountNumber",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/IBAN/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "Narrative",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/NAR3/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "FXRate",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/EXCH/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "BankRef",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/CBS/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "TransactionDetails",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "Description1",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "(.*)",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via SUBSTRING from 611"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "TransactionDetails2",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "Description2",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "(.*)",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via SUBSTRING from 612"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "Id": "2fd2fc26-9e76-4cc1-a023-937d26a8708f",
+      "Context": [
+        {
+          "Key": "TransactionTypeCode",
+          "Value": "MSC"
+        }
+      ],
+      "Tag": "MiscCredit",
+      "StatusTag": "ACTIVE",
+      "CertaintyLevelTag": "HIGH",
+      "Validity": {
+        "StartDate": "2026-01-01",
+        "EndDate": null
+      },
+      "TagRuleExpressions": [
+        [
+          {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "TNXT/67",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Contains TNXT/67 in AdditionalInformation"
+              }
+            ]
+          }
+        ]
+      ],
+      "Attributes": [
+        {
+          "AttributeTag": "OrderingParty",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/ORDP/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "BeneficiaryName",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/BENM/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "SenderBank",
+          "IsMandatory": true,
+          "LOVTag": "KSABankCode",
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "IBAN/SA\\d{2}",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via AFTER from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "SenderAccountNumber",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/IBAN/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "Narrative",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/NAR3/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "FXRate",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/EXCH/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "BankRef",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/CBS/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "TransactionDetails",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "Description1",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "(.*)",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via SUBSTRING from 611"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "TransactionDetails2",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "Description2",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "(.*)",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via SUBSTRING from 612"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "Id": "9628c7e8-944c-4e46-82e3-e7a729334df3",
+      "Context": [
+        {
+          "Key": "TransactionTypeCode",
+          "Value": "STO"
+        }
+      ],
+      "Tag": "MiscCredit",
+      "StatusTag": "ACTIVE",
+      "CertaintyLevelTag": "HIGH",
+      "Validity": {
+        "StartDate": "2026-01-01",
+        "EndDate": null
+      },
+      "TagRuleExpressions": [
+        [
+          {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/TNXT/01",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Contains /TNXT/01 in AdditionalInformation"
+              }
+            ]
+          },
+          {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/NTWRK/ANB",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Contains /NTWRK/ANB in AdditionalInformation"
+              }
+            ]
+          }
+        ]
+      ],
+      "Attributes": [
+        {
+          "AttributeTag": "OrderingParty",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/ORDP/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "BeneficiaryName",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/BENM/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "SenderBank",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/BANK/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "SenderAccountNumber",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/IBAN/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "Narrative",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/NAR3/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "FXRate",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/EXCH/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "BankRef",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/CBS/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "TransactionDetails",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "Description1",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "(.*)",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via SUBSTRING from 611"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "TransactionDetails2",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "Description2",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "(.*)",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via SUBSTRING from 612"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "Id": "016afa6b-03dc-4445-88c4-0a4a237ea54e",
+      "Context": [
+        {
+          "Key": "TransactionTypeCode",
+          "Value": "MSC"
+        }
+      ],
+      "Tag": "SADADCollSet",
+      "StatusTag": "ACTIVE",
+      "CertaintyLevelTag": "HIGH",
+      "Validity": {
+        "StartDate": "2026-01-01",
+        "EndDate": null
+      },
+      "TagRuleExpressions": [
+        [
+          {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "TNXT/85",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Contains TNXT/85 in AdditionalInformation"
+              }
+            ]
+          }
+        ]
+      ],
+      "Attributes": [
+        {
+          "AttributeTag": "BeneficiaryName",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/BENM/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "SenderBank",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/BANK/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "SadadTxnReference",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/NAR3/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "BankRef",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/CBS/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "SadadBillAccount",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "Description1",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "(.*)",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via SUBSTRING from 611"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "TransactionDetails2",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "Description2",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "(.*)",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via SUBSTRING from 612"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "Id": "39032a3d-fa63-4741-8876-804929a3d2a9",
+      "Context": [
+        {
+          "Key": "TransactionTypeCode",
+          "Value": "TRF"
+        }
+      ],
+      "Tag": "TransferIn",
+      "StatusTag": "ACTIVE",
+      "CertaintyLevelTag": "HIGH",
+      "Validity": {
+        "StartDate": "2026-01-01",
+        "EndDate": null
+      },
+      "TagRuleExpressions": [
+        [
+          {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/TNXT/TT",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Contains /TNXT/TT in AdditionalInformation"
+              }
+            ]
+          },
+          {
+            "SourceField": "Field61",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "^Internal\\ Accounts\\ Transfer",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Starts With Internal Accounts Transfer in Field61"
+              }
+            ]
+          }
+        ]
+      ],
+      "Attributes": [
+        {
+          "AttributeTag": "OrderingParty",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/ORDP/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "BeneficiaryName",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/BENM/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "SenderBank",
+          "IsMandatory": true,
+          "LOVTag": "KSABankCode",
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "IBAN/SA\\d{2}",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via AFTER from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "SenderAccountNumber",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/IBAN/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "Narrative",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/NAR3/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "FXRate",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/EXCH/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "BankRef",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/CBS/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "TransactionDetails",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "Description1",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "(.*)",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via SUBSTRING from 611"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "TransactionDetails2",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "Description2",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "(.*)",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via SUBSTRING from 612"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "Id": "54feb5bc-83ae-4dff-a813-0a5ceb3de161",
+      "Context": [
+        {
+          "Key": "TransactionTypeCode",
+          "Value": "TRF"
+        }
+      ],
+      "Tag": "TransferInDom",
+      "StatusTag": "ACTIVE",
+      "CertaintyLevelTag": "HIGH",
+      "Validity": {
+        "StartDate": "2026-01-01",
+        "EndDate": null
+      },
+      "TagRuleExpressions": [
+        [
+          {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "TNXT/59",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Contains TNXT/59 in AdditionalInformation"
+              }
+            ]
+          },
+          {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "NTWRK/SARIE",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Contains NTWRK/SARIE in AdditionalInformation"
+              }
+            ]
+          }
+        ]
+      ],
+      "Attributes": [
+        {
+          "AttributeTag": "OrderingParty",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/ORDP/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "BeneficiaryName",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/BENM/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "SenderBank",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/BANK/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "SenderAccountNumber",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/IBAN/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "Narrative",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/NAR3/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "FXRate",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/EXCH/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "BankRef",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/CBS/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "TransactionDetails",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "Description1",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "(.*)",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via SUBSTRING from 611"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "TransactionDetails2",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "Description2",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "(.*)",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via SUBSTRING from 612"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "Id": "d626a1d9-6c21-4bcd-9205-72ed44de5374",
+      "Context": [
+        {
+          "Key": "TransactionTypeCode",
+          "Value": "TRF"
+        }
+      ],
+      "Tag": "TransferInInstant",
+      "StatusTag": "ACTIVE",
+      "CertaintyLevelTag": "HIGH",
+      "Validity": {
+        "StartDate": "2026-01-01",
+        "EndDate": null
+      },
+      "TagRuleExpressions": [
+        [
+          {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "TNXT/59",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Contains TNXT/59 in AdditionalInformation"
+              }
+            ]
+          },
+          {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "NTWRK/IPS",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Contains NTWRK/IPS in AdditionalInformation"
+              }
+            ]
+          }
+        ]
+      ],
+      "Attributes": [
+        {
+          "AttributeTag": "OrderingParty",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/ORDP/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "BeneficiaryName",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/BENM/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "SenderBank",
+          "IsMandatory": true,
+          "LOVTag": "KSABankClearingCode",
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/BANK/SA(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "SenderAccountNumber",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/IBAN/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "Narrative",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/NAR3/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "FXRate",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/EXCH/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "BankRef",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/CBS/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "TransactionDetails",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "Description1",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "(.*)",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via SUBSTRING from 611"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "TransactionDetails2",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "Description2",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "(.*)",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via SUBSTRING from 612"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "Id": "976b7f9f-d2d0-476c-a87b-32601b169862",
+      "Context": [
+        {
+          "Key": "TransactionTypeCode",
+          "Value": "MSC"
+        }
+      ],
+      "Tag": "TransferInIntl",
+      "StatusTag": "ACTIVE",
+      "CertaintyLevelTag": "HIGH",
+      "Validity": {
+        "StartDate": "2026-01-01",
+        "EndDate": null
+      },
+      "TagRuleExpressions": [
+        [
+          {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "TNXT/67",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Contains TNXT/67 in AdditionalInformation"
+              }
+            ]
+          },
+          {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/ORDP/DELIVERY\\ CHANNELS\\ OUTGOING\\ SWIFT\\ TRANSFERS",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Contains /ORDP/DELIVERY CHANNELS OUTGOING SWIFT TRANSFERS in AdditionalInformation"
+              }
+            ]
+          }
+        ]
+      ],
+      "Attributes": [
+        {
+          "AttributeTag": "OrderingParty",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/ORDP/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "BeneficiaryName",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/BENM/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "SenderBank",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/BANK/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "SenderAccountNumber",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/IBAN/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "Narrative",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/NAR3/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "FXRate",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/EXCH/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "BankRef",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/CBS/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "TransactionDetails",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "Description1",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "(.*)",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via SUBSTRING from 611"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "TransactionDetails2",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "Description2",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "(.*)",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via SUBSTRING from 612"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "Id": "a3d47b9b-88eb-476f-9bb6-2b030a3a506c",
+      "Context": [
+        {
+          "Key": "TransactionTypeCode",
+          "Value": "TRF"
+        }
+      ],
+      "Tag": "TransferInIntl",
+      "StatusTag": "ACTIVE",
+      "CertaintyLevelTag": "HIGH",
+      "Validity": {
+        "StartDate": "2026-01-01",
+        "EndDate": null
+      },
+      "TagRuleExpressions": [
+        [
+          {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "TNXT/59",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Contains TNXT/59 in AdditionalInformation"
+              }
+            ]
+          },
+          {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "NTWRK/SWIFT",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Contains NTWRK/SWIFT in AdditionalInformation"
+              }
+            ]
+          }
+        ]
+      ],
+      "Attributes": [
+        {
+          "AttributeTag": "OrderingParty",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/ORDP/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "BeneficiaryName",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/BENM/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "SenderBank",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/BANK/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "SenderAccountNumber",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/IBAN/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "Narrative",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/NAR3/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "FXRate",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/EXCH/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "BankRef",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/CBS/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "TransactionDetails",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "Description1",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "(.*)",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via SUBSTRING from 611"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "TransactionDetails2",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "Description2",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "(.*)",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via SUBSTRING from 612"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "Id": "c1d5712a-a21b-4ffb-8739-58a85c073964",
+      "Context": [
+        {
+          "Key": "TransactionTypeCode",
+          "Value": "TRF"
+        }
+      ],
+      "Tag": "TransferOutReturn",
+      "StatusTag": "ACTIVE",
+      "CertaintyLevelTag": "HIGH",
+      "Validity": {
+        "StartDate": "2026-01-01",
+        "EndDate": null
+      },
+      "TagRuleExpressions": [
+        [
+          {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "TNXT/56",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Contains TNXT/56 in AdditionalInformation"
+              }
+            ]
+          },
+          {
+            "SourceField": "Field61",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "^Return\\ Payment/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Starts With Return Payment/ in Field61"
+              }
+            ]
+          }
+        ]
+      ],
+      "Attributes": [
+        {
+          "AttributeTag": "OrderingParty",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/ORDP/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "BeneficiaryName",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/BENM/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "SenderBank",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/BANK/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "SenderAccountNumber",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/IBAN/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "Narrative",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/NAR3/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "FXRate",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/EXCH/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "BankRef",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "AdditionalInformation",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "/CBS/(.*?)/",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via BETWEEN from 86"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "RelatedTxnRef",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "Description1",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "(.*)",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via SUBSTRING from 611"
+              }
+            ]
+          }
+        },
+        {
+          "AttributeTag": "TransactionDetails2",
+          "IsMandatory": true,
+          "LOVTag": null,
+          "ValidationRuleTag": "STRING",
+          "AttributeRuleExpression": {
+            "SourceField": "Description2",
+            "ExpressionPrompt": null,
+            "ExpressionId": null,
+            "Regex": "(.*)",
+            "RegexDetails": [
+              {
+                "LanguageCode": "en",
+                "Description": "Extracted via SUBSTRING from 612"
+              }
+            ]
+          }
+        }
+      ]
+    }
   ]
 }

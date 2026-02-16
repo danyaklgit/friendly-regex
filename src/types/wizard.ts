@@ -13,7 +13,11 @@ export type MatchOperation =
   | 'equals'
   | 'does_not_equal'
   | 'matches_pattern'
-  | 'extract_and_compare';
+  | 'extract_and_compare'
+  | 'greater_than'
+  | 'less_than'
+  | 'greater_than_or_equal'
+  | 'less_than_or_equal';
 
 export type ExtractionOperation =
   | 'extract_between'

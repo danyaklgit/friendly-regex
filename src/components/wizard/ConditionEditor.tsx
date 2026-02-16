@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import type { ConditionFormValue } from '../../types';
 import { Select } from '../shared/Select';
 import { Input } from '../shared/Input';
@@ -6,6 +6,7 @@ import { Button } from '../shared/Button';
 import { MATCH_OPERATIONS } from '../../constants/operations';
 import { useTransactionData } from '../../hooks/useTransactionData';
 import { generateExpressionPrompt } from '../../utils/regexify';
+import { humanizeFieldName } from '../../utils/humanizeFieldName';
 
 interface ConditionEditorProps {
   condition: ConditionFormValue;
@@ -22,8 +23,22 @@ export function ConditionEditor({
   canRemove,
   showAnd,
 }: ConditionEditorProps) {
-  const { fieldMeta } = useTransactionData();
+  const { fieldMeta, transactions } = useTransactionData();
   const [editing, setEditing] = useState(true);
+
+  const isFieldNumeric = useMemo(() => {
+    if (!condition.sourceField || transactions.length === 0) return false;
+    return transactions.every((row) => {
+      const val = row[condition.sourceField];
+      if (val === null || val === undefined || val === '') return true;
+      return !isNaN(Number(val));
+    });
+  }, [condition.sourceField, transactions]);
+
+  const availableOperations = useMemo(() => {
+    if (isFieldNumeric) return MATCH_OPERATIONS;
+    return MATCH_OPERATIONS.filter((op) => !op.isNumeric);
+  }, [isFieldNumeric]);
 
   const selectedOp = MATCH_OPERATIONS.find((op) => op.key === condition.operation);
   const preview = condition.value
@@ -48,14 +63,29 @@ export function ConditionEditor({
             <Select
               label='Source Field'
               value={condition.sourceField}
-              onChange={(e) => onUpdate({ sourceField: e.target.value })}
-              options={fieldMeta.sourceFields.map((f) => ({ value: f, label: f }))}
+              onChange={(e) => {
+                const newField = e.target.value;
+                const updates: Partial<ConditionFormValue> = { sourceField: newField };
+                const currentOp = MATCH_OPERATIONS.find((op) => op.key === condition.operation);
+                if (currentOp?.isNumeric) {
+                  const newFieldNumeric = transactions.every((row) => {
+                    const val = row[newField];
+                    if (val === null || val === undefined || val === '') return true;
+                    return !isNaN(Number(val));
+                  });
+                  if (!newFieldNumeric) {
+                    updates.operation = 'begins_with';
+                  }
+                }
+                onUpdate(updates);
+              }}
+              options={fieldMeta.sourceFields.map((f) => ({ value: f, label: humanizeFieldName(f) }))}
             />
             <Select
               label='Operation'
               value={condition.operation}
               onChange={(e) => onUpdate({ operation: e.target.value as ConditionFormValue['operation'] })}
-              options={MATCH_OPERATIONS.map((op) => ({ value: op.key, label: op.label }))}
+              options={availableOperations.map((op) => ({ value: op.key, label: op.label }))}
             />
             {selectedOp?.requiresMultipleValues ? (
               <Input
@@ -103,7 +133,7 @@ export function ConditionEditor({
             onClick={() => setEditing(true)}
           >
             <p className="text-xs text-blue-500 italic">
-              {condition.sourceField} &rarr; <span className='text-orange-500'>{preview}</span>
+              {humanizeFieldName(condition.sourceField)} &rarr; <span className='text-orange-500'>{preview}</span>
             </p>
           </div>
         )}
@@ -116,7 +146,7 @@ export function ConditionEditor({
       {editing && preview && (
         <div className="mt-1 ml-3 flex items-center gap-2">
           <p className="text-xs text-blue-500 italic text-left border-dashed border w-fit px-2 py-1">
-            {condition.sourceField} &rarr; <span className='text-orange-500'>{preview}</span>
+            {humanizeFieldName(condition.sourceField)} &rarr; <span className='text-orange-500'>{preview}</span>
           </p>
           <Button variant="primary" size="sm" onClick={() => setEditing(false)}>
             Save

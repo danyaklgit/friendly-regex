@@ -9,6 +9,7 @@ import { DATA_TYPE_OPTIONS } from '../../constants/fields';
 import { useTransactionData } from '../../hooks/useTransactionData';
 import { EXTRACTION_OPERATIONS, PREDEFINED_PATTERNS } from '../../constants/operations';
 import { generateExtractionPrompt, regexifyExtraction } from '../../utils/regexify';
+import { humanizeFieldName } from '../../utils/humanizeFieldName';
 
 interface AttributeEditorProps {
   attribute: AttributeFormValue;
@@ -135,7 +136,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions }:
               label="Source Field"
               value={attribute.sourceField}
               onChange={(e) => onUpdate({ sourceField: e.target.value })}
-              options={fieldMeta.sourceFields.map((f) => ({ value: f, label: f }))}
+              options={fieldMeta.sourceFields.map((f) => ({ value: f, label: humanizeFieldName(f) }))}
             />
             <Select
               label="Extraction Method"
@@ -185,7 +186,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions }:
           <div className="flex items-center gap-2 justify-between">
             <div className="flex items-center gap-2">
               <p className="text-xs text-blue-500 italic border-dashed border w-fit px-2 py-1">
-                {attribute.sourceField} &rarr; <span className='text-orange-500'>{preview}</span>
+                {humanizeFieldName(attribute.sourceField)} &rarr; <span className='text-orange-500'>{preview}</span>
               </p>
               {attribute.attributeTag.trim().length > 0 && (
                 <Button variant="primary" size="sm" onClick={() => setEditing(false)}>
@@ -219,7 +220,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions }:
               <span className="font-medium text-indigo-700">{attribute.attributeTag}</span>
               <span className="text-gray-400 mx-1.5">&mdash;</span>
               <span className="text-blue-500 italic">
-                {attribute.sourceField} &rarr; <span className='text-orange-500'>{preview}</span>
+                {humanizeFieldName(attribute.sourceField)} &rarr; <span className='text-orange-500'>{preview}</span>
               </span>
             </p>
           </div>

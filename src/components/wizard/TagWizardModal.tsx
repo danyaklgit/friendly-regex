@@ -1,4 +1,4 @@
-import type { TagSpecDefinition, WizardFormState } from '../../types';
+import type { TagSpecDefinition, WizardFormState, WizardStep } from '../../types';
 import { useWizardForm } from '../../hooks/useWizardForm';
 import { useTransactionData } from '../../hooks/useTransactionData';
 import { Modal } from '../shared/Modal';
@@ -20,8 +20,8 @@ export function TagWizardModal({ existingDef, initialFormState, onSave, onClose 
   const { fieldMeta } = useTransactionData();
   const wizard = useWizardForm(existingDef, initialFormState, fieldMeta.sourceFields[0]);
 
-  const canProceed = () => {
-    switch (wizard.currentStep) {
+  const isStepValid = (step: WizardStep): boolean => {
+    switch (step) {
       case 1:
         return wizard.formState.tag.trim().length > 0;
       case 2:
@@ -35,6 +35,16 @@ export function TagWizardModal({ existingDef, initialFormState, onSave, onClose 
       default:
         return false;
     }
+  };
+
+  const canProceed = () => isStepValid(wizard.currentStep);
+
+  const canReachStep = (targetStep: WizardStep): boolean => {
+    if (targetStep <= wizard.currentStep) return true;
+    for (let s = 1; s < targetStep; s++) {
+      if (!isStepValid(s as WizardStep)) return false;
+    }
+    return true;
   };
 
   const handleFinish = () => {
@@ -70,7 +80,7 @@ export function TagWizardModal({ existingDef, initialFormState, onSave, onClose 
         </>
       }
     >
-      <WizardStepIndicator currentStep={wizard.currentStep} onStepClick={wizard.goToStep} canLeaveCurrentStep={canProceed()} />
+      <WizardStepIndicator currentStep={wizard.currentStep} onStepClick={wizard.goToStep} canReachStep={canReachStep} />
 
       {wizard.currentStep === 1 && (
         <StepBasicInfo formState={wizard.formState} onUpdate={wizard.updateBasicInfo} />

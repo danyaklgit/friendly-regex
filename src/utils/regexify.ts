@@ -32,6 +32,14 @@ export function regexify(
     }
     case 'extract_and_compare':
       return `(?:${escapeRegex(params?.prefix ?? '')})${escaped}(?:${escapeRegex(params?.suffix ?? '')})`;
+    case 'greater_than':
+      return `__NUMERIC_GT:${value}`;
+    case 'less_than':
+      return `__NUMERIC_LT:${value}`;
+    case 'greater_than_or_equal':
+      return `__NUMERIC_GTE:${value}`;
+    case 'less_than_or_equal':
+      return `__NUMERIC_LTE:${value}`;
     default:
       return escaped;
   }
@@ -86,6 +94,14 @@ export function generateExpressionPrompt(
     }
     case 'extract_and_compare':
       return `Extract between '${params?.prefix ?? ''}' and '${params?.suffix ?? ''}' equals '${value}'`;
+    case 'greater_than':
+      return `Greater than '${value}'`;
+    case 'less_than':
+      return `Less than '${value}'`;
+    case 'greater_than_or_equal':
+      return `Greater than or equal to '${value}'`;
+    case 'less_than_or_equal':
+      return `Less than or equal to '${value}'`;
     default:
       return value;
   }
