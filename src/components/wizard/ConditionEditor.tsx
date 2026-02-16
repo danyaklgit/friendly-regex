@@ -42,7 +42,7 @@ export function ConditionEditor({
           </span>
         </div>
       )}
-      <div className="flex items-end gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+      <div className="flex items-end gap-2 p-1 bg-gray-50 rounded-lg border border-gray-200">
         {editing ? (
           <div className={`flex-1 grid gap-2 grid-cols-3`} id='edit_mode_fields'>
             <Select

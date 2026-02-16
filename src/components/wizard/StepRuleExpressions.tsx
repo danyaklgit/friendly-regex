@@ -57,7 +57,8 @@ export function StepRuleExpressions({
 
       <div className="mt-4 ">
         <Button variant="secondary" size="sm" onClick={onAddGroup}>
-          {ruleGroups.length === 0 ? 'Add first Rule set' : '+ Add OR group'}
+          {/* {ruleGroups.length === 0 ? 'Add first Rule set' : 'Add Rule set'} */}
+          Add Rule set
         </Button>
       </div>
     </div>
