@@ -77,6 +77,7 @@ export function useWizardForm(
   initialFormState?: WizardFormState,
   defaultSourceField: string = 'Field86',
   parentLib?: TagSpecLibrary,
+  initialStep?: WizardStep,
 ) {
   function createEmptyCondition(): ConditionFormValue {
     return {
@@ -124,7 +125,7 @@ export function useWizardForm(
     };
   }
 
-  const [currentStep, setCurrentStep] = useState<WizardStep>(1);
+  const [currentStep, setCurrentStep] = useState<WizardStep>(initialStep ?? 1);
   const [formState, setFormState] = useState<WizardFormState>(
     existingDef
       ? fromExistingDefinition(existingDef, parentLib)

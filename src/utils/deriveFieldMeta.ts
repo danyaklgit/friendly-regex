@@ -22,6 +22,16 @@ const SKIP_FIELDS = new Set([
 
 const IDENTIFIER_CANDIDATES = ['_id', 'Identifier', 'Name'];
 
+/** Fields that should always appear first, in this exact order (if present in the data). */
+const PRIORITY_FIELDS = [
+  'BankSwiftCode',
+  'IBAN',
+  'EntryDate',
+  'Side',
+  'TransactionTypeCode',
+  'Amount',
+];
+
 export function deriveFieldMeta(rows: Record<string, unknown>[]): FieldMeta {
   const allKeys = new Set<string>();
   const objectKeys = new Set<string>();
@@ -43,9 +53,15 @@ export function deriveFieldMeta(rows: Record<string, unknown>[]): FieldMeta {
   }
 
   const excluded = new Set([...SKIP_FIELDS, ...objectKeys, identifierField]);
-  const dataFields = Array.from(allKeys)
+  const remaining = Array.from(allKeys)
     .filter((key) => !excluded.has(key))
     .sort();
+
+  const prioritySet = new Set(PRIORITY_FIELDS);
+  const dataFields = [
+    ...PRIORITY_FIELDS.filter((f) => remaining.includes(f)),
+    ...remaining.filter((f) => !prioritySet.has(f)),
+  ];
 
   return {
     identifierField,

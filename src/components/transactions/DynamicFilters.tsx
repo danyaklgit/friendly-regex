@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import type { AnalyzedTransaction, TagSpecDefinition } from '../../types';
 import type { FieldMeta } from '../../utils/deriveFieldMeta';
 import { Toggle } from '../shared/Toggle';
@@ -22,6 +22,73 @@ interface DynamicFiltersProps {
   onFiltersChange: (filters: FilterState) => void;
   showOnlyUntagged: boolean;
   onShowOnlyUntaggedChange: (value: boolean) => void;
+  showOnlyMultiTagged: boolean;
+  onShowOnlyMultiTaggedChange: (value: boolean) => void;
+}
+
+/** Dual-thumb range slider for numeric filters */
+function RangeSlider({
+  min,
+  max,
+  low,
+  high,
+  onLowChange,
+  onHighChange,
+}: {
+  min: number;
+  max: number;
+  low: number;
+  high: number;
+  onLowChange: (v: number) => void;
+  onHighChange: (v: number) => void;
+}) {
+  const range = max - min || 1;
+  const lowPct = ((low - min) / range) * 100;
+  const highPct = ((high - min) / range) * 100;
+
+  return (
+    <div className="px-2 pt-1 pb-2">
+      <div className="flex items-center justify-between text-[10px] text-gray-500 mb-1">
+        <span>{low.toLocaleString()}</span>
+        <span>{high.toLocaleString()}</span>
+      </div>
+      <div className="relative h-4">
+        {/* Track background */}
+        <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-1 bg-gray-200 rounded" />
+        {/* Active range */}
+        <div
+          className="absolute top-1/2 -translate-y-1/2 h-1 bg-blue-500 rounded"
+          style={{ left: `${lowPct}%`, width: `${highPct - lowPct}%` }}
+        />
+        {/* Low thumb */}
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step="any"
+          value={low}
+          onChange={(e) => {
+            const v = Number(e.target.value);
+            onLowChange(Math.min(v, high));
+          }}
+          className="absolute inset-0 w-full appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-600 [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow [&::-webkit-slider-thumb]:cursor-pointer"
+        />
+        {/* High thumb */}
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step="any"
+          value={high}
+          onChange={(e) => {
+            const v = Number(e.target.value);
+            onHighChange(Math.max(v, low));
+          }}
+          className="absolute inset-0 w-full appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-600 [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow [&::-webkit-slider-thumb]:cursor-pointer"
+        />
+      </div>
+    </div>
+  );
 }
 
 function FilterDropdown({
@@ -29,14 +96,54 @@ function FilterDropdown({
   values,
   selected,
   onChange,
+  isNumeric,
 }: {
   label: string;
   values: string[];
   selected: Set<string>;
   onChange: (selected: Set<string>) => void;
+  isNumeric?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+
+  // Numeric range state
+  const numericInfo = useMemo(() => {
+    if (!isNumeric) return null;
+    const nums = values.map(Number).sort((a, b) => a - b);
+    return { min: nums[0], max: nums[nums.length - 1], sorted: nums };
+  }, [isNumeric, values]);
+
+  const [rangelow, setRangeLow] = useState(numericInfo?.min ?? 0);
+  const [rangeHigh, setRangeHigh] = useState(numericInfo?.max ?? 0);
+
+  // Reset range when dropdown opens or numericInfo changes
+  useEffect(() => {
+    if (numericInfo) {
+      setRangeLow(numericInfo.min);
+      setRangeHigh(numericInfo.max);
+    }
+  }, [numericInfo]);
+
+  const applyRange = useCallback((low: number, high: number) => {
+    const inRange = new Set(
+      values.filter((v) => {
+        const n = Number(v);
+        return n >= low && n <= high;
+      })
+    );
+    onChange(inRange);
+  }, [values, onChange]);
+
+  const handleLowChange = useCallback((v: number) => {
+    setRangeLow(v);
+    applyRange(v, rangeHigh);
+  }, [applyRange, rangeHigh]);
+
+  const handleHighChange = useCallback((v: number) => {
+    setRangeHigh(v);
+    applyRange(rangelow, v);
+  }, [applyRange, rangelow]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -46,44 +153,72 @@ function FilterDropdown({
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  const activeCount = selected.size;
+  const isRangeActive = numericInfo && (rangelow > numericInfo.min || rangeHigh < numericInfo.max);
+
   return (
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
         className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
-          selected.size > 0
+          activeCount > 0 || isRangeActive
             ? 'bg-blue-50 border-blue-300 text-blue-700'
             : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
         }`}
       >
         {label}
-        {selected.size > 0 && (
+        {activeCount > 0 && (
           <span className="ml-1.5 bg-blue-600 text-white rounded-full px-1.5 py-0.5 text-[10px] leading-none">
-            {selected.size}
+            {activeCount}
           </span>
         )}
       </button>
       {open && (
-        <div className="absolute top-full mt-1 left-0 z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-2 min-w-[180px] max-h-60 overflow-y-auto">
-          {values.map((val) => (
-            <label
-              key={val}
-              className="flex items-center gap-2 px-2 py-1 text-xs hover:bg-gray-50 rounded cursor-pointer"
-            >
-              <input
-                type="checkbox"
-                checked={selected.has(val)}
-                onChange={() => {
-                  const next = new Set(selected);
-                  if (next.has(val)) next.delete(val);
-                  else next.add(val);
-                  onChange(next);
-                }}
-                className="rounded border-gray-300"
+        <div className="absolute top-full mt-1 left-0 z-50 bg-white border border-gray-200 rounded-lg shadow-lg min-w-[220px]">
+          {numericInfo && (
+            <div className="border-b border-gray-100">
+              <RangeSlider
+                min={numericInfo.min}
+                max={numericInfo.max}
+                low={rangelow}
+                high={rangeHigh}
+                onLowChange={handleLowChange}
+                onHighChange={handleHighChange}
               />
-              <span className="truncate">{val}</span>
-            </label>
-          ))}
+            </div>
+          )}
+          <div className="p-2 max-h-48 overflow-y-auto">
+            {values.map((val) => (
+              <label
+                key={val}
+                className="flex items-center gap-2 px-2 py-1 text-xs hover:bg-gray-50 rounded cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.has(val)}
+                  onChange={() => {
+                    const next = new Set(selected);
+                    if (next.has(val)) next.delete(val);
+                    else next.add(val);
+                    onChange(next);
+                    // Sync range slider to match manual selection
+                    if (numericInfo) {
+                      const selectedNums = Array.from(next).map(Number);
+                      if (selectedNums.length > 0) {
+                        setRangeLow(Math.min(...selectedNums));
+                        setRangeHigh(Math.max(...selectedNums));
+                      } else {
+                        setRangeLow(numericInfo.min);
+                        setRangeHigh(numericInfo.max);
+                      }
+                    }
+                  }}
+                  className="rounded border-gray-300"
+                />
+                <span className="truncate">{isNumeric ? Number(val).toLocaleString() : val}</span>
+              </label>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -98,24 +233,33 @@ export function DynamicFilters({
   onFiltersChange,
   showOnlyUntagged,
   onShowOnlyUntaggedChange,
+  showOnlyMultiTagged,
+  onShowOnlyMultiTaggedChange,
 }: DynamicFiltersProps) {
   const [expanded, _setExpanded] = useState(true);
 
   const filterableColumns = useMemo(() => {
     const excluded = new Set([...FILTER_EXCLUSIONS, fieldMeta.identifierField]);
-    const result: { field: string; values: string[] }[] = [];
+    const result: { field: string; values: string[]; isNumeric: boolean }[] = [];
 
     for (const field of fieldMeta.dataFields) {
       if (excluded.has(field) || /date/i.test(field)) continue;
       const distinctValues = new Set<string>();
+      let allNumeric = true;
       for (const item of data) {
         const val = item.row[field];
         if (val !== null && val !== undefined && val !== '') {
-          distinctValues.add(String(val));
+          const str = String(val);
+          distinctValues.add(str);
+          if (allNumeric && isNaN(Number(str))) allNumeric = false;
         }
       }
       if (distinctValues.size >= 2 && distinctValues.size <= 50) {
-        result.push({ field, values: Array.from(distinctValues).sort() });
+        const isNumeric = allNumeric && distinctValues.size > 0;
+        const values = Array.from(distinctValues).sort(
+          isNumeric ? (a, b) => Number(a) - Number(b) : undefined
+        );
+        result.push({ field, values, isNumeric });
       }
     }
 
@@ -140,12 +284,14 @@ export function DynamicFilters({
       if (selected.size > 0) count++;
     }
     if (showOnlyUntagged) count++;
+    if (showOnlyMultiTagged) count++;
     return count;
-  }, [filters, showOnlyUntagged]);
+  }, [filters, showOnlyUntagged, showOnlyMultiTagged]);
 
   const clearAll = () => {
     onFiltersChange({});
     onShowOnlyUntaggedChange(false);
+    onShowOnlyMultiTaggedChange(false);
   };
 
   const handleFilterChange = (field: string, selected: Set<string>) => {
@@ -185,7 +331,12 @@ export function DynamicFilters({
           <Toggle
             label="Untagged only"
             checked={showOnlyUntagged}
-            onChange={onShowOnlyUntaggedChange}
+            onChange={(v) => { onShowOnlyUntaggedChange(v); if (v) onShowOnlyMultiTaggedChange(false); }}
+          />
+          <Toggle
+            label="Multi Tags only"
+            checked={showOnlyMultiTagged}
+            onChange={(v) => { onShowOnlyMultiTaggedChange(v); if (v) onShowOnlyUntaggedChange(false); }}
           />
 
           <div className="w-px h-6 bg-gray-300 mx-1" />
@@ -199,13 +350,14 @@ export function DynamicFilters({
             />
           )}
 
-          {filterableColumns.map(({ field, values }) => (
+          {filterableColumns.map(({ field, values, isNumeric }) => (
             <FilterDropdown
               key={field}
               label={humanizeFieldName(field)}
               values={values}
               selected={filters[field] ?? new Set()}
               onChange={(selected) => handleFilterChange(field, selected)}
+              isNumeric={isNumeric}
             />
           ))}
 

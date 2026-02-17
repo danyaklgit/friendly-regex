@@ -14,13 +14,14 @@ interface TagWizardModalProps {
   existingDef?: TagSpecDefinition;
   parentLib?: TagSpecLibrary;
   initialFormState?: WizardFormState;
+  initialStep?: WizardStep;
   onSave: (result: WizardFormResult) => void;
   onClose: () => void;
 }
 
-export function TagWizardModal({ existingDef, parentLib, initialFormState, onSave, onClose }: TagWizardModalProps) {
+export function TagWizardModal({ existingDef, parentLib, initialFormState, initialStep, onSave, onClose }: TagWizardModalProps) {
   const { fieldMeta } = useTransactionData();
-  const wizard = useWizardForm(existingDef, initialFormState, fieldMeta.sourceFields[0], parentLib);
+  const wizard = useWizardForm(existingDef, initialFormState, fieldMeta.sourceFields[0], parentLib, initialStep);
 
   const isStepValid = (step: WizardStep): boolean => {
     switch (step) {

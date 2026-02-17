@@ -1,8 +1,9 @@
-import { useMemo, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useMemo, useLayoutEffect, useEffect, useRef, useState, useCallback, type ReactNode } from 'react';
 import type { AnalyzedTransaction, TagSpecDefinition, RuleExpression } from '../../types';
 import { useTransactionData } from '../../hooks/useTransactionData';
 import { PREDEFINED_PATTERNS } from '../../constants/operations';
 import { TagBadge } from './TagBadge';
+import { Tooltip } from '../shared/Tooltip';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
 
 interface TransactionTableProps {
@@ -10,13 +11,36 @@ interface TransactionTableProps {
   tagDefinitions: TagSpecDefinition[];
   highlightExpressions?: RuleExpression[];
   stickyFields?: Set<string>;
+  onTagClick?: (tagName: string) => void;
 }
 
 type ColumnDef =
-  | { type: 'identifier'; key: string }
   | { type: 'data'; key: string; field: string }
   | { type: 'attribute'; key: string; name: string }
   | { type: 'tags'; key: string };
+
+function getColumnLabel(col: ColumnDef): string {
+  switch (col.type) {
+    case 'data': return humanizeFieldName(col.field);
+    case 'attribute': return col.name;
+    case 'tags': return 'Tags';
+  }
+}
+
+function getColumnInitials(col: ColumnDef): string {
+  const label = getColumnLabel(col);
+  const words = label.split(/[\s/]+/).filter(Boolean);
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return words.map((w) => w[0]).join('').toUpperCase();
+}
+
+function getMinimapColor(type: ColumnDef['type']): string {
+  switch (type) {
+    case 'data': return 'bg-slate-300';
+    case 'attribute': return 'bg-indigo-400';
+    case 'tags': return 'bg-emerald-400';
+  }
+}
 
 function highlightText(text: string, regexes: RegExp[]): ReactNode {
   if (regexes.length === 0) return text;
@@ -60,11 +84,18 @@ function highlightText(text: string, regexes: RegExp[]): ReactNode {
   return <>{parts}</>;
 }
 
-export function TransactionTable({ data, tagDefinitions, highlightExpressions, stickyFields }: TransactionTableProps) {
+export function TransactionTable({ data, tagDefinitions, highlightExpressions, stickyFields, onTagClick }: TransactionTableProps) {
   const { fieldMeta } = useTransactionData();
   const theadRef = useRef<HTMLTableSectionElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const viewportIndicatorRef = useRef<HTMLDivElement>(null);
+  const minimapBarRef = useRef<HTMLDivElement>(null);
+  const scrollInfoRef = useRef({ scrollLeft: 0, clientWidth: 0, scrollWidth: 0 });
+
   const [stickyLefts, setStickyLefts] = useState<Map<number, number>>(new Map());
   const [stickyRights, setStickyRights] = useState<Map<number, number>>(new Map());
+  const [colWidths, setColWidths] = useState<number[]>([]);
+  const [hasOverflow, setHasOverflow] = useState(false);
 
   const getCertainty = (tagName: string) => {
     const def = tagDefinitions.find((d) => d.Tag === tagName);
@@ -146,7 +177,7 @@ export function TransactionTable({ data, tagDefinitions, highlightExpressions, s
     return map;
   }, [tagDefinitions]);
 
-  // Build ordered column list: attributes placed right after their source field
+  // Build ordered column list: attributes placed right after their source field (no identifier column)
   const columns: ColumnDef[] = useMemo(() => {
     const attrsBySource = new Map<string, string[]>();
     for (const attrName of attributeColumns) {
@@ -157,7 +188,7 @@ export function TransactionTable({ data, tagDefinitions, highlightExpressions, s
       }
     }
 
-    const cols: ColumnDef[] = [{ type: 'identifier', key: '__id' }];
+    const cols: ColumnDef[] = [];
     const placedAttrs = new Set<string>();
 
     for (const field of fieldMeta.dataFields) {
@@ -219,13 +250,20 @@ export function TransactionTable({ data, tagDefinitions, highlightExpressions, s
 
   // Measure header cell widths and compute left/right offsets for sticky columns
   useLayoutEffect(() => {
-    if (!theadRef.current || (leftIndices.size === 0 && rightIndices.size === 0)) {
+    if (!theadRef.current) return;
+
+    const ths = theadRef.current.querySelectorAll('th');
+
+    // Capture column widths for minimap
+    const widths: number[] = [];
+    ths.forEach((th) => widths.push(th.offsetWidth));
+    setColWidths(widths);
+
+    if (leftIndices.size === 0 && rightIndices.size === 0) {
       setStickyLefts(new Map());
       setStickyRights(new Map());
       return;
     }
-
-    const ths = theadRef.current.querySelectorAll('th');
 
     // Compute left offsets (cumulate left to right)
     const lefts = new Map<number, number>();
@@ -250,6 +288,100 @@ export function TransactionTable({ data, tagDefinitions, highlightExpressions, s
     setStickyLefts(lefts);
     setStickyRights(rights);
   }, [columns, leftIndices, rightIndices, data]);
+
+  // --- Minimap scroll tracking (via refs, no re-renders) ---
+
+  const updateViewportIndicator = useCallback(() => {
+    const { scrollLeft, clientWidth, scrollWidth } = scrollInfoRef.current;
+    const el = viewportIndicatorRef.current;
+    if (!el || scrollWidth <= 0) return;
+
+    const vpLeft = (scrollLeft / scrollWidth) * 100;
+    const vpWidth = (clientWidth / scrollWidth) * 100;
+    el.style.left = `${vpLeft}%`;
+    el.style.width = `${vpWidth}%`;
+
+    const bar = minimapBarRef.current;
+    if (!bar) return;
+    const barWidth = bar.offsetWidth;
+    if (barWidth <= 0) return;
+
+    const vpStart = vpLeft;
+    const vpEnd = vpLeft + vpWidth;
+    const children = bar.children;
+    for (let i = 0; i < children.length - 1; i++) {
+      const child = children[i] as HTMLElement;
+      const blockStart = (child.offsetLeft / barWidth) * 100;
+      const blockEnd = ((child.offsetLeft + child.offsetWidth) / barWidth) * 100;
+      const span = child.querySelector('span');
+      if (span) {
+        const inView = blockStart < vpEnd && blockEnd > vpStart;
+        span.style.fontWeight = inView ? '700' : '300';
+        span.style.fontSize = inView ? '10px' : '9px'; 
+        // span.style.color = inView ? 'rgba(0,0,0,0.9)' : 'rgba(0,0,0,0.6)';
+        // span.classList.toggle('text-slate-300', inView);
+        if (inView) {
+          span.classList.remove('text-slate-600');
+        } else {
+          span.classList.add('text-slate-600');
+        }
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+
+    const update = () => {
+      scrollInfoRef.current = {
+        scrollLeft: el.scrollLeft,
+        clientWidth: el.clientWidth,
+        scrollWidth: el.scrollWidth,
+      };
+      setHasOverflow(el.scrollWidth > el.clientWidth + 10);
+      updateViewportIndicator();
+    };
+
+    update();
+    el.addEventListener('scroll', update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener('scroll', update);
+      ro.disconnect();
+    };
+  }, [columns, data, updateViewportIndicator]);
+
+  // Minimap: proportional block widths
+  const minimapBlocks = useMemo(() => {
+    const total = colWidths.reduce((s, w) => s + w, 0);
+    if (total === 0) return [];
+    return columns.map((col, i) => ({
+      col,
+      widthPct: ((colWidths[i] ?? 0) / total) * 100,
+    }));
+  }, [columns, colWidths]);
+
+  // Minimap: click/drag to scroll
+  const scrollToMinimapX = useCallback((clientX: number, rect: DOMRect) => {
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const { scrollWidth, clientWidth } = scrollInfoRef.current;
+    const target = ratio * scrollWidth - clientWidth / 2;
+    scrollContainerRef.current?.scrollTo({ left: Math.max(0, target) });
+  }, []);
+
+  const handleMinimapPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    scrollToMinimapX(e.clientX, e.currentTarget.getBoundingClientRect());
+  }, [scrollToMinimapX]);
+
+  const handleMinimapPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.buttons === 0) return;
+    scrollToMinimapX(e.clientX, e.currentTarget.getBoundingClientRect());
+  }, [scrollToMinimapX]);
+
+  // --- end minimap ---
 
   const getAttributeValue = (item: AnalyzedTransaction, attrName: string): string | null => {
     for (const tagAttrs of Object.values(item.analysis.attributes)) {
@@ -321,117 +453,141 @@ export function TransactionTable({ data, tagDefinitions, highlightExpressions, s
   };
 
   return (
-    <div className="overflow-auto rounded-lg border border-gray-200" style={{ maxHeight: 'calc(100vh - 14rem)' }}>
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead ref={theadRef} className="bg-gray-50">
-          <tr>
-            {columns.map((col, idx) => {
-              const isAttr = col.type === 'attribute';
-              return (
-                <th
-                  key={col.key}
-                  className={`px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap ${isAttr ? 'text-indigo-600 bg-indigo-50' : 'text-gray-600 bg-gray-50'
-                    }`}
-                  style={getCellStyle(idx, true)}
-                >
-                  {col.type === 'identifier' && `Identifier (${fieldMeta.identifierField})`}
-                  {col.type === 'data' && humanizeFieldName(col.field)}
-                  {col.type === 'attribute' && col.name}
-                  {col.type === 'tags' && 'Tags'}
-                  {stickyEdgeShadow(idx)}
-                </th>
-              );
-            })}
-          </tr>
-        </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
-          {data.length === 0 ? (
-            <tr>
-              <td
-                colSpan={columns.length}
-                className="px-3 py-6 text-center text-xs text-gray-400"
+    <div className="rounded-lg border border-gray-200 flex flex-col" style={{ maxHeight: 'calc(100vh - 14rem)' }}>
+      {/* Column Minimap */}
+      {hasOverflow && (
+        <div
+          ref={minimapBarRef}
+          className="relative h-5 bg-white border-b border-gray-100 cursor-pointer select-none flex shrink-0"
+          onPointerDown={handleMinimapPointerDown}
+          onPointerMove={handleMinimapPointerMove}
+        >
+          {minimapBlocks.map((block, i) => (
+            <Tooltip key={columns[i].key} content={getColumnLabel(block.col)} placement="bottom">
+              <div
+                className={`h-full ${getMinimapColor(block.col.type)} opacity-80 hover:opacity-100 transition-opacity overflow-hidden flex items-center px-px`}
+                style={{ width: `${block.widthPct}%`, borderRight: '1px solid white' }}
               >
-                No transactions match the current filter.
-              </td>
-            </tr>
-          ) : (
-            data.map((item, i) => (
-              <tr key={i} className="group hover:bg-gray-50 transition-colors">
-                {columns.map((col, colIdx) => {
-                  const isStickyCol = stickyLefts.has(colIdx) || stickyRights.has(colIdx);
-                  const stickyBg = isStickyCol ? 'bg-white group-hover:bg-gray-50' : '';
+                <span className="text-[9px] leading-none font-light text-slate-600 whitespace-nowrap">
+                  {getColumnInitials(block.col)}
+                </span>
+              </div>
+            </Tooltip>
+          ))}
+          <div
+            ref={viewportIndicatorRef}
+            className="absolute top-0 bottom-0 bg-blue-500/20 border-x-2 border-orange-500 rounded-sm pointer-events-none"
+          />
+        </div>
+      )}
 
-                  switch (col.type) {
-                    case 'identifier':
-                      return (
-                        <td key={col.key} className={`px-3 py-2 text-xs font-medium text-gray-900 whitespace-nowrap ${stickyBg}`} style={getCellStyle(colIdx, false)}>
-                          {String(item.row[fieldMeta.identifierField] ?? '')}
-                          {stickyEdgeShadow(colIdx)}
-                        </td>
-                      );
-                    case 'data':
-                      return (
-                        <td key={col.key} className={`px-3 py-2 text-xs text-gray-600 max-w-200 ${stickyBg}`} style={getCellStyle(colIdx, false)}>
-                          {renderCellContent(col.field, item.row[col.field])}
-                          {stickyEdgeShadow(colIdx)}
-                        </td>
-                      );
-                    case 'attribute': {
-                      const val = getAttributeValue(item, col.name);
-                      const validation = attrValidationMap.get(col.name);
-                      let validationIcon: ReactNode = null;
-                      let validationPassed: boolean | null = null;
-                      if (validation) {
-                        if (validation.verifyValue) {
-                          // extract_between_and_verify: compare extracted value against verifyValue
-                          validationPassed = val === validation.verifyValue;
-                        } else {
-                          // predefined pattern: test source field against regex
-                          const sourceVal = String(item.row[validation.sourceField] ?? '');
-                          validationPassed = validation.regex.test(sourceVal);
-                        }
-                        validationIcon = validationPassed
-                          ? <span className="text-emerald-500 mr-1" title="Valid">&#10003;</span>
-                          : <span className="text-red-400 mr-1" title="Invalid">&#10007;</span>;
-                      }
-                      // When validation fails and extraction returned null, show source field value
-                      const displayVal = val ?? (validation ? String(item.row[validation.sourceField] ?? '') : null);
-                      return (
-                        <td
-                          key={col.key}
-                          className={`px-3 py-2 text-xs
-                            ${validationIcon ? 'text-center' : 'text-left'}
-                            ${validationPassed === true ? 'text-emerald-500' : validationPassed === false ? 'text-red-400' : 'text-indigo-700'}
-                            ${isStickyCol ? 'bg-indigo-50/80 group-hover:bg-indigo-100/60' : 'bg-indigo-50/30'}`}
-                          style={getCellStyle(colIdx, false)}
-                        >
-                          {displayVal ? <>{validationIcon}{displayVal}</> : <span className="text-gray-300">-</span>}
-                          {stickyEdgeShadow(colIdx)}
-                        </td>
-                      );
-                    }
-                    case 'tags':
-                      return (
-                        <td key={col.key} className={`px-3 py-2 ${stickyBg}`} style={getCellStyle(colIdx, false)}>
-                          {item.analysis.tags.length > 0 ? (
-                            <div className="flex flex-wrap gap-1">
-                              {item.analysis.tags.map((tag) => (
-                                <TagBadge key={tag} tag={tag} certainty={getCertainty(tag)} />
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="text-gray-400 text-xs">-</span>
-                          )}
-                          {stickyEdgeShadow(colIdx)}
-                        </td>
-                      );
-                  }
-                })}
+      {/* Scrollable table */}
+      <div ref={scrollContainerRef} className="overflow-auto flex-1 min-h-0">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead ref={theadRef} className="bg-gray-50">
+            <tr>
+              {columns.map((col, idx) => {
+                const isAttr = col.type === 'attribute';
+                return (
+                  <th
+                    key={col.key}
+                    className={`px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap ${isAttr ? 'text-indigo-600 bg-indigo-50' : 'text-gray-600 bg-gray-50'
+                      }`}
+                    style={getCellStyle(idx, true)}
+                  >
+                    {col.type === 'data' && humanizeFieldName(col.field)}
+                    {col.type === 'attribute' && col.name}
+                    {col.type === 'tags' && 'Tags'}
+                    {stickyEdgeShadow(idx)}
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {data.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={columns.length}
+                  className="px-3 py-6 text-center text-xs text-gray-400"
+                >
+                  No transactions match the current filter.
+                </td>
               </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+            ) : (
+              data.map((item, i) => (
+                <tr key={i} className="group hover:bg-gray-50 transition-colors">
+                  {columns.map((col, colIdx) => {
+                    const isStickyCol = stickyLefts.has(colIdx) || stickyRights.has(colIdx);
+                    const stickyBg = isStickyCol ? 'bg-white group-hover:bg-gray-50' : '';
+
+                    switch (col.type) {
+                      case 'data':
+                        return (
+                          <td key={col.key} className={`px-3 py-2 text-xs text-gray-600 max-w-200 ${stickyBg}`} style={getCellStyle(colIdx, false)}>
+                            {renderCellContent(col.field, item.row[col.field])}
+                            {stickyEdgeShadow(colIdx)}
+                          </td>
+                        );
+                      case 'attribute': {
+                        const val = getAttributeValue(item, col.name);
+                        const validation = attrValidationMap.get(col.name);
+                        let validationIcon: ReactNode = null;
+                        let validationPassed: boolean | null = null;
+                        if (validation) {
+                          if (validation.verifyValue) {
+                            validationPassed = val === validation.verifyValue;
+                          } else {
+                            const sourceVal = String(item.row[validation.sourceField] ?? '');
+                            validationPassed = validation.regex.test(sourceVal);
+                          }
+                          validationIcon = validationPassed
+                            ? <span className="text-emerald-500 mr-1" title="Valid">&#10003;</span>
+                            : <span className="text-red-400 mr-1" title="Invalid">&#10007;</span>;
+                        }
+                        const displayVal = val ?? (validation ? String(item.row[validation.sourceField] ?? '') : null);
+                        return (
+                          <td
+                            key={col.key}
+                            className={`px-3 py-2 text-xs
+                              ${validationIcon ? 'text-center' : 'text-left'}
+                              ${validationPassed === true ? 'text-emerald-500' : validationPassed === false ? 'text-red-400' : 'text-indigo-700'}
+                              ${isStickyCol ? 'bg-indigo-50/80 group-hover:bg-indigo-100/60' : 'bg-indigo-50/30'}`}
+                            style={getCellStyle(colIdx, false)}
+                          >
+                            {displayVal ? <>{validationIcon}{displayVal}</> : <span className="text-gray-300">-</span>}
+                            {stickyEdgeShadow(colIdx)}
+                          </td>
+                        );
+                      }
+                      case 'tags':
+                        return (
+                          <td key={col.key} className={`px-3 py-2 ${stickyBg}`} style={getCellStyle(colIdx, false)}>
+                            {item.analysis.tags.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {item.analysis.tags.map((tag) => (
+                                  <TagBadge
+                                    key={tag}
+                                    tag={tag}
+                                    certainty={getCertainty(tag)}
+                                    onClick={onTagClick ? () => onTagClick(tag) : undefined}
+                                  />
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-gray-400 text-xs">-</span>
+                            )}
+                            {stickyEdgeShadow(colIdx)}
+                          </td>
+                        );
+                    }
+                  })}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

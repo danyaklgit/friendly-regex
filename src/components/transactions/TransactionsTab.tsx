@@ -91,9 +91,13 @@ export function TransactionsTab() {
   const builder = useWizardForm(undefined, undefined, fieldMeta.sourceFields[0]);
   const [builderOpen, setBuilderOpen] = useState(false);
   const [showOnlyUntagged, setShowOnlyUntagged] = useState(false);
+  const [showOnlyMultiTagged, setShowOnlyMultiTagged] = useState(false);
   const [filters, setFilters] = useState<Record<string, Set<string>>>({});
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardInitialState, setWizardInitialState] = useState<WizardFormState | undefined>(undefined);
+  const [editingDef, setEditingDef] = useState<TagSpecDefinition | undefined>(undefined);
+  const [editingParentLib, setEditingParentLib] = useState<TagSpecLibrary | undefined>(undefined);
+  const [wizardInitialStep, setWizardInitialStep] = useState<1 | 2 | 3 | 4 | undefined>(undefined);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   // Build the temporary definition from the builder's form state
@@ -152,6 +156,10 @@ export function TransactionsTab() {
       result = result.filter((item) => item.analysis.tags.length === 0);
     }
 
+    if (showOnlyMultiTagged) {
+      result = result.filter((item) => item.analysis.tags.length > 1);
+    }
+
     for (const [field, selectedValues] of Object.entries(filters)) {
       if (selectedValues.size === 0) continue;
       if (field === '__tags') {
@@ -167,7 +175,7 @@ export function TransactionsTab() {
     }
 
     return result;
-  }, [analyzedData, showOnlyUntagged, filters]);
+  }, [analyzedData, showOnlyUntagged, showOnlyMultiTagged, filters]);
 
   // Flatten temp definition's rule expressions for highlighting
   const highlightExpressions: RuleExpression[] | undefined = useMemo(() => {
@@ -191,6 +199,9 @@ export function TransactionsTab() {
 
   const handleCreateFromBuilder = useCallback(() => {
     setWizardInitialState({ ...builder.formState });
+    setEditingDef(undefined);
+    setEditingParentLib(undefined);
+    setWizardInitialStep(undefined);
     setWizardOpen(true);
   }, [builder.formState]);
 
@@ -199,18 +210,45 @@ export function TransactionsTab() {
   }, []);
 
   const handleWizardSave = useCallback((result: WizardFormResult) => {
-    dispatch({ type: 'ADD', payload: result });
+    if (editingDef) {
+      dispatch({ type: 'UPDATE', payload: result });
+      setToast({ message: `Tag '${result.definition.Tag}' updated`, type: 'success' });
+    } else {
+      dispatch({ type: 'ADD', payload: result });
+      setToast({ message: `Tag '${result.definition.Tag}' created`, type: 'success' });
+    }
     setWizardOpen(false);
     setWizardInitialState(undefined);
+    setEditingDef(undefined);
+    setEditingParentLib(undefined);
+    setWizardInitialStep(undefined);
     setBuilderOpen(false);
     builder.resetForm();
-    setToast({ message: `Tag '${result.definition.Tag}' created`, type: 'success' });
-  }, [dispatch, builder]);
+  }, [dispatch, builder, editingDef]);
 
   const handleWizardClose = useCallback(() => {
     setWizardOpen(false);
     setWizardInitialState(undefined);
+    setEditingDef(undefined);
+    setEditingParentLib(undefined);
+    setWizardInitialStep(undefined);
   }, []);
+
+  // Click a tag badge in the table → open its definition in edit mode at Review (step 4)
+  const handleTagClick = useCallback((tagName: string) => {
+    // Find the first matching definition and its parent library
+    for (const lib of libraries) {
+      const def = lib.TagSpecDefinitions.find((d) => d.Tag === tagName);
+      if (def) {
+        setEditingDef(def);
+        setEditingParentLib(lib);
+        setWizardInitialState(undefined);
+        setWizardInitialStep(4);
+        setWizardOpen(true);
+        return;
+      }
+    }
+  }, [libraries]);
 
   const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -261,6 +299,7 @@ export function TransactionsTab() {
           {!builderOpen && (
             <Button variant="secondary" size="sm" onClick={() => {
               setShowOnlyUntagged(false)
+              setShowOnlyMultiTagged(false)
               setBuilderOpen(true)
             }}>
               Test a Rule
@@ -278,6 +317,8 @@ export function TransactionsTab() {
           onFiltersChange={setFilters}
           showOnlyUntagged={showOnlyUntagged}
           onShowOnlyUntaggedChange={setShowOnlyUntagged}
+          showOnlyMultiTagged={showOnlyMultiTagged}
+          onShowOnlyMultiTaggedChange={setShowOnlyMultiTagged}
         />
       {/* )} */}
 
@@ -346,11 +387,20 @@ export function TransactionsTab() {
         </div>
       )}
 
-      <TransactionTable data={filteredData} tagDefinitions={allDefinitions} highlightExpressions={highlightExpressions} stickyFields={stickyFields} />
+      <TransactionTable
+        data={filteredData}
+        tagDefinitions={allDefinitions}
+        highlightExpressions={highlightExpressions}
+        stickyFields={stickyFields}
+        onTagClick={handleTagClick}
+      />
 
       {wizardOpen && (
         <TagWizardModal
+          existingDef={editingDef}
+          parentLib={editingParentLib}
           initialFormState={wizardInitialState}
+          initialStep={wizardInitialStep}
           onSave={handleWizardSave}
           onClose={handleWizardClose}
         />
