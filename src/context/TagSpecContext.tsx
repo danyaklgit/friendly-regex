@@ -131,30 +131,8 @@ function tagSpecReducer(
     }
 
     case 'IMPORT': {
-      const incoming = action.payload;
-      const result = [...state];
-
-      for (const incomingLib of incoming) {
-        const existingIdx = result.findIndex((lib) => contextsMatch(lib.Context, incomingLib.Context));
-
-        if (existingIdx >= 0) {
-          // Merge definitions into existing library
-          const existingLib = result[existingIdx];
-          const defMap = new Map(existingLib.TagSpecDefinitions.map((d) => [d.Id, d]));
-          for (const def of incomingLib.TagSpecDefinitions) {
-            defMap.set(def.Id, def);
-          }
-          result[existingIdx] = {
-            ...existingLib,
-            TagSpecDefinitions: Array.from(defMap.values()),
-          };
-        } else {
-          // Add new library
-          result.push(incomingLib);
-        }
-      }
-
-      return result;
+      // Replace all existing libraries with the imported ones
+      return action.payload;
     }
 
     case 'REPLACE_ALL':

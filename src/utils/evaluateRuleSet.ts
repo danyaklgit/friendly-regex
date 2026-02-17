@@ -26,7 +26,7 @@ export function evaluateRuleSet(andGroup: AndGroup, row: TransactionRow): boolea
 
     try {
       const regex = new RegExp(condition.Regex);
-      return regex.test(String(fieldValue));
+      return regex.test(String(fieldValue).trim());
     } catch {
       return false;
     }
