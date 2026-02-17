@@ -9,6 +9,7 @@ import { humanizeFieldName } from '../../utils/humanizeFieldName';
 interface TransactionTableProps {
   data: AnalyzedTransaction[];
   tagDefinitions: TagSpecDefinition[];
+  originalDefinitionIds?: Set<string>;
   highlightExpressions?: RuleExpression[];
   stickyFields?: Set<string>;
   onTagClick?: (tagName: string) => void;
@@ -84,7 +85,7 @@ function highlightText(text: string, regexes: RegExp[]): ReactNode {
   return <>{parts}</>;
 }
 
-export function TransactionTable({ data, tagDefinitions, highlightExpressions, stickyFields, onTagClick }: TransactionTableProps) {
+export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, highlightExpressions, stickyFields, onTagClick }: TransactionTableProps) {
   const { fieldMeta } = useTransactionData();
   const theadRef = useRef<HTMLTableSectionElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -191,6 +192,9 @@ export function TransactionTable({ data, tagDefinitions, highlightExpressions, s
     const cols: ColumnDef[] = [];
     const placedAttrs = new Set<string>();
 
+    // Tags column first (sticky left)
+    cols.push({ type: 'tags', key: '__tags' });
+
     for (const field of fieldMeta.dataFields) {
       cols.push({ type: 'data', key: `data:${field}`, field });
       const attrs = attrsBySource.get(field);
@@ -201,8 +205,6 @@ export function TransactionTable({ data, tagDefinitions, highlightExpressions, s
         }
       }
     }
-
-    cols.push({ type: 'tags', key: '__tags' });
 
     for (const attr of attributeColumns) {
       if (!placedAttrs.has(attr)) {
@@ -218,9 +220,9 @@ export function TransactionTable({ data, tagDefinitions, highlightExpressions, s
     const left = new Set<number>();
     const right = new Set<number>();
 
-    // Tags column is always sticky right
+    // Tags column is always sticky left
     const tagsIdx = columns.findIndex((col) => col.type === 'tags');
-    if (tagsIdx !== -1) right.add(tagsIdx);
+    if (tagsIdx !== -1) left.add(tagsIdx);
 
     if (stickyFields && stickyFields.size > 0) {
       const midpoint = columns.length / 2;
@@ -371,10 +373,38 @@ export function TransactionTable({ data, tagDefinitions, highlightExpressions, s
     scrollContainerRef.current?.scrollTo({ left: Math.max(0, target) });
   }, []);
 
+  const getColumnAtMinimapX = useCallback((clientX: number, rect: DOMRect): number => {
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const total = colWidths.reduce((s, w) => s + w, 0);
+    if (total === 0) return 0;
+    const target = ratio * total;
+    let cum = 0;
+    for (let i = 0; i < colWidths.length; i++) {
+      cum += colWidths[i];
+      if (cum >= target) return i;
+    }
+    return colWidths.length - 1;
+  }, [colWidths]);
+
+  const flashColumnHeader = useCallback((colIdx: number) => {
+    if (!theadRef.current) return;
+    const th = theadRef.current.querySelectorAll('th')[colIdx] as HTMLElement | undefined;
+    if (!th) return;
+    th.style.transition = 'background-color 0.1s ease-in';
+    th.style.backgroundColor = 'rgb(253 224 71)';
+    setTimeout(() => {
+      th.style.transition = 'background-color 0.8s ease-out';
+      th.style.backgroundColor = '';
+    }, 150);
+  }, []);
+
   const handleMinimapPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     e.currentTarget.setPointerCapture(e.pointerId);
-    scrollToMinimapX(e.clientX, e.currentTarget.getBoundingClientRect());
-  }, [scrollToMinimapX]);
+    const rect = e.currentTarget.getBoundingClientRect();
+    scrollToMinimapX(e.clientX, rect);
+    const colIdx = getColumnAtMinimapX(e.clientX, rect);
+    flashColumnHeader(colIdx);
+  }, [scrollToMinimapX, getColumnAtMinimapX, flashColumnHeader]);
 
   const handleMinimapPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (e.buttons === 0) return;
@@ -567,14 +597,19 @@ export function TransactionTable({ data, tagDefinitions, highlightExpressions, s
                           <td key={col.key} className={`px-3 py-2 ${stickyBg}`} style={getCellStyle(colIdx, false)}>
                             {item.analysis.tags.length > 0 ? (
                               <div className="flex flex-wrap gap-1">
-                                {item.analysis.tags.map((tag) => (
-                                  <TagBadge
-                                    key={tag}
-                                    tag={tag}
-                                    certainty={getCertainty(tag)}
-                                    onClick={onTagClick ? () => onTagClick(tag) : undefined}
-                                  />
-                                ))}
+                                {item.analysis.tags.map((tag, ti) => {
+                                  const defId = item.analysis.matchedDefinitions[ti]?.Id;
+                                  const isUserCreated = defId ? !(originalDefinitionIds?.has(defId)) : false;
+                                  return (
+                                    <TagBadge
+                                      key={tag}
+                                      tag={tag}
+                                      certainty={getCertainty(tag)}
+                                      isUserCreated={isUserCreated}
+                                      onClick={onTagClick ? () => onTagClick(tag) : undefined}
+                                    />
+                                  );
+                                })}
                               </div>
                             ) : (
                               <span className="text-gray-400 text-xs">-</span>

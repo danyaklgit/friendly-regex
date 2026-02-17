@@ -85,7 +85,7 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
 const BATCH_SIZE = 50;
 
 export function TransactionsTab() {
-  const { libraries, tagDefinitions, dispatch } = useTagSpecs();
+  const { libraries, tagDefinitions, originalDefinitionIds, dispatch } = useTagSpecs();
   const { transactions, fieldMeta, loadTransactions, resetToSample, isCustomData } = useTransactionData();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -292,6 +292,22 @@ export function TransactionsTab() {
         <div className='flex items-center gap-2'>
           {!builderOpen && <h2 className="text-base font-semibold text-gray-900">Transactions</h2>}
           {!builderOpen && <span className='text-sm'>{filteredData.length}</span>}
+          {!builderOpen && (
+            <div className="flex items-center gap-5 ml-4 text-[11px] text-gray-500">
+              <span className="flex items-center gap-1">
+                <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-gray-400 text-[8px] font-semibold text-gray-400">i</span>
+                Data as provided by the bank(s)
+              </span>
+              <span className="flex items-center gap-1 text-blue-500">
+                <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-blue-400 text-[8px] font-semibold text-blue-500">i</span>
+                Enhanced data based on existing tag definitions
+              </span>
+              <span className="flex items-center gap-1 text-orange-500">
+                <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-orange-400 text-[8px] font-semibold text-orange-500">i</span>
+                Data as customized by the user
+              </span>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <input
@@ -405,6 +421,7 @@ export function TransactionsTab() {
       <TransactionTable
         data={visibleData}
         tagDefinitions={allDefinitions}
+        originalDefinitionIds={originalDefinitionIds}
         highlightExpressions={highlightExpressions}
         stickyFields={stickyFields}
         onTagClick={handleTagClick}

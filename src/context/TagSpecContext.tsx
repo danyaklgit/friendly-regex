@@ -1,4 +1,4 @@
-import { createContext, useReducer, useMemo, type ReactNode, type Dispatch } from 'react';
+import { createContext, useReducer, useMemo, useRef, type ReactNode, type Dispatch } from 'react';
 import type { TagSpecDefinition, TagSpecLibrary, ContextEntry } from '../types';
 import sampleTagData from '../data/sample.json';
 
@@ -148,6 +148,7 @@ function tagSpecReducer(
 export interface TagSpecContextValue {
   libraries: TagSpecLibrary[];
   tagDefinitions: TagSpecDefinition[];
+  originalDefinitionIds: Set<string>;
   dispatch: Dispatch<TagSpecAction>;
 }
 
@@ -158,8 +159,13 @@ export function TagSpecProvider({ children }: { children: ReactNode }) {
   const [libraries, dispatch] = useReducer(tagSpecReducer, initialData);
   const tagDefinitions = useMemo(() => flattenDefinitions(libraries), [libraries]);
 
+  // Capture IDs from the initially loaded data (predefined); anything else is user-created
+  const originalDefinitionIds = useRef(
+    new Set(flattenDefinitions(initialData).map((d) => d.Id))
+  ).current;
+
   return (
-    <TagSpecContext.Provider value={{ libraries, tagDefinitions, dispatch }}>
+    <TagSpecContext.Provider value={{ libraries, tagDefinitions, originalDefinitionIds, dispatch }}>
       {children}
     </TagSpecContext.Provider>
   );
