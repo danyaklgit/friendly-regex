@@ -18,13 +18,27 @@ interface TransactionTableProps {
 type ColumnDef =
   | { type: 'data'; key: string; field: string }
   | { type: 'attribute'; key: string; name: string }
-  | { type: 'tags'; key: string };
+  | { type: 'tags'; key: string }
+  | { type: 'dates'; key: string; fields: { key: string; label: string }[] }
+  | { type: 'debit'; key: string }
+  | { type: 'credit'; key: string };
+
+const SIDE_AMOUNT_FIELDS = new Set(['Side', 'Amount']);
+const DATE_GROUP_FIELDS = ['EntryDate', 'StatementDate', 'ValueDate'];
+const DATE_GROUP_LABELS: Record<string, string> = {
+  EntryDate: 'Entry',
+  StatementDate: 'Statement',
+  ValueDate: 'Value',
+};
 
 function getColumnLabel(col: ColumnDef): string {
   switch (col.type) {
     case 'data': return humanizeFieldName(col.field);
     case 'attribute': return col.name;
     case 'tags': return 'Tags';
+    case 'dates': return 'Dates';
+    case 'debit': return 'Debit Amount';
+    case 'credit': return 'Credit Amount';
   }
 }
 
@@ -40,6 +54,9 @@ function getMinimapColor(type: ColumnDef['type']): string {
     case 'data': return 'bg-slate-300';
     case 'attribute': return 'bg-indigo-400';
     case 'tags': return 'bg-emerald-400';
+    case 'dates': return 'bg-slate-300';
+    case 'debit': return 'bg-emerald-300';
+    case 'credit': return 'bg-red-300';
   }
 }
 
@@ -191,11 +208,34 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
 
     const cols: ColumnDef[] = [];
     const placedAttrs = new Set<string>();
+    const dateGroupSet = new Set(DATE_GROUP_FIELDS);
+    let dateGroupInserted = false;
+    let debitCreditInserted = false;
 
     // Tags column first (sticky left)
     cols.push({ type: 'tags', key: '__tags' });
 
     for (const field of fieldMeta.dataFields) {
+      // Group date fields into a single "Dates" column
+      if (dateGroupSet.has(field)) {
+        if (!dateGroupInserted) {
+          const presentDateFields = DATE_GROUP_FIELDS
+            .filter((f) => fieldMeta.dataFields.includes(f))
+            .map((f) => ({ key: f, label: DATE_GROUP_LABELS[f] }));
+          cols.push({ type: 'dates', key: '__dates', fields: presentDateFields });
+          dateGroupInserted = true;
+        }
+        continue;
+      }
+      // Combine Side + Amount into Debit/Credit columns
+      if (SIDE_AMOUNT_FIELDS.has(field)) {
+        if (!debitCreditInserted) {
+          cols.push({ type: 'debit', key: '__debit' });
+          cols.push({ type: 'credit', key: '__credit' });
+          debitCreditInserted = true;
+        }
+        continue;
+      }
       cols.push({ type: 'data', key: `data:${field}`, field });
       const attrs = attrsBySource.get(field);
       if (attrs) {
@@ -319,7 +359,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
       if (span) {
         const inView = blockStart < vpEnd && blockEnd > vpStart;
         span.style.fontWeight = inView ? '700' : '300';
-        span.style.fontSize = inView ? '10px' : '9px'; 
+        span.style.fontSize = inView ? '10px' : '9px';
         // span.style.color = inView ? 'rgba(0,0,0,0.9)' : 'rgba(0,0,0,0.6)';
         // span.classList.toggle('text-slate-300', inView);
         if (inView) {
@@ -528,6 +568,9 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                     {col.type === 'data' && humanizeFieldName(col.field)}
                     {col.type === 'attribute' && col.name}
                     {col.type === 'tags' && 'Tags'}
+                    {col.type === 'dates' && 'Dates'}
+                    {col.type === 'debit' && 'Debit Amount'}
+                    {col.type === 'credit' && 'Credit Amount'}
                     {stickyEdgeShadow(idx)}
                   </th>
                 );
@@ -559,6 +602,44 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                             {stickyEdgeShadow(colIdx)}
                           </td>
                         );
+                      case 'dates':
+                        return (
+                          <td key={col.key} className={`px-3 py-1.5 text-xs text-gray-600 ${stickyBg}`} style={getCellStyle(colIdx, false)}>
+                            <div className="flex flex-col gap-0.5">
+                              {col.fields.map((f) => {
+                                const val = item.row[f.key];
+                                if (val == null || val === '') return null;
+                                return (
+                                  <span key={f.key} className="whitespace-nowrap">
+                                    <span className="text-gray-400">{f.label}:</span>{' '}
+                                    {String(val).replace('T', ' ').replace(/:\d{2}Z?$/, '')}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                            {stickyEdgeShadow(colIdx)}
+                          </td>
+                        );
+                      case 'debit': {
+                        const side = String(item.row['Side'] ?? '');
+                        const amt = side === 'DR' ? item.row['Amount'] : null;
+                        return (
+                          <td key={col.key} className={`px-3 py-2 text-xs text-right font-medium whitespace-nowrap ${amt != null ? 'text-emerald-600' : 'text-gray-300'} ${stickyBg}`} style={getCellStyle(colIdx, false)}>
+                            {amt != null ? <div><span className="icon-saudi_riyal">&#xea;</span> {Number(amt).toLocaleString()}</div> : '-'}
+                            {stickyEdgeShadow(colIdx)}
+                          </td>
+                        );
+                      }
+                      case 'credit': {
+                        const side = String(item.row['Side'] ?? '');
+                        const amt = side === 'CR' ? item.row['Amount'] : null;
+                        return (
+                          <td key={col.key} className={`px-3 py-2 text-xs text-right font-medium ${amt != null ? 'text-red-500' : 'text-gray-300'} ${stickyBg}`} style={getCellStyle(colIdx, false)}>
+                            {amt != null ? <div><span className="icon-saudi_riyal">&#xea;</span> {Number(amt).toLocaleString()}</div> : '-'}
+                            {stickyEdgeShadow(colIdx)}
+                          </td>
+                        );
+                      }
                       case 'attribute': {
                         const val = getAttributeValue(item, col.name);
                         const validation = attrValidationMap.get(col.name);

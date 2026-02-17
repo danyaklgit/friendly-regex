@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "@abdulrysr/saudi-riyal-new-symbol-font/style.css";
 
 @theme {
   --color-primary: #3b82f6;
