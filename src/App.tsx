@@ -1,6 +1,5 @@
 import { TagSpecProvider } from './context/TagSpecContext';
 import { TransactionDataProvider } from './context/TransactionDataContext';
-import { PageHeader } from './components/layout/PageHeader';
 import { TabContainer } from './components/layout/TabContainer';
 import { TransactionsTab } from './components/transactions/TransactionsTab';
 import { TagRulesTab } from './components/tagRules/TagRulesTab';
@@ -10,7 +9,6 @@ function App() {
     <TagSpecProvider>
       <TransactionDataProvider>
       <div className="min-h-screen bg-gray-50">
-        <PageHeader />
         <TabContainer
           tabs={[
             { label: 'Transactions', content: <TransactionsTab /> },

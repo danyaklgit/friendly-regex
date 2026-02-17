@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useTagSpecs } from '../../hooks/useTagSpecs';
 import { useTransactionData } from '../../hooks/useTransactionData';
 import { useWizardForm } from '../../hooks/useWizardForm';
@@ -82,6 +82,8 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
   };
 }
 
+const BATCH_SIZE = 50;
+
 export function TransactionsTab() {
   const { libraries, tagDefinitions, dispatch } = useTagSpecs();
   const { transactions, fieldMeta, loadTransactions, resetToSample, isCustomData } = useTransactionData();
@@ -93,6 +95,7 @@ export function TransactionsTab() {
   const [showOnlyUntagged, setShowOnlyUntagged] = useState(false);
   const [showOnlyMultiTagged, setShowOnlyMultiTagged] = useState(false);
   const [filters, setFilters] = useState<Record<string, Set<string>>>({});
+  const [visibleCount, setVisibleCount] = useState(BATCH_SIZE);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardInitialState, setWizardInitialState] = useState<WizardFormState | undefined>(undefined);
   const [editingDef, setEditingDef] = useState<TagSpecDefinition | undefined>(undefined);
@@ -176,6 +179,18 @@ export function TransactionsTab() {
 
     return result;
   }, [analyzedData, showOnlyUntagged, showOnlyMultiTagged, filters]);
+
+  // Reset visible count when filters or data change
+  const filteredLen = filteredData.length;
+  useEffect(() => {
+    setVisibleCount(BATCH_SIZE);
+  }, [filteredLen]);
+
+  const visibleData = useMemo(
+    () => filteredData.slice(0, visibleCount),
+    [filteredData, visibleCount]
+  );
+  const hasMore = visibleCount < filteredLen;
 
   // Flatten temp definition's rule expressions for highlighting
   const highlightExpressions: RuleExpression[] | undefined = useMemo(() => {
@@ -388,12 +403,23 @@ export function TransactionsTab() {
       )}
 
       <TransactionTable
-        data={filteredData}
+        data={visibleData}
         tagDefinitions={allDefinitions}
         highlightExpressions={highlightExpressions}
         stickyFields={stickyFields}
         onTagClick={handleTagClick}
       />
+
+      {hasMore && (
+        <div className="flex items-center justify-center gap-3 py-2 mt-1 border border-gray-200 bg-gray-50 rounded-lg">
+          <span className="text-xs text-gray-500">
+            Showing {visibleCount.toLocaleString()} of {filteredLen.toLocaleString()}
+          </span>
+          <Button variant="secondary" size="sm" onClick={() => setVisibleCount((c) => c + BATCH_SIZE)}>
+            Show more
+          </Button>
+        </div>
+      )}
 
       {wizardOpen && (
         <TagWizardModal

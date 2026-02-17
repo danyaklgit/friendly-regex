@@ -1,4 +1,4 @@
-import { useState, cloneElement, type ReactElement } from 'react';
+import { useState, cloneElement, type ReactElement, type ReactNode } from 'react';
 import {
   useFloating,
   autoUpdate,
@@ -15,7 +15,7 @@ import {
 } from '@floating-ui/react';
 
 interface TooltipProps {
-  content: string;
+  content: ReactNode;
   placement?: Placement;
   children: ReactElement<Record<string, unknown>>;
 }

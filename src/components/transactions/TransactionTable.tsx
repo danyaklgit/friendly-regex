@@ -453,7 +453,7 @@ export function TransactionTable({ data, tagDefinitions, highlightExpressions, s
   };
 
   return (
-    <div className="rounded-lg border border-gray-200 flex flex-col" style={{ maxHeight: 'calc(100vh - 14rem)' }}>
+    <div className="rounded-lg border border-gray-200 flex flex-col" style={{ maxHeight: 'calc(100vh - 15.5rem)' }}>
       {/* Column Minimap */}
       {hasOverflow && (
         <div
@@ -560,7 +560,9 @@ export function TransactionTable({ data, tagDefinitions, highlightExpressions, s
                           </td>
                         );
                       }
-                      case 'tags':
+                      case 'tags': {
+                        const hints = item.row['Hints'];
+                        const hintList = Array.isArray(hints) && hints.length > 0 ? hints as string[] : null;
                         return (
                           <td key={col.key} className={`px-3 py-2 ${stickyBg}`} style={getCellStyle(colIdx, false)}>
                             {item.analysis.tags.length > 0 ? (
@@ -577,9 +579,26 @@ export function TransactionTable({ data, tagDefinitions, highlightExpressions, s
                             ) : (
                               <span className="text-gray-400 text-xs">-</span>
                             )}
+                            {hintList && (
+                              <Tooltip
+                                content={
+                                  <div className="flex flex-col gap-0.5">
+                                    {hintList.map((h, hi) => (
+                                      <span key={hi}>{h}</span>
+                                    ))}
+                                  </div>
+                                }
+                                placement="left"
+                              >
+                                <span className="w-full text-left pl-2 text-[10px] text-blue-500 cursor-default mt-0.5 inline-block">
+                                  Hints?
+                                </span>
+                              </Tooltip>
+                            )}
                             {stickyEdgeShadow(colIdx)}
                           </td>
                         );
+                      }
                     }
                   })}
                 </tr>
