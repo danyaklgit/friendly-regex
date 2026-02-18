@@ -176,7 +176,7 @@ function FilterDropdown({
       {open && (
         <div className="absolute top-full mt-1 left-0 z-50 bg-white border border-gray-200 rounded-lg shadow-lg min-w-[220px]">
           {numericInfo && (
-            <div className="border-b border-gray-100">
+            <div className={values.length <= 50 ? 'border-b border-gray-100' : ''}>
               <RangeSlider
                 min={numericInfo.min}
                 max={numericInfo.max}
@@ -187,38 +187,40 @@ function FilterDropdown({
               />
             </div>
           )}
-          <div className="p-2 max-h-48 overflow-y-auto">
-            {values.map((val) => (
-              <label
-                key={val}
-                className="flex items-center gap-2 px-2 py-1 text-xs hover:bg-gray-50 rounded cursor-pointer"
-              >
-                <input
-                  type="checkbox"
-                  checked={selected.has(val)}
-                  onChange={() => {
-                    const next = new Set(selected);
-                    if (next.has(val)) next.delete(val);
-                    else next.add(val);
-                    onChange(next);
-                    // Sync range slider to match manual selection
-                    if (numericInfo) {
-                      const selectedNums = Array.from(next).map(Number);
-                      if (selectedNums.length > 0) {
-                        setRangeLow(Math.min(...selectedNums));
-                        setRangeHigh(Math.max(...selectedNums));
-                      } else {
-                        setRangeLow(numericInfo.min);
-                        setRangeHigh(numericInfo.max);
+          {values.length <= 50 && (
+            <div className="p-2 max-h-48 overflow-y-auto">
+              {values.map((val) => (
+                <label
+                  key={val}
+                  className="flex items-center gap-2 px-2 py-1 text-xs hover:bg-gray-50 rounded cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected.has(val)}
+                    onChange={() => {
+                      const next = new Set(selected);
+                      if (next.has(val)) next.delete(val);
+                      else next.add(val);
+                      onChange(next);
+                      // Sync range slider to match manual selection
+                      if (numericInfo) {
+                        const selectedNums = Array.from(next).map(Number);
+                        if (selectedNums.length > 0) {
+                          setRangeLow(Math.min(...selectedNums));
+                          setRangeHigh(Math.max(...selectedNums));
+                        } else {
+                          setRangeLow(numericInfo.min);
+                          setRangeHigh(numericInfo.max);
+                        }
                       }
-                    }
-                  }}
-                  className="rounded border-gray-300"
-                />
-                <span className="truncate">{isNumeric ? Number(val).toLocaleString() : val}</span>
-              </label>
-            ))}
-          </div>
+                    }}
+                    className="rounded border-gray-300"
+                  />
+                  <span className="truncate">{isNumeric ? Number(val).toLocaleString() : val}</span>
+                </label>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -254,8 +256,8 @@ export function DynamicFilters({
           if (allNumeric && isNaN(Number(str))) allNumeric = false;
         }
       }
-      if (distinctValues.size >= 2 && distinctValues.size <= 50) {
-        const isNumeric = allNumeric && distinctValues.size > 0;
+      const isNumeric = allNumeric && distinctValues.size > 0;
+      if (distinctValues.size >= 2 && (isNumeric || distinctValues.size <= 50)) {
         const values = Array.from(distinctValues).sort(
           isNumeric ? (a, b) => Number(a) - Number(b) : undefined
         );

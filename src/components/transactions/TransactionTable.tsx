@@ -12,7 +12,7 @@ interface TransactionTableProps {
   originalDefinitionIds?: Set<string>;
   highlightExpressions?: RuleExpression[];
   stickyFields?: Set<string>;
-  onTagClick?: (tagName: string) => void;
+  onTagClick?: (tagName: string, definitionId?: string) => void;
 }
 
 type ColumnDef =
@@ -612,7 +612,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                                 return (
                                   <span key={f.key} className="whitespace-nowrap">
                                     <span className="text-gray-400">{f.label}:</span>{' '}
-                                    {String(val).replace('T', ' ').replace(/:\d{2}Z?$/, '')}
+                                    {String(val).split('T')[0]}
                                   </span>
                                 );
                               })}
@@ -687,7 +687,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                                       tag={tag}
                                       certainty={getCertainty(tag)}
                                       isUserCreated={isUserCreated}
-                                      onClick={onTagClick ? () => onTagClick(tag) : undefined}
+                                      onClick={onTagClick ? () => onTagClick(tag, defId) : undefined}
                                     />
                                   );
                                 })}

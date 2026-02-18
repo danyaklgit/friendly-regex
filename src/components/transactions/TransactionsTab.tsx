@@ -250,10 +250,12 @@ export function TransactionsTab() {
   }, []);
 
   // Click a tag badge in the table → open its definition in edit mode at Review (step 4)
-  const handleTagClick = useCallback((tagName: string) => {
-    // Find the first matching definition and its parent library
+  const handleTagClick = useCallback((tagName: string, definitionId?: string) => {
+    // Find the specific matched definition, or fall back to first with that tag name
     for (const lib of libraries) {
-      const def = lib.TagSpecDefinitions.find((d) => d.Tag === tagName);
+      const def = definitionId
+        ? lib.TagSpecDefinitions.find((d) => d.Id === definitionId)
+        : lib.TagSpecDefinitions.find((d) => d.Tag === tagName);
       if (def) {
         setEditingDef(def);
         setEditingParentLib(lib);

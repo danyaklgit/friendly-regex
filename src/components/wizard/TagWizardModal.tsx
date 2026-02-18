@@ -63,7 +63,7 @@ export function TagWizardModal({ existingDef, parentLib, initialFormState, initi
     <Modal
       open
       onClose={onClose}
-      title={wizard.isEditing ? `Edit Tag: ${existingDef?.Tag}` : 'Create New Tag'}
+      title={wizard.isEditing ? `Edit Tag: ${existingDef?.Tag} (${existingDef?.Id})` : 'Create New Tag'}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
