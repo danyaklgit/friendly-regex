@@ -14,6 +14,7 @@ interface ConditionEditorProps {
   onRemove: () => void;
   canRemove: boolean;
   showAnd?: boolean;
+  startCollapsed?: boolean;
 }
 
 export function ConditionEditor({
@@ -22,9 +23,10 @@ export function ConditionEditor({
   onRemove,
   canRemove,
   showAnd,
+  startCollapsed,
 }: ConditionEditorProps) {
   const { fieldMeta, transactions } = useTransactionData();
-  const [editing, setEditing] = useState(true);
+  const [editing, setEditing] = useState(!startCollapsed);
 
   const isFieldNumeric = useMemo(() => {
     if (!condition.sourceField || transactions.length === 0) return false;

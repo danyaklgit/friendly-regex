@@ -1,6 +1,6 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { useTagSpecs } from '../../hooks/useTagSpecs';
-import type { TagSpecDefinition, TagSpecLibrary } from '../../types';
+import type { TagSpecDefinition, TagSpecLibrary, CheckoutState } from '../../types';
 import type { WizardFormResult } from '../../hooks/useWizardForm';
 import { getContextValue } from '../../types/tagSpec';
 import { exportTagLibraries, exportSingleDefinition, importTagLibraries } from '../../utils/persistence';
@@ -11,7 +11,12 @@ import { Button } from '../shared/Button';
 import { EmptyState } from '../shared/EmptyState';
 import { Toast } from '../shared/Toast';
 
-export function TagRulesTab() {
+interface TagRulesTabProps {
+  checkouts: CheckoutState[];
+  onEditInTransactions?: (def: TagSpecDefinition, parentLib: TagSpecLibrary) => void;
+}
+
+export function TagRulesTab({ checkouts, onEditInTransactions }: TagRulesTabProps) {
   const { libraries, tagDefinitions, dispatch } = useTagSpecs();
   const [wizardOpen, setWizardOpen] = useState(false);
   const [editingDef, setEditingDef] = useState<TagSpecDefinition | undefined>(undefined);
@@ -19,6 +24,42 @@ export function TagRulesTab() {
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; tag: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => {
+    if (checkouts.length === 0) return new Set<string>();
+    return new Set(
+      libraries
+        .filter((lib) => {
+          const bank = getContextValue(lib.Context, 'BankSwiftCode') ?? '';
+          const side = getContextValue(lib.Context, 'Side') ?? '';
+          return !checkouts.some((c) => c.bank === bank && c.side === side);
+        })
+        .map((lib) => lib.Id)
+    );
+  });
+
+  const toggleCollapse = (libId: string) => {
+    setCollapsedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(libId)) next.delete(libId);
+      else next.add(libId);
+      return next;
+    });
+  };
+
+  const sortedLibraries = useMemo(() => {
+    if (checkouts.length === 0) return libraries;
+    return [...libraries].sort((a, b) => {
+      const aBank = getContextValue(a.Context, 'BankSwiftCode') ?? '';
+      const aSide = getContextValue(a.Context, 'Side') ?? '';
+      const bBank = getContextValue(b.Context, 'BankSwiftCode') ?? '';
+      const bSide = getContextValue(b.Context, 'Side') ?? '';
+      const aMatch = checkouts.some((c) => c.bank === aBank && c.side === aSide);
+      const bMatch = checkouts.some((c) => c.bank === bBank && c.side === bSide);
+      if (aMatch && !bMatch) return -1;
+      if (!aMatch && bMatch) return 1;
+      return 0;
+    });
+  }, [libraries, checkouts]);
 
   const handleCreate = () => {
     setEditingDef(undefined);
@@ -27,9 +68,13 @@ export function TagRulesTab() {
   };
 
   const handleEdit = (def: TagSpecDefinition, parentLib?: TagSpecLibrary) => {
-    setEditingDef(def);
-    setEditingParentLib(parentLib);
-    setWizardOpen(true);
+    if (onEditInTransactions && parentLib) {
+      onEditInTransactions(def, parentLib);
+    } else {
+      setEditingDef(def);
+      setEditingParentLib(parentLib);
+      setWizardOpen(true);
+    }
   };
 
   const handleWizardSave = (result: WizardFormResult) => {
@@ -121,7 +166,7 @@ export function TagRulesTab() {
         </div>
       </div>
 
-      {libraries.length === 0 ? (
+      {sortedLibraries.length === 0 ? (
         <EmptyState
           title="No tag rules defined"
           description="Create your first tag rule to start automatically tagging transactions."
@@ -129,29 +174,46 @@ export function TagRulesTab() {
         />
       ) : (
         <div className="space-y-6">
-          {libraries.map((lib) => {
+          {sortedLibraries.map((lib) => {
             const side = getContextValue(lib.Context, 'Side') ?? '?';
             const bank = getContextValue(lib.Context, 'BankSwiftCode') ?? '?';
+            const isCheckedOut = checkouts.some((c) => c.bank === bank && c.side === side);
+            const isCollapsed = collapsedIds.has(lib.Id);
             return (
-              <div key={lib.Id}>
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                  {side} / {bank}
-                  <span className="ml-2 text-gray-400 normal-case font-normal">
-                    ({lib.TagSpecDefinitions.length} rule{lib.TagSpecDefinitions.length !== 1 ? 's' : ''})
-                  </span>
-                </h3>
-                <div className="space-y-3">
-                  {lib.TagSpecDefinitions.map((def) => (
-                    <TagRuleCard
-                      key={def.Id}
-                      definition={def}
-                      parentLib={lib}
-                      onEdit={handleEdit}
-                      onDelete={handleDelete}
-                      onExport={handleExportSingle}
-                    />
-                  ))}
-                </div>
+              <div key={lib.Id} className={isCheckedOut ? 'ring-1 ring-blue-300 bg-blue-50/30 rounded-lg p-3 pb-1 ' : ''}>
+                <button
+                  type="button"
+                  className="flex items-center gap-1.5 w-full text-left mb-2 group"
+                  onClick={() => toggleCollapse(lib.Id)}
+                >
+                  <svg
+                    className={`w-3.5 h-3.5 text-gray-400 group-hover:text-gray-600 transition-transform ${isCollapsed ? '' : 'rotate-90'}`}
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    {bank} / {side}
+                    {isCheckedOut && <span className="ml-2 text-blue-600 normal-case font-medium">● Checked out</span>}
+                    <span className="ml-2 text-gray-400 normal-case font-normal">
+                      ({lib.TagSpecDefinitions.length} rule{lib.TagSpecDefinitions.length !== 1 ? 's' : ''})
+                    </span>
+                  </h3>
+                </button>
+                {!isCollapsed && (
+                  <div className="space-y-3">
+                    {lib.TagSpecDefinitions.map((def) => (
+                      <TagRuleCard
+                        key={def.Id}
+                        definition={def}
+                        parentLib={lib}
+                        onEdit={handleEdit}
+                        onDelete={handleDelete}
+                        onExport={handleExportSingle}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}

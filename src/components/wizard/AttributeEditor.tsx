@@ -16,12 +16,13 @@ interface AttributeEditorProps {
   onUpdate: (updates: Partial<AttributeFormValue>) => void;
   onRemove: () => void;
   transactions?: TransactionRow[];
+  startCollapsed?: boolean;
 }
 
-export function AttributeEditor({ attribute, onUpdate, onRemove, transactions }: AttributeEditorProps) {
+export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, startCollapsed }: AttributeEditorProps) {
   const { fieldMeta } = useTransactionData();
   const [showDistinct, setShowDistinct] = useState(false);
-  const [editing, setEditing] = useState(true);
+  const [editing, setEditing] = useState(!startCollapsed);
 
   const selectedOp = EXTRACTION_OPERATIONS.find((op) => op.key === attribute.extractionOperation);
   const preview = generateExtractionPrompt(attribute.extractionOperation, {

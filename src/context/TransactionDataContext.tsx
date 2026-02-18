@@ -9,6 +9,7 @@ export interface TransactionDataContextValue {
   loadTransactions: (rows: TransactionRow[]) => void;
   resetToSample: () => void;
   isCustomData: boolean;
+  flagDeadEnd: (ids: string[], value: boolean) => void;
 }
 
 export const TransactionDataContext = createContext<TransactionDataContextValue | null>(null);
@@ -31,8 +32,19 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
     setIsCustomData(false);
   }, []);
 
+  const flagDeadEnd = useCallback((ids: string[], value: boolean) => {
+    const idSet = new Set(ids);
+    setTransactions((prev) =>
+      prev.map((row) =>
+        idSet.has(String(row[fieldMeta.identifierField] ?? row['Id'] ?? ''))
+          ? { ...row, IsDeadEnd: value }
+          : row
+      )
+    );
+  }, [fieldMeta.identifierField]);
+
   return (
-    <TransactionDataContext.Provider value={{ transactions, fieldMeta, loadTransactions, resetToSample, isCustomData }}>
+    <TransactionDataContext.Provider value={{ transactions, fieldMeta, loadTransactions, resetToSample, isCustomData, flagDeadEnd }}>
       {children}
     </TransactionDataContext.Provider>
   );

@@ -5,3 +5,8 @@ export interface TransactionRow {
 export interface TransactionData {
   Transactions: TransactionRow[];
 }
+
+export interface CheckoutState {
+  bank: string;
+  side: string;
+}

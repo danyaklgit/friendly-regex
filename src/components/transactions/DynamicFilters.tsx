@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback, type ReactNode } from 'react';
 import type { AnalyzedTransaction, TagSpecDefinition } from '../../types';
 import type { FieldMeta } from '../../utils/deriveFieldMeta';
 import { Toggle } from '../shared/Toggle';
@@ -24,6 +24,10 @@ interface DynamicFiltersProps {
   onShowOnlyUntaggedChange: (value: boolean) => void;
   showOnlyMultiTagged: boolean;
   onShowOnlyMultiTaggedChange: (value: boolean) => void;
+  showOnlyDeadEnd: boolean;
+  onShowOnlyDeadEndChange: (value: boolean) => void;
+  baseFilters?: FilterState;
+  endSlot?: ReactNode;
 }
 
 /** Dual-thumb range slider for numeric filters */
@@ -237,6 +241,10 @@ export function DynamicFilters({
   onShowOnlyUntaggedChange,
   showOnlyMultiTagged,
   onShowOnlyMultiTaggedChange,
+  showOnlyDeadEnd,
+  onShowOnlyDeadEndChange,
+  baseFilters,
+  endSlot,
 }: DynamicFiltersProps) {
   const [expanded, _setExpanded] = useState(true);
 
@@ -287,13 +295,15 @@ export function DynamicFilters({
     }
     if (showOnlyUntagged) count++;
     if (showOnlyMultiTagged) count++;
+    if (showOnlyDeadEnd) count++;
     return count;
-  }, [filters, showOnlyUntagged, showOnlyMultiTagged]);
+  }, [filters, showOnlyUntagged, showOnlyMultiTagged, showOnlyDeadEnd]);
 
   const clearAll = () => {
-    onFiltersChange({});
+    onFiltersChange(baseFilters ?? {});
     onShowOnlyUntaggedChange(false);
     onShowOnlyMultiTaggedChange(false);
+    onShowOnlyDeadEndChange(false);
   };
 
   const handleFilterChange = (field: string, selected: Set<string>) => {
@@ -340,6 +350,11 @@ export function DynamicFilters({
             checked={showOnlyMultiTagged}
             onChange={(v) => { onShowOnlyMultiTaggedChange(v); if (v) onShowOnlyUntaggedChange(false); }}
           />
+          <Toggle
+            label="Dead End only"
+            checked={showOnlyDeadEnd}
+            onChange={(v) => { onShowOnlyDeadEndChange(v); }}
+          />
 
           <div className="w-px h-6 bg-gray-300 mx-1" />
 
@@ -367,6 +382,12 @@ export function DynamicFilters({
             <Button variant="danger" size="sm" onClick={clearAll}>
               Clear filters
             </Button>
+          )}
+
+          {endSlot && (
+            <div className="ml-auto">
+              {endSlot}
+            </div>
           )}
         </div>
       )}

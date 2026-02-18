@@ -1,0 +1,156 @@
+[
+  {
+    "bank": "ARNBSARI",
+    "side": "CR",
+    "totalTransactions": 18,
+    "untaggedCount": 3,
+    "multiTaggedCount": 2,
+    "missingMandatoryAttributes": 6,
+    "missingOptionalAttributes": 0,
+    "status": "Unchecked",
+    "checkedOutBy": null
+  },
+  {
+    "bank": "ARNBSARI",
+    "side": "DR",
+    "totalTransactions": 37,
+    "untaggedCount": 5,
+    "multiTaggedCount": 2,
+    "missingMandatoryAttributes": 85,
+    "missingOptionalAttributes": 0,
+    "status": "Unchecked",
+    "checkedOutBy": null
+  },
+  {
+    "bank": "BSFRSARI",
+    "side": "CR",
+    "totalTransactions": 103,
+    "untaggedCount": 0,
+    "multiTaggedCount": 0,
+    "missingMandatoryAttributes": 0,
+    "missingOptionalAttributes": 0,
+    "status": "Unchecked",
+    "checkedOutBy": null
+  },
+  {
+    "bank": "BSFRSARI",
+    "side": "DR",
+    "totalTransactions": 304,
+    "untaggedCount": 39,
+    "multiTaggedCount": 0,
+    "missingMandatoryAttributes": 73,
+    "missingOptionalAttributes": 0,
+    "status": "Unchecked",
+    "checkedOutBy": null
+  },
+  {
+    "bank": "GULFSARI",
+    "side": "CR",
+    "totalTransactions": 228,
+    "untaggedCount": 0,
+    "multiTaggedCount": 17,
+    "missingMandatoryAttributes": 2749,
+    "missingOptionalAttributes": 0,
+    "status": "Unchecked",
+    "checkedOutBy": null
+  },
+  {
+    "bank": "GULFSARI",
+    "side": "DR",
+    "totalTransactions": 390,
+    "untaggedCount": 0,
+    "multiTaggedCount": 15,
+    "missingMandatoryAttributes": 4022,
+    "missingOptionalAttributes": 0,
+    "status": "Unchecked",
+    "checkedOutBy": null
+  },
+  {
+    "bank": "INMASARI",
+    "side": "CR",
+    "totalTransactions": 1242,
+    "untaggedCount": 0,
+    "multiTaggedCount": 23,
+    "missingMandatoryAttributes": 0,
+    "missingOptionalAttributes": 0,
+    "status": "Unchecked",
+    "checkedOutBy": null
+  },
+  {
+    "bank": "INMASARI",
+    "side": "DR",
+    "totalTransactions": 824,
+    "untaggedCount": 167,
+    "multiTaggedCount": 0,
+    "missingMandatoryAttributes": 0,
+    "missingOptionalAttributes": 0,
+    "status": "Unchecked",
+    "checkedOutBy": null
+  },
+  {
+    "bank": "INMASARI",
+    "side": "RC",
+    "totalTransactions": 1,
+    "untaggedCount": 0,
+    "multiTaggedCount": 0,
+    "missingMandatoryAttributes": 0,
+    "missingOptionalAttributes": 0,
+    "status": "Unchecked",
+    "checkedOutBy": null
+  },
+  {
+    "bank": "INMASARI",
+    "side": "RD",
+    "totalTransactions": 2,
+    "untaggedCount": 0,
+    "multiTaggedCount": 0,
+    "missingMandatoryAttributes": 0,
+    "missingOptionalAttributes": 0,
+    "status": "Unchecked",
+    "checkedOutBy": null
+  },
+  {
+    "bank": "NCBKSAJE",
+    "side": "CR",
+    "totalTransactions": 1452,
+    "untaggedCount": 982,
+    "multiTaggedCount": 247,
+    "missingMandatoryAttributes": 29,
+    "missingOptionalAttributes": 0,
+    "status": "Unchecked",
+    "checkedOutBy": null
+  },
+  {
+    "bank": "NCBKSAJE",
+    "side": "DR",
+    "totalTransactions": 4469,
+    "untaggedCount": 1320,
+    "multiTaggedCount": 0,
+    "missingMandatoryAttributes": 1635,
+    "missingOptionalAttributes": 0,
+    "status": "Unchecked",
+    "checkedOutBy": null
+  },
+  {
+    "bank": "NCBKSAJE",
+    "side": "RC",
+    "totalTransactions": 21,
+    "untaggedCount": 21,
+    "multiTaggedCount": 0,
+    "missingMandatoryAttributes": 0,
+    "missingOptionalAttributes": 0,
+    "status": "Unchecked",
+    "checkedOutBy": null
+  },
+  {
+    "bank": "NCBKSAJE",
+    "side": "RD",
+    "totalTransactions": 20,
+    "untaggedCount": 0,
+    "multiTaggedCount": 0,
+    "missingMandatoryAttributes": 0,
+    "missingOptionalAttributes": 0,
+    "status": "Unchecked",
+    "checkedOutBy": null
+  }
+]

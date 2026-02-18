@@ -20,7 +20,7 @@ import {
 } from '../utils/regexify';
 import { generateId, generateExpressionId } from '../utils/uuid';
 
-function fromExistingDefinition(
+export function fromExistingDefinition(
   def: TagSpecDefinition,
   parentLib?: TagSpecLibrary
 ): WizardFormState {
@@ -127,10 +127,10 @@ export function useWizardForm(
 
   const [currentStep, setCurrentStep] = useState<WizardStep>(initialStep ?? 1);
   const [formState, setFormState] = useState<WizardFormState>(
-    existingDef
-      ? fromExistingDefinition(existingDef, parentLib)
-      : initialFormState
+    initialFormState
       ? { ...initialFormState }
+      : existingDef
+      ? fromExistingDefinition(existingDef, parentLib)
       : createInitialState()
   );
 
@@ -316,6 +316,7 @@ export function useWizardForm(
   return {
     currentStep,
     formState,
+    setFormState,
     isEditing,
     goNext,
     goBack,

@@ -13,6 +13,11 @@ interface TransactionTableProps {
   highlightExpressions?: RuleExpression[];
   stickyFields?: Set<string>;
   onTagClick?: (tagName: string, definitionId?: string) => void;
+  onFlagDeadEnd?: (ids: string[], value: boolean) => void;
+  showAttributes?: boolean;
+  relaxedMode?: boolean;
+  hiddenColumns?: Set<string>;
+  onColumnsReady?: (columns: ColumnDef[]) => void;
 }
 
 type ColumnDef =
@@ -102,8 +107,117 @@ function highlightText(text: string, regexes: RegExp[]): ReactNode {
   return <>{parts}</>;
 }
 
-export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, highlightExpressions, stickyFields, onTagClick }: TransactionTableProps) {
+export function ColumnPicker({ columns, hiddenColumns, onChange }: {
+  columns: ColumnDef[];
+  hiddenColumns: Set<string>;
+  onChange: (hidden: Set<string>) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  // Exclude tags column — always visible
+  const toggleable = columns.filter((col) => col.type !== 'tags');
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
+          hiddenColumns.size > 0
+            ? 'bg-blue-50 border-blue-300 text-blue-700'
+            : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+        }`}
+      >
+        <span className="flex items-center gap-1">
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7" />
+          </svg>
+          Columns
+          {hiddenColumns.size > 0 && (
+            <span className="bg-blue-600 text-white rounded-full px-1.5 py-0.5 text-[10px] leading-none">
+              {hiddenColumns.size}
+            </span>
+          )}
+        </span>
+      </button>
+      {open && (
+        <div className="absolute top-full mt-1 right-0 z-50 bg-white border border-gray-200 rounded-lg shadow-lg min-w-[200px] max-h-64 overflow-y-auto p-2">
+          {toggleable.map((col) => {
+            const label = getColumnLabel(col);
+            const isHidden = hiddenColumns.has(col.key);
+            return (
+              <label
+                key={col.key}
+                className="flex items-center gap-2 px-2 py-1 text-xs hover:bg-gray-50 rounded cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  checked={!isHidden}
+                  onChange={() => {
+                    const next = new Set(hiddenColumns);
+                    if (isHidden) next.delete(col.key);
+                    else next.add(col.key);
+                    onChange(next);
+                  }}
+                  className="rounded border-gray-300"
+                />
+                <span className={`truncate ${col.type === 'attribute' ? 'text-indigo-600' : ''}`}>{label}</span>
+              </label>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export type { ColumnDef };
+
+export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, highlightExpressions, stickyFields, onTagClick, onFlagDeadEnd, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), onColumnsReady }: TransactionTableProps) {
   const { fieldMeta } = useTransactionData();
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const getRowId = useCallback((row: AnalyzedTransaction['row']) =>
+    String(row[fieldMeta.identifierField] ?? row['Id'] ?? ''),
+    [fieldMeta.identifierField]
+  );
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    if (selectedIds.size === data.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(data.map((item) => getRowId(item.row))));
+    }
+  }, [data, selectedIds.size, getRowId]);
+
+  const handleFlagDeadEnd = useCallback((value: boolean) => {
+    if (!onFlagDeadEnd || selectedIds.size === 0) return;
+    onFlagDeadEnd(Array.from(selectedIds), value);
+    setSelectedIds(new Set());
+  }, [onFlagDeadEnd, selectedIds]);
+
+  // Clear selection when data changes
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [data.length]);
+
   const theadRef = useRef<HTMLTableSectionElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const viewportIndicatorRef = useRef<HTMLDivElement>(null);
@@ -255,18 +369,29 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     return cols;
   }, [fieldMeta.dataFields, attributeColumns, attrSourceMap]);
 
+  useEffect(() => {
+    onColumnsReady?.(columns);
+  }, [columns, onColumnsReady]);
+
+  const visibleColumns = useMemo(() => {
+    let result = columns;
+    if (!showAttributes) result = result.filter((col) => col.type !== 'attribute');
+    if (hiddenColumns.size > 0) result = result.filter((col) => !hiddenColumns.has(col.key));
+    return result;
+  }, [columns, showAttributes, hiddenColumns]);
+
   // Determine which column indices should be sticky, split into left/right groups
   const { leftIndices, rightIndices } = useMemo(() => {
     const left = new Set<number>();
     const right = new Set<number>();
 
     // Tags column is always sticky left
-    const tagsIdx = columns.findIndex((col) => col.type === 'tags');
+    const tagsIdx = visibleColumns.findIndex((col) => col.type === 'tags');
     if (tagsIdx !== -1) left.add(tagsIdx);
 
     if (stickyFields && stickyFields.size > 0) {
-      const midpoint = columns.length / 2;
-      columns.forEach((col, idx) => {
+      const midpoint = visibleColumns.length / 2;
+      visibleColumns.forEach((col, idx) => {
         if (col.type === 'data' && stickyFields.has(col.field)) {
           if (idx < midpoint) left.add(idx);
           else right.add(idx);
@@ -275,7 +400,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     }
 
     return { leftIndices: left, rightIndices: right };
-  }, [columns, stickyFields]);
+  }, [visibleColumns, stickyFields]);
 
   // Boundary columns: last left-sticky gets right shadow, first right-sticky gets left shadow
   const { lastLeftIdx, firstRightIdx } = useMemo(() => {
@@ -310,7 +435,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     // Compute left offsets (cumulate left to right)
     const lefts = new Map<number, number>();
     let cumLeft = 0;
-    for (let i = 0; i < columns.length; i++) {
+    for (let i = 0; i < visibleColumns.length; i++) {
       if (leftIndices.has(i)) {
         lefts.set(i, cumLeft);
         cumLeft += ths[i]?.offsetWidth ?? 0;
@@ -320,7 +445,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     // Compute right offsets (cumulate right to left)
     const rights = new Map<number, number>();
     let cumRight = 0;
-    for (let i = columns.length - 1; i >= 0; i--) {
+    for (let i = visibleColumns.length - 1; i >= 0; i--) {
       if (rightIndices.has(i)) {
         rights.set(i, cumRight);
         cumRight += ths[i]?.offsetWidth ?? 0;
@@ -329,7 +454,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
 
     setStickyLefts(lefts);
     setStickyRights(rights);
-  }, [columns, leftIndices, rightIndices, data]);
+  }, [visibleColumns, leftIndices, rightIndices, data]);
 
   // --- Minimap scroll tracking (via refs, no re-renders) ---
 
@@ -393,17 +518,17 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
       el.removeEventListener('scroll', update);
       ro.disconnect();
     };
-  }, [columns, data, updateViewportIndicator]);
+  }, [visibleColumns, data, updateViewportIndicator]);
 
   // Minimap: proportional block widths
   const minimapBlocks = useMemo(() => {
     const total = colWidths.reduce((s, w) => s + w, 0);
     if (total === 0) return [];
-    return columns.map((col, i) => ({
+    return visibleColumns.map((col, i) => ({
       col,
       widthPct: ((colWidths[i] ?? 0) / total) * 100,
     }));
-  }, [columns, colWidths]);
+  }, [visibleColumns, colWidths]);
 
   // Minimap: click/drag to scroll
   const scrollToMinimapX = useCallback((clientX: number, rect: DOMRect) => {
@@ -522,8 +647,39 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     return null;
   };
 
+  const cellPy = relaxedMode ? 'py-1' : 'py-2';
+
+  const hasSelection = selectedIds.size > 0;
+
   return (
     <div className="rounded-lg border border-gray-200 flex flex-col" style={{ maxHeight: 'calc(100vh - 15.5rem)' }}>
+      {/* Selection action bar */}
+      {hasSelection && onFlagDeadEnd && (
+        <div className="flex items-center gap-3 px-4 py-2 bg-blue-50 border-b border-blue-200 shrink-0">
+          <span className="text-xs font-medium text-blue-700">
+            {selectedIds.size} selected
+          </span>
+          <button
+            onClick={() => handleFlagDeadEnd(true)}
+            className="text-xs px-2.5 py-1 rounded border border-red-300 bg-red-50 text-red-700 hover:bg-red-100 transition-colors"
+          >
+            Flag as Dead End
+          </button>
+          <button
+            onClick={() => handleFlagDeadEnd(false)}
+            className="text-xs px-2.5 py-1 rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            Unflag Dead End
+          </button>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            className="text-xs text-gray-500 hover:text-gray-700 ml-auto"
+          >
+            Clear selection
+          </button>
+        </div>
+      )}
+
       {/* Column Minimap */}
       {hasOverflow && (
         <div
@@ -533,7 +689,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
           onPointerMove={handleMinimapPointerMove}
         >
           {minimapBlocks.map((block, i) => (
-            <Tooltip key={columns[i].key} content={getColumnLabel(block.col)} placement="bottom">
+            <Tooltip key={visibleColumns[i].key} content={getColumnLabel(block.col)} placement="bottom">
               <div
                 className={`h-full ${getMinimapColor(block.col.type)} opacity-80 hover:opacity-100 transition-opacity overflow-hidden flex items-center px-px`}
                 style={{ width: `${block.widthPct}%`, borderRight: '1px solid white' }}
@@ -556,18 +712,30 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
         <table className="min-w-full divide-y divide-gray-200">
           <thead ref={theadRef} className="bg-gray-50">
             <tr>
-              {columns.map((col, idx) => {
+              {visibleColumns.map((col, idx) => {
                 const isAttr = col.type === 'attribute';
                 return (
                   <th
                     key={col.key}
-                    className={`px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap ${isAttr ? 'text-indigo-600 bg-indigo-50' : 'text-gray-600 bg-gray-50'
+                    className={`px-3 ${cellPy} text-left text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap ${isAttr ? 'text-indigo-600 bg-indigo-50' : 'text-gray-600 bg-gray-50'
                       }`}
                     style={getCellStyle(idx, true)}
                   >
                     {col.type === 'data' && humanizeFieldName(col.field)}
                     {col.type === 'attribute' && col.name}
-                    {col.type === 'tags' && 'Tags'}
+                    {col.type === 'tags' && (
+                      <div className="flex items-center gap-1.5">
+                        {onFlagDeadEnd && (
+                          <input
+                            type="checkbox"
+                            checked={data.length > 0 && selectedIds.size === data.length}
+                            onChange={toggleSelectAll}
+                            className="rounded border-gray-300"
+                          />
+                        )}
+                        Tags
+                      </div>
+                    )}
                     {col.type === 'dates' && 'Dates'}
                     {col.type === 'debit' && 'Debit Amount'}
                     {col.type === 'credit' && 'Credit Amount'}
@@ -581,144 +749,174 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
             {data.length === 0 ? (
               <tr>
                 <td
-                  colSpan={columns.length}
+                  colSpan={visibleColumns.length}
                   className="px-3 py-6 text-center text-xs text-gray-400"
                 >
                   No transactions match the current filter.
                 </td>
               </tr>
             ) : (
-              data.map((item, i) => (
-                <tr key={i} className="group hover:bg-gray-50 transition-colors">
-                  {columns.map((col, colIdx) => {
-                    const isStickyCol = stickyLefts.has(colIdx) || stickyRights.has(colIdx);
-                    const stickyBg = isStickyCol ? 'bg-white group-hover:bg-gray-50' : '';
+              data.map((item, i) => {
+                const rowId = getRowId(item.row);
+                const isSelected = selectedIds.has(rowId);
+                const isDeadEnd = item.row['IsDeadEnd'] === true;
+                return (
+                  <tr key={i} className={`group transition-colors ${isDeadEnd ? 'bg-red-200/70 opacity-60' : 'hover:bg-gray-50'} ${isSelected ? '!bg-blue-50' : ''}`}>
+                    {visibleColumns.map((col, colIdx) => {
+                      const isStickyCol = stickyLefts.has(colIdx) || stickyRights.has(colIdx);
+                      const stickyBg = isStickyCol ? 'bg-white group-hover:bg-gray-50' : '';
 
-                    switch (col.type) {
-                      case 'data':
-                        return (
-                          <td key={col.key} className={`px-3 py-2 text-xs text-gray-600 max-w-200 ${stickyBg}`} style={getCellStyle(colIdx, false)}>
-                            {renderCellContent(col.field, item.row[col.field])}
-                            {stickyEdgeShadow(colIdx)}
-                          </td>
-                        );
-                      case 'dates':
-                        return (
-                          <td key={col.key} className={`px-3 py-1.5 text-xs text-gray-600 ${stickyBg}`} style={getCellStyle(colIdx, false)}>
-                            <div className="flex flex-col gap-0.5">
-                              {col.fields.map((f) => {
-                                const val = item.row[f.key];
-                                if (val == null || val === '') return null;
-                                return (
-                                  <span key={f.key} className="whitespace-nowrap">
-                                    <span className="text-gray-400">{f.label}:</span>{' '}
-                                    {String(val).split('T')[0]}
-                                  </span>
-                                );
-                              })}
-                            </div>
-                            {stickyEdgeShadow(colIdx)}
-                          </td>
-                        );
-                      case 'debit': {
-                        const side = String(item.row['Side'] ?? '');
-                        const amt = side === 'DR' ? item.row['Amount'] : null;
-                        return (
-                          <td key={col.key} className={`px-3 py-2 text-xs text-right font-medium whitespace-nowrap ${amt != null ? 'text-emerald-600' : 'text-gray-300'} ${stickyBg}`} style={getCellStyle(colIdx, false)}>
-                            {amt != null ? <div><span className="icon-saudi_riyal">&#xea;</span> {Number(amt).toLocaleString()}</div> : '-'}
-                            {stickyEdgeShadow(colIdx)}
-                          </td>
-                        );
-                      }
-                      case 'credit': {
-                        const side = String(item.row['Side'] ?? '');
-                        const amt = side === 'CR' ? item.row['Amount'] : null;
-                        return (
-                          <td key={col.key} className={`px-3 py-2 text-xs text-right font-medium ${amt != null ? 'text-red-500' : 'text-gray-300'} ${stickyBg}`} style={getCellStyle(colIdx, false)}>
-                            {amt != null ? <div><span className="icon-saudi_riyal">&#xea;</span> {Number(amt).toLocaleString()}</div> : '-'}
-                            {stickyEdgeShadow(colIdx)}
-                          </td>
-                        );
-                      }
-                      case 'attribute': {
-                        const val = getAttributeValue(item, col.name);
-                        const validation = attrValidationMap.get(col.name);
-                        let validationIcon: ReactNode = null;
-                        let validationPassed: boolean | null = null;
-                        if (validation) {
-                          if (validation.verifyValue) {
-                            validationPassed = val === validation.verifyValue;
-                          } else {
-                            const sourceVal = String(item.row[validation.sourceField] ?? '');
-                            validationPassed = validation.regex.test(sourceVal);
-                          }
-                          validationIcon = validationPassed
-                            ? <span className="text-emerald-500 mr-1" title="Valid">&#10003;</span>
-                            : <span className="text-red-400 mr-1" title="Invalid">&#10007;</span>;
-                        }
-                        const displayVal = val ?? (validation ? String(item.row[validation.sourceField] ?? '') : null);
-                        return (
-                          <td
-                            key={col.key}
-                            className={`px-3 py-2 text-xs
-                              ${validationIcon ? 'text-center' : 'text-left'}
-                              ${validationPassed === true ? 'text-emerald-500' : validationPassed === false ? 'text-red-400' : 'text-indigo-700'}
-                              ${isStickyCol ? 'bg-indigo-50/80 group-hover:bg-indigo-100/60' : 'bg-indigo-50/30'}`}
-                            style={getCellStyle(colIdx, false)}
-                          >
-                            {displayVal ? <>{validationIcon}{displayVal}</> : <span className="text-gray-300">-</span>}
-                            {stickyEdgeShadow(colIdx)}
-                          </td>
-                        );
-                      }
-                      case 'tags': {
-                        const hints = item.row['Hints'];
-                        const hintList = Array.isArray(hints) && hints.length > 0 ? hints as string[] : null;
-                        return (
-                          <td key={col.key} className={`px-3 py-2 ${stickyBg}`} style={getCellStyle(colIdx, false)}>
-                            {item.analysis.tags.length > 0 ? (
-                              <div className="flex flex-wrap gap-1">
-                                {item.analysis.tags.map((tag, ti) => {
-                                  const defId = item.analysis.matchedDefinitions[ti]?.Id;
-                                  const isUserCreated = defId ? !(originalDefinitionIds?.has(defId)) : false;
+                      switch (col.type) {
+                        case 'data':
+                          return (
+                            <td key={col.key} className={`px-3 ${cellPy} text-xs text-gray-600 ${relaxedMode ? 'whitespace-nowrap' : 'max-w-200'} ${stickyBg}`} style={getCellStyle(colIdx, false)}>
+                              {renderCellContent(col.field, item.row[col.field])}
+                              {stickyEdgeShadow(colIdx)}
+                            </td>
+                          );
+                        case 'dates':
+                          return (
+                            <td key={col.key} className={`px-3 ${cellPy} text-xs text-gray-600 ${stickyBg}`} style={getCellStyle(colIdx, false)}>
+                              <div className={relaxedMode ? 'flex gap-2 whitespace-nowrap' : 'flex flex-col gap-0.5'}>
+                                {col.fields.map((f) => {
+                                  const val = item.row[f.key];
+                                  if (val == null || val === '') return null;
                                   return (
-                                    <TagBadge
-                                      key={tag}
-                                      tag={tag}
-                                      certainty={getCertainty(tag)}
-                                      isUserCreated={isUserCreated}
-                                      onClick={onTagClick ? () => onTagClick(tag, defId) : undefined}
-                                    />
+                                    <span key={f.key} className="whitespace-nowrap">
+                                      <span className="text-gray-400">{f.label}:</span>{' '}
+                                      {String(val).split('T')[0]}
+                                    </span>
                                   );
                                 })}
                               </div>
-                            ) : (
-                              <span className="text-gray-400 text-xs">-</span>
-                            )}
-                            {hintList && (
-                              <Tooltip
-                                content={
-                                  <div className="flex flex-col gap-0.5">
-                                    {hintList.map((h, hi) => (
-                                      <span key={hi}>{h}</span>
-                                    ))}
-                                  </div>
-                                }
-                                placement="left"
-                              >
-                                <span className="w-full text-left pl-2 text-[10px] text-blue-500 cursor-default mt-0.5 inline-block">
-                                  Hints?
-                                </span>
-                              </Tooltip>
-                            )}
-                            {stickyEdgeShadow(colIdx)}
-                          </td>
-                        );
+                              {stickyEdgeShadow(colIdx)}
+                            </td>
+                          );
+                        case 'debit': {
+                          const side = String(item.row['Side'] ?? '');
+                          const isDebit = side === 'DR' || side === 'RC';
+                          const isReturn = side === 'RC';
+                          const amt = isDebit ? item.row['Amount'] : null;
+                          return (
+                            <td key={col.key} className={`px-3 ${cellPy} text-xs text-right font-medium whitespace-nowrap ${amt != null ? 'text-red-600' : 'text-gray-300'} ${stickyBg} `} style={getCellStyle(colIdx, false)}>
+                              {amt != null ? (
+                                <div className="flex items-center justify-end gap-1">
+                                  {isReturn && <span className="text-[9px] font-semibold text-amber-500 bg-amber-50 border border-amber-200 rounded px-1">RTN</span>}
+                                  <span><span className="icon-saudi_riyal">&#xea;</span> {Number(amt).toLocaleString()}</span>
+                                </div>
+                              ) : '-'}
+                              {stickyEdgeShadow(colIdx)}
+                            </td>
+                          );
+                        }
+                        case 'credit': {
+                          const side = String(item.row['Side'] ?? '');
+                          const isCredit = side === 'CR' || side === 'RD';
+                          const isReturn = side === 'RD';
+                          const amt = isCredit ? item.row['Amount'] : null;
+                          return (
+                            <td key={col.key} className={`px-3 ${cellPy} text-xs text-right font-medium whitespace-nowrap ${amt != null ? 'text-emerald-500' : 'text-gray-300'} ${stickyBg}`} style={getCellStyle(colIdx, false)}>
+                              {amt != null ? (
+                                <div className="flex items-center justify-end gap-1">
+                                  {isReturn && <span className="text-[9px] font-semibold text-amber-500 bg-amber-50 border border-amber-200 rounded px-1">RTN</span>}
+                                  <span><span className="icon-saudi_riyal">&#xea;</span> {Number(amt).toLocaleString()}</span>
+                                </div>
+                              ) : '-'}
+                              {stickyEdgeShadow(colIdx)}
+                            </td>
+                          );
+                        }
+                        case 'attribute': {
+                          const val = getAttributeValue(item, col.name);
+                          const validation = attrValidationMap.get(col.name);
+                          let validationIcon: ReactNode = null;
+                          let validationPassed: boolean | null = null;
+                          if (validation) {
+                            if (validation.verifyValue) {
+                              validationPassed = val === validation.verifyValue;
+                            } else {
+                              const sourceVal = String(item.row[validation.sourceField] ?? '');
+                              validationPassed = validation.regex.test(sourceVal);
+                            }
+                            validationIcon = validationPassed
+                              ? <span className="text-emerald-500 mr-1" title="Valid">&#10003;</span>
+                              : <span className="text-red-400 mr-1" title="Invalid">&#10007;</span>;
+                          }
+                          const displayVal = val ?? (validation ? String(item.row[validation.sourceField] ?? '') : null);
+                          return (
+                            <td
+                              key={col.key}
+                              className={`px-3 ${cellPy} text-xs ${relaxedMode ? 'whitespace-nowrap' : ''}
+                              ${validationIcon ? 'text-center' : 'text-left'}
+                              ${validationPassed === true ? 'text-emerald-500' : validationPassed === false ? 'text-red-400' : 'text-indigo-700'}
+                              ${isStickyCol ? 'bg-indigo-50/80 group-hover:bg-indigo-100/60' : 'bg-indigo-50/30'}`}
+                              style={getCellStyle(colIdx, false)}
+                            >
+                              {displayVal ? <>{validationIcon}{displayVal}</> : <span className="text-gray-300">-</span>}
+                              {stickyEdgeShadow(colIdx)}
+                            </td>
+                          );
+                        }
+                        case 'tags': {
+                          return (
+                            <td key={col.key} className={`px-3 ${cellPy} ${stickyBg}`} style={getCellStyle(colIdx, false)}>
+                              <div className="flex items-start gap-1.5">
+                                {onFlagDeadEnd && (
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={() => toggleSelect(rowId)}
+                                    className="rounded border-gray-300 mt-0.5 shrink-0"
+                                  />
+                                )}
+                                <div className="flex-1">
+                                  {item.analysis.tags.length > 0 ? (
+                                    <div className={`flex gap-1 ${relaxedMode ? 'flex-nowrap' : 'flex-wrap'}`}>
+                                      {item.analysis.tags.map((tag, ti) => {
+                                        const defId = item.analysis.matchedDefinitions[ti]?.Id;
+                                        const isUserCreated = defId ? !(originalDefinitionIds?.has(defId)) : false;
+                                        return (
+                                          <TagBadge
+                                            key={tag}
+                                            tag={tag}
+                                            certainty={getCertainty(tag)}
+                                            isUserCreated={isUserCreated}
+                                            onClick={onTagClick ? () => onTagClick(tag, defId) : undefined}
+                                          />
+                                        );
+                                      })}
+                                      {/* {hintList && (
+                                        <Tooltip
+                                          content={
+                                            <div className="">
+                                              {hintList.map((h, hi) => (
+                                                <span key={hi}>{h}</span>
+                                              ))}
+                                            </div>
+                                          }
+                                          placement="left"
+                                        >
+                                          <span className="text-left pl-2 text-[10px] text-blue-500 cursor-default mt-0.5 inline-block">
+                                            Hints?
+                                          </span>
+                                        </Tooltip>
+                                      )} */}
+                                    </div>
+                                  ) : (
+                                    <span className="text-gray-400 text-xs">-</span>
+                                  )}
+
+                                </div>
+                              </div>
+                              {stickyEdgeShadow(colIdx)}
+                            </td>
+                          );
+                        }
                       }
-                    }
-                  })}
-                </tr>
-              ))
+                    })}
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

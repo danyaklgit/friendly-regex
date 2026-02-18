@@ -8,9 +8,10 @@ interface StepAttributesProps {
   onRemove: (attrId: string) => void;
   onUpdate: (attrId: string, updates: Partial<AttributeFormValue>) => void;
   transactions?: TransactionRow[];
+  startCollapsed?: boolean;
 }
 
-export function StepAttributes({ attributes, onAdd, onRemove, onUpdate, transactions }: StepAttributesProps) {
+export function StepAttributes({ attributes, onAdd, onRemove, onUpdate, transactions, startCollapsed }: StepAttributesProps) {
   return (
     <div>
       <p className="text-xs text-gray-500 mb-2">
@@ -27,6 +28,7 @@ export function StepAttributes({ attributes, onAdd, onRemove, onUpdate, transact
               onUpdate={(updates) => onUpdate(attr.id, updates)}
               onRemove={() => onRemove(attr.id)}
               transactions={transactions}
+              startCollapsed={startCollapsed && attr.attributeTag.trim().length > 0}
             />
           ))}
         </div>

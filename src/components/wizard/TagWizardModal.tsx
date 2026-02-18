@@ -15,22 +15,29 @@ interface TagWizardModalProps {
   parentLib?: TagSpecLibrary;
   initialFormState?: WizardFormState;
   initialStep?: WizardStep;
+  fromCheckoutContext?: boolean;
   onSave: (result: WizardFormResult) => void;
   onClose: () => void;
 }
 
-export function TagWizardModal({ existingDef, parentLib, initialFormState, initialStep, onSave, onClose }: TagWizardModalProps) {
+export function TagWizardModal({ existingDef, parentLib, initialFormState, initialStep, fromCheckoutContext, onSave, onClose }: TagWizardModalProps) {
   const { fieldMeta } = useTransactionData();
   const wizard = useWizardForm(existingDef, initialFormState, fieldMeta.sourceFields[0], parentLib, initialStep);
 
   const isStepValid = (step: WizardStep): boolean => {
     switch (step) {
-      case 1:
-        return (
+      case 1: {
+        const base =
           wizard.formState.tag.trim().length > 0 &&
           wizard.formState.side.trim().length > 0 &&
-          wizard.formState.bankSwiftCode.trim().length > 0
-        );
+          wizard.formState.bankSwiftCode.trim().length > 0;
+        if (fromCheckoutContext) {
+          return base &&
+            wizard.formState.transactionTypeCode.trim().length > 0 &&
+            wizard.formState.validity.StartDate.trim().length > 0;
+        }
+        return base;
+      }
       case 2:
         return wizard.formState.ruleGroups.some((g) =>
           g.conditions.some((c) => c.value.trim().length > 0)
@@ -90,7 +97,7 @@ export function TagWizardModal({ existingDef, parentLib, initialFormState, initi
       <WizardStepIndicator currentStep={wizard.currentStep} onStepClick={wizard.goToStep} canReachStep={canReachStep} />
 
       {wizard.currentStep === 1 && (
-        <StepBasicInfo formState={wizard.formState} onUpdate={wizard.updateBasicInfo} />
+        <StepBasicInfo formState={wizard.formState} onUpdate={wizard.updateBasicInfo} fromCheckoutContext={fromCheckoutContext} />
       )}
 
       {wizard.currentStep === 2 && (

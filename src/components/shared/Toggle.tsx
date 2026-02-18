@@ -20,7 +20,7 @@ export function Toggle({ label, checked, onChange }: ToggleProps) {
             ${checked ? 'translate-x-4.5' : 'translate-x-0.5'}`}
         />
       </button>
-      <span className="text-sm text-gray-700">{label}</span>
+      <span className="text-xs text-gray-700">{label}</span>
     </label>
   );
 }

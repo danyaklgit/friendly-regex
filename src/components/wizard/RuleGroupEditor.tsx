@@ -2,6 +2,8 @@ import { useState } from 'react';
 import type { AndGroupFormValue, ConditionFormValue } from '../../types';
 import { ConditionEditor } from './ConditionEditor';
 import { Button } from '../shared/Button';
+import { generateExpressionPrompt } from '../../utils/regexify';
+import { humanizeFieldName } from '../../utils/humanizeFieldName';
 
 interface RuleGroupEditorProps {
   group: AndGroupFormValue;
@@ -11,6 +13,7 @@ interface RuleGroupEditorProps {
   onUpdateCondition: (conditionId: string, updates: Partial<ConditionFormValue>) => void;
   onRemoveGroup: () => void;
   canRemoveGroup: boolean;
+  startCollapsed?: boolean;
 }
 
 export function RuleGroupEditor({
@@ -21,8 +24,9 @@ export function RuleGroupEditor({
   onUpdateCondition,
   onRemoveGroup,
   canRemoveGroup,
+  startCollapsed,
 }: RuleGroupEditorProps) {
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(!startCollapsed);
 
   return (
     <div className="border border-gray-200 rounded-lg p-3 bg-white flex flex-col items-start">
@@ -42,11 +46,25 @@ export function RuleGroupEditor({
           <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
             Rule Set {groupIndex + 1}
           </span>
-          {!isExpanded && (
-            <span className="text-xs text-gray-400 ml-1">
-              ({group.conditions.length} condition{group.conditions.length !== 1 ? 's' : ''})
-            </span>
-          )}
+          {!isExpanded && (() => {
+            const filled = group.conditions.filter((c) => c.value.trim().length > 0);
+            if (filled.length === 0) return (
+              <span className="text-xs text-gray-400 ml-1">(empty)</span>
+            );
+            const first = filled[0];
+            const preview = generateExpressionPrompt(first.operation, first.value, first.values, {
+              prefix: first.prefix,
+              suffix: first.suffix,
+            });
+            const rest = filled.length - 1;
+            return (
+              <span className="text-xs text-gray-400 ml-1">
+                ( <span className="text-blue-500 italic">{humanizeFieldName(first.sourceField)}</span> → <span className="text-orange-500 italic">{preview}</span>
+                {rest > 0 && <span className="ml-2 text-purple-600"> &amp; {rest} more</span>}
+                {' '})
+              </span>
+            );
+          })()}
         </div>
       </div>
 
@@ -62,6 +80,7 @@ export function RuleGroupEditor({
                   onRemove={() => onRemoveCondition(condition.id)}
                   canRemove={group.conditions.length > 1}
                   showAnd={i > 0}
+                  startCollapsed={startCollapsed && condition.value.trim().length > 0}
                 />
               ))}
             </div>

@@ -1,19 +1,29 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useTagSpecs } from '../../hooks/useTagSpecs';
 import { useTransactionData } from '../../hooks/useTransactionData';
-import { useWizardForm } from '../../hooks/useWizardForm';
-import type { TagSpecDefinition, TagSpecLibrary, AnalyzedTransaction, WizardFormState, RuleExpression } from '../../types';
+import { useWizardForm, fromExistingDefinition } from '../../hooks/useWizardForm';
+import type { TagSpecDefinition, TagSpecLibrary, AnalyzedTransaction, WizardFormState, RuleExpression, CheckoutState } from '../../types';
 import type { WizardFormResult } from '../../hooks/useWizardForm';
 import { analyzeRow } from '../../utils/analyzeRow';
 import { regexify, regexifyExtraction, generateExpressionPrompt, generateExtractionPrompt } from '../../utils/regexify';
 import { generateExpressionId } from '../../utils/uuid';
-import { TransactionTable } from './TransactionTable';
+import { TransactionTable, ColumnPicker, type ColumnDef } from './TransactionTable';
 import { StepRuleExpressions } from '../wizard/StepRuleExpressions';
 import { StepAttributes } from '../wizard/StepAttributes';
 import { TagWizardModal } from '../wizard/TagWizardModal';
 import { Button } from '../shared/Button';
 import { Toast } from '../shared/Toast';
 import { DynamicFilters } from './DynamicFilters';
+import { CheckoutBanner } from '../stats/CheckoutBanner';
+import { Toggle } from '../shared/Toggle';
+
+interface TransactionsTabProps {
+  activeCheckout?: CheckoutState | null;
+  onCheckin?: (bank: string, side: string) => void;
+  onRelease?: (bank: string, side: string) => void;
+  editFromRules?: { definition: TagSpecDefinition; parentLib: TagSpecLibrary } | null;
+  onClearEditFromRules?: () => void;
+}
 
 function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinition | null {
   const hasCondition = formState.ruleGroups.some((g) =>
@@ -84,9 +94,9 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
 
 const BATCH_SIZE = 50;
 
-export function TransactionsTab() {
+export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFromRules, onClearEditFromRules }: TransactionsTabProps) {
   const { libraries, tagDefinitions, originalDefinitionIds, dispatch } = useTagSpecs();
-  const { transactions, fieldMeta, loadTransactions, resetToSample, isCustomData } = useTransactionData();
+  const { transactions, fieldMeta, loadTransactions, resetToSample, isCustomData, flagDeadEnd } = useTransactionData();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Rule builder state (reuses the wizard form hook)
@@ -94,7 +104,30 @@ export function TransactionsTab() {
   const [builderOpen, setBuilderOpen] = useState(false);
   const [showOnlyUntagged, setShowOnlyUntagged] = useState(false);
   const [showOnlyMultiTagged, setShowOnlyMultiTagged] = useState(false);
+  const [showOnlyDeadEnd, setShowOnlyDeadEnd] = useState(false);
+  const [showAttributes, setShowAttributes] = useState(true);
+  const [relaxedMode, setRelaxedMode] = useState(false);
+  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
+  const [tableColumns, setTableColumns] = useState<ColumnDef[]>([]);
   const [filters, setFilters] = useState<Record<string, Set<string>>>({});
+
+  // Base filters from checkout — "clear filters" resets to these instead of empty
+  const baseFilters = useMemo(() => {
+    if (!activeCheckout) return undefined;
+    return {
+      BankSwiftCode: new Set([activeCheckout.bank]),
+      Side: new Set([activeCheckout.side]),
+    };
+  }, [activeCheckout]);
+
+  // Apply checkout filters when checkout state changes
+  useEffect(() => {
+    if (baseFilters) {
+      setFilters({ ...baseFilters });
+      setShowOnlyUntagged(false);
+      setShowOnlyMultiTagged(false);
+    }
+  }, [baseFilters]);
   const [visibleCount, setVisibleCount] = useState(BATCH_SIZE);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardInitialState, setWizardInitialState] = useState<WizardFormState | undefined>(undefined);
@@ -102,6 +135,19 @@ export function TransactionsTab() {
   const [editingParentLib, setEditingParentLib] = useState<TagSpecLibrary | undefined>(undefined);
   const [wizardInitialStep, setWizardInitialStep] = useState<1 | 2 | 3 | 4 | undefined>(undefined);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [wizardFromCheckout, setWizardFromCheckout] = useState(false);
+
+  // Handle edit-from-rules: load definition into builder
+  useEffect(() => {
+    if (!editFromRules) return;
+    const { definition, parentLib } = editFromRules;
+    const formState = fromExistingDefinition(definition, parentLib);
+    builder.setFormState(formState);
+    setEditingDef(definition);
+    setEditingParentLib(parentLib);
+    setBuilderOpen(true);
+    onClearEditFromRules?.();
+  }, [editFromRules]);
 
   // Build the temporary definition from the builder's form state
   const tempDefinition = useMemo(
@@ -163,6 +209,10 @@ export function TransactionsTab() {
       result = result.filter((item) => item.analysis.tags.length > 1);
     }
 
+    if (showOnlyDeadEnd) {
+      result = result.filter((item) => item.row['IsDeadEnd'] === true);
+    }
+
     for (const [field, selectedValues] of Object.entries(filters)) {
       if (selectedValues.size === 0) continue;
       if (field === '__tags') {
@@ -178,7 +228,7 @@ export function TransactionsTab() {
     }
 
     return result;
-  }, [analyzedData, showOnlyUntagged, showOnlyMultiTagged, filters]);
+  }, [analyzedData, showOnlyUntagged, showOnlyMultiTagged, showOnlyDeadEnd, filters]);
 
   // Reset visible count when filters or data change
   const filteredLen = filteredData.length;
@@ -213,15 +263,30 @@ export function TransactionsTab() {
   }, [builderOpen, builder.formState]);
 
   const handleCreateFromBuilder = useCallback(() => {
-    setWizardInitialState({ ...builder.formState });
-    setEditingDef(undefined);
-    setEditingParentLib(undefined);
+    const isFromCheckout = !!activeCheckout && !editingDef;
+    const state: WizardFormState = {
+      ...builder.formState,
+      ...(isFromCheckout ? {
+        side: activeCheckout!.side,
+        bankSwiftCode: activeCheckout!.bank,
+        transactionTypeCode: '',
+        validity: { StartDate: '', EndDate: null },
+      } : {}),
+    };
+    setWizardInitialState(state);
+    if (!editingDef) {
+      setEditingDef(undefined);
+      setEditingParentLib(undefined);
+    }
+    setWizardFromCheckout(isFromCheckout);
     setWizardInitialStep(undefined);
     setWizardOpen(true);
-  }, [builder.formState]);
+  }, [builder.formState, activeCheckout, editingDef]);
 
   const handleDiscard = useCallback(() => {
     setBuilderOpen(false);
+    setEditingDef(undefined);
+    setEditingParentLib(undefined);
   }, []);
 
   const handleWizardSave = useCallback((result: WizardFormResult) => {
@@ -237,6 +302,7 @@ export function TransactionsTab() {
     setEditingDef(undefined);
     setEditingParentLib(undefined);
     setWizardInitialStep(undefined);
+    setWizardFromCheckout(false);
     setBuilderOpen(false);
     builder.resetForm();
   }, [dispatch, builder, editingDef]);
@@ -247,9 +313,10 @@ export function TransactionsTab() {
     setEditingDef(undefined);
     setEditingParentLib(undefined);
     setWizardInitialStep(undefined);
+    setWizardFromCheckout(false);
   }, []);
 
-  // Click a tag badge in the table → open its definition in edit mode at Review (step 4)
+  // Click a tag badge in the table → load into rule builder for live editing
   const handleTagClick = useCallback((tagName: string, definitionId?: string) => {
     // Find the specific matched definition, or fall back to first with that tag name
     for (const lib of libraries) {
@@ -257,15 +324,15 @@ export function TransactionsTab() {
         ? lib.TagSpecDefinitions.find((d) => d.Id === definitionId)
         : lib.TagSpecDefinitions.find((d) => d.Tag === tagName);
       if (def) {
+        const formState = fromExistingDefinition(def, lib);
+        builder.setFormState(formState);
         setEditingDef(def);
         setEditingParentLib(lib);
-        setWizardInitialState(undefined);
-        setWizardInitialStep(4);
-        setWizardOpen(true);
+        setBuilderOpen(true);
         return;
       }
     }
-  }, [libraries]);
+  }, [libraries, builder]);
 
   const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -290,10 +357,15 @@ export function TransactionsTab() {
 
   return (
     <div>
+      {activeCheckout && onCheckin && onRelease && (
+        <CheckoutBanner bank={activeCheckout.bank} side={activeCheckout.side} onRelease={onRelease} onCheckin={onCheckin} />
+      )}
       <div className="flex items-center justify-between mb-1">
         <div className='flex items-center gap-2'>
           {!builderOpen && <h2 className="text-base font-semibold text-gray-900">Transactions</h2>}
-          {!builderOpen && <span className='text-sm'>{filteredData.length}</span>}
+          {!builderOpen && <span className='text-sm mr-5'>({filteredData.length})</span>}
+          {!builderOpen && <Toggle label="Show attributes" checked={showAttributes} onChange={setShowAttributes} />}
+          {!builderOpen && <Toggle label="Compact mode" checked={relaxedMode} onChange={setRelaxedMode} />}
           {!builderOpen && (
             <div className="flex items-center gap-5 ml-4 text-[11px] text-gray-500">
               <span className="flex items-center gap-1">
@@ -330,11 +402,16 @@ export function TransactionsTab() {
             </Button>
           )}
           {!builderOpen && (
-            <Button variant="secondary" size="sm" onClick={() => {
-              setShowOnlyUntagged(false)
-              setShowOnlyMultiTagged(false)
-              setBuilderOpen(true)
-            }}>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={!(activeCheckout && onCheckin && onRelease)}
+              onClick={() => {
+                setShowOnlyUntagged(false)
+                setShowOnlyMultiTagged(false)
+                setBuilderOpen(true)
+              }}
+            >
               Test a Rule
             </Button>
           )}
@@ -352,6 +429,12 @@ export function TransactionsTab() {
           onShowOnlyUntaggedChange={setShowOnlyUntagged}
           showOnlyMultiTagged={showOnlyMultiTagged}
           onShowOnlyMultiTaggedChange={setShowOnlyMultiTagged}
+          showOnlyDeadEnd={showOnlyDeadEnd}
+          onShowOnlyDeadEndChange={setShowOnlyDeadEnd}
+          baseFilters={baseFilters}
+          endSlot={tableColumns.length > 0 ? (
+            <ColumnPicker columns={tableColumns} hiddenColumns={hiddenColumns} onChange={setHiddenColumns} />
+          ) : undefined}
         />
       {/* )} */}
 
@@ -375,7 +458,7 @@ export function TransactionsTab() {
                 onClick={handleCreateFromBuilder}
                 disabled={!builderHasContent}
               >
-                Create Rule with current settings
+                {editingDef ? `Save changes for "${editingDef.Tag}"` : 'Create Rule with current settings'}
               </Button>
             </div>
           </div>
@@ -394,6 +477,7 @@ export function TransactionsTab() {
                 onAddCondition={builder.addCondition}
                 onRemoveCondition={builder.removeCondition}
                 onUpdateCondition={builder.updateCondition}
+                startCollapsed={!!editingDef}
               />
             </div>
 
@@ -409,6 +493,7 @@ export function TransactionsTab() {
                 onRemove={builder.removeAttribute}
                 onUpdate={builder.updateAttribute}
                 transactions={filteredData.map((d) => d.row)}
+                startCollapsed={!!editingDef}
               />
             </div>
           </div>
@@ -427,6 +512,11 @@ export function TransactionsTab() {
         highlightExpressions={highlightExpressions}
         stickyFields={stickyFields}
         onTagClick={handleTagClick}
+        onFlagDeadEnd={flagDeadEnd}
+        showAttributes={showAttributes}
+        relaxedMode={relaxedMode}
+        hiddenColumns={hiddenColumns}
+        onColumnsReady={setTableColumns}
       />
 
       {hasMore && (
@@ -446,6 +536,7 @@ export function TransactionsTab() {
           parentLib={editingParentLib}
           initialFormState={wizardInitialState}
           initialStep={wizardInitialStep}
+          fromCheckoutContext={wizardFromCheckout}
           onSave={handleWizardSave}
           onClose={handleWizardClose}
         />
