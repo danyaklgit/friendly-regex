@@ -17,6 +17,7 @@ export const MATCH_OPERATIONS: MatchOperationDef[] = [
   { key: 'equals', label: 'Equals', description: 'Value exactly matches the given text', requiresMultipleValues: false },
   { key: 'does_not_equal', label: 'Does not equal', description: 'Value does not match the given text', requiresMultipleValues: false },
   { key: 'matches_pattern', label: 'Matches one of', description: 'Value matches one of the given patterns', requiresMultipleValues: true },
+  { key: 'match_regex', label: 'Match pattern', description: 'Value matches the given regex pattern', requiresMultipleValues: false },
   { key: 'extract_and_compare', label: 'Extract between and compare', description: 'Extract text between prefix and suffix, then compare to a value', requiresMultipleValues: false, requiresExtraction: true },
   { key: 'greater_than', label: 'Greater than', description: 'Numeric value is greater than the given number', requiresMultipleValues: false, isNumeric: true },
   { key: 'less_than', label: 'Less than', description: 'Numeric value is less than the given number', requiresMultipleValues: false, isNumeric: true },

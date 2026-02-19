@@ -30,6 +30,8 @@ export function regexify(
       const vals = values && values.length > 0 ? values : [value];
       return vals.map(escapeRegex).join('|');
     }
+    case 'match_regex':
+      return value;
     case 'extract_and_compare':
       return `(?:${escapeRegex(params?.prefix ?? '')})${escaped}(?:${escapeRegex(params?.suffix ?? '')})`;
     case 'greater_than':
@@ -92,6 +94,8 @@ export function generateExpressionPrompt(
       const vals = values && values.length > 0 ? values : [value];
       return `Match one of: ${vals.map(v => `'${v}'`).join(', ')}`;
     }
+    case 'match_regex':
+      return `Match pattern '${value}'`;
     case 'extract_and_compare':
       return `Extract between '${params?.prefix ?? ''}' and '${params?.suffix ?? ''}' equals '${value}'`;
     case 'greater_than':

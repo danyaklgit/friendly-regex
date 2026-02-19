@@ -12,6 +12,7 @@ export type MatchOperation =
   | 'equals'
   | 'does_not_equal'
   | 'matches_pattern'
+  | 'match_regex'
   | 'extract_and_compare'
   | 'greater_than'
   | 'less_than'

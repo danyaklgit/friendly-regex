@@ -1,7 +1,19 @@
 import type { MatchOperation, ExtractionOperation } from '../types';
 
 function unescapeRegex(str: string): string {
-  return str.replace(/\\([.*+?^${}()|[\]\\])/g, '$1');
+  // Unescape backslash sequences EXCEPT regex shorthand classes (\d, \w, \s, \b, \n, \t, \r, etc.)
+  // This correctly handles escaped spaces (\ ) and escaped literals (\., \*, etc.)
+  // while preserving meaningful regex sequences like \d{2}
+  return str.replace(/\\([^dDwWsSbBntrfv0])/g, '$1');
+}
+
+function hasActiveRegexSyntax(str: string): boolean {
+  // Escaped backslash (\\) means the regex matches a literal backslash — clearly complex/imported
+  if (/\\\\/.test(str)) return true;
+  // Strip all \X escape sequences, then check for remaining metacharacters
+  const withoutEscapes = str.replace(/\\./g, '');
+  // eslint-disable-next-line no-useless-escape
+  return /[.*+?{}()\[\]|]/.test(withoutEscapes);
 }
 
 /**
@@ -30,13 +42,17 @@ export function engregxify(regex: string): string {
   // Negative lookahead: does not contain
   const doesNotContainMatch = regex.match(/^\^\(\?!\.\*(.+)\)$/);
   if (doesNotContainMatch) {
-    return `Does not contain '${unescapeRegex(doesNotContainMatch[1])}'`;
+    if (!hasActiveRegexSyntax(doesNotContainMatch[1])) {
+      return `Does not contain '${unescapeRegex(doesNotContainMatch[1])}'`;
+    }
   }
 
   // Negative lookahead: does not equal
   const doesNotEqualMatch = regex.match(/^\^\(\?!(.+)\$\)$/);
   if (doesNotEqualMatch) {
-    return `Does not equal '${unescapeRegex(doesNotEqualMatch[1])}'`;
+    if (!hasActiveRegexSyntax(doesNotEqualMatch[1])) {
+      return `Does not equal '${unescapeRegex(doesNotEqualMatch[1])}'`;
+    }
   }
 
   // Extract between: prefix(.*?)suffix
@@ -60,28 +76,39 @@ export function engregxify(regex: string): string {
   // Equals: ^value$
   const equalsMatch = regex.match(/^\^(.+)\$$/);
   if (equalsMatch) {
-    return `Equals '${unescapeRegex(equalsMatch[1])}'`;
+    if (!hasActiveRegexSyntax(equalsMatch[1])) {
+      return `Equals '${unescapeRegex(equalsMatch[1])}'`;
+    }
   }
 
   // Begins with: ^value
   const beginsWithMatch = regex.match(/^\^(.+)$/);
   if (beginsWithMatch) {
-    return `Starts with '${unescapeRegex(beginsWithMatch[1])}'`;
+    if (!hasActiveRegexSyntax(beginsWithMatch[1])) {
+      return `Starts with '${unescapeRegex(beginsWithMatch[1])}'`;
+    }
   }
 
   // Ends with: value$
   const endsWithMatch = regex.match(/^(.+)\$$/);
   if (endsWithMatch) {
-    return `Ends with '${unescapeRegex(endsWithMatch[1])}'`;
+    if (!hasActiveRegexSyntax(endsWithMatch[1])) {
+      return `Ends with '${unescapeRegex(endsWithMatch[1])}'`;
+    }
   }
 
   // Matches pattern (contains |)
-  if (regex.includes('|')) {
+  if (regex.includes('|') && !hasActiveRegexSyntax(regex)) {
     const parts = regex.split('|').map(unescapeRegex);
     return `Matches one of: ${parts.map(p => `'${p}'`).join(', ')}`;
   }
 
-  // Default: contains
+  // Complex regex with active syntax
+  if (hasActiveRegexSyntax(regex)) {
+    return `Matches pattern '${regex}'`;
+  }
+
+  // Default: contains (simple literal text)
   return `Contains '${unescapeRegex(regex)}'`;
 }
 
@@ -111,7 +138,7 @@ export function decomposeRegex(regex: string): {
 
   // Extract and compare: (?:prefix)value(?:suffix)
   const extractAndCompareMatch = regex.match(/^\(\?:(.+?)\)(.+)\(\?:(.+)\)$/);
-  if (extractAndCompareMatch) {
+  if (extractAndCompareMatch && !hasActiveRegexSyntax(extractAndCompareMatch[2])) {
     return {
       operation: 'extract_and_compare',
       value: unescapeRegex(extractAndCompareMatch[2]),
@@ -122,41 +149,46 @@ export function decomposeRegex(regex: string): {
 
   // Negative lookahead: does not contain
   const doesNotContainMatch = regex.match(/^\^\(\?!\.\*(.+)\)$/);
-  if (doesNotContainMatch) {
+  if (doesNotContainMatch && !hasActiveRegexSyntax(doesNotContainMatch[1])) {
     return { operation: 'does_not_contain', value: unescapeRegex(doesNotContainMatch[1]) };
   }
 
   // Negative lookahead: does not equal
   const doesNotEqualMatch = regex.match(/^\^\(\?!(.+)\$\)$/);
-  if (doesNotEqualMatch) {
+  if (doesNotEqualMatch && !hasActiveRegexSyntax(doesNotEqualMatch[1])) {
     return { operation: 'does_not_equal', value: unescapeRegex(doesNotEqualMatch[1]) };
   }
 
   // Equals: ^value$
   const equalsMatch = regex.match(/^\^(.+)\$$/);
-  if (equalsMatch) {
+  if (equalsMatch && !hasActiveRegexSyntax(equalsMatch[1])) {
     return { operation: 'equals', value: unescapeRegex(equalsMatch[1]) };
   }
 
   // Begins with: ^value
   const beginsWithMatch = regex.match(/^\^(.+)$/);
-  if (beginsWithMatch) {
+  if (beginsWithMatch && !hasActiveRegexSyntax(beginsWithMatch[1])) {
     return { operation: 'begins_with', value: unescapeRegex(beginsWithMatch[1]) };
   }
 
   // Ends with: value$
   const endsWithMatch = regex.match(/^(.+)\$$/);
-  if (endsWithMatch) {
+  if (endsWithMatch && !hasActiveRegexSyntax(endsWithMatch[1])) {
     return { operation: 'ends_with', value: unescapeRegex(endsWithMatch[1]) };
   }
 
   // Matches pattern (contains |)
-  if (regex.includes('|')) {
+  if (regex.includes('|') && !hasActiveRegexSyntax(regex)) {
     const values = regex.split('|').map(unescapeRegex);
     return { operation: 'matches_pattern', value: values[0], values };
   }
 
-  // Default: contains
+  // Complex regex with active syntax — preserve raw regex
+  if (hasActiveRegexSyntax(regex)) {
+    return { operation: 'match_regex', value: regex };
+  }
+
+  // Default: contains (simple literal text)
   return { operation: 'contains', value: unescapeRegex(regex) };
 }
 
