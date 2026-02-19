@@ -87,7 +87,7 @@ export interface TagSpecDefinition {
 // --- Tag Spec Library (parent container) ---
 
 export interface TagSpecLibrary {
-  Id: string;
+  Id: string | null;
   ActiveTagSpecLibId: string | null;
   OperatorId: string;
   StatusTag: StatusTag;

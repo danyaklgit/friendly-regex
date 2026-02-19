@@ -34,6 +34,7 @@ export function TagRulesTab({ checkouts, onEditInTransactions }: TagRulesTabProp
           return !checkouts.some((c) => c.bank === bank && c.side === side);
         })
         .map((lib) => lib.Id)
+        .filter((id): id is string => id !== null)
     );
   });
 
@@ -178,13 +179,13 @@ export function TagRulesTab({ checkouts, onEditInTransactions }: TagRulesTabProp
             const side = getContextValue(lib.Context, 'Side') ?? '?';
             const bank = getContextValue(lib.Context, 'BankSwiftCode') ?? '?';
             const isCheckedOut = checkouts.some((c) => c.bank === bank && c.side === side);
-            const isCollapsed = collapsedIds.has(lib.Id);
+            const isCollapsed = lib.Id !== null && collapsedIds.has(lib.Id);
             return (
               <div key={lib.Id} className={isCheckedOut ? 'ring-1 ring-blue-300 bg-blue-50/30 rounded-lg p-3 pb-1 ' : ''}>
                 <button
                   type="button"
                   className="flex items-center gap-1.5 w-full text-left mb-2 group"
-                  onClick={() => toggleCollapse(lib.Id)}
+                  onClick={() => lib.Id && toggleCollapse(lib.Id)}
                 >
                   <svg
                     className={`w-3.5 h-3.5 text-gray-400 group-hover:text-gray-600 transition-transform ${isCollapsed ? '' : 'rotate-90'}`}
