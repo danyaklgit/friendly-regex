@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import type { AnalyzedTransaction, TagSpecDefinition } from '../../types';
 import type { FieldMeta } from '../../utils/deriveFieldMeta';
-import { Toggle } from '../shared/Toggle';
 import { Button } from '../shared/Button';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
 
@@ -95,6 +95,118 @@ function RangeSlider({
   );
 }
 
+const SHOW_ONLY_OPTIONS = ['Untagged', 'Multi Tags', 'Dead End'] as const;
+
+function ShowOnlyDropdown({
+  showOnlyUntagged,
+  onShowOnlyUntaggedChange,
+  showOnlyMultiTagged,
+  onShowOnlyMultiTaggedChange,
+  showOnlyDeadEnd,
+  onShowOnlyDeadEndChange,
+}: {
+  showOnlyUntagged: boolean;
+  onShowOnlyUntaggedChange: (value: boolean) => void;
+  showOnlyMultiTagged: boolean;
+  onShowOnlyMultiTaggedChange: (value: boolean) => void;
+  showOnlyDeadEnd: boolean;
+  onShowOnlyDeadEndChange: (value: boolean) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [panelPos, setPanelPos] = useState<{ top: number; left: number } | null>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (ref.current?.contains(target)) return;
+      if (panelRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  useEffect(() => {
+    if (open && ref.current) {
+      const rect = ref.current.getBoundingClientRect();
+      setPanelPos({ top: rect.bottom + 4, left: rect.left });
+    }
+  }, [open]);
+
+  const activeLabels = [
+    showOnlyUntagged && 'Untagged',
+    showOnlyMultiTagged && 'Multi Tags',
+    showOnlyDeadEnd && 'Dead End',
+  ].filter(Boolean) as string[];
+  const hasActive = activeLabels.length > 0;
+
+  const handleToggle = (option: typeof SHOW_ONLY_OPTIONS[number]) => {
+    switch (option) {
+      case 'Untagged':
+        onShowOnlyUntaggedChange(!showOnlyUntagged);
+        if (!showOnlyUntagged) onShowOnlyMultiTaggedChange(false);
+        break;
+      case 'Multi Tags':
+        onShowOnlyMultiTaggedChange(!showOnlyMultiTagged);
+        if (!showOnlyMultiTagged) onShowOnlyUntaggedChange(false);
+        break;
+      case 'Dead End':
+        onShowOnlyDeadEndChange(!showOnlyDeadEnd);
+        break;
+    }
+  };
+
+  const isChecked = (option: typeof SHOW_ONLY_OPTIONS[number]) => {
+    switch (option) {
+      case 'Untagged': return showOnlyUntagged;
+      case 'Multi Tags': return showOnlyMultiTagged;
+      case 'Dead End': return showOnlyDeadEnd;
+    }
+  };
+
+  return (
+    <div ref={ref} className="relative shrink-0">
+      <button
+        onClick={() => setOpen(!open)}
+        className={`text-xs px-3 py-1.5 rounded-lg border transition-colors whitespace-nowrap ${
+          hasActive
+            ? 'bg-blue-50 border-blue-300 text-blue-700'
+            : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+        }`}
+      >
+        {hasActive ? `Show: ${activeLabels.join(' & ')}` : 'Show Only'}
+      </button>
+      {open && panelPos && createPortal(
+        <div
+          ref={panelRef}
+          className="fixed z-50 bg-white border border-gray-200 rounded-lg shadow-lg min-w-[160px]"
+          style={{ top: panelPos.top, left: panelPos.left }}
+        >
+          <div className="p-2">
+            {SHOW_ONLY_OPTIONS.map((option) => (
+              <label
+                key={option}
+                className="flex items-center gap-2 px-2 py-1 text-xs hover:bg-gray-50 rounded cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  checked={isChecked(option)}
+                  onChange={() => handleToggle(option)}
+                  className="rounded border-gray-300"
+                />
+                <span>{option}</span>
+              </label>
+            ))}
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
 function FilterDropdown({
   label,
   values,
@@ -171,11 +283,11 @@ function FilterDropdown({
         }`}
       >
         {label}
-        {activeCount > 0 && (
+        {/* {activeCount > 0 && (
           <span className="ml-1.5 bg-blue-600 text-white rounded-full px-1.5 py-0.5 text-[10px] leading-none">
             {activeCount}
           </span>
-        )}
+        )} */}
       </button>
       {open && (
         <div className="absolute top-full mt-1 left-0 z-50 bg-white border border-gray-200 rounded-lg shadow-lg min-w-[220px]">
@@ -341,23 +453,14 @@ export function DynamicFilters({
 
       {expanded && (
         <div className="flex flex-wrap items-center gap-2 mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
-          <Toggle
-            label="Untagged"
-            checked={showOnlyUntagged}
-            onChange={(v) => { onShowOnlyUntaggedChange(v); if (v) onShowOnlyMultiTaggedChange(false); }}
+          <ShowOnlyDropdown
+            showOnlyUntagged={showOnlyUntagged}
+            onShowOnlyUntaggedChange={onShowOnlyUntaggedChange}
+            showOnlyMultiTagged={showOnlyMultiTagged}
+            onShowOnlyMultiTaggedChange={onShowOnlyMultiTaggedChange}
+            showOnlyDeadEnd={showOnlyDeadEnd}
+            onShowOnlyDeadEndChange={onShowOnlyDeadEndChange}
           />
-          <Toggle
-            label="Multi Tags"
-            checked={showOnlyMultiTagged}
-            onChange={(v) => { onShowOnlyMultiTaggedChange(v); if (v) onShowOnlyUntaggedChange(false); }}
-          />
-          <Toggle
-            label="Dead End"
-            checked={showOnlyDeadEnd}
-            onChange={(v) => { onShowOnlyDeadEndChange(v); }}
-          />
-
-          <div className="w-px h-6 bg-gray-300 mx-1" />
 
           {tagFilterValues && (
             <FilterDropdown
