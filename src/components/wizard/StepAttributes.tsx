@@ -20,7 +20,7 @@ export function StepAttributes({ attributes, onAdd, onRemove, onUpdate, transact
       </p>
 
       {attributes.length > 0 ? (
-        <div className="space-y-3">
+        <div className="space-y-1">
           {attributes.map((attr) => (
             <AttributeEditor
               key={attr.id}

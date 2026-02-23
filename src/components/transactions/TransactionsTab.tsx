@@ -13,6 +13,7 @@ import { StepAttributes } from '../wizard/StepAttributes';
 import { TagWizardModal } from '../wizard/TagWizardModal';
 import { Button } from '../shared/Button';
 import { Toast } from '../shared/Toast';
+import { Tooltip } from '../shared/Tooltip';
 import { DynamicFilters } from './DynamicFilters';
 import { CheckoutBanner } from '../stats/CheckoutBanner';
 import { Toggle } from '../shared/Toggle';
@@ -105,11 +106,65 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
   const [showOnlyUntagged, setShowOnlyUntagged] = useState(false);
   const [showOnlyMultiTagged, setShowOnlyMultiTagged] = useState(false);
   const [showOnlyDeadEnd, setShowOnlyDeadEnd] = useState(false);
-  const [showAttributes, setShowAttributes] = useState(true);
-  const [relaxedMode, setRelaxedMode] = useState(false);
-  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
+  const [showAttributes, setShowAttributes] = useState(() => {
+    try { return localStorage.getItem('fr:showAttributes') === 'true'; } catch { return false; }
+  });
+  const [relaxedMode, setRelaxedMode] = useState(() => {
+    try { const v = localStorage.getItem('fr:relaxedMode'); return v === null ? true : v === 'true'; } catch { return true; }
+  });
+  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem('fr:hiddenColumns');
+      return stored ? new Set(JSON.parse(stored) as string[]) : new Set();
+    } catch { return new Set(); }
+  });
+  const [columnOrder, setColumnOrder] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem('fr:columnOrder');
+      return stored ? JSON.parse(stored) as string[] : [];
+    } catch { return []; }
+  });
   const [tableColumns, setTableColumns] = useState<ColumnDef[]>([]);
   const [filters, setFilters] = useState<Record<string, Set<string>>>({});
+
+  // Persist settings to localStorage
+  useEffect(() => { try { localStorage.setItem('fr:showAttributes', String(showAttributes)); } catch { /* ignore */ } }, [showAttributes]);
+  useEffect(() => { try { localStorage.setItem('fr:relaxedMode', String(relaxedMode)); } catch { /* ignore */ } }, [relaxedMode]);
+  useEffect(() => { try { localStorage.setItem('fr:hiddenColumns', JSON.stringify([...hiddenColumns])); } catch { /* ignore */ } }, [hiddenColumns]);
+  useEffect(() => { try { localStorage.setItem('fr:columnOrder', JSON.stringify(columnOrder)); } catch { /* ignore */ } }, [columnOrder]);
+
+  // Default visible columns: only Tags + 4 data fields; apply only on first load with no stored preference
+  const DEFAULT_VISIBLE_DATA = useMemo(() => new Set(['AdditionalInformation', 'Description1', 'Description2', 'BankReference']), []);
+  const defaultsApplied = useRef(false);
+  useEffect(() => {
+    if (tableColumns.length > 0 && !defaultsApplied.current) {
+      defaultsApplied.current = true;
+      // Skip if user already has a stored preference
+      if (localStorage.getItem('fr:hiddenColumns')) return;
+      const defaultHidden = new Set<string>();
+      for (const col of tableColumns) {
+        if (col.type === 'tags') continue;
+        if (col.type === 'data' && DEFAULT_VISIBLE_DATA.has(col.field)) continue;
+        defaultHidden.add(col.key);
+      }
+      setHiddenColumns(defaultHidden);
+    }
+  }, [tableColumns, DEFAULT_VISIBLE_DATA]);
+
+  const defaultHiddenColumns = useMemo(() => {
+    const s = new Set<string>();
+    for (const col of tableColumns) {
+      if (col.type === 'tags') continue;
+      if (col.type === 'data' && DEFAULT_VISIBLE_DATA.has(col.field)) continue;
+      s.add(col.key);
+    }
+    return s;
+  }, [tableColumns, DEFAULT_VISIBLE_DATA]);
+
+  const handleColumnReset = useCallback(() => {
+    setHiddenColumns(defaultHiddenColumns);
+    setColumnOrder([]);
+  }, [defaultHiddenColumns]);
 
   // Base filters from checkout — "clear filters" resets to these instead of empty
   const baseFilters = useMemo(() => {
@@ -364,8 +419,8 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
         <div className='flex items-center gap-2'>
           {!builderOpen && <h2 className="text-base font-semibold text-gray-900">Transactions</h2>}
           {!builderOpen && <span className='text-sm mr-5'>({filteredData.length})</span>}
-          {!builderOpen && <Toggle label="Show attributes" checked={showAttributes} onChange={setShowAttributes} />}
           {!builderOpen && <Toggle label="Compact mode" checked={relaxedMode} onChange={setRelaxedMode} />}
+          {!builderOpen && <Toggle label="Show attributes" checked={showAttributes} onChange={setShowAttributes} />}
           {!builderOpen && (
             <div className="flex items-center gap-5 ml-4 text-[11px] text-gray-500">
               <span className="flex items-center gap-1">
@@ -402,18 +457,31 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
             </Button>
           )}
           {!builderOpen && (
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={!(activeCheckout && onCheckin && onRelease)}
-              onClick={() => {
-                setShowOnlyUntagged(false)
-                setShowOnlyMultiTagged(false)
-                setBuilderOpen(true)
-              }}
-            >
-              Test a Rule
-            </Button>
+            !(activeCheckout && onCheckin && onRelease) ? (
+              <Tooltip content="You need to check out a bank/side combination from the Stats page first" placement="bottom">
+                <span>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled
+                  >
+                    Test a Rule
+                  </Button>
+                </span>
+              </Tooltip>
+            ) : (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setShowOnlyUntagged(false)
+                  setShowOnlyMultiTagged(false)
+                  setBuilderOpen(true)
+                }}
+              >
+                Test a Rule
+              </Button>
+            )
           )}
         </div>
       </div>
@@ -433,7 +501,7 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
           onShowOnlyDeadEndChange={setShowOnlyDeadEnd}
           baseFilters={baseFilters}
           endSlot={tableColumns.length > 0 ? (
-            <ColumnPicker columns={tableColumns} hiddenColumns={hiddenColumns} onChange={setHiddenColumns} />
+            <ColumnPicker columns={tableColumns} hiddenColumns={hiddenColumns} onChange={setHiddenColumns} columnOrder={columnOrder} onColumnOrderChange={setColumnOrder} showAttributes={showAttributes} defaultHiddenColumns={defaultHiddenColumns} onReset={handleColumnReset} />
           ) : undefined}
         />
       {/* )} */}
@@ -516,6 +584,7 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
         showAttributes={showAttributes}
         relaxedMode={relaxedMode}
         hiddenColumns={hiddenColumns}
+        columnOrder={columnOrder}
         onColumnsReady={setTableColumns}
       />
 

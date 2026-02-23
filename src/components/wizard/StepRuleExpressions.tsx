@@ -32,7 +32,7 @@ export function StepRuleExpressions({
         ruleGroups.map((group, i) => (
           <div key={group.id}>
             {i > 0 && (
-              <div className="flex items-center justify-center my-3">
+              <div className="flex items-center justify-center my-1">
                 <div className="flex-1 border-t border-gray-200" />
                 <span className="mx-3 text-xs font-bold text-purple-600 bg-purple-50 px-3 py-1 rounded-full">
                   OR

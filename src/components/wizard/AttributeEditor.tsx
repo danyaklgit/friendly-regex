@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import type { AttributeFormValue, TransactionRow } from '../../types';
 import { Input } from '../shared/Input';
 import { Select } from '../shared/Select';
-// import { Toggle } from '../shared/Toggle';
+import { Toggle } from '../shared/Toggle';
 import { Button } from '../shared/Button';
 import { Modal } from '../shared/Modal';
 import { VALIDATION_RULE_TAG_OPTIONS } from '../../constants/fields';
@@ -109,7 +109,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
   }, [transactions, attribute.sourceField, attribute.extractionOperation, attribute.prefix, attribute.suffix, attribute.verifyValue]);
 
   return (
-    <div className="border border-gray-200 rounded-lg p-3 bg-white space-y-3">
+    <div className="border border-gray-200 rounded-lg p-3 py-1 bg-white space-y-3">
       {editing ? (
         <>
           <div className="flex items-start justify-between">
@@ -126,10 +126,12 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
               />
             </div>
 
-
-            <Button variant="ghost" size="sm" onClick={onRemove} className="ml-2 text-red-400 hover:text-red-500">
-              Remove Attribute
-            </Button>
+            <div className="flex items-center gap-2 ml-2">
+              <Toggle label="Mandatory" checked={attribute.isMandatory} onChange={(checked) => onUpdate({ isMandatory: checked })} />
+              <Button variant="ghost" size="sm" onClick={onRemove} className="text-red-400 hover:text-red-500">
+                Remove Attribute
+              </Button>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-2" id="attribute_edit_1">

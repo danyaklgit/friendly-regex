@@ -53,8 +53,8 @@ export function ConditionEditor({
   return (
     <div>
       {showAnd && (
-        <div className="flex items-center justify-start my-2 px-3">
-          <span className="text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border-dashed border w-fit px-2 py-1">
+        <div className="flex items-center justify-start my-1 px-2">
+          <span className="text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border-dashed border w-fit">
             AND
           </span>
         </div>

@@ -33,8 +33,7 @@ export function TagWizardModal({ existingDef, parentLib, initialFormState, initi
           wizard.formState.bankSwiftCode.trim().length > 0;
         if (fromCheckoutContext) {
           return base &&
-            wizard.formState.transactionTypeCode.trim().length > 0 &&
-            (wizard.formState.validity.StartDate ?? '').trim().length > 0;
+            wizard.formState.transactionTypeCode.trim().length > 0;
         }
         return base;
       }

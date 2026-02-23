@@ -17,6 +17,7 @@ interface TransactionTableProps {
   showAttributes?: boolean;
   relaxedMode?: boolean;
   hiddenColumns?: Set<string>;
+  columnOrder?: string[];
   onColumnsReady?: (columns: ColumnDef[]) => void;
 }
 
@@ -28,8 +29,9 @@ type ColumnDef =
   | { type: 'debit'; key: string }
   | { type: 'credit'; key: string };
 
+const DEFAULT_COLUMN_ORDER = ['data:AdditionalInformation', 'data:BankReference', 'data:Description1', 'data:Description2', '__dates', '__debit', '__credit'];
 const SIDE_AMOUNT_FIELDS = new Set(['Side', 'Amount']);
-const DATE_GROUP_FIELDS = ['EntryDate', 'StatementDate', 'ValueDate'];
+const DATE_GROUP_FIELDS = ['StatementDate', 'EntryDate', 'ValueDate'];
 const DATE_GROUP_LABELS: Record<string, string> = {
   EntryDate: 'Entry',
   StatementDate: 'Statement',
@@ -107,12 +109,19 @@ function highlightText(text: string, regexes: RegExp[]): ReactNode {
   return <>{parts}</>;
 }
 
-export function ColumnPicker({ columns, hiddenColumns, onChange }: {
+export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, onColumnOrderChange, showAttributes = true, defaultHiddenColumns, onReset }: {
   columns: ColumnDef[];
   hiddenColumns: Set<string>;
   onChange: (hidden: Set<string>) => void;
+  columnOrder?: string[];
+  onColumnOrderChange?: (order: string[]) => void;
+  showAttributes?: boolean;
+  defaultHiddenColumns?: Set<string>;
+  onReset?: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [overIdx, setOverIdx] = useState<number | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -123,54 +132,143 @@ export function ColumnPicker({ columns, hiddenColumns, onChange }: {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Exclude tags column — always visible
-  const toggleable = columns.filter((col) => col.type !== 'tags');
+  // Exclude tags column (always visible) and optionally attribute columns
+  const toggleable = columns.filter((col) => {
+    if (col.type === 'tags') return false;
+    if (!showAttributes && col.type === 'attribute') return false;
+    return true;
+  });
+
+  // Apply column order (custom drag order, or default priority)
+  const ordered = useMemo(() => {
+    const order = columnOrder && columnOrder.length > 0 ? columnOrder : DEFAULT_COLUMN_ORDER;
+    const orderMap = new Map(order.map((key, idx) => [key, idx]));
+    return [...toggleable].sort((a, b) => {
+      const ai = orderMap.get(a.key) ?? Infinity;
+      const bi = orderMap.get(b.key) ?? Infinity;
+      if (ai === Infinity && bi === Infinity) return 0;
+      return ai - bi;
+    });
+  }, [toggleable, columnOrder]);
+
+  const visibleCount = toggleable.filter((col) => !hiddenColumns.has(col.key)).length;
+  const totalCount = toggleable.length;
+
+  const isDefault = useMemo(() => {
+    if (columnOrder && columnOrder.length > 0) return false;
+    if (!defaultHiddenColumns) return hiddenColumns.size === 0;
+    if (hiddenColumns.size !== defaultHiddenColumns.size) return false;
+    for (const key of hiddenColumns) {
+      if (!defaultHiddenColumns.has(key)) return false;
+    }
+    return true;
+  }, [hiddenColumns, defaultHiddenColumns, columnOrder]);
+
+  const handleDrop = useCallback((fromIdx: number, toIdx: number) => {
+    if (fromIdx === toIdx || !onColumnOrderChange) return;
+    const newOrder = [...ordered];
+    const [moved] = newOrder.splice(fromIdx, 1);
+    newOrder.splice(toIdx, 0, moved);
+    onColumnOrderChange(newOrder.map((c) => c.key));
+  }, [ordered, onColumnOrderChange]);
 
   return (
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
-          hiddenColumns.size > 0
-            ? 'bg-blue-50 border-blue-300 text-blue-700'
-            : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-        }`}
+        className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${hiddenColumns.size > 0
+          ? 'bg-blue-50 border-blue-300 text-blue-700'
+          : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+          }`}
       >
         <span className="flex items-center gap-1">
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7" />
           </svg>
           Columns
-          {hiddenColumns.size > 0 && (
-            <span className="bg-blue-600 text-white rounded-full px-1.5 py-0.5 text-[10px] leading-none">
-              {hiddenColumns.size}
-            </span>
-          )}
+          <span className="bg-blue-600 text-white rounded-full px-1.5 py-0.5 text-[10px] leading-none">
+            {visibleCount}/{totalCount}
+          </span>
         </span>
       </button>
       {open && (
-        <div className="absolute top-full mt-1 right-0 z-50 bg-white border border-gray-200 rounded-lg shadow-lg min-w-[200px] max-h-64 overflow-y-auto p-2">
-          {toggleable.map((col) => {
+        <div className="absolute top-full mt-1 right-0 z-50 bg-white border border-gray-200 rounded-lg shadow-lg min-w-[220px] max-h-64 overflow-y-auto px-2 pb-2">
+          <div className="sticky top-0 bg-white z-10 flex items-center justify-between border-b border-gray-100 mb-1 pt-2 pb-1.5">
+            <label className="flex items-center gap-2 px-2 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50 rounded cursor-pointer">
+              <input
+                type="checkbox"
+                checked={visibleCount === totalCount}
+                ref={(el) => { if (el) el.indeterminate = visibleCount > 0 && visibleCount < totalCount; }}
+                onChange={() => {
+                  if (visibleCount === totalCount) {
+                    onChange(new Set(toggleable.map((c) => c.key)));
+                  } else {
+                    onChange(new Set());
+                  }
+                }}
+                className="rounded border-gray-300"
+              />
+              {visibleCount === totalCount ? 'Hide All' : 'Show All'}
+            </label>
+            {onReset && !isDefault && (
+              <button
+                onClick={onReset}
+                className="text-[11px] text-blue-600 hover:text-blue-800 px-2 py-0.5 hover:underline"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+          {ordered.map((col, i) => {
             const label = getColumnLabel(col);
             const isHidden = hiddenColumns.has(col.key);
+            const isDragOver = overIdx === i && dragIdx !== null && dragIdx !== i;
             return (
-              <label
+              <div
                 key={col.key}
-                className="flex items-center gap-2 px-2 py-1 text-xs hover:bg-gray-50 rounded cursor-pointer"
+                draggable
+                onDragStart={(e) => {
+                  setDragIdx(i);
+                  e.dataTransfer.effectAllowed = 'move';
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  setOverIdx(i);
+                }}
+                onDragLeave={() => { if (overIdx === i) setOverIdx(null); }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (dragIdx !== null) handleDrop(dragIdx, i);
+                  setDragIdx(null);
+                  setOverIdx(null);
+                }}
+                onDragEnd={() => { setDragIdx(null); setOverIdx(null); }}
+                className={`flex items-center gap-2 px-2 py-1 text-xs hover:bg-gray-50 rounded cursor-grab active:cursor-grabbing select-none transition-colors ${isDragOver ? 'border-t-2 border-blue-400' : 'border-t-2 border-transparent'
+                  } ${dragIdx === i ? 'opacity-40' : ''}`}
               >
-                <input
-                  type="checkbox"
-                  checked={!isHidden}
-                  onChange={() => {
-                    const next = new Set(hiddenColumns);
-                    if (isHidden) next.delete(col.key);
-                    else next.add(col.key);
-                    onChange(next);
-                  }}
-                  className="rounded border-gray-300"
-                />
-                <span className={`truncate ${col.type === 'attribute' ? 'text-indigo-600' : ''}`}>{label}</span>
-              </label>
+                <svg className="w-3 h-3 text-gray-300 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M7 2a2 2 0 10.001 4.001A2 2 0 007 2zm0 6a2 2 0 10.001 4.001A2 2 0 007 8zm0 6a2 2 0 10.001 4.001A2 2 0 007 14zm6-8a2 2 0 10-.001-4.001A2 2 0 0013 6zm0 2a2 2 0 10.001 4.001A2 2 0 0013 8zm0 6a2 2 0 10.001 4.001A2 2 0 0013 14z" />
+                </svg>
+                <label className="flex items-center gap-2 flex-1 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={!isHidden}
+                    onChange={() => {
+                      const next = new Set(hiddenColumns);
+                      if (isHidden) next.delete(col.key);
+                      else next.add(col.key);
+                      onChange(next);
+                    }}
+                    className="rounded border-gray-300"
+                  />
+                  <span className={
+                    `truncate ${col.type === 'attribute' ? 'text-indigo-600' : ''} 
+                    ${isHidden ? 'font-normal' : 'font-medium'}
+                    `
+                  }>{label}</span>
+                </label>
+              </div>
             );
           })}
         </div>
@@ -181,7 +279,7 @@ export function ColumnPicker({ columns, hiddenColumns, onChange }: {
 
 export type { ColumnDef };
 
-export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, highlightExpressions, stickyFields, onTagClick, onFlagDeadEnd, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), onColumnsReady }: TransactionTableProps) {
+export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, highlightExpressions, stickyFields, onTagClick, onFlagDeadEnd, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady }: TransactionTableProps) {
   const { fieldMeta } = useTransactionData();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -377,8 +475,20 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     let result = columns;
     if (!showAttributes) result = result.filter((col) => col.type !== 'attribute');
     if (hiddenColumns.size > 0) result = result.filter((col) => !hiddenColumns.has(col.key));
+    // Always apply ordering — Tags stays first, rest sorted by custom or default order
+    const order = columnOrder && columnOrder.length > 0 ? columnOrder : DEFAULT_COLUMN_ORDER;
+    const tags = result.filter((col) => col.type === 'tags');
+    const rest = result.filter((col) => col.type !== 'tags');
+    const orderMap = new Map(order.map((key, idx) => [key, idx]));
+    rest.sort((a, b) => {
+      const ai = orderMap.get(a.key) ?? Infinity;
+      const bi = orderMap.get(b.key) ?? Infinity;
+      if (ai === Infinity && bi === Infinity) return 0;
+      return ai - bi;
+    });
+    result = [...tags, ...rest];
     return result;
-  }, [columns, showAttributes, hiddenColumns]);
+  }, [columns, showAttributes, hiddenColumns, columnOrder]);
 
   // Determine which column indices should be sticky, split into left/right groups
   const { leftIndices, rightIndices } = useMemo(() => {

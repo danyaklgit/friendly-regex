@@ -77,37 +77,6 @@ export function StepBasicInfo({ formState, onUpdate, fromCheckoutContext }: Step
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <Input
-          label="Start Date"
-          type="date"
-          value={formState.validity.StartDate ?? ''}
-          onChange={(e) => {
-            onUpdate({ validity: { ...formState.validity, StartDate: e.target.value } });
-            markTouched('startDate');
-          }}
-          onBlur={() => markTouched('startDate')}
-          required={fromCheckoutContext}
-          error={isError('startDate', formState.validity.StartDate ?? '')}
-        />
-        <Input
-          label="End Date"
-          type="date"
-          value={formState.validity.EndDate ?? ''}
-          onChange={(e) => {
-            onUpdate({
-              validity: {
-                ...formState.validity,
-                EndDate: e.target.value || null,
-              },
-            });
-            markTouched('endDate');
-          }}
-          onBlur={() => markTouched('endDate')}
-          required={fromCheckoutContext}
-          error={isError('endDate', formState.validity.EndDate ?? '')}
-        />
-      </div>
     </div>
   );
 }
