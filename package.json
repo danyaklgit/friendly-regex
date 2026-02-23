@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "generate-stats": "node scripts/generate-bank-stats.mjs"
   },
   "dependencies": {
     "@abdulrysr/saudi-riyal-new-symbol-font": "^1.0.8",
