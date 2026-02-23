@@ -186,8 +186,10 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7" />
           </svg>
           Columns
-          <span className="bg-blue-600 text-white rounded-full px-1.5 py-0.5 text-[10px] leading-none">
-            {visibleCount}/{totalCount}
+          <span className="font-semibold  rounded-full p-0  flex gap-0.5 items-center text-xs">
+            <span>{visibleCount}</span>
+            <span>/</span>
+            <span>{totalCount}</span>
           </span>
         </span>
       </button>
