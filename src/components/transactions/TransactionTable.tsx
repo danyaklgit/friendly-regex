@@ -764,7 +764,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
   const hasSelection = selectedIds.size > 0;
 
   return (
-    <div className="rounded-lg border border-gray-200 flex flex-col" style={{ maxHeight: 'calc(100vh - 15.5rem)' }}>
+    <div className="rounded-lg border border-gray-200 flex flex-col" style={{ maxHeight: 'calc(100vh - 15rem)' }}>
       {/* Selection action bar */}
       {hasSelection && onFlagDeadEnd && (
         <div className="flex items-center gap-3 px-4 py-2 bg-blue-50 border-b border-blue-200 shrink-0">
