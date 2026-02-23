@@ -290,14 +290,15 @@ export function DynamicFilters({
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
-    for (const selected of Object.values(filters)) {
-      if (selected.size > 0) count++;
+    const baseKeys = baseFilters ? new Set(Object.keys(baseFilters)) : new Set<string>();
+    for (const [key, selected] of Object.entries(filters)) {
+      if (selected.size > 0 && !baseKeys.has(key)) count++;
     }
     if (showOnlyUntagged) count++;
     if (showOnlyMultiTagged) count++;
     if (showOnlyDeadEnd) count++;
     return count;
-  }, [filters, showOnlyUntagged, showOnlyMultiTagged, showOnlyDeadEnd]);
+  }, [filters, showOnlyUntagged, showOnlyMultiTagged, showOnlyDeadEnd, baseFilters]);
 
   const clearAll = () => {
     onFiltersChange(baseFilters ?? {});
@@ -341,17 +342,17 @@ export function DynamicFilters({
       {expanded && (
         <div className="flex flex-wrap items-center gap-2 mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
           <Toggle
-            label="Untagged only"
+            label="Untagged"
             checked={showOnlyUntagged}
             onChange={(v) => { onShowOnlyUntaggedChange(v); if (v) onShowOnlyMultiTaggedChange(false); }}
           />
           <Toggle
-            label="Multi Tags only"
+            label="Multi Tags"
             checked={showOnlyMultiTagged}
             onChange={(v) => { onShowOnlyMultiTaggedChange(v); if (v) onShowOnlyUntaggedChange(false); }}
           />
           <Toggle
-            label="Dead End only"
+            label="Dead End"
             checked={showOnlyDeadEnd}
             onChange={(v) => { onShowOnlyDeadEndChange(v); }}
           />

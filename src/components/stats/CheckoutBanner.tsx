@@ -9,7 +9,7 @@ interface CheckoutBannerProps {
 
 export function CheckoutBanner({ bank, side, onRelease, onCheckin }: CheckoutBannerProps) {
   return (
-    <div className="flex items-center justify-between px-4 py-2 mb-3 bg-blue-50 border border-blue-200 rounded-lg">
+    <div className="flex items-center justify-between px-4 py-2 mb-3  rounded-lg relative flex-col md:flex-row md:fixed top-0 right-4 gap-4">
       <span className="text-sm text-blue-800">
         <span className="font-semibold">You're working on</span> Bank {bank}, Side {side}
       </span>
