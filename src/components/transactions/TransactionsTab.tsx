@@ -112,9 +112,6 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
   const [relaxedMode, setRelaxedMode] = useState(() => {
     try { const v = localStorage.getItem('fr:relaxedMode'); return v === null ? true : v === 'true'; } catch { return true; }
   });
-  const [compactCells, setCompactCells] = useState(() => {
-    try { return localStorage.getItem('fr:compactCells') === 'true'; } catch { return false; }
-  });
   const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => {
     try {
       const stored = localStorage.getItem('fr:hiddenColumns');
@@ -133,7 +130,6 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
   // Persist settings to localStorage
   useEffect(() => { try { localStorage.setItem('fr:showAttributes', String(showAttributes)); } catch { /* ignore */ } }, [showAttributes]);
   useEffect(() => { try { localStorage.setItem('fr:relaxedMode', String(relaxedMode)); } catch { /* ignore */ } }, [relaxedMode]);
-  useEffect(() => { try { localStorage.setItem('fr:compactCells', String(compactCells)); } catch { /* ignore */ } }, [compactCells]);
   useEffect(() => { try { localStorage.setItem('fr:hiddenColumns', JSON.stringify([...hiddenColumns])); } catch { /* ignore */ } }, [hiddenColumns]);
   useEffect(() => { try { localStorage.setItem('fr:columnOrder', JSON.stringify(columnOrder)); } catch { /* ignore */ } }, [columnOrder]);
 
@@ -425,7 +421,6 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
           {!builderOpen && <span className='text-sm mr-5'>({filteredData.length})</span>}
           {!builderOpen && <Toggle label="Compact mode" checked={relaxedMode} onChange={setRelaxedMode} />}
           {!builderOpen && <Toggle label="Show attributes" checked={showAttributes} onChange={setShowAttributes} />}
-          {/* {!builderOpen && <Toggle label="Smaller cells" checked={compactCells} onChange={setCompactCells} />} */}
           {!builderOpen && (
             <div className="hidden md:flex items-center gap-5 ml-4 text-[11px] text-gray-500">
               <span className="flex items-center gap-1">
@@ -588,7 +583,6 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
         onFlagDeadEnd={flagDeadEnd}
         showAttributes={showAttributes}
         relaxedMode={relaxedMode}
-        compactCells={compactCells}
         hiddenColumns={hiddenColumns}
         columnOrder={columnOrder}
         onColumnsReady={setTableColumns}

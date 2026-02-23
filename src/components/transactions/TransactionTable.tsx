@@ -16,7 +16,6 @@ interface TransactionTableProps {
   onFlagDeadEnd?: (ids: string[], value: boolean) => void;
   showAttributes?: boolean;
   relaxedMode?: boolean;
-  compactCells?: boolean;
   hiddenColumns?: Set<string>;
   columnOrder?: string[];
   onColumnsReady?: (columns: ColumnDef[]) => void;
@@ -187,7 +186,7 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7" />
           </svg>
           Columns
-          <span className="font-semibold rounded-full px-0.5 py-0 text-[10px] leading-none">
+          <span className="bg-blue-600 text-white rounded-full px-1.5 py-0.5 text-[10px] leading-none">
             {visibleCount}/{totalCount}
           </span>
         </span>
@@ -280,7 +279,7 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
 
 export type { ColumnDef };
 
-export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, highlightExpressions, stickyFields, onTagClick, onFlagDeadEnd, showAttributes = true, relaxedMode = false, compactCells = false, hiddenColumns = new Set(), columnOrder, onColumnsReady }: TransactionTableProps) {
+export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, highlightExpressions, stickyFields, onTagClick, onFlagDeadEnd, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady }: TransactionTableProps) {
   const { fieldMeta } = useTransactionData();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -880,7 +879,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                       switch (col.type) {
                         case 'data':
                           return (
-                            <td key={col.key} className={`px-3 ${cellPy} text-xs text-gray-600 ${compactCells ? 'max-w-48 wrap-break-word' : relaxedMode ? 'whitespace-nowrap' : 'max-w-200'} ${stickyBg}`} style={getCellStyle(colIdx, false)}>
+                            <td key={col.key} className={`px-3 ${cellPy} text-xs text-gray-600 ${relaxedMode ? 'whitespace-nowrap' : 'max-w-200'} ${stickyBg}`} style={getCellStyle(colIdx, false)}>
                               {renderCellContent(col.field, item.row[col.field])}
                               {stickyEdgeShadow(colIdx)}
                             </td>
