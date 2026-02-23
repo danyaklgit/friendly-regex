@@ -81,14 +81,14 @@ export function StepBasicInfo({ formState, onUpdate, fromCheckoutContext }: Step
         <Input
           label="Start Date"
           type="date"
-          value={formState.validity.StartDate}
+          value={formState.validity.StartDate ?? ''}
           onChange={(e) => {
             onUpdate({ validity: { ...formState.validity, StartDate: e.target.value } });
             markTouched('startDate');
           }}
           onBlur={() => markTouched('startDate')}
           required={fromCheckoutContext}
-          error={isError('startDate', formState.validity.StartDate)}
+          error={isError('startDate', formState.validity.StartDate ?? '')}
         />
         <Input
           label="End Date"

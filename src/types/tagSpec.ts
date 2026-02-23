@@ -66,7 +66,7 @@ export interface TagAttribute {
 // --- Tag Spec Definition ---
 
 export interface TagValidity {
-  StartDate: string;
+  StartDate: string | null;
   EndDate: string | null;
 }
 
