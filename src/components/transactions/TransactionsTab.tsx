@@ -342,7 +342,8 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
     setBuilderOpen(false);
     setEditingDef(undefined);
     setEditingParentLib(undefined);
-  }, []);
+    builder.resetForm();
+  }, [builder]);
 
   const handleWizardSave = useCallback((result: WizardFormResult) => {
     if (editingDef) {
@@ -416,9 +417,9 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
         <CheckoutBanner bank={activeCheckout.bank} side={activeCheckout.side} onRelease={onRelease} onCheckin={onCheckin} />
       )}
       <div className="flex items-center justify-between mb-1 min-h-10">
-        <div className='flex flex-col md:flex-row items-start md:items-center gap-2'>
+        <div className='flex flex-col md:flex-row items-start justify-end md:items-center gap-2'>
           <h2 className="text-base font-semibold text-gray-900">Transactions</h2>
-          <span className='text-sm mr-5'>({filteredData.length})</span>
+          <span className='text-sm mr-5 min-w-10 text-blue-700'>({filteredData.length})</span>
           <Toggle label="Compact mode" checked={relaxedMode} onChange={setRelaxedMode} />
           <Toggle label="Show attributes" checked={showAttributes} onChange={setShowAttributes} />
 
