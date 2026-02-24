@@ -385,6 +385,16 @@ export function DynamicFilters({
       }
     }
 
+    const priority = ['BankSwiftCode', 'Side'];
+    result.sort((a, b) => {
+      const ai = priority.indexOf(a.field);
+      const bi = priority.indexOf(b.field);
+      if (ai !== -1 && bi !== -1) return ai - bi;
+      if (ai !== -1) return -1;
+      if (bi !== -1) return 1;
+      return 0;
+    });
+
     return result;
   }, [data, fieldMeta]);
 

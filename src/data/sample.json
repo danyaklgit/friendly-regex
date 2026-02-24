@@ -2,7 +2,7 @@
   {
     "Id": null,
     "ActiveTagSpecLibId": null,
-    "OperatorId": "28cdd337-6fac-49c2-906d-7d3c6c41f37d",
+    "OperatorId": "32bc4a64-73eb-43d6-b9b3-91ef2718df74",
     "StatusTag": "ACTIVE",
     "DataSetType": "MT940",
     "Version": 1,
@@ -20,7 +20,7 @@
     ],
     "TagSpecDefinitions": [
       {
-        "Id": "d7004b6f-f36d-4bf4-afd4-30b9ff102c66",
+        "Id": "53ea8adc-26cf-46a6-ba6e-9ef58fee0fe2",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -216,7 +216,7 @@
         ]
       },
       {
-        "Id": "d38798fd-93a9-4d12-ba5d-962d278d67ff",
+        "Id": "600ef62c-5b26-4efc-912f-b82bdfe2f530",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -330,7 +330,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^IBAN/SA\\d{2}$(.{2})",
+              "Regex": "IBAN/SA\\d{2}(.{2})",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -414,7 +414,7 @@
         ]
       },
       {
-        "Id": "8e7b0d71-2bde-44f5-aa7e-8b8adf49a848",
+        "Id": "bc33cb33-453f-4d8b-93c6-28adf781f2d7",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -556,7 +556,7 @@
         ]
       },
       {
-        "Id": "db981c81-b691-4677-a39a-1792a795f88e",
+        "Id": "2550abab-415e-4941-bf39-93faf0c924dc",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -698,7 +698,7 @@
         ]
       },
       {
-        "Id": "de8b5f0d-5d88-4d9d-beaf-cd4649ffa2ca",
+        "Id": "48e07726-d026-4ebc-9af9-2143435305dc",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -888,7 +888,7 @@
         ]
       },
       {
-        "Id": "e7220287-f27c-414b-ac20-feabe8668f37",
+        "Id": "d1499530-6cc2-4ca0-910b-48369e7e7b88",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -1084,7 +1084,7 @@
         ]
       },
       {
-        "Id": "fa093af2-74c4-468e-977a-7a1307a59f96",
+        "Id": "7ac3ecb8-510f-423c-bf57-41374e2414ff",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -1196,7 +1196,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^IBAN/SA\\d{2}$(.{2})",
+              "Regex": "IBAN/SA\\d{2}(.{2})",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -1316,7 +1316,7 @@
         ]
       },
       {
-        "Id": "06b44a51-464a-48fb-9ce7-8de3d7959120",
+        "Id": "f21b85b3-c7cc-49ca-92b5-6bb397aa175b",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -1524,7 +1524,7 @@
         ]
       },
       {
-        "Id": "3b6a26cd-9ca6-4af7-925e-213c9a14edee",
+        "Id": "54223d3a-09a4-4ca4-a454-8d359b742e5c",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -1666,7 +1666,7 @@
         ]
       },
       {
-        "Id": "34cd986a-647f-4c93-9631-d5037969677c",
+        "Id": "ae8e1aa2-38e3-490a-9c5f-8991ce3e9558",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -1754,7 +1754,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^IBAN/SA\\d{2}$(.{2})",
+              "Regex": "IBAN/SA\\d{2}(.{2})",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -1874,7 +1874,7 @@
         ]
       },
       {
-        "Id": "05fb053d-3fca-444c-bf28-e7fbea65c9cb",
+        "Id": "fc2edfee-3059-447c-9b0b-7185ce7d9e3c",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -2082,7 +2082,7 @@
         ]
       },
       {
-        "Id": "88366608-021e-4edd-9511-93477e2c330c",
+        "Id": "4a6a6890-12a7-4f00-a45d-82d3e4658bcc",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -2290,7 +2290,7 @@
         ]
       },
       {
-        "Id": "24b0ac96-9ac4-4279-a81e-3950f047d958",
+        "Id": "6040abe9-8665-47f6-bf50-49f9bcdb2e8c",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -2498,7 +2498,7 @@
         ]
       },
       {
-        "Id": "a1c4fd78-9121-4c38-924d-55bb40f309f5",
+        "Id": "50a2b4f2-6681-4784-95e6-19c7c1ec2963",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -2706,7 +2706,7 @@
         ]
       },
       {
-        "Id": "b36aad22-5ee8-4ccd-bc48-42a8d4fecbc1",
+        "Id": "fc98ff13-e6be-4a67-ad87-ec37a59ef5e6",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -2918,7 +2918,7 @@
   {
     "Id": null,
     "ActiveTagSpecLibId": null,
-    "OperatorId": "55d1e025-eab3-43a0-b2cf-3fbe688d3627",
+    "OperatorId": "7a5ed23f-db95-402f-9bc4-d1faf0f52456",
     "StatusTag": "ACTIVE",
     "DataSetType": "MT940",
     "Version": 1,
@@ -2936,7 +2936,7 @@
     ],
     "TagSpecDefinitions": [
       {
-        "Id": "accb3551-5ee7-4710-86e4-9f59a2614f7c",
+        "Id": "0f6bf6bd-d212-4bd6-84b0-a1c7f09664ab",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -3144,7 +3144,7 @@
         ]
       },
       {
-        "Id": "bfcac74d-5b1d-46c6-83a5-654a66eb43ec",
+        "Id": "33d6ede7-69ab-4314-9e94-3c385769a769",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -3258,7 +3258,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^IBAN/SA\\d{2}$(.{2})",
+              "Regex": "IBAN/SA\\d{2}(.{2})",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -3342,7 +3342,7 @@
         ]
       },
       {
-        "Id": "7ca95f15-aefd-4f0f-955c-c211da7ef3f0",
+        "Id": "71d20ec5-4c16-4c27-b946-b8123945f94b",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -3496,7 +3496,7 @@
         ]
       },
       {
-        "Id": "a0d26edb-93d8-4545-8154-fe3aaf7b3768",
+        "Id": "089f05b7-fa61-455e-af08-44832dbf7e67",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -3632,7 +3632,7 @@
         ]
       },
       {
-        "Id": "0d049001-616c-4a7d-a03f-eb1978444a60",
+        "Id": "f3ea3d1c-a70a-45c3-905a-6402dede5633",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -3822,7 +3822,7 @@
         ]
       },
       {
-        "Id": "bf5f68bb-775a-4e11-831e-cee8ba9ff81e",
+        "Id": "d516c1e6-a9a9-4096-9ebd-256921ada023",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -4012,7 +4012,7 @@
         ]
       },
       {
-        "Id": "3799f1ef-43eb-43ec-88fa-f2908c868446",
+        "Id": "7a9a27b1-14f4-421e-af9e-bfd731c94692",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -4202,7 +4202,7 @@
         ]
       },
       {
-        "Id": "f7c27fa8-70c3-465b-85af-eec6d6c59255",
+        "Id": "a6902d7b-103a-4e17-87c5-081e2a00e35a",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -4392,7 +4392,7 @@
         ]
       },
       {
-        "Id": "ba03d580-ccd2-47c3-8db7-518f19b1fbb3",
+        "Id": "5b1071f6-0205-4acb-b9c8-4f0fb1935f6b",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -4564,7 +4564,7 @@
         ]
       },
       {
-        "Id": "855c7160-60e9-427b-abb9-e1dfd2b31d9f",
+        "Id": "f5b01c99-f5e2-4e61-bdbe-162d60d3b576",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -4724,7 +4724,7 @@
         ]
       },
       {
-        "Id": "7a3b1022-eb1f-479f-bec0-ffd23a70d948",
+        "Id": "1006a3a7-51c2-4b37-a7ca-79e148f2ee9b",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -4932,7 +4932,7 @@
         ]
       },
       {
-        "Id": "b03b57f6-0b23-4219-a4de-20c19305ebb6",
+        "Id": "0615f4fb-b9c7-4456-a60d-6e4fa024b681",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -5068,7 +5068,7 @@
         ]
       },
       {
-        "Id": "e247c643-c215-4e28-8f86-0507699fa770",
+        "Id": "b6133189-0ee4-4e77-b5f2-04d598972e72",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -5258,7 +5258,7 @@
         ]
       },
       {
-        "Id": "4da05e45-e747-498d-aab6-c055ffe53847",
+        "Id": "9a755c8d-db4c-4727-a0cd-410ef6f53cbc",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -5382,7 +5382,7 @@
         ]
       },
       {
-        "Id": "98a512e5-ebb0-430c-a6a3-f7f5688cdd92",
+        "Id": "5e2b149f-f80d-40d0-9973-9dd03b18bade",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -5590,7 +5590,7 @@
         ]
       },
       {
-        "Id": "ac970af2-e9f7-43cb-bb21-3d4f8c00eeec",
+        "Id": "c3350618-d42a-46f3-810b-24428d285217",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -5780,7 +5780,7 @@
         ]
       },
       {
-        "Id": "a95c151f-868f-4709-b407-96ddaaf6486b",
+        "Id": "1480233e-9c83-4785-bc23-ca2c5154f083",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -5958,7 +5958,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^IBAN/SA\\d{2}$(.{2})",
+              "Regex": "IBAN/SA\\d{2}(.{2})",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -5970,7 +5970,7 @@
         ]
       },
       {
-        "Id": "942f8070-dc4b-44c3-8194-04a44cc1ae29",
+        "Id": "98f8982d-1a31-42a5-af58-37c2a6f67325",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -6178,7 +6178,7 @@
         ]
       },
       {
-        "Id": "cb28feea-4ffc-436a-99dc-0beb74dfb032",
+        "Id": "1f9ca006-773c-4cef-8996-b4cee6dc46b2",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -6386,7 +6386,7 @@
         ]
       },
       {
-        "Id": "0aa67a1d-cd67-44fe-acac-954cab7df350",
+        "Id": "415619c7-4d41-4d8f-96e4-d5b7f87e9c0b",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -6552,7 +6552,7 @@
         ]
       },
       {
-        "Id": "78fc8b71-22c7-4e9c-a35b-bdab215fddcd",
+        "Id": "53c6ea89-02c5-4bac-89f2-dee1aa7b4cbd",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -6666,7 +6666,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^IBAN/SA\\d{2}$(.{2})",
+              "Regex": "IBAN/SA\\d{2}(.{2})",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -6754,7 +6754,7 @@
   {
     "Id": null,
     "ActiveTagSpecLibId": null,
-    "OperatorId": "1d85fd96-f897-49bd-9353-21a65555591c",
+    "OperatorId": "354ee0b7-540b-4b6d-a1ea-e08ba1db3faf",
     "StatusTag": "ACTIVE",
     "DataSetType": "MT940",
     "Version": 1,
@@ -6772,7 +6772,7 @@
     ],
     "TagSpecDefinitions": [
       {
-        "Id": "80d86ae9-ca61-470d-895d-0a7ac7d2296e",
+        "Id": "6fdf23d2-aabe-464d-afeb-80c298c8e5a5",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -6836,7 +6836,7 @@
         ]
       },
       {
-        "Id": "8a4adf9d-0c63-4f40-8e54-65205da9dcda",
+        "Id": "1bdc3f4f-b38c-46e8-8d66-491532a0d672",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -6881,7 +6881,7 @@
         "Attributes": []
       },
       {
-        "Id": "94079b50-e654-4c08-8e04-dcd231e50de2",
+        "Id": "6331edf2-4113-4416-9dac-4f0370d2a15c",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -6926,7 +6926,7 @@
         "Attributes": []
       },
       {
-        "Id": "a73897c5-193a-4cc3-aa62-1f21f87d09a5",
+        "Id": "287cbabe-ca42-4fdf-b5d3-e6b1dd271d2a",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -6959,7 +6959,7 @@
         "Attributes": []
       },
       {
-        "Id": "9d242ae1-8eb9-4444-bd05-f5cc60878e91",
+        "Id": "9040c2c6-57d9-4f57-a98a-7cee009571d6",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -7023,7 +7023,7 @@
         ]
       },
       {
-        "Id": "0ae6c24c-eb1d-4f7f-a254-2759d72cb822",
+        "Id": "65e8a4b8-5c87-4f68-98c5-357f8c376b7f",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -7068,7 +7068,7 @@
         "Attributes": []
       },
       {
-        "Id": "c7709eec-64f2-4100-9a6c-eb3222eee468",
+        "Id": "d598fc23-6dd5-4835-b6bd-0d8df9bdb972",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -7113,7 +7113,7 @@
         "Attributes": []
       },
       {
-        "Id": "a343c271-4854-4c17-82b3-690939abada4",
+        "Id": "f5c081ad-23f4-4b20-b219-42e9dccff21d",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -7177,7 +7177,7 @@
         ]
       },
       {
-        "Id": "4d3986a4-afa1-4e9a-acc5-697b5388acef",
+        "Id": "a72ddfff-9d64-4f3f-9d79-40d5d7271f8d",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -7229,7 +7229,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^2[0-9][0-9][0-9][0-1][0-9][0-3][0-9]SA$(.{4})",
+              "Regex": "2[0-9][0-9][0-9][0-1][0-9][0-3][0-9]SA(.{4})",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -7241,7 +7241,7 @@
         ]
       },
       {
-        "Id": "8b23d62f-f5d5-43c0-bd48-8cca202dff4c",
+        "Id": "e8e73602-3c28-47fd-8d91-559dd6a3c19e",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -7286,7 +7286,7 @@
         "Attributes": []
       },
       {
-        "Id": "ea463f08-ad9b-4b66-802f-647f1ff7e5d4",
+        "Id": "d8353f32-c5ed-41ad-a98d-2e62f844b8bc",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -7331,7 +7331,7 @@
         "Attributes": []
       },
       {
-        "Id": "d91b1587-ab06-4cae-9fff-1275b086d664",
+        "Id": "bb1b92dd-ef45-444c-b383-a0d77bff9432",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -7387,7 +7387,7 @@
   {
     "Id": null,
     "ActiveTagSpecLibId": null,
-    "OperatorId": "af28f415-fec7-46c2-9ee9-9cd8348b2587",
+    "OperatorId": "9884bbce-013e-41e2-8b18-b04d87905842",
     "StatusTag": "ACTIVE",
     "DataSetType": "MT940",
     "Version": 1,
@@ -7405,7 +7405,7 @@
     ],
     "TagSpecDefinitions": [
       {
-        "Id": "55aa907e-e5ea-4dfc-a103-d170659c07cd",
+        "Id": "e9042519-ef1d-46a6-8aeb-1f62342feeff",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -7487,7 +7487,7 @@
         ]
       },
       {
-        "Id": "b18a001a-2b6f-41c8-88cd-40212937c1e5",
+        "Id": "9ffb3b5e-f5c9-45db-817d-b369cd086f2f",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -7532,7 +7532,7 @@
         "Attributes": []
       },
       {
-        "Id": "7bcd53ec-29e7-4ef3-9386-cc503b184ef4",
+        "Id": "1a5c0120-7d64-457b-99b6-438b80b2d9e5",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -7627,7 +7627,7 @@
         "Attributes": []
       },
       {
-        "Id": "0b5e322b-543d-42dd-8614-5087c0f7fd44",
+        "Id": "674397d7-ff83-4418-9ed0-a436e86cc2a0",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -7684,7 +7684,7 @@
         "Attributes": []
       },
       {
-        "Id": "f81aeebe-184f-4eac-b53e-001579096b64",
+        "Id": "9c40be58-5ba6-4eb5-8fab-ea8de4ab78bf",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -7729,7 +7729,7 @@
         "Attributes": []
       },
       {
-        "Id": "70b81038-8d52-4300-af89-8273c5a71778",
+        "Id": "748a05c2-8ac6-46b8-90ab-5c5feb2a6c11",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -7774,7 +7774,7 @@
         "Attributes": []
       },
       {
-        "Id": "8af6436d-f7f1-4233-9203-36a6c9df0fca",
+        "Id": "e9cfcd7f-9aed-430a-9e48-913dc5bb8a55",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -7838,7 +7838,7 @@
         ]
       },
       {
-        "Id": "29fa14dd-af29-477d-b045-c9d2419797d7",
+        "Id": "00b75a20-66ab-4f3b-bfcc-c7fcdabaca18",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -7884,6 +7884,32 @@
               "SourceField": "BankReference",
               "ExpressionPrompt": null,
               "ExpressionId": null,
+              "Regex": "^PAY0",
+              "RegexDetails": [
+                {
+                  "LanguageCode": "en",
+                  "Description": "Starts With \u0027PAY0\u0027 in BankReference"
+                }
+              ]
+            },
+            {
+              "SourceField": "AdditionalInformation",
+              "ExpressionPrompt": null,
+              "ExpressionId": null,
+              "Regex": "Payroll",
+              "RegexDetails": [
+                {
+                  "LanguageCode": "en",
+                  "Description": "Contains \u0027Payroll\u0027 in AdditionalInformation"
+                }
+              ]
+            }
+          ],
+          [
+            {
+              "SourceField": "BankReference",
+              "ExpressionPrompt": null,
+              "ExpressionId": null,
               "Regex": "^PAY10",
               "RegexDetails": [
                 {
@@ -7904,6 +7930,32 @@
                 }
               ]
             }
+          ],
+          [
+            {
+              "SourceField": "BankReference",
+              "ExpressionPrompt": null,
+              "ExpressionId": null,
+              "Regex": "^PAY10",
+              "RegexDetails": [
+                {
+                  "LanguageCode": "en",
+                  "Description": "Starts With \u0027PAY10\u0027 in BankReference"
+                }
+              ]
+            },
+            {
+              "SourceField": "AdditionalInformation",
+              "ExpressionPrompt": null,
+              "ExpressionId": null,
+              "Regex": "Payroll",
+              "RegexDetails": [
+                {
+                  "LanguageCode": "en",
+                  "Description": "Contains \u0027Payroll\u0027 in AdditionalInformation"
+                }
+              ]
+            }
           ]
         ],
         "Attributes": [
@@ -7916,7 +7968,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^PAY ID:.*$",
+              "Regex": "PAY ID:.*",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -7928,7 +7980,7 @@
         ]
       },
       {
-        "Id": "e6c05aac-c16f-47cd-9638-c1fb36a4b3f9",
+        "Id": "4850529b-4307-4cef-b9b0-832a5f3a3064",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -8010,7 +8062,7 @@
         ]
       },
       {
-        "Id": "2ff9b382-86c4-4bb1-83a2-483e8057eb91",
+        "Id": "8a99772d-3d68-41e4-b191-cd0266ba77a2",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -8110,7 +8162,7 @@
         ]
       },
       {
-        "Id": "b273e109-d12b-4cff-8046-dfd1826f1c5a",
+        "Id": "56336512-de86-4cf2-8837-21f53eed476a",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -8155,7 +8207,7 @@
         "Attributes": []
       },
       {
-        "Id": "18a8c420-5ce2-4833-913c-806137418532",
+        "Id": "c2464dc7-ae55-4fa5-b996-675a95b607c3",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -8245,7 +8297,7 @@
         ]
       },
       {
-        "Id": "4b53e8f8-2dcf-4a86-8bc0-b2e37c9582e5",
+        "Id": "26c6854c-d193-4691-a0c9-53622d38ebd8",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -8315,7 +8367,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^To SA\\d{2}$(.{2})",
+              "Regex": "To SA\\d{2}(.{2})",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -8327,7 +8379,7 @@
         ]
       },
       {
-        "Id": "977bd801-e1d7-42ff-9749-158f028458f2",
+        "Id": "3a89cdc2-c463-45eb-8353-56b4c610acc3",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -8372,7 +8424,7 @@
         "Attributes": []
       },
       {
-        "Id": "0358c76a-e12f-4dfb-b61a-b101722a2e17",
+        "Id": "bf98dd76-ad8e-4793-99b2-e16a2e89a527",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -8442,7 +8494,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^To SA\\d{2}$(.{2})",
+              "Regex": "To SA\\d{2}(.{2})",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -8454,7 +8506,7 @@
         ]
       },
       {
-        "Id": "1647592a-ed1f-4b87-bf1e-5b0642bf70b8",
+        "Id": "010f8198-883c-40b3-a643-54c374f7bc52",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -8518,7 +8570,7 @@
         ]
       },
       {
-        "Id": "2516a881-6bde-469d-9a89-d7dcfec1903b",
+        "Id": "2c02fc1a-4a5a-492c-94ce-dc48ad78dacd",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -8563,7 +8615,7 @@
         "Attributes": []
       },
       {
-        "Id": "904d2b80-ba45-427a-848d-97522690cd29",
+        "Id": "aca0910c-6695-4347-98f1-08b3e365ae1e",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -8615,7 +8667,7 @@
         ]
       },
       {
-        "Id": "bb24cb0c-ecfa-45e8-bf2c-07ef1038a737",
+        "Id": "da9f1337-0b1c-412f-80da-35d8fe74e498",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -8664,7 +8716,7 @@
   {
     "Id": null,
     "ActiveTagSpecLibId": null,
-    "OperatorId": "2911ec9a-9f3b-41f6-8365-bb37ec781dde",
+    "OperatorId": "9367d84c-e32d-453d-aefb-79f5d454f485",
     "StatusTag": "ACTIVE",
     "DataSetType": "MT940",
     "Version": 1,
@@ -8682,7 +8734,7 @@
     ],
     "TagSpecDefinitions": [
       {
-        "Id": "e2464809-e02d-4524-b2f2-ad74501aa949",
+        "Id": "529870ae-53a4-4144-ba99-51bc4c419610",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -8908,7 +8960,7 @@
         ]
       },
       {
-        "Id": "149cbba9-7c7f-4727-beb8-f8b3e75ddd8b",
+        "Id": "6e505a6b-cf4c-4048-a411-dc5fbe52ae1c",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -9134,7 +9186,7 @@
         ]
       },
       {
-        "Id": "29894f1a-1c17-4e11-99a7-73a4201326fb",
+        "Id": "80cbc42c-8f3d-400d-9125-9997514993d9",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -9240,7 +9292,7 @@
         ]
       },
       {
-        "Id": "6384fa45-89c9-4712-8cb0-82f9fe53ecbb",
+        "Id": "9da500dc-c750-4f7f-9599-38c097fd64f4",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -9396,7 +9448,7 @@
         ]
       },
       {
-        "Id": "af0fe6ea-5695-463d-9880-5d4a6fde2636",
+        "Id": "68bccbcd-9cd6-4191-8e95-f90eb4be038a",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -9484,7 +9536,7 @@
         ]
       },
       {
-        "Id": "142ffb36-b7d9-4002-b0f7-d01ad7b7b98b",
+        "Id": "6386de44-753c-4747-a8e7-8e6fab258682",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -9788,7 +9840,7 @@
         ]
       },
       {
-        "Id": "538020c9-012d-40ef-8fd6-02e5567cf96b",
+        "Id": "c47af1ae-ee3b-4abc-ae9d-8d86fca217e2",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -10056,7 +10108,7 @@
         ]
       },
       {
-        "Id": "919c6400-ab71-46db-a73f-762da5daf1fb",
+        "Id": "f6c7fca3-8fa3-43b5-a20b-49a6660a00d5",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -10076,7 +10128,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^.{8}-.{4}-.{4}-.{4}-.{12} Inward SWIFT Transfer.*$",
+              "Regex": ".{8}-.{4}-.{4}-.{4}-.{12} Inward SWIFT Transfer.*",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -10342,7 +10394,7 @@
         ]
       },
       {
-        "Id": "7a3bc6fb-5e70-4c2b-a5df-c955b8805538",
+        "Id": "cdf7fb0b-6121-43f4-82a5-fcdc623dea23",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -10628,7 +10680,7 @@
         ]
       },
       {
-        "Id": "94661ea0-dde1-484c-969b-66c271eb7dc8",
+        "Id": "5572d5b7-3d0f-4731-a841-f3c62f2e36f5",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -10782,7 +10834,7 @@
         ]
       },
       {
-        "Id": "3cc3626d-a15e-4824-8195-004360c149e6",
+        "Id": "24130ac8-41f2-46a7-b9d1-060473ee693a",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -10958,7 +11010,7 @@
   {
     "Id": null,
     "ActiveTagSpecLibId": null,
-    "OperatorId": "051910d3-f692-4479-b41f-c39092485975",
+    "OperatorId": "b013f36a-3038-42ca-b59a-b9858e20ad3f",
     "StatusTag": "ACTIVE",
     "DataSetType": "MT940",
     "Version": 1,
@@ -10976,7 +11028,7 @@
     ],
     "TagSpecDefinitions": [
       {
-        "Id": "2e282438-b49b-44f7-adcc-acdf00bb387b",
+        "Id": "38bdc23a-8cb8-41b0-8390-4c6584485590",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -11202,7 +11254,7 @@
         ]
       },
       {
-        "Id": "e16989ff-2d42-4525-a028-21cb46f2fed6",
+        "Id": "0810eea8-8fbb-4107-b654-0c443d3dbe2a",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -11428,7 +11480,7 @@
         ]
       },
       {
-        "Id": "0b5dc344-b85f-4556-bdc1-ed22893bf4cf",
+        "Id": "32cd9d95-1070-4eaf-be68-1c61951235e7",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -11534,7 +11586,7 @@
         ]
       },
       {
-        "Id": "fef9c0e9-7e1b-44f5-9f7f-af744cb8f940",
+        "Id": "9f7e7e58-6ed6-45e3-acfc-3b0775bab685",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -11622,7 +11674,7 @@
         ]
       },
       {
-        "Id": "959e10a2-a238-4837-b63a-d8bdd378dc13",
+        "Id": "16696481-c10f-48d8-8a1b-4cdd0e490737",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -11778,7 +11830,7 @@
         ]
       },
       {
-        "Id": "5a6148b9-153f-42e6-8eaa-b05411079706",
+        "Id": "8767999f-b0b6-4b82-9ce8-58406ae25b1f",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -11956,7 +12008,7 @@
         ]
       },
       {
-        "Id": "ecb20ec6-2d08-4e0e-a5ec-e6a0919aee0f",
+        "Id": "7db7c79e-c4cf-4dc6-9eca-a4df52f5e439",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -12242,7 +12294,7 @@
         ]
       },
       {
-        "Id": "97374f2c-d151-4bec-9424-ef647fe3ea54",
+        "Id": "89819ea9-3721-4438-884f-01ae985f9052",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -12262,7 +12314,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^.{8}-.{4}-.{4}-.{4}-.{12} Outward SWIFT Transfer.*$",
+              "Regex": ".{8}-.{4}-.{4}-.{4}-.{12} Outward SWIFT Transfer.*",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -12510,7 +12562,7 @@
         ]
       },
       {
-        "Id": "b997da07-4af5-44a5-aa41-6c86512ca497",
+        "Id": "63d8cfed-d1ac-48da-9fd5-7ab0aac2db74",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -12778,7 +12830,7 @@
         ]
       },
       {
-        "Id": "5e8c7b33-2c4b-4f0f-a568-8c71e65da65a",
+        "Id": "3c79b8e8-7c01-4323-9eab-dd58142d1407",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -12834,7 +12886,7 @@
   {
     "Id": null,
     "ActiveTagSpecLibId": null,
-    "OperatorId": "36774346-7321-4f23-a144-24e304143852",
+    "OperatorId": "bbc49022-b79b-40fe-b093-a8a28438d5a1",
     "StatusTag": "ACTIVE",
     "DataSetType": "MT940",
     "Version": 1,
@@ -12852,7 +12904,7 @@
     ],
     "TagSpecDefinitions": [
       {
-        "Id": "3a6b774e-5663-4625-b9e5-c3b5c60e6b92",
+        "Id": "270ec362-589f-42c4-977e-1dde32b2c977",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -12889,7 +12941,7 @@
         ]
       },
       {
-        "Id": "e228164e-931c-4d64-9337-c001cb4ee008",
+        "Id": "90e1a44f-3552-4435-94d4-d428c5482a67",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -12941,7 +12993,7 @@
         ]
       },
       {
-        "Id": "88379af7-f1ff-4dbf-84e4-fb2cc76722de",
+        "Id": "c36e9915-8445-45e9-95c8-9f2be889bcf1",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -12993,7 +13045,7 @@
         ]
       },
       {
-        "Id": "2ef426f5-0dfb-4392-98f4-95236d87db12",
+        "Id": "6b3e0a01-c962-4e4f-88d8-29afede909aa",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -13045,7 +13097,7 @@
         ]
       },
       {
-        "Id": "c76b965b-9923-4bbc-879d-cba17053631d",
+        "Id": "3e6dc9bf-1d2a-4d2c-a53d-a23887d47f93",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -13078,7 +13130,7 @@
         "Attributes": []
       },
       {
-        "Id": "e2db5eb5-8b5b-410b-b85d-a31a034f215f",
+        "Id": "8422195b-7dbb-4786-93f2-89e446e43cb1",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -13111,7 +13163,7 @@
         "Attributes": []
       },
       {
-        "Id": "ede3364d-943f-4d04-9625-97d53c7a0ecd",
+        "Id": "afb2e18e-8f63-4611-9313-b0905439d0bb",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -13129,7 +13181,7 @@
         "Attributes": []
       },
       {
-        "Id": "064463a9-3063-44a0-a51e-044c4dad6abc",
+        "Id": "3b1def98-ad07-4d12-99e5-01722481bfd3",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -13162,7 +13214,7 @@
         "Attributes": []
       },
       {
-        "Id": "7df15eed-ae63-4d94-9c12-5ad5341af30c",
+        "Id": "a81e9149-1472-452d-920f-12707cd08c3a",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -13195,7 +13247,7 @@
         "Attributes": []
       },
       {
-        "Id": "90b06575-ea08-4b64-81c8-877e3046567b",
+        "Id": "13b0f165-899c-4a83-82a5-8aecec8bc731",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -13228,7 +13280,7 @@
         "Attributes": []
       },
       {
-        "Id": "89b83025-40f6-4d6f-9fda-fa097ce56382",
+        "Id": "4a1ea2e2-630b-4d5c-978a-1c1a79bb243d",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -13261,7 +13313,7 @@
         "Attributes": []
       },
       {
-        "Id": "2d618f0d-006d-46f4-b687-c9d85d605871",
+        "Id": "e16f2360-ae38-47d0-a7c7-aad360003d70",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -13343,7 +13395,7 @@
         ]
       },
       {
-        "Id": "62344e5b-b17d-4c7f-a670-10d93f5d7778",
+        "Id": "4d0b1ff2-9744-48d0-9d98-3377eeb4df32",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -13425,7 +13477,7 @@
         ]
       },
       {
-        "Id": "649efcfa-5fa0-48cb-8156-06a061d50547",
+        "Id": "07f82fb1-1005-4162-8f48-58710b6dae0b",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -13458,7 +13510,7 @@
         "Attributes": []
       },
       {
-        "Id": "e5fbcfa2-0acc-485a-8d5f-816a9fdc5849",
+        "Id": "71da96cd-edeb-40db-b4a7-4c2e39e885c5",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -13558,7 +13610,7 @@
         ]
       },
       {
-        "Id": "bbc71d7e-5712-4d3d-812f-b55bc24decaf",
+        "Id": "bec6eaed-5828-4c6d-bca6-833404c55a13",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -13628,7 +13680,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^AC//SA\\d{2}$(.{2})",
+              "Regex": "AC//SA\\d{2}(.{2})",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -13646,7 +13698,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^20\\d{2}[01][0-9][0-3][0-9]SA.{8}$(.*)",
+              "Regex": "20\\d{2}[01][0-9][0-3][0-9]SA.{8}(.*)",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -13676,7 +13728,7 @@
         ]
       },
       {
-        "Id": "5e01d6ec-d977-49da-ba9e-fcb8ce53bd2b",
+        "Id": "1a818a7c-167a-40c5-938c-642a0b2c6ff8",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -13770,7 +13822,7 @@
         ]
       },
       {
-        "Id": "863bbe5f-085b-4e22-abdf-a79d7ea9d420",
+        "Id": "e4a9ec97-8c05-4578-b211-1d069bd10a4f",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -13826,7 +13878,7 @@
   {
     "Id": null,
     "ActiveTagSpecLibId": null,
-    "OperatorId": "73052503-c3d5-4170-a89c-671a43915668",
+    "OperatorId": "28c5a5d9-1395-4e05-b359-32e947c4bba5",
     "StatusTag": "ACTIVE",
     "DataSetType": "MT940",
     "Version": 1,
@@ -13844,7 +13896,7 @@
     ],
     "TagSpecDefinitions": [
       {
-        "Id": "4696d9c0-4cd3-4f8e-9806-dad9d020add6",
+        "Id": "552ac869-6571-465a-9d4e-8fab7dfad538",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -13877,7 +13929,7 @@
         "Attributes": []
       },
       {
-        "Id": "f2bcf66a-7900-4350-b052-78dde22dfccc",
+        "Id": "7b6d9cad-62db-4abc-a1d0-ed0c8614b6b0",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -13929,7 +13981,7 @@
         ]
       },
       {
-        "Id": "cd7ee543-6559-4f60-90ab-96c234a6c0f6",
+        "Id": "509d1d2e-af61-4cff-b0e6-cee94248bbf8",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -13981,7 +14033,7 @@
         ]
       },
       {
-        "Id": "91f70b06-7709-476f-ba1b-515622970da7",
+        "Id": "0de2f3a7-18a3-4f72-b54f-a5796fe97670",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -14033,7 +14085,7 @@
         ]
       },
       {
-        "Id": "e855e42c-cd28-43b7-a28a-e9cc64ae8a79",
+        "Id": "a357c5a4-35db-4b91-b904-f4f569346393",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -14085,7 +14137,7 @@
         ]
       },
       {
-        "Id": "ee585a7d-7eaa-4446-b11d-05134b7898f4",
+        "Id": "3ee34c1e-8775-427f-8634-49df7a7f1912",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -14118,7 +14170,7 @@
         "Attributes": []
       },
       {
-        "Id": "9ab20406-64de-46d7-ab59-e4febd4dac4c",
+        "Id": "a9eee8f9-e162-41bf-9808-526f36291d48",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -14188,7 +14240,7 @@
         ]
       },
       {
-        "Id": "5d9bb96c-6701-4d93-b8a7-2269b2892fb3",
+        "Id": "b7e17516-9d78-4aa7-afc7-1bd961cb719b",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -14270,7 +14322,7 @@
         ]
       },
       {
-        "Id": "70b17bb4-1f19-41ad-86de-cde88d186b16",
+        "Id": "7e2bcf41-d158-44a2-a3ba-f3af7607cf76",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -14302,7 +14354,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^\\d{8}SA.*$",
+              "Regex": "\\d{8}SA.*",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -14322,7 +14374,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^20\\d{2}[01][0-9][0-3][0-9]SA$(.{4})",
+              "Regex": "20\\d{2}[01][0-9][0-3][0-9]SA(.{4})",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -14340,7 +14392,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^20\\d{2}[01][0-9][0-3][0-9]SA.{8}$(.*)",
+              "Regex": "20\\d{2}[01][0-9][0-3][0-9]SA.{8}(.*)",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -14370,7 +14422,7 @@
         ]
       },
       {
-        "Id": "77a8719e-cec4-482b-9350-f21f208c2a02",
+        "Id": "147f92a7-a73c-40f0-847f-373c68263198",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -14452,7 +14504,7 @@
         ]
       },
       {
-        "Id": "d5351858-be33-4b5b-8e42-94e66f7caedc",
+        "Id": "3e6b9784-0c16-4f6e-abee-f58d9f91b93f",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -14540,7 +14592,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^20\\d{2}[01][0-9][0-3][0-9]SA.{8}$(.*)",
+              "Regex": "20\\d{2}[01][0-9][0-3][0-9]SA.{8}(.*)",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -14552,7 +14604,7 @@
         ]
       },
       {
-        "Id": "74ad9b71-3f0f-4ea3-9dbe-9dc3a85e5e39",
+        "Id": "40fcdf21-d1c3-4772-b8a3-52d6b33d94d7",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -14604,7 +14656,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^20\\d{2}[01][0-9][0-3][0-9]SA$(.{4})",
+              "Regex": "20\\d{2}[01][0-9][0-3][0-9]SA(.{4})",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -14622,7 +14674,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^20\\d{2}[01][0-9][0-3][0-9]SA.{8}$(.*)",
+              "Regex": "20\\d{2}[01][0-9][0-3][0-9]SA.{8}(.*)",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -14652,7 +14704,7 @@
         ]
       },
       {
-        "Id": "96583fe3-f692-4ccb-b1a9-002560317a0a",
+        "Id": "08420448-b9dd-4194-ac21-f18acfb981ef",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -14722,7 +14774,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^20\\d{2}[01][0-9][0-3][0-9]SA$(.{4})",
+              "Regex": "20\\d{2}[01][0-9][0-3][0-9]SA(.{4})",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -14740,7 +14792,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^20\\d{2}[01][0-9][0-3][0-9]SA.{8}$(.*)",
+              "Regex": "20\\d{2}[01][0-9][0-3][0-9]SA.{8}(.*)",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -14770,7 +14822,7 @@
         ]
       },
       {
-        "Id": "cd2b0330-0664-4725-a7a8-6213d1408dbc",
+        "Id": "3f1a3abb-9cdf-4013-be08-f32abf2a8df7",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -14840,7 +14892,7 @@
         ]
       },
       {
-        "Id": "86b4462f-2ea1-40fd-b804-7d7d6c3da3aa",
+        "Id": "8d0dd436-899c-46d8-9481-c28e7bd6e17c",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -14926,7 +14978,7 @@
   {
     "Id": null,
     "ActiveTagSpecLibId": null,
-    "OperatorId": "77fd7735-44e5-497c-8cb3-e1235ea0d1a4",
+    "OperatorId": "54b649f5-cd28-4890-a2f3-71a60ae3a586",
     "StatusTag": "ACTIVE",
     "DataSetType": "MT940",
     "Version": 1,
@@ -14944,7 +14996,7 @@
     ],
     "TagSpecDefinitions": [
       {
-        "Id": "9bebde07-2ca2-4568-b60d-2c17fbc628be",
+        "Id": "3b9c5feb-3c11-4290-a47d-c47c8572e6ed",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -15000,7 +15052,7 @@
   {
     "Id": null,
     "ActiveTagSpecLibId": null,
-    "OperatorId": "6345fdbb-06ab-4513-ae77-11c20abcf058",
+    "OperatorId": "ea186881-c921-4409-b11f-123f01453a47",
     "StatusTag": "ACTIVE",
     "DataSetType": "MT940",
     "Version": 1,
@@ -15018,7 +15070,7 @@
     ],
     "TagSpecDefinitions": [
       {
-        "Id": "29aca247-2774-4d51-a32b-fe92a62dda99",
+        "Id": "f88260be-684b-4262-90a0-40a6622bf330",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -15074,7 +15126,7 @@
   {
     "Id": null,
     "ActiveTagSpecLibId": null,
-    "OperatorId": "0e90c3db-5dde-4b09-8512-0b8b1adcd86a",
+    "OperatorId": "6e89b3dd-9297-446b-a55c-2bbf3d69c34f",
     "StatusTag": "ACTIVE",
     "DataSetType": "MT940",
     "Version": 1,
@@ -15092,7 +15144,7 @@
     ],
     "TagSpecDefinitions": [
       {
-        "Id": "79500c71-6f80-4e00-b9bd-b401c79e8f66",
+        "Id": "dba2146a-5e28-46e9-81f5-9d4f7517116b",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -15125,7 +15177,7 @@
         "Attributes": []
       },
       {
-        "Id": "32aa3044-f37e-4e73-a8d5-9479162b03d7",
+        "Id": "317ee8f0-4c31-4f5b-91fb-905302a3a221",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -15158,7 +15210,7 @@
         "Attributes": []
       },
       {
-        "Id": "3f31c00c-2aa4-4efa-a443-f04313a1cc76",
+        "Id": "c53f6f5a-dbd6-4d94-85df-3b225c0018b5",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -15210,7 +15262,7 @@
         ]
       },
       {
-        "Id": "55030e26-25ca-45a2-8354-523828cfcb24",
+        "Id": "6fd40828-216c-4645-83d4-b45035cf0e4c",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -15262,7 +15314,7 @@
         ]
       },
       {
-        "Id": "b92bd49f-4957-4991-a539-020cf59edf7c",
+        "Id": "b87519b4-9083-44c0-94a1-8f11d5bf41b8",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -15307,7 +15359,7 @@
         "Attributes": []
       },
       {
-        "Id": "dae901eb-3602-4b2e-8e38-533ece601fcf",
+        "Id": "a956c229-716c-4242-a9f1-004485c803ab",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -15340,7 +15392,7 @@
         "Attributes": []
       },
       {
-        "Id": "d4e4c1f7-f587-417f-8901-c3c92dc2d3ce",
+        "Id": "41c589e7-5f91-475a-8e52-401fc8323620",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -15446,7 +15498,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^IPSREF-\\d{8}SA$(.{4})",
+              "Regex": "IPSREF-\\d{8}SA(.{4})",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -15458,7 +15510,7 @@
         ]
       },
       {
-        "Id": "31094b22-ef65-4dd3-8acc-3e3c6685f926",
+        "Id": "d6cd83c1-66dd-48a4-a026-21d103ca5273",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -15558,7 +15610,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^/IPSREF-\\d{8}SA$(.{4})",
+              "Regex": "/IPSREF-\\d{8}SA(.{4})",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -15574,7 +15626,7 @@
   {
     "Id": null,
     "ActiveTagSpecLibId": null,
-    "OperatorId": "0c26eb47-a329-426f-95c6-12068f256f8e",
+    "OperatorId": "f44350fa-8899-4e02-9012-6d3c6306e0f4",
     "StatusTag": "ACTIVE",
     "DataSetType": "MT940",
     "Version": 1,
@@ -15592,7 +15644,7 @@
     ],
     "TagSpecDefinitions": [
       {
-        "Id": "33ed665e-21df-4745-aec4-0d1481038aad",
+        "Id": "a0500567-ba2f-48c9-8a0d-b5a7a9482140",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -15625,7 +15677,7 @@
         "Attributes": []
       },
       {
-        "Id": "a836c5e9-1e8a-4faf-afee-a381926b74cb",
+        "Id": "b00643bf-85a3-48c2-8874-5654cce30b16",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -15658,7 +15710,7 @@
         "Attributes": []
       },
       {
-        "Id": "bf96a6ad-24d8-4a20-8c29-90bc6ffaeab8",
+        "Id": "a326bafa-b532-43d0-8fc7-6f158fc74f65",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -15691,7 +15743,7 @@
         "Attributes": []
       },
       {
-        "Id": "a15c9464-f8df-4e8c-9662-9203614345c5",
+        "Id": "8e015f52-3506-47ac-93c0-3aaca4b6f621",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -15711,7 +15763,7 @@
               "SourceField": "Description2",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^\\d{1} \\d{5}.*$",
+              "Regex": "\\d{1} \\d{5}.*",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -15725,7 +15777,7 @@
               "SourceField": "Description2",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^\\d{2} \\d{5}.*$",
+              "Regex": "\\d{2} \\d{5}.*",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -15739,7 +15791,7 @@
               "SourceField": "Description2",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^\\d{3} \\d{5}.*$",
+              "Regex": "\\d{3} \\d{5}.*",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -15825,7 +15877,7 @@
         ]
       },
       {
-        "Id": "c6ead199-f8e1-4743-b7ec-3bc682c66a8f",
+        "Id": "1f47bfe4-e509-44fc-9b17-a4ac95d14338",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -15877,7 +15929,7 @@
         ]
       },
       {
-        "Id": "d1d2b68d-5fdc-4a06-bdee-573dd79e7fd4",
+        "Id": "141aceb0-1e40-4be2-ad20-2364c79955ea",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -15941,7 +15993,7 @@
         ]
       },
       {
-        "Id": "fe59f56e-4139-4242-a632-3d82537493b1",
+        "Id": "249d1c46-beeb-417f-a70c-584d192ee400",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -15974,7 +16026,7 @@
         "Attributes": []
       },
       {
-        "Id": "bd9d90bb-72d7-46b4-80ba-82cd7fee7a3e",
+        "Id": "bfb0d29b-39ec-4bd6-848d-451d10b37fbe",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -16050,7 +16102,7 @@
         ]
       },
       {
-        "Id": "59943544-8f49-457c-a39c-0adcdc74299f",
+        "Id": "3c6e563b-fa53-413c-a37c-061d5b90eabf",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -16126,7 +16178,7 @@
         ]
       },
       {
-        "Id": "d88b8ebc-6fc7-408c-92da-c981fa7ee85b",
+        "Id": "22d6a66e-9623-4eb1-8091-0f29d93827ba",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -16212,7 +16264,7 @@
   {
     "Id": null,
     "ActiveTagSpecLibId": null,
-    "OperatorId": "7561709a-b50a-4d21-ac1a-31a39d609d8b",
+    "OperatorId": "85334929-0d1e-4963-987f-34c202a65185",
     "StatusTag": "ACTIVE",
     "DataSetType": "MT940",
     "Version": 1,
@@ -16230,7 +16282,7 @@
     ],
     "TagSpecDefinitions": [
       {
-        "Id": "caf8f834-7b8d-4f77-9c5c-f6337ad6304c",
+        "Id": "4ef4ee84-8069-40bf-8133-e154520b61a3",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -16304,7 +16356,7 @@
   {
     "Id": null,
     "ActiveTagSpecLibId": null,
-    "OperatorId": "8ef14e59-425a-4e9f-8df9-b5e6a1c852a9",
+    "OperatorId": "d5403a85-fd3f-4b68-80e2-f17577e00988",
     "StatusTag": "ACTIVE",
     "DataSetType": "MT940",
     "Version": 1,
@@ -16322,7 +16374,7 @@
     ],
     "TagSpecDefinitions": [
       {
-        "Id": "7a90e8e7-a1a8-4077-92e5-b4d5fb4735c4",
+        "Id": "3dbfe3c6-211b-4afa-807c-3b57ca27126f",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -16410,7 +16462,7 @@
         ]
       },
       {
-        "Id": "8c567d85-8ecc-4354-be84-b6c4668d1e49",
+        "Id": "3e0e0d75-8d0a-429d-823d-a5bf56961232",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -16465,7 +16517,7 @@
         ]
       },
       {
-        "Id": "3aae1030-2263-4889-9bdd-de6c118b631b",
+        "Id": "8de7551b-221d-440b-b2cd-482795893d29",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -16553,7 +16605,7 @@
         ]
       },
       {
-        "Id": "955fcbf4-fffd-4411-aede-7eade2edef7a",
+        "Id": "14505f03-4e8b-46db-b03e-3d46caca0876",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -16605,7 +16657,7 @@
         ]
       },
       {
-        "Id": "1fadb422-a1b0-4daa-b64a-0bc1632b92e5",
+        "Id": "40d92fd0-61e4-4928-bfab-d1c801ec70b3",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -16711,7 +16763,7 @@
         ]
       },
       {
-        "Id": "4b4bb6fe-dfb2-44bb-9a50-ef0d0de92e6f",
+        "Id": "08b1d474-9f35-4043-9240-8b85c3088b5f",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -16799,7 +16851,7 @@
         ]
       },
       {
-        "Id": "0a35934b-a1dd-4615-8780-c9ef4c2769cf",
+        "Id": "505a4d43-de04-49ca-abd3-7ffc35ddde79",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -16887,7 +16939,7 @@
         ]
       },
       {
-        "Id": "c5c15e51-f555-4972-83a0-6c4e1ade4bb4",
+        "Id": "94bb97bc-8e50-4fe6-a600-72a2b24f1f7a",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -16920,7 +16972,7 @@
         "Attributes": []
       },
       {
-        "Id": "e91f37d2-5bd1-4ed6-8bb1-0cbf4c666b10",
+        "Id": "736d17e0-be24-42ae-b8dc-116dcf11f803",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -16953,7 +17005,7 @@
         "Attributes": []
       },
       {
-        "Id": "e8bb6366-f6d0-4230-a956-3b9b9b0ff355",
+        "Id": "5f3e71f4-4dfb-415a-987d-327468a68bef",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -17005,7 +17057,7 @@
         ]
       },
       {
-        "Id": "dc73e5a3-7b2f-4cc2-a990-8daabc8cf195",
+        "Id": "50fce54c-b4df-464e-a9c4-9ce79cebc04c",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -17057,7 +17109,7 @@
         ]
       },
       {
-        "Id": "bf869d0e-1ec7-4419-aadb-36a7198e79cd",
+        "Id": "795d3dfd-7950-4d1c-87f9-de518d831b3c",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -17133,7 +17185,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^SA\\d{22}$",
+              "Regex": "SA\\d{22}",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -17151,7 +17203,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^SA\\d{2}$(.{2})",
+              "Regex": "SA\\d{2}(.{2})",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -17163,7 +17215,7 @@
         ]
       },
       {
-        "Id": "3488d855-bffd-42aa-85fd-ad653d361470",
+        "Id": "45b2d76f-450d-481b-a1fd-e2ecdbb94a89",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -17323,7 +17375,7 @@
         ]
       },
       {
-        "Id": "eacd08bf-79f1-4619-a015-1988fbf2a1ab",
+        "Id": "8893eb47-0f87-4626-8ccb-9344377cac0f",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -17387,7 +17439,7 @@
         ]
       },
       {
-        "Id": "216cd308-7c7a-4205-adf8-8e2dc6cf527f",
+        "Id": "ed468b98-d95a-4366-b2d7-69ec70cb3f1d",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -17439,7 +17491,7 @@
         ]
       },
       {
-        "Id": "c9e37e79-f34c-4b23-af6a-f984cbdc5e29",
+        "Id": "ebc2badc-5dd0-4466-a231-cd78dcb03bbe",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -17563,7 +17615,7 @@
         ]
       },
       {
-        "Id": "c44f9321-2ea3-4e81-ac21-96bb7f05d2e4",
+        "Id": "fbcfa855-6f08-491e-a221-d6fdc5abc56d",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -17669,7 +17721,7 @@
         ]
       },
       {
-        "Id": "04a771b1-9de6-4cf5-83a6-ca39f1f31088",
+        "Id": "b77b7e12-d0ab-4431-93fd-55e38bc5009d",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -17739,7 +17791,7 @@
         ]
       },
       {
-        "Id": "42c0e0ae-15e5-460e-bb8b-2fa52628e87d",
+        "Id": "d26ad731-927a-4fa0-89a1-9f23f6eab7fe",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -17809,7 +17861,7 @@
         ]
       },
       {
-        "Id": "88bf4162-7d93-4e2b-8253-56616ce1235a",
+        "Id": "1ebb046c-d360-4145-9b51-88e2e8240c22",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -17879,7 +17931,7 @@
         ]
       },
       {
-        "Id": "4f415c80-a0db-4c81-a0b9-6461238959e4",
+        "Id": "5c4fd18a-51c7-4688-8bb5-b354752ab2a3",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -17953,7 +18005,7 @@
   {
     "Id": null,
     "ActiveTagSpecLibId": null,
-    "OperatorId": "9abe6fc2-405f-45bf-a1d0-9f9d981eea74",
+    "OperatorId": "bd46e06d-25ee-499e-83f5-8fb2e09ed16e",
     "StatusTag": "ACTIVE",
     "DataSetType": "MT940",
     "Version": 1,
@@ -17971,7 +18023,7 @@
     ],
     "TagSpecDefinitions": [
       {
-        "Id": "2cf4799e-22ad-4d4f-8bdb-e4ba4e67eff7",
+        "Id": "de9740e0-105e-4e25-a1de-074365120370",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -18047,7 +18099,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^SA\\d{2}$(.{2})",
+              "Regex": "SA\\d{2}(.{2})",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -18077,7 +18129,7 @@
         ]
       },
       {
-        "Id": "a66778fd-a32b-442e-ba4c-79df913d1bf0",
+        "Id": "b342bf08-0fcb-46e3-b872-3b796c5c7760",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -18147,7 +18199,7 @@
         ]
       },
       {
-        "Id": "85e0e819-e901-474f-8184-947d612dbadf",
+        "Id": "025017ff-ce72-4385-ac5f-21acc4936fce",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -18199,7 +18251,7 @@
         ]
       },
       {
-        "Id": "84b89e66-0f0d-434e-9d7a-77adc4e9632b",
+        "Id": "a5fa00e7-e6eb-4383-9212-eb44cf19e88d",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -18269,7 +18321,7 @@
         ]
       },
       {
-        "Id": "cc4144d3-6c13-4f09-8fc4-5ee4f954c99b",
+        "Id": "a13ab2bc-f0e6-4fe9-a87e-5b9d97e223cb",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -18306,7 +18358,7 @@
         ]
       },
       {
-        "Id": "5d34b8e8-8b1f-4e98-8a22-9a11715e6ff9",
+        "Id": "4c24b636-7b39-44de-8685-458293596820",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -18376,7 +18428,7 @@
         ]
       },
       {
-        "Id": "354f2365-bd6d-4d6b-bb72-17459d797c9b",
+        "Id": "6477226d-2ff6-45b9-900e-0f63c14e8f53",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -18428,7 +18480,7 @@
         ]
       },
       {
-        "Id": "0fd6dbab-910a-410c-b650-dd5726d1bc9a",
+        "Id": "0ecd532f-aabd-41d9-821c-4d1bce4e8e39",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -18501,7 +18553,7 @@
         ]
       },
       {
-        "Id": "d7a86c1a-47ad-48de-8728-6a0e16adbedc",
+        "Id": "f24c4fc0-a285-4910-8cd7-c46a0906e1ef",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -18553,7 +18605,7 @@
         ]
       },
       {
-        "Id": "d84e88a0-b2ae-4db4-aea9-0b2437d70e14",
+        "Id": "114f32d4-289d-4f3b-8e8b-257583698083",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -18586,7 +18638,7 @@
         "Attributes": []
       },
       {
-        "Id": "4636af30-8cc6-47ab-b340-a710b4895fdf",
+        "Id": "800974dd-b000-4a98-a7f7-9b4d1a229996",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -18619,7 +18671,7 @@
         "Attributes": []
       },
       {
-        "Id": "33203fd1-dff3-4aa8-8e58-850aed98f9ed",
+        "Id": "6767838e-2fbe-429b-aba6-8887d246b025",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -18652,7 +18704,7 @@
         "Attributes": []
       },
       {
-        "Id": "6b0d45fe-e0ce-4551-8e43-b1e9b66912db",
+        "Id": "3443bb07-7300-491e-b967-6314e142c254",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -18685,7 +18737,7 @@
         "Attributes": []
       },
       {
-        "Id": "4749e9a1-6515-4710-90e0-ce1e874318f1",
+        "Id": "9a69d361-3f58-4b30-af95-f9b99d5d678f",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -18718,7 +18770,7 @@
         "Attributes": []
       },
       {
-        "Id": "8ec10808-8cf5-4737-92f8-1ab480b7b848",
+        "Id": "2b416406-eead-4536-a568-551ad36b9518",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -18751,7 +18803,7 @@
         "Attributes": []
       },
       {
-        "Id": "cc84160c-3836-42ba-8b5c-0d79925bbd54",
+        "Id": "2cb27a8a-cda9-4452-b128-8f5f32869be3",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -18784,7 +18836,7 @@
         "Attributes": []
       },
       {
-        "Id": "71eae00e-0cd4-47fd-a23c-e37ddd357860",
+        "Id": "1705e8ef-7d3c-47ad-984b-f17e50382a89",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -18817,7 +18869,7 @@
         "Attributes": []
       },
       {
-        "Id": "7e8566d2-636f-4b4f-851a-b62cce1c55eb",
+        "Id": "57f822c9-c177-4ac9-aefd-679f6ae6b9b7",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -18850,7 +18902,7 @@
         "Attributes": []
       },
       {
-        "Id": "9cd71153-7a95-4dfa-8eb7-56aa749f7fd0",
+        "Id": "b1518a5a-1bf1-41e2-893b-ef407e0ea941",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -18938,7 +18990,7 @@
         ]
       },
       {
-        "Id": "a1b42948-71f8-44e6-8928-f9ea26479e37",
+        "Id": "52d699c4-f06c-44b3-a1fd-fde086445a7a",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -19008,7 +19060,7 @@
         ]
       },
       {
-        "Id": "af012378-8ad8-43fb-be23-0e6244f7dc30",
+        "Id": "427d52bb-2524-41a4-930d-c61819309c97",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -19078,7 +19130,7 @@
         ]
       },
       {
-        "Id": "09e675d9-dd17-4cf7-ba3f-b4800f111a5e",
+        "Id": "ee565adb-6190-44a5-9158-c05850ea0f3a",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -19111,7 +19163,7 @@
         "Attributes": []
       },
       {
-        "Id": "762e8d22-213b-4f0c-b866-4a9487269d05",
+        "Id": "0de4efb8-2461-40b1-9bd7-5062a90a362d",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -19151,7 +19203,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^SA\\d{2}.*$",
+              "Regex": "SA\\d{2}.*",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -19169,7 +19221,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^SA\\d{2}$(.{2})",
+              "Regex": "SA\\d{2}(.{2})",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -19181,7 +19233,7 @@
         ]
       },
       {
-        "Id": "e0a937f6-1b99-4e50-b5df-810ee86da5da",
+        "Id": "673e9202-5cf0-4536-921e-60ed95678c65",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -19251,7 +19303,7 @@
         ]
       },
       {
-        "Id": "1486e862-9246-499d-ba0c-9f0777302de8",
+        "Id": "3c1fdee4-2638-4177-b421-991ef6f7eebd",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -19321,7 +19373,7 @@
         ]
       },
       {
-        "Id": "e80d5d97-2318-4fea-84c9-254d01a3df17",
+        "Id": "3fbb3641-99ed-48ed-941d-2e3c9aeb2cce",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -19409,7 +19461,7 @@
         ]
       },
       {
-        "Id": "f9a6eafd-48d9-4c79-ba1e-feaf02b16210",
+        "Id": "cc894d1e-ce39-4753-bed8-29f5a624db78",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -19479,7 +19531,7 @@
         ]
       },
       {
-        "Id": "206ab7b4-a307-46d1-b8f5-957dd59518d2",
+        "Id": "0d708100-0a45-479b-b3c0-57230227960e",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -19567,7 +19619,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^SA\\d{22}$",
+              "Regex": "SA\\d{22}",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -19585,7 +19637,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^SA\\d{2}$(.{2})",
+              "Regex": "SA\\d{2}(.{2})",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -19603,7 +19655,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^SA\\d{22}$(.*)",
+              "Regex": "SA\\d{22}(.*)",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -19615,7 +19667,7 @@
         ]
       },
       {
-        "Id": "7fa353a0-20b8-40c4-9ab7-afa0bd88026f",
+        "Id": "f59a3ed3-da3c-415b-9a9d-18372e7b0f5a",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -19673,7 +19725,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^[A-Z][A-Z]\\d{2}.*$",
+              "Regex": "[A-Z][A-Z]\\d{2}.*",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -19685,7 +19737,7 @@
         ]
       },
       {
-        "Id": "ec4e241b-69eb-42b5-a164-d1574bdcf5ee",
+        "Id": "be41719c-19d7-438a-8e1a-9ee395b4cc58",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -19755,7 +19807,7 @@
         ]
       },
       {
-        "Id": "0e283892-46aa-4a7f-983c-55d58c4cd083",
+        "Id": "85941bfe-6276-4553-9b8d-b1cd3b55d523",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -19825,7 +19877,7 @@
         ]
       },
       {
-        "Id": "22a04d16-3193-41f7-87a7-83adf15f12aa",
+        "Id": "9dc8a4d8-b450-45b6-9f3c-4ac62ed68db9",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -19895,7 +19947,7 @@
         ]
       },
       {
-        "Id": "db41808f-441f-47cb-90e7-8756d8f93114",
+        "Id": "62dfc777-ff5b-4d29-9f3b-ff9d8b64b66f",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -19969,7 +20021,7 @@
   {
     "Id": null,
     "ActiveTagSpecLibId": null,
-    "OperatorId": "03cdfdf5-d356-4534-b2cc-b7dc4e73749b",
+    "OperatorId": "8c7153d7-aee0-43e4-a3f1-72cec5f85a9f",
     "StatusTag": "ACTIVE",
     "DataSetType": "MT940",
     "Version": 1,
@@ -19987,7 +20039,7 @@
     ],
     "TagSpecDefinitions": [
       {
-        "Id": "b6d5ac51-41d4-4668-b430-b4ce1a628f29",
+        "Id": "8e20a933-e2a7-4680-ac6a-34987fcd6a3f",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -20039,7 +20091,7 @@
         ]
       },
       {
-        "Id": "ad61125a-d01d-4591-ad62-aa25d62c027c",
+        "Id": "8d564432-6323-4bf1-94e7-b270a341be44",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -20091,7 +20143,7 @@
         ]
       },
       {
-        "Id": "3ba34188-e2ca-4eee-ad2d-4521f58e2e06",
+        "Id": "71f3f53e-727e-4dd0-bce0-a4ff83348a55",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -20143,7 +20195,7 @@
         ]
       },
       {
-        "Id": "8956def5-eb16-47c4-9a65-6d0189a8e919",
+        "Id": "0d0692e7-1b35-4d32-b8c9-20ac7e1d0628",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -20195,7 +20247,7 @@
         ]
       },
       {
-        "Id": "c9fa4e93-895c-47bb-b7f4-eba4014ec130",
+        "Id": "03af7338-8e84-4106-8317-8a98bacbff31",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -20259,7 +20311,7 @@
         ]
       },
       {
-        "Id": "e617fc31-761c-4fc6-bda5-5bcea679684e",
+        "Id": "ad396b8b-0788-4873-b07b-d3710bc767d0",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -20311,7 +20363,7 @@
         ]
       },
       {
-        "Id": "9bc91175-609f-4b55-8071-601341ae3146",
+        "Id": "204f22da-924a-4787-ba17-8c5ce2be6361",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -20344,7 +20396,7 @@
         "Attributes": []
       },
       {
-        "Id": "cd5ab83c-76b1-4861-95c1-fa0eeee45b99",
+        "Id": "fba44619-9bc4-4c2c-91d9-49b776632a05",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -20396,7 +20448,7 @@
         ]
       },
       {
-        "Id": "ae4c4370-b9e4-43d3-80bf-d275e1aa4157",
+        "Id": "b1f61b4f-e8da-45d2-9c56-0edb78a75d1a",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -20448,7 +20500,7 @@
         ]
       },
       {
-        "Id": "27767a3c-dff7-4335-8f8c-2800196f3bec",
+        "Id": "0d847bc5-1185-4fc4-8731-70c2e14a7d72",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -20500,7 +20552,7 @@
         ]
       },
       {
-        "Id": "2f067112-ee11-489b-b5f9-ed89736b4797",
+        "Id": "f0fb37ec-ae2b-4467-9e50-5d1034212b30",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -20552,7 +20604,7 @@
         ]
       },
       {
-        "Id": "444c1c2f-40a0-4219-8f0d-a07e58ef2d78",
+        "Id": "e7d762bd-2e02-4dd1-9c4d-584389a0aefb",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -20616,7 +20668,7 @@
         ]
       },
       {
-        "Id": "7e50ade8-ef71-4773-ae8a-31f4f7934e90",
+        "Id": "54558b38-5764-4cda-b7f6-c191d3fa24dc",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -20668,7 +20720,7 @@
         ]
       },
       {
-        "Id": "1c871c87-46ff-4faf-a95c-7a8390254975",
+        "Id": "888430bb-d37e-4891-af8e-e00f85929e01",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -20720,7 +20772,7 @@
         ]
       },
       {
-        "Id": "a4b3cdc6-b349-463e-9c84-d4abac6d5540",
+        "Id": "04a3fd7f-ac84-415b-83a1-91cb125f6ad2",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -20753,7 +20805,7 @@
         "Attributes": []
       },
       {
-        "Id": "7f8bf3ec-9ed3-475b-999d-e1627f41b18f",
+        "Id": "24bb5a03-a1e2-46fb-9fc4-68a68d290a9f",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -20859,7 +20911,7 @@
         ]
       },
       {
-        "Id": "aa1ae456-fedb-4006-b7c8-23d034f60b63",
+        "Id": "a5b067d7-7bf0-41bc-a6e5-98cf3deee459",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -20947,7 +20999,7 @@
         ]
       },
       {
-        "Id": "21be3dea-cf2c-42e3-90af-eb3b5f262023",
+        "Id": "02e61eb7-f08a-4241-8b69-ebc92e6f3206",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -21035,7 +21087,7 @@
         ]
       },
       {
-        "Id": "ac44903b-7937-4871-95c3-b7e44bea157b",
+        "Id": "907dfead-d372-4264-9881-c1767afe6e92",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -21123,7 +21175,7 @@
         ]
       },
       {
-        "Id": "95cd2ce8-dfe4-4b40-9376-9a4690e7d288",
+        "Id": "35bd453a-8cb7-46fe-88bf-1de3568d46a3",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -21193,7 +21245,7 @@
         ]
       },
       {
-        "Id": "4a322c21-358e-446b-9e0a-d711260a44ad",
+        "Id": "d6a15a22-be5b-4ba9-928b-a882e30e57ca",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -21233,7 +21285,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^20\\d{2}[01][0-9][0-3][0-9]SA$(.{4})",
+              "Regex": "20\\d{2}[01][0-9][0-3][0-9]SA(.{4})",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -21263,7 +21315,7 @@
         ]
       },
       {
-        "Id": "94fc609e-f8d4-4bf6-9b01-aa56c81c9ab9",
+        "Id": "4dd1ab63-ef4f-497d-b060-70de81630986",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -21315,7 +21367,7 @@
         ]
       },
       {
-        "Id": "91c0ad80-716f-405a-96c3-cadd469e0caa",
+        "Id": "c9179615-22e1-4ba1-9441-6f99d08cee44",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -21367,7 +21419,7 @@
         ]
       },
       {
-        "Id": "75be22e5-dafc-4825-9ed6-bf2e514a2dac",
+        "Id": "84f3c35c-ac50-4e6e-8d36-9bf41c593069",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -21419,7 +21471,7 @@
         ]
       },
       {
-        "Id": "05317abb-93a5-474d-9b87-0378915dd636",
+        "Id": "18beeb02-7cd5-455b-a3e5-24a7bd7f37a3",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -21471,7 +21523,7 @@
         ]
       },
       {
-        "Id": "9923eb88-16e4-4ca1-aac2-fa9c7247ed72",
+        "Id": "690c57a5-3abc-4e83-9d6f-eab502c2aa5a",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -21547,7 +21599,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^TOACCT/SA\\d{2}$(.{2})",
+              "Regex": "TOACCT/SA\\d{2}(.{2})",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -21595,7 +21647,7 @@
         ]
       },
       {
-        "Id": "16c19485-5bae-403c-a49e-ffd8385829eb",
+        "Id": "539b8582-aac1-4d91-a3eb-b420438ffe66",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -21683,7 +21735,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^TOACCT/SA\\d{2}$(.{2})",
+              "Regex": "TOACCT/SA\\d{2}(.{2})",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -21731,7 +21783,7 @@
         ]
       },
       {
-        "Id": "9983d5d3-a17f-497e-be2f-0d7a3011ceed",
+        "Id": "dfb24321-d61a-455e-9111-255ae99efd62",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -21751,7 +21803,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^/PT/Sarie Payment Order.*/SARIE.*$",
+              "Regex": "/PT/Sarie Payment Order.*/SARIE.*",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -21807,7 +21859,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^TOACCT/SA\\d{2}$(.{2})",
+              "Regex": "TOACCT/SA\\d{2}(.{2})",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -21837,7 +21889,7 @@
         ]
       },
       {
-        "Id": "0111bb87-dbee-4afe-8b06-9ddbc805ea83",
+        "Id": "c2ed7e53-2a18-45d1-8281-80553fa3ee70",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -21889,7 +21941,7 @@
         ]
       },
       {
-        "Id": "8a4a54cb-feb2-400c-81bf-2046e575cb52",
+        "Id": "1b48ba8e-c57d-4c14-b4e0-502b6f629123",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -21941,7 +21993,7 @@
         ]
       },
       {
-        "Id": "09a9a232-beab-4c53-9b42-ef1f628ecd6b",
+        "Id": "32459b72-2fdf-4d7b-be48-c95e1a100863",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -22029,7 +22081,7 @@
         ]
       },
       {
-        "Id": "f0bcbcaf-6efd-4482-b21f-d064c01ac1ac",
+        "Id": "1186d324-d11c-4e35-b87c-2357f1a47fc1",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -22117,7 +22169,7 @@
         ]
       },
       {
-        "Id": "113ffb2f-dec9-4e4a-a67e-441d90ec0753",
+        "Id": "5903f67e-3be4-4192-bc0c-1e00811349a1",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -22211,7 +22263,7 @@
         ]
       },
       {
-        "Id": "ee05471d-f837-4b94-a4df-872e66566745",
+        "Id": "b79c1c0c-9341-47e9-a181-7b135b71eac9",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -22293,7 +22345,7 @@
         ]
       },
       {
-        "Id": "f1d9a3d4-007d-400b-9dd1-24bd6b83490b",
+        "Id": "5cdb8111-5640-42e6-a607-d1609b1db79a",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -22313,7 +22365,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^/PT/Sarie Payment Order.*/SWIFT.*$",
+              "Regex": "/PT/Sarie Payment Order.*/SWIFT.*",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -22363,7 +22415,7 @@
         ]
       },
       {
-        "Id": "4fd3d51c-00cc-4f23-b6e5-765223a92e06",
+        "Id": "b466142b-16aa-4c01-a3bd-f5129097419f",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -22481,7 +22533,7 @@
         ]
       },
       {
-        "Id": "5cb3b9b9-a728-475b-8642-cacc83e6f39a",
+        "Id": "e1055f42-6a86-4792-acba-c0648acc1b9b",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -22569,7 +22621,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^TOACCT/SA\\d{2}$(.{2})",
+              "Regex": "TOACCT/SA\\d{2}(.{2})",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -22599,7 +22651,7 @@
         ]
       },
       {
-        "Id": "ccfd8673-3afd-4ed9-9aa0-70ad2fbcc220",
+        "Id": "74919b6f-c54e-49e1-a63b-5f5f4d36039b",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -22685,7 +22737,7 @@
   {
     "Id": null,
     "ActiveTagSpecLibId": null,
-    "OperatorId": "9029ef79-d814-4361-a580-835f389b6edc",
+    "OperatorId": "95e55605-5cd2-4f68-916f-5b5d811bf047",
     "StatusTag": "ACTIVE",
     "DataSetType": "MT940",
     "Version": 1,
@@ -22703,7 +22755,7 @@
     ],
     "TagSpecDefinitions": [
       {
-        "Id": "3ce80186-eb31-48a0-90de-7378c0e6fd9f",
+        "Id": "301b0fd8-4da4-4c05-bf72-17442636ac2e",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -22736,7 +22788,7 @@
         "Attributes": []
       },
       {
-        "Id": "ec5b3e21-50ae-4e78-8bda-7e4413e17025",
+        "Id": "c14c5088-147d-4354-991c-e8fd76d8efa5",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -22788,7 +22840,7 @@
         ]
       },
       {
-        "Id": "4d2a1061-7d5f-453c-9923-018e2a0889fd",
+        "Id": "d647ab5e-b020-474b-905b-0241987469b7",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -22858,7 +22910,7 @@
         ]
       },
       {
-        "Id": "e94c5c52-5120-4992-96ac-75aa175f0674",
+        "Id": "2c5231f8-66c6-41e9-ae1f-5bd925f20aea",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -22910,7 +22962,7 @@
         ]
       },
       {
-        "Id": "b6e25fc5-d843-4c09-9603-16035e6b8654",
+        "Id": "26ceb996-fd2a-48fa-80ad-603b30105f06",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -22962,7 +23014,7 @@
         ]
       },
       {
-        "Id": "1c495c6c-348a-4cef-8f01-03c5bf3496ca",
+        "Id": "78f8206c-49f9-4c0c-9bda-231e3f4e6950",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -23001,7 +23053,7 @@
         ]
       },
       {
-        "Id": "94f959ad-32f8-43c3-9525-b1d3d68da5cf",
+        "Id": "07d79b0f-754f-45c2-afa2-c143ae88a099",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -23053,7 +23105,7 @@
         ]
       },
       {
-        "Id": "625846a6-142f-42f6-9701-1ffde93c3e7f",
+        "Id": "1dc8f82e-71ac-4027-990f-cfdb5c7cb98c",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -23123,7 +23175,7 @@
         ]
       },
       {
-        "Id": "2ed1c22c-2d17-46a3-9f30-b1ab8fd6cc00",
+        "Id": "19387283-a2be-4670-bcde-61dcae529c2f",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -23175,7 +23227,7 @@
         ]
       },
       {
-        "Id": "e0e5aa8e-1ebf-483f-861b-030720fd6617",
+        "Id": "8240d5bf-c7f1-465a-9c22-b1a9f5ef3a25",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -23227,7 +23279,7 @@
         ]
       },
       {
-        "Id": "3b8961da-2be0-4667-a56d-7c0d8d52b373",
+        "Id": "d0c0a9dd-3e88-41b4-9fcc-1ea9117cb52d",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -23279,7 +23331,7 @@
         ]
       },
       {
-        "Id": "03d9ad5f-2f5d-49ad-9f04-240e6fd9df84",
+        "Id": "57eb6ac9-9942-498b-ab78-8a98586d0ddd",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -23331,7 +23383,7 @@
         ]
       },
       {
-        "Id": "2e49a098-682e-421d-8195-c8634b002cc8",
+        "Id": "3acb992d-de84-4025-ab24-1de3a92529e3",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -23431,7 +23483,7 @@
         ]
       },
       {
-        "Id": "4984c319-9f16-4ac0-b3d9-0f76c1d2b67b",
+        "Id": "ebd6182a-df99-41a4-b652-4170d5fb3c8c",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -23549,7 +23601,7 @@
         ]
       },
       {
-        "Id": "0d2d94dc-984b-41b5-9349-f75ac873c1cf",
+        "Id": "f6c0d2ba-20f9-484d-a423-f73e15e5f218",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -23607,7 +23659,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^FRACCT/SA\\d{2}$(.{2})",
+              "Regex": "FRACCT/SA\\d{2}(.{2})",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -23655,7 +23707,7 @@
         ]
       },
       {
-        "Id": "79af6a70-e41c-4ab9-8045-05807cdf9939",
+        "Id": "a34d709d-062e-4687-97d7-6b8b042ca1e3",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -23707,7 +23759,7 @@
         ]
       },
       {
-        "Id": "c8249cf3-1a0e-4d67-8b88-6a146b8c48b1",
+        "Id": "c0c267e5-303a-4c89-bae3-79ee7bd96b66",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -23813,7 +23865,7 @@
         ]
       },
       {
-        "Id": "b1635b01-25a1-4497-8307-60bf207fa955",
+        "Id": "5faedc77-5662-4feb-9bdd-826482887f8d",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -23871,7 +23923,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^20\\d{2}[01][0-9][0-3][0-9]SA$(.{4})",
+              "Regex": "20\\d{2}[01][0-9][0-3][0-9]SA(.{4})",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -23901,7 +23953,7 @@
         ]
       },
       {
-        "Id": "630c0647-8e17-4589-b8f0-ab19aadcd3f6",
+        "Id": "f4dcd8c4-7d51-418c-89fe-14ac59e3d0f2",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -23971,7 +24023,7 @@
         ]
       },
       {
-        "Id": "f947bc52-3e5e-4227-968e-ec891e6b3713",
+        "Id": "e96c5037-52db-4ec0-a07d-db0f56862f59",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -24059,7 +24111,7 @@
         ]
       },
       {
-        "Id": "6823e22d-a0b1-451b-b887-d8325535ab36",
+        "Id": "8f9ee4d0-f128-4940-9fcf-ea1c70d11eb0",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -24123,7 +24175,7 @@
         ]
       },
       {
-        "Id": "03adc6f6-65fc-417b-8af1-1c1c9f41638a",
+        "Id": "fb132632-0109-42b3-b0a4-e1a37f91dd33",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -24187,7 +24239,7 @@
         ]
       },
       {
-        "Id": "b763417c-54ff-4a5c-941b-c23e48bde615",
+        "Id": "28bce9fe-8e3a-46d9-8717-37f9ef229613",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -24255,7 +24307,7 @@
   {
     "Id": null,
     "ActiveTagSpecLibId": null,
-    "OperatorId": "1a9672f4-96b8-42b2-9f58-5cb208c5794b",
+    "OperatorId": "707259b2-b5db-4548-9d82-6675728cc1cf",
     "StatusTag": "ACTIVE",
     "DataSetType": "MT940",
     "Version": 1,
@@ -24273,7 +24325,7 @@
     ],
     "TagSpecDefinitions": [
       {
-        "Id": "26044dbd-2a1f-4630-980e-5eed611f0786",
+        "Id": "4edeb9bc-1c1e-4982-8088-5e3f69deae6a",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -24306,7 +24358,7 @@
         "Attributes": []
       },
       {
-        "Id": "dd825169-eceb-4c85-a81a-4ab911717a80",
+        "Id": "a9a29e5b-aa3f-4316-bacb-cfffee2574f5",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -24370,7 +24422,7 @@
         ]
       },
       {
-        "Id": "5d94b454-ecbc-4255-adcd-5049aa270a50",
+        "Id": "e7764fbe-303e-48ea-849a-53c642aa3a6c",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -24388,7 +24440,7 @@
         "Attributes": []
       },
       {
-        "Id": "08b48edb-2ca5-4acb-9862-0b475287920e",
+        "Id": "ea6cfae1-21e2-4fd0-b47a-5afb9087490c",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -24458,7 +24510,7 @@
         ]
       },
       {
-        "Id": "c4012b0d-2e26-4169-bacf-7e0788d6f686",
+        "Id": "056fefed-1715-4408-97c4-29fa90a2d857",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -24528,7 +24580,7 @@
         ]
       },
       {
-        "Id": "f748b5d4-2f68-4aad-aea2-63a4fbb6821e",
+        "Id": "81077e16-e410-42e3-a5ac-547d8b844f62",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -24598,7 +24650,7 @@
         ]
       },
       {
-        "Id": "3940060d-2d0f-44a8-9f82-704da2dfa0f8",
+        "Id": "b6d5378d-d524-400c-86a4-2be7e985c5d8",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -24618,7 +24670,7 @@
         "Attributes": []
       },
       {
-        "Id": "276344c3-1d08-4ebb-a753-e55438281331",
+        "Id": "d32bac1b-afca-4518-a576-1c6d09c8f6d9",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -24651,7 +24703,7 @@
         "Attributes": []
       },
       {
-        "Id": "0814e5d6-1c6c-42ca-9db9-a874ba9590ac",
+        "Id": "ccd4e432-9b28-488b-9038-a87b77a639bd",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -24715,7 +24767,7 @@
         ]
       },
       {
-        "Id": "32a08253-cae2-482b-bd16-5974ec612861",
+        "Id": "3999a08f-1519-48bf-aeb2-1c695ba93531",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -24759,7 +24811,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^\\d{3} .*$",
+              "Regex": "\\d{3} .*",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -24845,7 +24897,7 @@
         ]
       },
       {
-        "Id": "f113c96e-0821-459f-96ff-242e173f5c62",
+        "Id": "3a3a2c91-6e0f-498c-8982-49dc7ead698c",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -24963,7 +25015,7 @@
         ]
       },
       {
-        "Id": "0535d843-033c-47dd-b971-081dbbffced4",
+        "Id": "8595f538-f95a-4796-b8a9-849a2b32d2bf",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -25053,7 +25105,7 @@
         ]
       },
       {
-        "Id": "a29f0b1e-3367-44ba-8b74-77ced6b44191",
+        "Id": "907722b4-5f69-433a-92e4-d7453e3815de",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -25129,7 +25181,7 @@
         ]
       },
       {
-        "Id": "556a4535-2050-4323-95d4-cca503da2542",
+        "Id": "ba45fd7e-f330-4461-b76e-dc30f3bf148c",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -25199,7 +25251,7 @@
         ]
       },
       {
-        "Id": "a9409a07-b7b3-4ddc-87fd-3ee1cc94ad5e",
+        "Id": "fe36bd1d-14e1-4245-bc28-499dc3d49324",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -25260,7 +25312,7 @@
         "Attributes": []
       },
       {
-        "Id": "e59ad67b-17af-41c6-aa57-e1e5880e0b77",
+        "Id": "93b3c141-26f6-48cb-a29e-6e532707f822",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -25366,7 +25418,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^ SA\\d{2}$(.{2})",
+              "Regex": " SA\\d{2}(.{2})",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -25378,7 +25430,7 @@
         ]
       },
       {
-        "Id": "54cd53e4-2ce6-4e3f-8e33-82136f72c9c9",
+        "Id": "a177b766-f159-4b59-b828-9c71bf1b0c8e",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -25418,7 +25470,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^SA\\d{2}.*$",
+              "Regex": "SA\\d{2}.*",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -25466,7 +25518,7 @@
         ]
       },
       {
-        "Id": "e1493fed-9f0c-452c-9955-15753b0c2660",
+        "Id": "bdb5ed66-082d-4d86-93f8-f2f736b18442",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -25518,7 +25570,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^[012][0-9]:[0-5][0-9]:[0-5][0-9]$",
+              "Regex": "[012][0-9]:[0-5][0-9]:[0-5][0-9]",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -25536,7 +25588,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^SA\\d{22}$",
+              "Regex": "SA\\d{22}",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -25554,7 +25606,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^ SA\\d{2}$(.{2})",
+              "Regex": " SA\\d{2}(.{2})",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -25566,7 +25618,7 @@
         ]
       },
       {
-        "Id": "6e81fe76-ec4c-4779-9a6f-388e3bd6c3ad",
+        "Id": "1cee348d-c3e7-496f-92f3-38021edf0df9",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -25654,7 +25706,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^ SA\\d{2}$(.{2})",
+              "Regex": " SA\\d{2}(.{2})",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -25666,7 +25718,7 @@
         ]
       },
       {
-        "Id": "3180ebad-3979-4a04-aec1-084566bb33e1",
+        "Id": "954d2d31-ccc3-4e4b-9aa1-4514a60a0b8a",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -25706,7 +25758,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^[012][0-9]:[0-5][0-9]:[0-5][0-9]$",
+              "Regex": "[012][0-9]:[0-5][0-9]:[0-5][0-9]",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -25724,7 +25776,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^SA\\d{22}$",
+              "Regex": "SA\\d{22}",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -25742,7 +25794,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^ SA\\d{2}$(.{2})",
+              "Regex": " SA\\d{2}(.{2})",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -25754,7 +25806,7 @@
         ]
       },
       {
-        "Id": "44fc0dc8-cd5f-424f-a28f-f92175adbecd",
+        "Id": "d284eaa6-fe49-4c4c-8251-a48b328def74",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -25842,7 +25894,7 @@
         ]
       },
       {
-        "Id": "7afb61f1-b39c-48ce-9d56-3040542f4c3b",
+        "Id": "4a395318-c79c-4d23-9bfd-ac19499566e2",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -25948,7 +26000,7 @@
         ]
       },
       {
-        "Id": "32d2f689-8ffa-483b-b0e6-31ca86455add",
+        "Id": "fd79d0f1-7298-4b58-904f-bd39bf69592e",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -25988,7 +26040,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^/.*$",
+              "Regex": "/.*",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -26054,7 +26106,7 @@
         ]
       },
       {
-        "Id": "c97c91f6-5da7-4abe-850a-f66479728f50",
+        "Id": "62ff43a8-1da0-4540-b3f3-50528a439103",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -26094,7 +26146,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^[A-Z][A-Z]\\d{2}.*$",
+              "Regex": "[A-Z][A-Z]\\d{2}.*",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -26124,7 +26176,7 @@
         ]
       },
       {
-        "Id": "f75d5237-53f2-4d4a-a5bb-992dd8221fb0",
+        "Id": "ec328767-94dd-41d8-97ea-c3fea9e93c7d",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -26157,7 +26209,7 @@
         "Attributes": []
       },
       {
-        "Id": "d5548a97-b66c-41fc-990b-2fffdda76f04",
+        "Id": "e07b46fd-2c8d-4d22-90c5-c9e568e2b0ba",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -26190,7 +26242,7 @@
         "Attributes": []
       },
       {
-        "Id": "2b19e5b6-93da-4ce8-aae6-0df734bdd671",
+        "Id": "86ed7d79-940a-4486-950e-f0a76421193d",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -26227,7 +26279,7 @@
         ]
       },
       {
-        "Id": "b3beb94b-efdd-42c6-9271-a56ebacea1c8",
+        "Id": "35c94b91-b31d-42b1-bf3c-596acb2b2296",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -26272,7 +26324,7 @@
         "Attributes": []
       },
       {
-        "Id": "53ffb30f-2a4a-4961-95a3-db075e46cdef",
+        "Id": "ca160b1d-2287-4a4b-bdbc-67517eb5b452",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -26321,7 +26373,7 @@
   {
     "Id": null,
     "ActiveTagSpecLibId": null,
-    "OperatorId": "866e4ff7-9402-492c-a33f-7c6969eac5e0",
+    "OperatorId": "c4dbecf8-e890-4275-a409-53d49ef335bc",
     "StatusTag": "ACTIVE",
     "DataSetType": "MT940",
     "Version": 1,
@@ -26339,7 +26391,7 @@
     ],
     "TagSpecDefinitions": [
       {
-        "Id": "71d8de3e-bfac-4d04-b553-e0e49f459069",
+        "Id": "3efadd22-a938-4193-9705-a0bc4df9c48b",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -26357,7 +26409,7 @@
         "Attributes": []
       },
       {
-        "Id": "33ec455e-82ba-45a6-acde-6ed27b7c4997",
+        "Id": "9ab4d307-7fef-4254-96c1-dd90d209a4db",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -26446,7 +26498,7 @@
         "Attributes": []
       },
       {
-        "Id": "1af7331c-9ea4-4b0a-a6a2-8d4a8aae1c92",
+        "Id": "bec2e6b9-0c46-4f6e-ba79-7a1fdfa5eca9",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -26479,7 +26531,7 @@
         "Attributes": []
       },
       {
-        "Id": "dcb10643-b3fa-41b7-9a97-f49eb92e7dd2",
+        "Id": "c659aa11-4a6d-4b70-bc54-49e26b415c6e",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -26512,7 +26564,7 @@
         "Attributes": []
       },
       {
-        "Id": "7a4f3260-a07f-404c-b7ad-82004e80600d",
+        "Id": "e7698c04-4fe0-45d4-b650-ec6881fef2f1",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -26576,7 +26628,7 @@
         ]
       },
       {
-        "Id": "e523c393-edb6-4f93-b05e-8a99a86b521e",
+        "Id": "9388e4f8-7fe2-4281-baa7-f3b7163e7bd9",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -26594,7 +26646,7 @@
         "Attributes": []
       },
       {
-        "Id": "b14ed1f0-f53b-4a90-9abf-6e552ca4c27b",
+        "Id": "8c63c988-6631-4ee1-857e-3a5b4d631d21",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -26692,7 +26744,7 @@
         ]
       },
       {
-        "Id": "e2f5d0d7-f5a3-406f-a4ba-c6b388e8f1b9",
+        "Id": "cafac26a-c776-426f-8894-0328835bf91a",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -26710,7 +26762,7 @@
         "Attributes": []
       },
       {
-        "Id": "73ba673c-e701-4e31-a589-66566f007e39",
+        "Id": "4bb9f731-9efc-4a0e-84f6-84d38bba2737",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -26765,7 +26817,7 @@
         ]
       },
       {
-        "Id": "a158107e-e008-4d64-bb6a-3e25e51c1580",
+        "Id": "f3292a7a-e805-4382-902d-d0af2aeb0d8a",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -26883,7 +26935,7 @@
         ]
       },
       {
-        "Id": "e1e54346-9f68-48bc-9489-a35260ebdb2d",
+        "Id": "01c341a0-1125-4050-979a-11197b1f8f7a",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -26935,7 +26987,7 @@
         ]
       },
       {
-        "Id": "0c586d77-f879-4d9a-8109-62fed28407bf",
+        "Id": "ddfd03f1-68dc-4b99-97c8-7b83a4bc9a3c",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -26993,7 +27045,7 @@
               "SourceField": "Description2",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^SA\\d{2}$(.{2})",
+              "Regex": "SA\\d{2}(.{2})",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -27023,7 +27075,7 @@
         ]
       },
       {
-        "Id": "030a6486-9a6d-4853-a8c4-56b3ea1fffb9",
+        "Id": "0736fc1e-ecfd-4248-883c-90cb3a92d195",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -27060,7 +27112,7 @@
         ]
       },
       {
-        "Id": "b41c8f1e-fc3c-46a2-8a22-8a6b19fc6feb",
+        "Id": "85130704-13ea-478c-b832-88def7428996",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -27121,7 +27173,7 @@
         "Attributes": []
       },
       {
-        "Id": "7d81efd4-9e1d-4b2b-a7eb-b551ec4b3ac1",
+        "Id": "99f809ea-f42b-4be2-a71a-d99dc5160b61",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -27161,7 +27213,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^[012][0-9]:[0-5][0-9]:[0-5][0-9]$",
+              "Regex": "[012][0-9]:[0-5][0-9]:[0-5][0-9]",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -27179,7 +27231,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^SA\\d{22}$",
+              "Regex": "SA\\d{22}",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -27197,7 +27249,7 @@
               "SourceField": "AdditionalInformation",
               "ExpressionPrompt": null,
               "ExpressionId": null,
-              "Regex": "^ SA\\d{2}$(.{2})",
+              "Regex": " SA\\d{2}(.{2})",
               "RegexDetails": [
                 {
                   "LanguageCode": "en",
@@ -27209,7 +27261,7 @@
         ]
       },
       {
-        "Id": "d0e93a35-5034-4234-9ab3-31075a41db9e",
+        "Id": "edf80afd-9b06-4008-b137-0431310eeed2",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -27242,7 +27294,7 @@
         "Attributes": []
       },
       {
-        "Id": "cba4b7e0-6abf-4b47-b58c-4f7abeaa6f56",
+        "Id": "3cfcebc1-7d0e-4d79-a978-6c5470f3f788",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -27293,7 +27345,7 @@
   {
     "Id": null,
     "ActiveTagSpecLibId": null,
-    "OperatorId": "a3fe7428-2fd7-4ca5-be20-5cb5e6331549",
+    "OperatorId": "8df11f57-2150-4404-b051-c820ee7e2046",
     "StatusTag": "ACTIVE",
     "DataSetType": "MT940",
     "Version": 1,
@@ -27311,7 +27363,7 @@
     ],
     "TagSpecDefinitions": [
       {
-        "Id": "288dbd4e-7ef1-4d9e-ac8c-c6d9ea5e8e16",
+        "Id": "25341cec-86ea-4fc4-bc9e-344d5760a03c",
         "Context": [
           {
             "Key": "TransactionTypeCode",
@@ -27400,7 +27452,7 @@
         "Attributes": []
       },
       {
-        "Id": "b78628a7-42aa-434c-8786-f43ea8b102c1",
+        "Id": "743d4974-d25d-4d81-9544-c54a4ef06dfd",
         "Context": [
           {
             "Key": "TransactionTypeCode",
