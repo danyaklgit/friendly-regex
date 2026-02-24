@@ -415,28 +415,28 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
       {activeCheckout && onCheckin && onRelease && (
         <CheckoutBanner bank={activeCheckout.bank} side={activeCheckout.side} onRelease={onRelease} onCheckin={onCheckin} />
       )}
-      <div className="flex items-center justify-between mb-1">
+      <div className="flex items-center justify-between mb-1 min-h-10">
         <div className='flex flex-col md:flex-row items-start md:items-center gap-2'>
-          {!builderOpen && <h2 className="text-base font-semibold text-gray-900">Transactions</h2>}
-          {!builderOpen && <span className='text-sm mr-5'>({filteredData.length})</span>}
-          {!builderOpen && <Toggle label="Compact mode" checked={relaxedMode} onChange={setRelaxedMode} />}
-          {!builderOpen && <Toggle label="Show attributes" checked={showAttributes} onChange={setShowAttributes} />}
-          {!builderOpen && (
-            <div className="hidden md:flex items-center gap-5 ml-4 text-[11px] text-gray-500">
-              <span className="flex items-center gap-1">
-                <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-gray-400 text-[8px] font-semibold text-gray-400">i</span>
-                Data as provided by the bank(s)
-              </span>
-              <span className="flex items-center gap-1 text-blue-500">
-                <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-blue-400 text-[8px] font-semibold text-blue-500">i</span>
-                Enhanced data based on existing tag definitions
-              </span>
-              <span className="flex items-center gap-1 text-orange-500">
-                <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-orange-400 text-[8px] font-semibold text-orange-500">i</span>
-                Data as customized by the user
-              </span>
-            </div>
-          )}
+          <h2 className="text-base font-semibold text-gray-900">Transactions</h2>
+          <span className='text-sm mr-5'>({filteredData.length})</span>
+          <Toggle label="Compact mode" checked={relaxedMode} onChange={setRelaxedMode} />
+          <Toggle label="Show attributes" checked={showAttributes} onChange={setShowAttributes} />
+
+          <div className="hidden md:flex items-center gap-5 ml-4 text-[11px] text-gray-500">
+            <span className="flex items-center gap-1">
+              <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-gray-400 text-[8px] font-semibold text-gray-400">i</span>
+              Data as provided by the bank(s)
+            </span>
+            <span className="flex items-center gap-1 text-blue-500">
+              <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-blue-400 text-[8px] font-semibold text-blue-500">i</span>
+              Enhanced data based on existing tag definitions
+            </span>
+            <span className="flex items-center gap-1 text-orange-500">
+              <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-orange-400 text-[8px] font-semibold text-orange-500">i</span>
+              Data as customized by the user
+            </span>
+          </div>
+
         </div>
         <div className="flex items-center gap-3">
           <input
@@ -487,23 +487,23 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
       </div>
 
       {/* {!builderOpen && ( */}
-        <DynamicFilters
-          data={analyzedData}
-          fieldMeta={fieldMeta}
-          tagDefinitions={tagDefinitions}
-          filters={filters}
-          onFiltersChange={setFilters}
-          showOnlyUntagged={showOnlyUntagged}
-          onShowOnlyUntaggedChange={setShowOnlyUntagged}
-          showOnlyMultiTagged={showOnlyMultiTagged}
-          onShowOnlyMultiTaggedChange={setShowOnlyMultiTagged}
-          showOnlyDeadEnd={showOnlyDeadEnd}
-          onShowOnlyDeadEndChange={setShowOnlyDeadEnd}
-          baseFilters={baseFilters}
-          endSlot={tableColumns.length > 0 ? (
-            <ColumnPicker columns={tableColumns} hiddenColumns={hiddenColumns} onChange={setHiddenColumns} columnOrder={columnOrder} onColumnOrderChange={setColumnOrder} showAttributes={showAttributes} defaultHiddenColumns={defaultHiddenColumns} onReset={handleColumnReset} />
-          ) : undefined}
-        />
+      <DynamicFilters
+        data={analyzedData}
+        fieldMeta={fieldMeta}
+        tagDefinitions={tagDefinitions}
+        filters={filters}
+        onFiltersChange={setFilters}
+        showOnlyUntagged={showOnlyUntagged}
+        onShowOnlyUntaggedChange={setShowOnlyUntagged}
+        showOnlyMultiTagged={showOnlyMultiTagged}
+        onShowOnlyMultiTaggedChange={setShowOnlyMultiTagged}
+        showOnlyDeadEnd={showOnlyDeadEnd}
+        onShowOnlyDeadEndChange={setShowOnlyDeadEnd}
+        baseFilters={baseFilters}
+        endSlot={tableColumns.length > 0 ? (
+          <ColumnPicker columns={tableColumns} hiddenColumns={hiddenColumns} onChange={setHiddenColumns} columnOrder={columnOrder} onColumnOrderChange={setColumnOrder} showAttributes={showAttributes} defaultHiddenColumns={defaultHiddenColumns} onReset={handleColumnReset} />
+        ) : undefined}
+      />
       {/* )} */}
 
       {/* Rule builder panel */}
