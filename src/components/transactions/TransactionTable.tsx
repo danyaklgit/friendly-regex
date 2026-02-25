@@ -19,6 +19,7 @@ interface TransactionTableProps {
   hiddenColumns?: Set<string>;
   columnOrder?: string[];
   onColumnsReady?: (columns: ColumnDef[]) => void;
+  builderHeight?: number;
 }
 
 type ColumnDef =
@@ -281,7 +282,7 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
 
 export type { ColumnDef };
 
-export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, highlightExpressions, stickyFields, onTagClick, onFlagDeadEnd, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady }: TransactionTableProps) {
+export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, highlightExpressions, stickyFields, onTagClick, onFlagDeadEnd, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady, builderHeight = 0 }: TransactionTableProps) {
   const { fieldMeta } = useTransactionData();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -764,7 +765,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
   const hasSelection = selectedIds.size > 0;
 
   return (
-    <div className="rounded-lg border border-gray-200 flex flex-col" style={{ maxHeight: 'calc(100vh - 15rem)' }}>
+    <div className="rounded-lg border border-gray-200 flex flex-col" style={{ maxHeight: `calc(100vh - 15rem${builderHeight > 0 ? ` - ${builderHeight + 25}px` : ''})` }}>
       {/* Selection action bar */}
       {hasSelection && onFlagDeadEnd && (
         <div className="flex items-center gap-3 px-4 py-2 bg-blue-50 border-b border-blue-200 shrink-0">

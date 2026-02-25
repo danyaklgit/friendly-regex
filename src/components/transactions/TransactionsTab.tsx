@@ -103,6 +103,8 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
   // Rule builder state (reuses the wizard form hook)
   const builder = useWizardForm(undefined, undefined, fieldMeta.sourceFields[0]);
   const [builderOpen, setBuilderOpen] = useState(false);
+  const builderRef = useRef<HTMLDivElement>(null);
+  const [builderHeight, setBuilderHeight] = useState(0);
   const [showOnlyUntagged, setShowOnlyUntagged] = useState(false);
   const [showOnlyMultiTagged, setShowOnlyMultiTagged] = useState(false);
   const [showOnlyDeadEnd, setShowOnlyDeadEnd] = useState(false);
@@ -132,6 +134,15 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
   useEffect(() => { try { localStorage.setItem('fr:relaxedMode', String(relaxedMode)); } catch { /* ignore */ } }, [relaxedMode]);
   useEffect(() => { try { localStorage.setItem('fr:hiddenColumns', JSON.stringify([...hiddenColumns])); } catch { /* ignore */ } }, [hiddenColumns]);
   useEffect(() => { try { localStorage.setItem('fr:columnOrder', JSON.stringify(columnOrder)); } catch { /* ignore */ } }, [columnOrder]);
+
+  // Track builder panel height so the table can adjust its maxHeight
+  useEffect(() => {
+    const el = builderRef.current;
+    if (!builderOpen || !el) { setBuilderHeight(0); return; }
+    const ro = new ResizeObserver(([entry]) => setBuilderHeight(entry.contentRect.height));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [builderOpen]);
 
   // Default visible columns: only Tags + 4 data fields; apply only on first load with no stored preference
   const DEFAULT_VISIBLE_DATA = useMemo(() => new Set(['AdditionalInformation', 'Description1', 'Description2', 'BankReference']), []);
@@ -509,7 +520,7 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
 
       {/* Rule builder panel */}
       {builderOpen && (
-        <div className="flex flex-col mb-6 border border-blue-200 rounded-xl bg-blue-50/50 overflow-hidden">
+        <div ref={builderRef} className="flex flex-col mb-6 border border-blue-200 rounded-xl bg-blue-50/50 overflow-hidden">
           <div className="px-5 py-3 bg-blue-100/60 border-b border-blue-200 flex items-center justify-between">
             <div>
               <h3 className="text-sm font-semibold text-blue-900">Rule Builder</h3>
@@ -587,6 +598,7 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
         hiddenColumns={hiddenColumns}
         columnOrder={columnOrder}
         onColumnsReady={setTableColumns}
+        builderHeight={builderHeight}
       />
 
       {hasMore && (
