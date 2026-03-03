@@ -4,6 +4,7 @@ import { sha256 } from '../utils/sha256';
 interface AuthContextValue {
   isAuthenticated: boolean;
   username: string | null;
+  expiresAt: number | null;
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
   getAuthHeaders: () => Record<string, string>;
@@ -42,6 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const isAuthenticated = session !== null;
   const username = session?.username ?? null;
+  const expiresAt = session?.expiresAt ?? null;
 
   // Auto-logout when token expires
   useEffect(() => {
@@ -97,7 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [session]);
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, username, login, logout, getAuthHeaders }}>
+    <AuthContext.Provider value={{ isAuthenticated, username, expiresAt, login, logout, getAuthHeaders }}>
       {children}
     </AuthContext.Provider>
   );

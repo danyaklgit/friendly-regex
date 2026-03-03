@@ -1,5 +1,23 @@
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import { Tooltip } from '../shared/Tooltip';
+
+function useTimeRemaining(expiresAt: number | null): string {
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    if (!expiresAt) return;
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [expiresAt]);
+
+  if (!expiresAt) return '';
+  const remaining = Math.max(0, Math.floor((expiresAt - now) / 1000));
+  const minutes = Math.floor(remaining / 60);
+  const seconds = remaining % 60;
+  return `Session expires in ${minutes}m ${seconds.toString().padStart(2, '0')}s`;
+}
 
 interface PageHeaderProps {
   tabs: { label: string }[];
@@ -8,8 +26,9 @@ interface PageHeaderProps {
 }
 
 export function PageHeader({ tabs, activeIndex, onTabChange }: PageHeaderProps) {
-  const { logout, username } = useAuth();
+  const { logout, username, expiresAt } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const timeRemaining = useTimeRemaining(expiresAt);
 
   return (
     <header className="bg-surface border-b border-border">
@@ -32,7 +51,9 @@ export function PageHeader({ tabs, activeIndex, onTabChange }: PageHeaderProps) 
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-3">
-          <span className="text-xs text-body">{username}</span>
+          <Tooltip content={timeRemaining} placement="bottom">
+            <span className="text-xs text-body">{username}</span>
+          </Tooltip>
           <button
             onClick={toggleTheme}
             className="text-muted hover:text-heading transition-colors cursor-pointer p-1"
