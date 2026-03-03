@@ -7,6 +7,7 @@ import { TabContainer } from './components/layout/TabContainer';
 import { StatsTab } from './components/stats/StatsTab';
 import { TransactionsTab } from './components/transactions/TransactionsTab';
 import { TagRulesTab } from './components/tagRules/TagRulesTab';
+import { SessionWarningModal } from './components/shared/SessionWarningModal';
 import type { CheckoutState, TagSpecDefinition, TagSpecLibrary } from './types';
 import { getContextValue } from './types/tagSpec';
 
@@ -65,6 +66,7 @@ function App() {
   return (
     <TagSpecProvider>
       <TransactionDataProvider>
+      <SessionWarningModal />
       <div className="min-h-screen bg-surface-secondary">
         <TabContainer
           activeIndex={activeTab}
