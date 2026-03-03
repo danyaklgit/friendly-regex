@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import type { AttributeFormValue, TransactionRow } from '../../types';
 import { Input } from '../shared/Input';
 import { Select } from '../shared/Select';
@@ -23,6 +23,29 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
   const { fieldMeta } = useTransactionData();
   const [showDistinct, setShowDistinct] = useState(false);
   const [editing, setEditing] = useState(!startCollapsed);
+  const [snapshot, setSnapshot] = useState<AttributeFormValue | null>(() =>
+    !startCollapsed ? { ...attribute } : null
+  );
+
+  const hasChanges = useMemo(() => {
+    if (!snapshot) return false;
+    return (
+      attribute.attributeTag !== snapshot.attributeTag ||
+      attribute.validationRuleTag !== snapshot.validationRuleTag ||
+      attribute.isMandatory !== snapshot.isMandatory ||
+      attribute.sourceField !== snapshot.sourceField ||
+      attribute.extractionOperation !== snapshot.extractionOperation ||
+      (attribute.prefix ?? '') !== (snapshot.prefix ?? '') ||
+      (attribute.suffix ?? '') !== (snapshot.suffix ?? '') ||
+      (attribute.pattern ?? '') !== (snapshot.pattern ?? '') ||
+      (attribute.verifyValue ?? '') !== (snapshot.verifyValue ?? '')
+    );
+  }, [attribute, snapshot]);
+
+  const handleDiscard = useCallback(() => {
+    if (snapshot) onUpdate(snapshot);
+    setEditing(false);
+  }, [snapshot, onUpdate]);
 
   const selectedOp = EXTRACTION_OPERATIONS.find((op) => op.key === attribute.extractionOperation);
   const preview = generateExtractionPrompt(attribute.extractionOperation, {
@@ -109,7 +132,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
   }, [transactions, attribute.sourceField, attribute.extractionOperation, attribute.prefix, attribute.suffix, attribute.verifyValue]);
 
   return (
-    <div className="border border-gray-200 rounded-lg p-3 py-1 bg-white space-y-3">
+    <div className="border border-border rounded-lg p-3 py-2 bg-surface space-y-3">
       {editing ? (
         <>
           <div className="flex items-start justify-between">
@@ -187,14 +210,25 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
           )}
 
           <div className="flex items-center gap-2 justify-between">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 justify-between ">
               <p className="text-xs text-primary italic border-dashed border w-fit px-2 py-1">
                 {humanizeFieldName(attribute.sourceField)} &rarr; <span className='text-orange-500'>{preview}</span>
               </p>
               {attribute.attributeTag.trim().length > 0 && (
-                <Button variant="primary" size="sm" onClick={() => setEditing(false)}>
-                  Save
-                </Button>
+                hasChanges ? (
+                  <>
+                    <Button variant="secondary" size="sm" onClick={handleDiscard}>
+                      Discard
+                    </Button>
+                    <Button variant="primary" size="sm" onClick={() => setEditing(false)}>
+                      Save
+                    </Button>
+                  </>
+                ) : (
+                  <Button variant="ghost" size="sm" onClick={() => setEditing(false)}>
+                    Collapse Attribute
+                  </Button>
+                )
               )}
             </div>
             {validationSummary && (
@@ -216,19 +250,19 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
       ) : (
         <div className="flex items-center justify-between">
           <div
-            className="flex-1 cursor-pointer hover:bg-gray-50 rounded px-2 py-1.5 transition-colors"
-            onClick={() => setEditing(true)}
+            className="flex-1 cursor-pointer hover:bg-surface-hover rounded px-2 py-1.5 transition-colors"
+            onClick={() => { setSnapshot({ ...attribute }); setEditing(true); }}
           >
             <p className="text-xs">
               <span className="font-medium text-primary-dark">{attribute.attributeTag}</span>
-              <span className="text-gray-400 mx-1.5">&mdash;</span>
+              <span className="text-faint mx-1.5">&mdash;</span>
               <span className="text-primary italic">
                 {humanizeFieldName(attribute.sourceField)} &rarr; <span className='text-orange-500'>{preview}</span>
               </span>
             </p>
           </div>
           <div className="flex items-center gap-1">
-             {validationSummary && (
+            {validationSummary && (
               <span className={`text-xs font-medium flex gap-2 mx-2`}>
                 {validationSummary.passed > 0 && <span className='text-emerald-600'>{'\u2713'} {validationSummary.passed}</span>}
                 {(validationSummary.notPassed || 0) > 0 && <span className='text-red-600'>{'\u2717'} {validationSummary.notPassed}</span>}
@@ -253,7 +287,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
         <Modal open onClose={() => setShowDistinct(false)} title={`Distinct values for "${attribute.attributeTag || 'Attribute'}"`}>
           <div className="space-y-1">
             {distinctValues.map((val, i) => (
-              <div key={i} className="px-3 py-1.5 text-sm font-mono bg-gray-50 rounded border border-gray-200">
+              <div key={i} className="px-3 py-1.5 text-sm font-mono bg-surface-secondary rounded border border-border">
                 {val}
               </div>
             ))}

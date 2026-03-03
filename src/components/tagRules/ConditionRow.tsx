@@ -20,7 +20,7 @@ export function ConditionRow({ condition, showAnd }: ConditionRowProps) {
           </span>
         </div>
       )}
-      <div className="flex items-center gap-2 py-1.5 px-3 bg-gray-50 rounded-md">
+      <div className="flex items-center gap-2 py-1.5 px-3 bg-surface-secondary rounded-md">
         <span className="text-xs font-mono font-medium text-primary-dark bg-primary/10 px-1.5 py-0.5 rounded">
           {humanizeFieldName(condition.SourceField)}
         </span>

@@ -59,7 +59,7 @@ export function ConditionEditor({
           </span>
         </div>
       )}
-      <div className="flex items-end gap-2 p-1 bg-gray-50 rounded-lg border border-gray-200">
+      <div className="flex items-end gap-2 p-1 bg-surface-secondary rounded-lg border border-border">
         {editing ? (
           <div className={`flex-1 grid gap-2 grid-cols-3`} id='edit_mode_fields'>
             <Select
@@ -131,7 +131,7 @@ export function ConditionEditor({
           </div>
         ) : (
           <div
-            className="flex-1 cursor-pointer hover:bg-gray-100 rounded px-2 py-1.5 transition-colors"
+            className="flex-1 cursor-pointer hover:bg-surface-active rounded px-2 py-1.5 transition-colors"
             onClick={() => setEditing(true)}
           >
             <p className="text-xs text-primary italic">
@@ -140,7 +140,7 @@ export function ConditionEditor({
           </div>
         )}
         {canRemove && (
-          <Button variant="ghost" size="sm" onClick={onRemove} className=" text-gray-400 hover:text-red-500">
+          <Button variant="ghost" size="sm" onClick={onRemove} className=" text-faint hover:text-red-500">
             Remove Condition
           </Button>
         )}

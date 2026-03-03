@@ -12,14 +12,14 @@ export function RulePreview({ ruleGroups, attributes }: RulePreviewProps) {
   const hasAttrs = attributes.some((a) => a.attributeTag);
 
   if (!hasRules && !hasAttrs) {
-    return <p className="text-sm text-gray-400 italic">Preview will appear as you build rules.</p>;
+    return <p className="text-sm text-faint italic">Preview will appear as you build rules.</p>;
   }
 
   return (
     <div className="space-y-4">
       {hasRules && (
         <div>
-          <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+          <h4 className="text-xs font-medium text-muted uppercase tracking-wide mb-2">
             Matching Rules
           </h4>
           <div className="space-y-0">
@@ -35,7 +35,7 @@ export function RulePreview({ ruleGroups, attributes }: RulePreviewProps) {
                       </span>
                     </div>
                   )}
-                  <div className="border border-gray-200 rounded p-2 bg-gray-50">
+                  <div className="border border-border rounded p-2 bg-surface-secondary">
                     {validConditions.map((c, ci) => (
                       <div key={c.id}>
                         {ci > 0 && (
@@ -62,16 +62,16 @@ export function RulePreview({ ruleGroups, attributes }: RulePreviewProps) {
 
       {hasAttrs && (
         <div>
-          <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+          <h4 className="text-xs font-medium text-muted uppercase tracking-wide mb-2">
             Attributes
           </h4>
           <div className="space-y-1">
             {attributes
               .filter((a) => a.attributeTag)
               .map((a) => (
-                <p key={a.id} className="text-sm text-gray-700">
+                <p key={a.id} className="text-sm text-body">
                   <span className="font-medium text-primary">{a.attributeTag}</span>{' '}
-                  <span className="text-gray-500">from</span>{' '}
+                  <span className="text-muted">from</span>{' '}
                   <span className="font-mono text-xs text-primary-dark">{humanizeFieldName(a.sourceField)}</span>{' '}
                   <span className="text-orange-500">
                     {generateExtractionPrompt(a.extractionOperation, {

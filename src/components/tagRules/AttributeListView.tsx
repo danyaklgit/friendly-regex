@@ -7,7 +7,7 @@ interface AttributeListViewProps {
 
 export function AttributeListView({ attributes }: AttributeListViewProps) {
   if (attributes.length === 0) {
-    return <p className="text-sm text-gray-400 italic">No attributes defined</p>;
+    return <p className="text-sm text-faint italic">No attributes defined</p>;
   }
 
   return (

@@ -2,8 +2,13 @@
 @import "@abdulrysr/saudi-riyal-new-symbol-font/style.css";
 @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700&display=swap');
 
+/* Enable class-based dark mode */
+@custom-variant dark (&:is(.dark *));
+
 @theme {
   --font-sans: 'Rubik', ui-sans-serif, system-ui, sans-serif;
+
+  /* Brand colors */
   --color-primary: #12bdce;
   --color-primary-dark: #0ea5b5;
   --color-primary-light: #5cd5e2;
@@ -11,6 +16,80 @@
   --color-warning: #eab308;
   --color-danger: #ef4444;
   --color-info: #06b6d4;
+
+  /* Semantic surface colors */
+  --color-surface: var(--th-surface);
+  --color-surface-secondary: var(--th-surface-secondary);
+  --color-surface-tertiary: var(--th-surface-tertiary);
+  --color-surface-elevated: var(--th-surface-elevated);
+  --color-surface-hover: var(--th-surface-hover);
+  --color-surface-active: var(--th-surface-active);
+
+  /* Semantic text colors */
+  --color-heading: var(--th-heading);
+  --color-body: var(--th-body);
+  --color-body-secondary: var(--th-body-secondary);
+  --color-muted: var(--th-muted);
+  --color-faint: var(--th-faint);
+  --color-placeholder: var(--th-placeholder);
+
+  /* Semantic border colors */
+  --color-border: var(--th-border);
+  --color-border-strong: var(--th-border-strong);
+  --color-border-subtle: var(--th-border-subtle);
+  --color-divide: var(--th-border);
+
+  /* Semantic input colors */
+  --color-input-bg: var(--th-input-bg);
+  --color-input-border: var(--th-input-border);
+}
+
+/* ========== LIGHT THEME (default) ========== */
+:root {
+  --th-surface: #ffffff;
+  --th-surface-secondary: #f9fafb;
+  --th-surface-tertiary: #f3f4f6;
+  --th-surface-elevated: #ffffff;
+  --th-surface-hover: #f9fafb;
+  --th-surface-active: #f3f4f6;
+
+  --th-heading: #111827;
+  --th-body: #374151;
+  --th-body-secondary: #4b5563;
+  --th-muted: #6b7280;
+  --th-faint: #9ca3af;
+  --th-placeholder: #9ca3af;
+
+  --th-border: #e5e7eb;
+  --th-border-strong: #d1d5db;
+  --th-border-subtle: #f3f4f6;
+
+  --th-input-bg: #ffffff;
+  --th-input-border: #d1d5db;
+}
+
+/* ========== DARK THEME ========== */
+.dark {
+  --th-surface: #0f172a;
+  --th-surface-secondary: #1e293b;
+  --th-surface-tertiary: #334155;
+  --th-surface-elevated: #1e293b;
+  --th-surface-hover: #1e293b;
+  --th-surface-active: #334155;
+
+  --th-heading: #f1f5f9;
+  --th-body: #e2e8f0;
+  --th-body-secondary: #cbd5e1;
+  --th-muted: #94a3b8;
+  --th-faint: #64748b;
+  --th-placeholder: #64748b;
+
+  --th-border: #334155;
+  --th-border-strong: #475569;
+  --th-border-subtle: #1e293b;
+
+  --th-input-bg: #1e293b;
+  --th-input-border: #475569;
 }
 
 .icon-saudi_riyal{

@@ -14,7 +14,7 @@ export function AttributeRuleRow({ attribute }: AttributeRuleRowProps) {
     engregxify(attribute.AttributeRuleExpression.Regex);
 
   return (
-    <div className="flex items-start gap-3 py-2 px-3 bg-gray-50 rounded-md">
+    <div className="flex items-start gap-3 py-2 px-3 bg-surface-secondary rounded-md">
       <div className="flex items-center gap-2 min-w-0">
         <span className="text-sm font-normal text-primary">{attribute.AttributeTag}</span>
         {attribute.IsMandatory && (

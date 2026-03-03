@@ -23,7 +23,7 @@ export function StepRuleExpressions({
 }: StepRuleExpressionsProps) {
   return (
     <div className="space-y-0 flex flex-col">
-      <p className="text-xs text-gray-500 mb-2">
+      <p className="text-xs text-muted mb-2">
         Each rule set uses AND logic (all conditions must match).
         Multiple rule sets use OR logic (any set can match).
       </p>
@@ -33,11 +33,11 @@ export function StepRuleExpressions({
           <div key={group.id}>
             {i > 0 && (
               <div className="flex items-center justify-center my-1">
-                <div className="flex-1 border-t border-gray-200" />
+                <div className="flex-1 border-t border-border" />
                 <span className="mx-3 text-xs font-bold text-purple-600 bg-purple-50 px-3 py-1 rounded-full">
                   OR
                 </span>
-                <div className="flex-1 border-t border-gray-200" />
+                <div className="flex-1 border-t border-border" />
               </div>
             )}
             <RuleGroupEditor
@@ -53,8 +53,8 @@ export function StepRuleExpressions({
           </div>
         ))
       ) : (
-        <div className="text-center py-4 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-          <p className="text-sm text-gray-500 my-2">No rule sets defined yet</p>
+        <div className="text-center py-4 bg-surface-secondary rounded-lg border border-dashed border-border-strong">
+          <p className="text-sm text-muted my-2">No rule sets defined yet</p>
         </div>
       )}
 

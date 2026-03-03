@@ -65,7 +65,7 @@ function App() {
   return (
     <TagSpecProvider>
       <TransactionDataProvider>
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-surface-secondary">
         <TabContainer
           activeIndex={activeTab}
           onTabChange={setActiveTab}

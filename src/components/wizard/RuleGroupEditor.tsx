@@ -29,27 +29,27 @@ export function RuleGroupEditor({
   const [isExpanded, setIsExpanded] = useState(!startCollapsed);
 
   return (
-    <div className="border border-gray-200 rounded-lg p-3 bg-white flex flex-col items-start">
+    <div className="border border-border rounded-lg p-3 bg-surface flex flex-col items-start">
       <div
         className="flex items-center justify-between w-full cursor-pointer select-none"
         onClick={() => setIsExpanded((prev) => !prev)}
       >
         <div className="flex items-center gap-1.5">
           <svg
-            className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+            className={`w-3.5 h-3.5 text-faint transition-transform ${isExpanded ? 'rotate-90' : ''}`}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
           >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
           </svg>
-          <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+          <span className="text-xs font-medium text-muted uppercase tracking-wide">
             Rule Set {groupIndex + 1}
           </span>
           {!isExpanded && (() => {
             const filled = group.conditions.filter((c) => c.value.trim().length > 0);
             if (filled.length === 0) return (
-              <span className="text-xs text-gray-400 ml-1">(empty)</span>
+              <span className="text-xs text-faint ml-1">(empty)</span>
             );
             const first = filled[0];
             const preview = generateExpressionPrompt(first.operation, first.value, first.values, {
@@ -58,7 +58,7 @@ export function RuleGroupEditor({
             });
             const rest = filled.length - 1;
             return (
-              <span className="text-xs text-gray-400 ml-1">
+              <span className="text-xs text-faint ml-1">
                 ( <span className="text-primary italic">{humanizeFieldName(first.sourceField)}</span> → <span className="text-orange-500 italic">{preview}</span>
                 {rest > 0 && <span className="ml-2 text-purple-600"> &amp; {rest} more</span>}
                 {' '})

@@ -14,7 +14,7 @@ interface StepAttributesProps {
 export function StepAttributes({ attributes, onAdd, onRemove, onUpdate, transactions, startCollapsed }: StepAttributesProps) {
   return (
     <div>
-      <p className="text-xs text-gray-500 mb-2">
+      <p className="text-xs text-muted mb-2">
         Define attributes to extract from transactions when this tag matches.
         Attributes are optional — you can skip this step.
       </p>
@@ -33,8 +33,8 @@ export function StepAttributes({ attributes, onAdd, onRemove, onUpdate, transact
           ))}
         </div>
       ) : (
-        <div className="text-center py-4 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-          <p className="text-sm text-gray-500 my-2">No attributes defined yet</p>
+        <div className="text-center py-4 bg-surface-secondary rounded-lg border border-dashed border-border-strong">
+          <p className="text-sm text-muted my-2">No attributes defined yet</p>
         </div>
       )}
 

@@ -10,7 +10,7 @@ interface TagBadgeProps {
 const certaintyColors: Record<CertaintyLevelTag, string> = {
   HIGH: 'bg-cyan-100 text-cyan-800 border-cyan-200',
   MEDIUM: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-  LOW: 'bg-gray-100 text-gray-700 border-gray-200',
+  LOW: 'bg-surface-tertiary text-body border-border',
 };
 
 const userCreatedColors: Record<CertaintyLevelTag, string> = {

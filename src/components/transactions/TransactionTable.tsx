@@ -179,7 +179,7 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
         onClick={() => setOpen(!open)}
         className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${hiddenColumns.size > 0
           ? 'bg-primary/10 border-primary/30 text-primary-dark'
-          : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+          : 'bg-surface border-border-strong text-body hover:bg-surface-hover'
           }`}
       >
         <span className="flex items-center gap-1">
@@ -195,9 +195,9 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
         </span>
       </button>
       {open && (
-        <div className="absolute top-full mt-1 right-0 z-50 bg-white border border-gray-200 rounded-lg shadow-lg min-w-[220px] max-h-64 overflow-y-auto px-2 pb-2">
-          <div className="sticky top-0 bg-white z-10 flex items-center justify-between border-b border-gray-100 mb-1 pt-2 pb-1.5">
-            <label className="flex items-center gap-2 px-2 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50 rounded cursor-pointer">
+        <div className="absolute top-full mt-1 right-0 z-50 bg-surface border border-border rounded-lg shadow-lg min-w-[220px] max-h-64 overflow-y-auto px-2 pb-2">
+          <div className="sticky top-0 bg-surface z-10 flex items-center justify-between border-b border-border-subtle mb-1 pt-2 pb-1.5">
+            <label className="flex items-center gap-2 px-2 py-1 text-xs font-semibold text-body hover:bg-surface-hover rounded cursor-pointer">
               <input
                 type="checkbox"
                 checked={visibleCount === totalCount}
@@ -209,7 +209,7 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
                     onChange(new Set());
                   }
                 }}
-                className="rounded border-gray-300"
+                className="rounded border-border-strong"
               />
               {visibleCount === totalCount ? 'Hide All' : 'Show All'}
             </label>
@@ -247,10 +247,10 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
                   setOverIdx(null);
                 }}
                 onDragEnd={() => { setDragIdx(null); setOverIdx(null); }}
-                className={`flex items-center gap-2 px-2 py-1 text-xs hover:bg-gray-50 rounded cursor-grab active:cursor-grabbing select-none transition-colors ${isDragOver ? 'border-t-2 border-primary' : 'border-t-2 border-transparent'
+                className={`flex items-center gap-2 px-2 py-1 text-xs hover:bg-surface-hover rounded cursor-grab active:cursor-grabbing select-none transition-colors ${isDragOver ? 'border-t-2 border-primary' : 'border-t-2 border-transparent'
                   } ${dragIdx === i ? 'opacity-40' : ''}`}
               >
-                <svg className="w-3 h-3 text-gray-300 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <svg className="w-3 h-3 text-faint shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path d="M7 2a2 2 0 10.001 4.001A2 2 0 007 2zm0 6a2 2 0 10.001 4.001A2 2 0 007 8zm0 6a2 2 0 10.001 4.001A2 2 0 007 14zm6-8a2 2 0 10-.001-4.001A2 2 0 0013 6zm0 2a2 2 0 10.001 4.001A2 2 0 0013 8zm0 6a2 2 0 10.001 4.001A2 2 0 0013 14z" />
                 </svg>
                 <label className="flex items-center gap-2 flex-1 cursor-pointer">
@@ -263,7 +263,7 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
                       else next.add(col.key);
                       onChange(next);
                     }}
-                    className="rounded border-gray-300"
+                    className="rounded border-border-strong"
                   />
                   <span className={
                     `truncate ${col.type === 'attribute' ? 'text-primary-dark' : ''} 
@@ -701,7 +701,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
   };
 
   const renderCellContent = (field: string, value: string | number | boolean | null) => {
-    if (value == null) return <span className="text-gray-300">-</span>;
+    if (value == null) return <span className="text-faint">-</span>;
     const text = String(value);
     if (highlightMap) {
       const regexes = highlightMap.get(field);
@@ -765,7 +765,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
   const hasSelection = selectedIds.size > 0;
 
   return (
-    <div className="rounded-lg border border-gray-200 flex flex-col" style={{ maxHeight: `calc(100vh - 15rem${builderHeight > 0 ? ` - ${builderHeight > 400 ? 100 : builderHeight + 25}px` : ''})` }}>
+    <div className="rounded-lg border border-border flex flex-col" style={{ maxHeight: `calc(100vh - 15rem${builderHeight > 0 ? ` - ${builderHeight > 400 ? 100 : builderHeight + 25}px` : ''})` }}>
       {/* Selection action bar */}
       {hasSelection && onFlagDeadEnd && (
         <div className="flex items-center gap-3 px-4 py-2 bg-primary/10 border-b border-primary/20 shrink-0">
@@ -780,13 +780,13 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
           </button>
           <button
             onClick={() => handleFlagDeadEnd(false)}
-            className="text-xs px-2.5 py-1 rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition-colors"
+            className="text-xs px-2.5 py-1 rounded border border-border-strong bg-surface text-body hover:bg-surface-hover transition-colors"
           >
             Unflag Dead End
           </button>
           <button
             onClick={() => setSelectedIds(new Set())}
-            className="text-xs text-gray-500 hover:text-gray-700 ml-auto"
+            className="text-xs text-muted hover:text-body ml-auto"
           >
             Clear selection
           </button>
@@ -797,7 +797,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
       {hasOverflow && (
         <div
           ref={minimapBarRef}
-          className="relative h-5 bg-white border-b border-gray-100 cursor-pointer select-none flex shrink-0"
+          className="relative h-5 bg-surface border-b border-border-subtle cursor-pointer select-none flex shrink-0"
           onPointerDown={handleMinimapPointerDown}
           onPointerMove={handleMinimapPointerMove}
         >
@@ -822,15 +822,15 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
 
       {/* Scrollable table */}
       <div ref={scrollContainerRef} className="overflow-auto flex-1 min-h-0">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead ref={theadRef} className="bg-gray-50">
+        <table className="min-w-full divide-y divide-divide">
+          <thead ref={theadRef} className="bg-surface-secondary">
             <tr>
               {visibleColumns.map((col, idx) => {
                 const isAttr = col.type === 'attribute';
                 return (
                   <th
                     key={col.key}
-                    className={`px-3 ${cellPy} text-left text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap ${isAttr ? 'text-primary-dark bg-primary/10' : 'text-gray-600 bg-gray-50'
+                    className={`px-3 ${cellPy} text-left text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap ${isAttr ? 'text-primary-dark bg-primary/10' : 'text-body-secondary bg-surface-secondary'
                       }`}
                     style={getCellStyle(idx, true)}
                   >
@@ -843,7 +843,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                             type="checkbox"
                             checked={data.length > 0 && selectedIds.size === data.length}
                             onChange={toggleSelectAll}
-                            className="rounded border-gray-300"
+                            className="rounded border-border-strong"
                           />
                         )}
                         Tags
@@ -858,12 +858,12 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
               })}
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-surface divide-y divide-divide">
             {data.length === 0 ? (
               <tr>
                 <td
                   colSpan={visibleColumns.length}
-                  className="px-3 py-6 text-center text-xs text-gray-400"
+                  className="px-3 py-6 text-center text-xs text-faint"
                 >
                   No transactions match the current filter.
                 </td>
@@ -874,29 +874,29 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                 const isSelected = selectedIds.has(rowId);
                 const isDeadEnd = item.row['IsDeadEnd'] === true;
                 return (
-                  <tr key={i} className={`group transition-colors ${isDeadEnd ? 'bg-red-200/70 opacity-60' : 'hover:bg-gray-50'} ${isSelected ? 'bg-primary/10!' : ''}`}>
+                  <tr key={i} className={`group transition-colors ${isDeadEnd ? 'bg-red-200/70 opacity-60' : 'hover:bg-surface-hover'} ${isSelected ? 'bg-primary/10!' : ''}`}>
                     {visibleColumns.map((col, colIdx) => {
                       const isStickyCol = stickyLefts.has(colIdx) || stickyRights.has(colIdx);
-                      const stickyBg = isStickyCol ? 'bg-white group-hover:bg-gray-50' : '';
+                      const stickyBg = isStickyCol ? 'bg-surface group-hover:bg-surface-hover' : '';
 
                       switch (col.type) {
                         case 'data':
                           return (
-                            <td key={col.key} className={`px-3 ${cellPy} text-xs text-gray-600 ${relaxedMode ? 'whitespace-nowrap' : 'max-w-200'} ${stickyBg}`} style={getCellStyle(colIdx, false)}>
+                            <td key={col.key} className={`px-3 ${cellPy} text-xs text-body-secondary ${relaxedMode ? 'whitespace-nowrap' : 'max-w-200'} ${stickyBg}`} style={getCellStyle(colIdx, false)}>
                               {renderCellContent(col.field, item.row[col.field])}
                               {stickyEdgeShadow(colIdx)}
                             </td>
                           );
                         case 'dates':
                           return (
-                            <td key={col.key} className={`px-3 ${cellPy} text-xs text-gray-600 ${stickyBg}`} style={getCellStyle(colIdx, false)}>
+                            <td key={col.key} className={`px-3 ${cellPy} text-xs text-body-secondary ${stickyBg}`} style={getCellStyle(colIdx, false)}>
                               <div className={relaxedMode ? 'flex gap-2 whitespace-nowrap' : 'flex flex-col gap-0.5'}>
                                 {col.fields.map((f) => {
                                   const val = item.row[f.key];
                                   if (val == null || val === '') return null;
                                   return (
                                     <span key={f.key} className="whitespace-nowrap">
-                                      <span className="text-gray-400">{f.label}:</span>{' '}
+                                      <span className="text-faint">{f.label}:</span>{' '}
                                       {String(val).split('T')[0]}
                                     </span>
                                   );
@@ -911,7 +911,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                           const isReturn = side === 'RC';
                           const amt = isDebit ? item.row['Amount'] : null;
                           return (
-                            <td key={col.key} className={`px-3 ${cellPy} text-xs text-right font-medium whitespace-nowrap ${amt != null ? 'text-red-600' : 'text-gray-300'} ${stickyBg} `} style={getCellStyle(colIdx, false)}>
+                            <td key={col.key} className={`px-3 ${cellPy} text-xs text-right font-medium whitespace-nowrap ${amt != null ? 'text-red-600' : 'text-faint'} ${stickyBg} `} style={getCellStyle(colIdx, false)}>
                               {amt != null ? (
                                 <div className="flex items-center justify-end gap-1">
                                   {isReturn && <span className="text-[9px] font-semibold text-amber-500 bg-amber-50 border border-amber-200 rounded px-1">RTN</span>}
@@ -928,7 +928,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                           const isReturn = side === 'RD';
                           const amt = isCredit ? item.row['Amount'] : null;
                           return (
-                            <td key={col.key} className={`px-3 ${cellPy} text-xs text-right font-medium whitespace-nowrap ${amt != null ? 'text-emerald-500' : 'text-gray-300'} ${stickyBg}`} style={getCellStyle(colIdx, false)}>
+                            <td key={col.key} className={`px-3 ${cellPy} text-xs text-right font-medium whitespace-nowrap ${amt != null ? 'text-emerald-500' : 'text-faint'} ${stickyBg}`} style={getCellStyle(colIdx, false)}>
                               {amt != null ? (
                                 <div className="flex items-center justify-end gap-1">
                                   {isReturn && <span className="text-[9px] font-semibold text-amber-500 bg-amber-50 border border-amber-200 rounded px-1">RTN</span>}
@@ -965,7 +965,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                               ${isStickyCol ? 'bg-primary/10 group-hover:bg-primary/15' : 'bg-primary/5'}`}
                               style={getCellStyle(colIdx, false)}
                             >
-                              {displayVal ? <>{validationIcon}{displayVal}</> : <span className="text-gray-300">-</span>}
+                              {displayVal ? <>{validationIcon}{displayVal}</> : <span className="text-faint">-</span>}
                               {stickyEdgeShadow(colIdx)}
                             </td>
                           );
@@ -979,7 +979,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                                     type="checkbox"
                                     checked={isSelected}
                                     onChange={() => toggleSelect(rowId)}
-                                    className="rounded border-gray-300 mt-0.5 shrink-0"
+                                    className="rounded border-border-strong mt-0.5 shrink-0"
                                   />
                                 )}
                                 <div className="flex-1">
@@ -1016,7 +1016,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                                       )} */}
                                     </div>
                                   ) : (
-                                    <span className="text-gray-400 text-xs">-</span>
+                                    <span className="text-faint text-xs">-</span>
                                   )}
 
                                 </div>

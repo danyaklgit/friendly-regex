@@ -142,8 +142,8 @@ export function TagRulesTab({ checkouts, onEditInTransactions }: TagRulesTabProp
     <div>
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="text-base font-semibold text-gray-900">Tag Rules</h2>
-          <p className="text-sm text-gray-500">
+          <h2 className="text-base font-semibold text-heading">Tag Rules</h2>
+          <p className="text-sm text-muted">
             Manage your tag definitions and matching rules.
           </p>
         </div>
@@ -194,15 +194,15 @@ export function TagRulesTab({ checkouts, onEditInTransactions }: TagRulesTabProp
                   onClick={() => toggleCollapse(libKey)}
                 >
                   <svg
-                    className={`w-3.5 h-3.5 text-gray-400 group-hover:text-gray-600 transition-transform ${isCollapsed ? '' : 'rotate-90'}`}
+                    className={`w-3.5 h-3.5 text-faint group-hover:text-body-secondary transition-transform ${isCollapsed ? '' : 'rotate-90'}`}
                     fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
                   >
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                   </svg>
-                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  <h3 className="text-xs font-semibold text-muted uppercase tracking-wide">
                     {bank} / {side}
                     {isCheckedOut && <span className="ml-2 text-primary normal-case font-medium">● Checked out</span>}
-                    <span className="ml-2 text-gray-400 normal-case font-normal">
+                    <span className="ml-2 text-faint normal-case font-normal">
                       ({lib.TagSpecDefinitions.length} rule{lib.TagSpecDefinitions.length !== 1 ? 's' : ''})
                     </span>
                   </h3>

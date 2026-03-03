@@ -52,13 +52,13 @@ function RangeSlider({
 
   return (
     <div className="px-2 pt-1 pb-2">
-      <div className="flex items-center justify-between text-[10px] text-gray-500 mb-1">
+      <div className="flex items-center justify-between text-[10px] text-muted mb-1">
         <span>{low.toLocaleString()}</span>
         <span>{high.toLocaleString()}</span>
       </div>
       <div className="relative h-4">
         {/* Track background */}
-        <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-1 bg-gray-200 rounded" />
+        <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-1 bg-surface-tertiary rounded" />
         {/* Active range */}
         <div
           className="absolute top-1/2 -translate-y-1/2 h-1 bg-primary rounded"
@@ -173,7 +173,7 @@ function ShowOnlyDropdown({
         className={`text-xs px-3 py-1.5 rounded-lg border transition-colors whitespace-nowrap ${
           hasActive
             ? 'bg-primary/10 border-primary/30 text-primary-dark'
-            : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+            : 'bg-surface border-border-strong text-body hover:bg-surface-hover'
         }`}
       >
         {hasActive ? `Show: ${activeLabels.join(' & ')}` : 'Show Only'}
@@ -181,20 +181,20 @@ function ShowOnlyDropdown({
       {open && panelPos && createPortal(
         <div
           ref={panelRef}
-          className="fixed z-50 bg-white border border-gray-200 rounded-lg shadow-lg min-w-40"
+          className="fixed z-50 bg-surface border border-border rounded-lg shadow-lg min-w-40"
           style={{ top: panelPos.top, left: panelPos.left }}
         >
           <div className="p-2">
             {SHOW_ONLY_OPTIONS.map((option) => (
               <label
                 key={option}
-                className="flex items-center gap-2 px-2 py-1 text-xs hover:bg-gray-50 rounded cursor-pointer"
+                className="flex items-center gap-2 px-2 py-1 text-xs hover:bg-surface-hover rounded cursor-pointer"
               >
                 <input
                   type="checkbox"
                   checked={isChecked(option)}
                   onChange={() => handleToggle(option)}
-                  className="rounded border-gray-300"
+                  className="rounded border-border-strong"
                 />
                 <span>{option}</span>
               </label>
@@ -279,7 +279,7 @@ function FilterDropdown({
         className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
           activeCount > 0 || isRangeActive
             ? 'bg-primary/10 border-primary/30 text-primary-dark'
-            : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+            : 'bg-surface border-border-strong text-body hover:bg-surface-hover'
         }`}
       >
         {label}
@@ -290,9 +290,9 @@ function FilterDropdown({
         )} */}
       </button>
       {open && (
-        <div className="absolute top-full mt-1 left-0 z-50 bg-white border border-gray-200 rounded-lg shadow-lg min-w-55">
+        <div className="absolute top-full mt-1 left-0 z-50 bg-surface border border-border rounded-lg shadow-lg min-w-55">
           {numericInfo && (
-            <div className={values.length <= 50 ? 'border-b border-gray-100' : ''}>
+            <div className={values.length <= 50 ? 'border-b border-border-subtle' : ''}>
               <RangeSlider
                 min={numericInfo.min}
                 max={numericInfo.max}
@@ -308,7 +308,7 @@ function FilterDropdown({
               {values.map((val) => (
                 <label
                   key={val}
-                  className="flex items-center gap-2 px-2 py-1 text-xs hover:bg-gray-50 rounded cursor-pointer"
+                  className="flex items-center gap-2 px-2 py-1 text-xs hover:bg-surface-hover rounded cursor-pointer"
                 >
                   <input
                     type="checkbox"
@@ -330,7 +330,7 @@ function FilterDropdown({
                         }
                       }
                     }}
-                    className="rounded border-gray-300"
+                    className="rounded border-border-strong"
                   />
                   <span className="truncate">{isNumeric ? Number(val).toLocaleString() : val}</span>
                 </label>
@@ -443,10 +443,10 @@ export function DynamicFilters({
     <div className="mb-3">
       {/* <button
         onClick={() => setExpanded((prev) => !prev)}
-        className="flex items-center gap-1.5 text-sm cursor-pointer font-medium text-slate-600 hover:text-gray-900 transition-colors"
+        className="flex items-center gap-1.5 text-sm cursor-pointer font-medium text-slate-600 hover:text-heading transition-colors"
       >
         <svg
-          className={`w-3.5 h-3.5 text-gray-400 transition-transform ${expanded ? 'rotate-90' : ''}`}
+          className={`w-3.5 h-3.5 text-faint transition-transform ${expanded ? 'rotate-90' : ''}`}
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -462,7 +462,7 @@ export function DynamicFilters({
       </button> */}
 
       {expanded && (
-        <div className="flex flex-wrap items-center gap-2 mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+        <div className="flex flex-wrap items-center gap-2 mt-2 p-3 bg-surface-secondary rounded-lg border border-border">
           <ShowOnlyDropdown
             showOnlyUntagged={showOnlyUntagged}
             onShowOnlyUntaggedChange={onShowOnlyUntaggedChange}

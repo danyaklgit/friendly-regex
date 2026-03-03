@@ -29,12 +29,12 @@ const sideLabel: Record<string, string> = {
 };
 
 function StatBadge({ value, color }: { value: number; color: 'red' | 'yellow' | 'green' | 'gray' }) {
-  if (value === 0) return <span className="text-gray-300 text-xs">0</span>;
+  if (value === 0) return <span className="text-faint text-xs">0</span>;
   const colors = {
     red: 'bg-red-100 text-red-700',
     yellow: 'bg-yellow-100 text-yellow-700',
     green: 'bg-green-100 text-green-700',
-    gray: 'bg-gray-100 text-gray-600',
+    gray: 'bg-surface-tertiary text-body-secondary',
   };
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${colors[color]}`}>
@@ -49,51 +49,51 @@ export function StatsTab({ checkouts, onCheckout, onViewTransactions }: StatsTab
   return (
     <div>
       <div className="mb-4">
-        <h2 className="text-base font-semibold text-gray-900">Bank Statistics</h2>
-        <p className="text-sm text-gray-500 mt-0.5">
+        <h2 className="text-base font-semibold text-heading">Bank Statistics</h2>
+        <p className="text-sm text-muted mt-0.5">
           Overview of transaction data by bank and side. Check out a combination to start working.
         </p>
       </div>
 
-      <div className="overflow-hidden border border-gray-200 rounded-lg">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+      <div className="overflow-hidden border border-border rounded-lg">
+        <table className="min-w-full divide-y divide-divide">
+          <thead className="bg-surface-secondary">
             <tr>
-              <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-gray-600">Bank</th>
-              <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-gray-600">Side</th>
-              <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-gray-600">Total</th>
-              <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-gray-600">Untagged</th>
-              <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-gray-600">Multi-tagged</th>
-              <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-gray-600">Missing Mandatory</th>
-              <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-gray-600">Missing Optional</th>
-              <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-gray-600">Operator</th>
-              <th className="px-4 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wider text-gray-600">Status</th>
-              <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-gray-600">Action</th>
+              <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Bank</th>
+              <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Side</th>
+              <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Total</th>
+              <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Untagged</th>
+              <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Multi-tagged</th>
+              <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Missing Mandatory</th>
+              <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Missing Optional</th>
+              <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Operator</th>
+              <th className="px-4 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Status</th>
+              <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Action</th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-surface divide-y divide-divide">
             {stats.map((row) => {
               const isCheckedOut = checkouts.some((c) => c.bank === row.bank && c.side === row.side);
               return (
-                <tr key={`${row.bank}-${row.side}`} className={`transition-colors ${isCheckedOut ? 'bg-primary/5' : 'hover:bg-gray-50'}`}>
-                  <td className="px-4 py-2.5 text-xs font-medium text-gray-900">{row.bank}</td>
+                <tr key={`${row.bank}-${row.side}`} className={`transition-colors ${isCheckedOut ? 'bg-primary/5' : 'hover:bg-surface-hover'}`}>
+                  <td className="px-4 py-2.5 text-xs font-medium text-heading">{row.bank}</td>
                   <td className="px-4 py-2.5">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold
-                      ${row.side === 'CR' ? 'bg-emerald-50 text-emerald-700' : row.side === 'DR' ? 'bg-red-50 text-red-700' : 'bg-gray-100 text-gray-600'}`}>
+                      ${row.side === 'CR' ? 'bg-emerald-50 text-emerald-700' : row.side === 'DR' ? 'bg-red-50 text-red-700' : 'bg-surface-tertiary text-body-secondary'}`}>
                       {row.side} {sideLabel[row.side] ? `- ${sideLabel[row.side]}` : ''}
                     </span>
                   </td>
-                  <td className="px-4 py-2.5 text-xs text-gray-700 text-right font-medium">{row.totalTransactions.toLocaleString()}</td>
+                  <td className="px-4 py-2.5 text-xs text-body text-right font-medium">{row.totalTransactions.toLocaleString()}</td>
                   <td className="px-4 py-2.5 text-right"><StatBadge value={row.untaggedCount} color="red" /></td>
                   <td className="px-4 py-2.5 text-right"><StatBadge value={row.multiTaggedCount} color="yellow" /></td>
                   <td className="px-4 py-2.5 text-right"><StatBadge value={row.missingMandatoryAttributes} color="red" /></td>
                   <td className="px-4 py-2.5 text-right"><StatBadge value={row.missingOptionalAttributes} color="yellow" /></td>
-                  <td className="px-4 py-2.5 text-xs text-gray-600">
-                    {isCheckedOut ? <span className="text-primary-dark font-medium">Current User</span> : <span className="text-gray-300">-</span>}
+                  <td className="px-4 py-2.5 text-xs text-body-secondary">
+                    {isCheckedOut ? <span className="text-primary-dark font-medium">Current User</span> : <span className="text-faint">-</span>}
                   </td>
                   <td className="px-4 py-2.5 text-center">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium
-                      ${isCheckedOut ? 'bg-primary/15 text-primary-dark' : 'bg-gray-100 text-gray-500'}`}>
+                      ${isCheckedOut ? 'bg-primary/15 text-primary-dark' : 'bg-surface-tertiary text-muted'}`}>
                       {isCheckedOut ? 'In Progress' : 'Active'}
                     </span>
                   </td>
