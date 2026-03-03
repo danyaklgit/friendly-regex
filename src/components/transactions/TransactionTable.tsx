@@ -266,7 +266,7 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
                     className="rounded border-border-strong"
                   />
                   <span className={
-                    `truncate ${col.type === 'attribute' ? 'text-primary-dark' : ''} 
+                    `truncate ${col.type === 'attribute' ? 'text-primary-dark' : 'text-black dark:text-white'} 
                     ${isHidden ? 'font-normal' : 'font-medium'}
                     `
                   }>{label}</span>

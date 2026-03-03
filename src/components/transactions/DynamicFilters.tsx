@@ -188,7 +188,7 @@ function ShowOnlyDropdown({
             {SHOW_ONLY_OPTIONS.map((option) => (
               <label
                 key={option}
-                className="flex items-center gap-2 px-2 py-1 text-xs hover:bg-surface-hover rounded cursor-pointer"
+                className="flex items-center gap-2 px-2 py-1 text-xs hover:bg-surface-hover rounded cursor-pointer text-black dark:text-white"
               >
                 <input
                   type="checkbox"
@@ -308,7 +308,7 @@ function FilterDropdown({
               {values.map((val) => (
                 <label
                   key={val}
-                  className="flex items-center gap-2 px-2 py-1 text-xs hover:bg-surface-hover rounded cursor-pointer"
+                  className="flex items-center gap-2 px-2 py-1 text-xs hover:bg-surface-hover rounded cursor-pointer text-black dark:text-white"
                 >
                   <input
                     type="checkbox"
