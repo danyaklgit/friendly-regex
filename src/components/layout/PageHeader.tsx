@@ -8,7 +8,7 @@ interface PageHeaderProps {
 }
 
 export function PageHeader({ tabs, activeIndex, onTabChange }: PageHeaderProps) {
-  const { logout } = useAuth();
+  const { logout, username } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
   return (
@@ -32,7 +32,7 @@ export function PageHeader({ tabs, activeIndex, onTabChange }: PageHeaderProps) 
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-3">
-          {/* <span className="text-xs text-body">Welcome, {username}</span> */}
+          <span className="text-xs text-body">{username}</span>
           <button
             onClick={toggleTheme}
             className="text-muted hover:text-heading transition-colors cursor-pointer p-1"

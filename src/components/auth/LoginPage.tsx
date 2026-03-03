@@ -110,14 +110,17 @@ export function LoginPage() {
     setError(false);
     setLoading(true);
 
-    // Simulate network delay for realism
-    await new Promise((r) => setTimeout(r, 400));
-
-    const success = login(username, password);
-    setLoading(false);
-    if (!success) {
+    try {
+      const success = await login(username, password);
+      if (!success) {
+        setError(true);
+        setShakeKey((k) => k + 1);
+      }
+    } catch {
       setError(true);
       setShakeKey((k) => k + 1);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -163,16 +166,16 @@ export function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-1.5">
               <label htmlFor="username" className="block text-xs font-medium text-body-secondary dark:text-slate-300 pl-1">
-                Username
+                Email
               </label>
               <input
                 id="username"
-                type="text"
+                type="email"
                 value={username}
                 onChange={(e) => { setUsername(e.target.value); setError(false); }}
                 className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-heading placeholder:text-faint focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-slate-500 dark:focus:bg-white/[0.07]"
-                placeholder="Enter your username"
-                autoComplete="username"
+                placeholder="Enter your email"
+                autoComplete="email"
                 autoFocus
                 required
               />
@@ -221,9 +224,9 @@ export function LoginPage() {
           </form>
         </div>
 
-        {/* Footer hint */}
-        <p className="flex items-baseline justify-center gap-2 text-center text-xs text-muted dark:text-slate-500 mt-6">
-          Demo credentials: <span className="font-mono text-primary-dark">admin / admin</span>
+        {/* Footer */}
+        <p className="text-center text-xs text-muted dark:text-slate-500 mt-6">
+          Brought to you by <a href="https://swittle.com/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Swittle</a>
         </p>
       </div>
     </div>
