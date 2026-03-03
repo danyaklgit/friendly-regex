@@ -1,9 +1,12 @@
 @import "tailwindcss";
 @import "@abdulrysr/saudi-riyal-new-symbol-font/style.css";
+@import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700&display=swap');
 
 @theme {
-  --color-primary: #3b82f6;
-  --color-primary-dark: #2563eb;
+  --font-sans: 'Rubik', ui-sans-serif, system-ui, sans-serif;
+  --color-primary: #12bdce;
+  --color-primary-dark: #0ea5b5;
+  --color-primary-light: #5cd5e2;
   --color-success: #22c55e;
   --color-warning: #eab308;
   --color-danger: #ef4444;

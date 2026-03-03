@@ -24,6 +24,12 @@ export function TagRulesTab({ checkouts, onEditInTransactions }: TagRulesTabProp
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; tag: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const getLibKey = (lib: TagSpecLibrary) => {
+    const bank = getContextValue(lib.Context, 'BankSwiftCode') ?? '';
+    const side = getContextValue(lib.Context, 'Side') ?? '';
+    return `${bank}:${side}`;
+  };
+
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => {
     if (checkouts.length === 0) return new Set<string>();
     return new Set(
@@ -33,16 +39,15 @@ export function TagRulesTab({ checkouts, onEditInTransactions }: TagRulesTabProp
           const side = getContextValue(lib.Context, 'Side') ?? '';
           return !checkouts.some((c) => c.bank === bank && c.side === side);
         })
-        .map((lib) => lib.Id)
-        .filter((id): id is string => id !== null)
+        .map(getLibKey)
     );
   });
 
-  const toggleCollapse = (libId: string) => {
+  const toggleCollapse = (key: string) => {
     setCollapsedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(libId)) next.delete(libId);
-      else next.add(libId);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   };
@@ -179,13 +184,14 @@ export function TagRulesTab({ checkouts, onEditInTransactions }: TagRulesTabProp
             const side = getContextValue(lib.Context, 'Side') ?? '?';
             const bank = getContextValue(lib.Context, 'BankSwiftCode') ?? '?';
             const isCheckedOut = checkouts.some((c) => c.bank === bank && c.side === side);
-            const isCollapsed = lib.Id !== null && collapsedIds.has(lib.Id);
+            const libKey = getLibKey(lib);
+            const isCollapsed = collapsedIds.has(libKey);
             return (
-              <div key={lib.Id} className={isCheckedOut ? 'ring-1 ring-blue-300 bg-blue-50/30 rounded-lg p-3 pb-1 ' : ''}>
+              <div key={libKey} className={isCheckedOut ? 'ring-1 ring-primary/30 bg-primary/5 rounded-lg p-3 pb-1' : ''}>
                 <button
                   type="button"
-                  className="flex items-center gap-1.5 w-full text-left mb-2 group"
-                  onClick={() => lib.Id && toggleCollapse(lib.Id)}
+                  className="flex items-center gap-1.5 w-full text-left mb-2 group cursor-pointer"
+                  onClick={() => toggleCollapse(libKey)}
                 >
                   <svg
                     className={`w-3.5 h-3.5 text-gray-400 group-hover:text-gray-600 transition-transform ${isCollapsed ? '' : 'rotate-90'}`}
@@ -195,7 +201,7 @@ export function TagRulesTab({ checkouts, onEditInTransactions }: TagRulesTabProp
                   </svg>
                   <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
                     {bank} / {side}
-                    {isCheckedOut && <span className="ml-2 text-blue-600 normal-case font-medium">● Checked out</span>}
+                    {isCheckedOut && <span className="ml-2 text-primary normal-case font-medium">● Checked out</span>}
                     <span className="ml-2 text-gray-400 normal-case font-normal">
                       ({lib.TagSpecDefinitions.length} rule{lib.TagSpecDefinitions.length !== 1 ? 's' : ''})
                     </span>

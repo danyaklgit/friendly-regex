@@ -134,7 +134,7 @@ export function ConditionEditor({
             className="flex-1 cursor-pointer hover:bg-gray-100 rounded px-2 py-1.5 transition-colors"
             onClick={() => setEditing(true)}
           >
-            <p className="text-xs text-blue-500 italic">
+            <p className="text-xs text-primary italic">
               {humanizeFieldName(condition.sourceField)} &rarr; <span className='text-orange-500'>{preview}</span>
             </p>
           </div>
@@ -147,7 +147,7 @@ export function ConditionEditor({
       </div>
       {editing && preview && (
         <div className="mt-1 ml-3 flex items-center gap-2">
-          <p className="text-xs text-blue-500 italic text-left border-dashed border w-fit px-2 py-1">
+          <p className="text-xs text-primary italic text-left border-dashed border w-fit px-2 py-1">
             {humanizeFieldName(condition.sourceField)} &rarr; <span className='text-orange-500'>{preview}</span>
           </p>
           <Button variant="primary" size="sm" onClick={() => setEditing(false)}>

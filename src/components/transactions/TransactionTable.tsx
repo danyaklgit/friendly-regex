@@ -60,7 +60,7 @@ function getColumnInitials(col: ColumnDef): string {
 function getMinimapColor(type: ColumnDef['type']): string {
   switch (type) {
     case 'data': return 'bg-slate-300';
-    case 'attribute': return 'bg-indigo-400';
+    case 'attribute': return 'bg-primary';
     case 'tags': return 'bg-emerald-400';
     case 'dates': return 'bg-slate-300';
     case 'debit': return 'bg-emerald-300';
@@ -178,7 +178,7 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
       <button
         onClick={() => setOpen(!open)}
         className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${hiddenColumns.size > 0
-          ? 'bg-blue-50 border-blue-300 text-blue-700'
+          ? 'bg-primary/10 border-primary/30 text-primary-dark'
           : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
           }`}
       >
@@ -216,7 +216,7 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
             {onReset && !isDefault && (
               <button
                 onClick={onReset}
-                className="text-[11px] text-blue-600 hover:text-blue-800 px-2 py-0.5 hover:underline"
+                className="text-[11px] text-primary hover:text-primary-dark px-2 py-0.5 hover:underline"
               >
                 Reset
               </button>
@@ -247,7 +247,7 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
                   setOverIdx(null);
                 }}
                 onDragEnd={() => { setDragIdx(null); setOverIdx(null); }}
-                className={`flex items-center gap-2 px-2 py-1 text-xs hover:bg-gray-50 rounded cursor-grab active:cursor-grabbing select-none transition-colors ${isDragOver ? 'border-t-2 border-blue-400' : 'border-t-2 border-transparent'
+                className={`flex items-center gap-2 px-2 py-1 text-xs hover:bg-gray-50 rounded cursor-grab active:cursor-grabbing select-none transition-colors ${isDragOver ? 'border-t-2 border-primary' : 'border-t-2 border-transparent'
                   } ${dragIdx === i ? 'opacity-40' : ''}`}
               >
                 <svg className="w-3 h-3 text-gray-300 shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -266,7 +266,7 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
                     className="rounded border-gray-300"
                   />
                   <span className={
-                    `truncate ${col.type === 'attribute' ? 'text-indigo-600' : ''} 
+                    `truncate ${col.type === 'attribute' ? 'text-primary-dark' : ''} 
                     ${isHidden ? 'font-normal' : 'font-medium'}
                     `
                   }>{label}</span>
@@ -768,8 +768,8 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     <div className="rounded-lg border border-gray-200 flex flex-col" style={{ maxHeight: `calc(100vh - 15rem${builderHeight > 0 ? ` - ${builderHeight > 400 ? 100 : builderHeight + 25}px` : ''})` }}>
       {/* Selection action bar */}
       {hasSelection && onFlagDeadEnd && (
-        <div className="flex items-center gap-3 px-4 py-2 bg-blue-50 border-b border-blue-200 shrink-0">
-          <span className="text-xs font-medium text-blue-700">
+        <div className="flex items-center gap-3 px-4 py-2 bg-primary/10 border-b border-primary/20 shrink-0">
+          <span className="text-xs font-medium text-primary-dark">
             {selectedIds.size} selected
           </span>
           <button
@@ -815,7 +815,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
           ))}
           <div
             ref={viewportIndicatorRef}
-            className="absolute top-0 bottom-0 bg-blue-500/20 border-x-2 border-orange-500 rounded-sm pointer-events-none"
+            className="absolute top-0 bottom-0 bg-primary/20 border-x-2 border-orange-500 rounded-sm pointer-events-none"
           />
         </div>
       )}
@@ -830,7 +830,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                 return (
                   <th
                     key={col.key}
-                    className={`px-3 ${cellPy} text-left text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap ${isAttr ? 'text-indigo-600 bg-indigo-50' : 'text-gray-600 bg-gray-50'
+                    className={`px-3 ${cellPy} text-left text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap ${isAttr ? 'text-primary-dark bg-primary/10' : 'text-gray-600 bg-gray-50'
                       }`}
                     style={getCellStyle(idx, true)}
                   >
@@ -874,7 +874,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                 const isSelected = selectedIds.has(rowId);
                 const isDeadEnd = item.row['IsDeadEnd'] === true;
                 return (
-                  <tr key={i} className={`group transition-colors ${isDeadEnd ? 'bg-red-200/70 opacity-60' : 'hover:bg-gray-50'} ${isSelected ? '!bg-blue-50' : ''}`}>
+                  <tr key={i} className={`group transition-colors ${isDeadEnd ? 'bg-red-200/70 opacity-60' : 'hover:bg-gray-50'} ${isSelected ? 'bg-primary/10!' : ''}`}>
                     {visibleColumns.map((col, colIdx) => {
                       const isStickyCol = stickyLefts.has(colIdx) || stickyRights.has(colIdx);
                       const stickyBg = isStickyCol ? 'bg-white group-hover:bg-gray-50' : '';
@@ -961,8 +961,8 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                               key={col.key}
                               className={`px-3 ${cellPy} text-xs ${relaxedMode ? 'whitespace-nowrap' : ''}
                               ${validationIcon ? 'text-center' : 'text-left'}
-                              ${validationPassed === true ? 'text-emerald-500' : validationPassed === false ? 'text-red-400' : 'text-indigo-700'}
-                              ${isStickyCol ? 'bg-indigo-50/80 group-hover:bg-indigo-100/60' : 'bg-indigo-50/30'}`}
+                              ${validationPassed === true ? 'text-emerald-500' : validationPassed === false ? 'text-red-400' : 'text-primary-dark'}
+                              ${isStickyCol ? 'bg-primary/10 group-hover:bg-primary/15' : 'bg-primary/5'}`}
                               style={getCellStyle(colIdx, false)}
                             >
                               {displayVal ? <>{validationIcon}{displayVal}</> : <span className="text-gray-300">-</span>}
@@ -1009,7 +1009,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                                           }
                                           placement="left"
                                         >
-                                          <span className="text-left pl-2 text-[10px] text-blue-500 cursor-default mt-0.5 inline-block">
+                                          <span className="text-left pl-2 text-[10px] text-primary cursor-default mt-0.5 inline-block">
                                             Hints?
                                           </span>
                                         </Tooltip>

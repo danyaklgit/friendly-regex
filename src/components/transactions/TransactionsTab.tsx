@@ -430,7 +430,7 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
       <div className="flex items-center justify-between mb-1 min-h-10">
         <div className='flex flex-col md:flex-row items-start justify-end md:items-center gap-2'>
           <h2 className="text-base font-semibold text-gray-900">Transactions</h2>
-          <span className='text-sm mr-5 min-w-10 text-blue-700'>({filteredData.length})</span>
+          <span className='text-sm mr-5 min-w-10 text-primary-dark'>({filteredData.length})</span>
           <Toggle label="Compact mode" checked={relaxedMode} onChange={setRelaxedMode} />
           <Toggle label="Show attributes" checked={showAttributes} onChange={setShowAttributes} />
 
@@ -439,8 +439,8 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
               <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-gray-400 text-[8px] font-semibold text-gray-400">i</span>
               Data as provided by the bank(s)
             </span>
-            <span className="flex items-center gap-1 text-blue-500">
-              <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-blue-400 text-[8px] font-semibold text-blue-500">i</span>
+            <span className="flex items-center gap-1 text-primary">
+              <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-primary text-[8px] font-semibold text-primary">i</span>
               Enhanced data based on existing tag definitions
             </span>
             <span className="flex items-center gap-1 text-orange-500">
@@ -520,11 +520,11 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
 
       {/* Rule builder panel */}
       {builderOpen && (
-        <div ref={builderRef} className="flex flex-col mb-6 border border-blue-200 rounded-xl bg-blue-50/50 overflow-hidden">
-          <div className="px-5 py-3 bg-blue-100/60 border-b border-blue-200 flex items-center justify-between">
+        <div ref={builderRef} className="flex flex-col mb-6 border border-primary/20 rounded-xl bg-primary/5 overflow-hidden">
+          <div className="px-5 py-3 bg-primary/15 border-b border-primary/20 flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-semibold text-blue-900">Rule Builder</h3>
-              <p className="text-xs text-blue-700">
+              <h3 className="text-sm font-semibold text-primary-dark">Rule Builder</h3>
+              <p className="text-xs text-primary-dark">
                 Build rules and see their effect on the table in real time.
               </p>
             </div>
@@ -579,7 +579,7 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
           </div>
 
           <span className='flex justify-center items-baseline w-full text-slate-500 text-xs pb-2'>
-            Records: <span className='text-blue-500 pl-1 text-base'>{filteredData.length}</span>
+            Records: <span className='text-primary pl-1 text-base'>{filteredData.length}</span>
           </span>
 
         </div>

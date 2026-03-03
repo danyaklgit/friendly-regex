@@ -25,7 +25,7 @@ export function WizardStepIndicator({ currentStep, onStepClick, canReachStep }: 
             {i > 0 && (
               <div
                 className={`w-8 h-px mx-1 ${
-                  step <= currentStep ? 'bg-blue-400' : 'bg-gray-200'
+                  step <= currentStep ? 'bg-primary' : 'bg-gray-200'
                 }`}
               />
             )}
@@ -37,9 +37,9 @@ export function WizardStepIndicator({ currentStep, onStepClick, canReachStep }: 
                   isDisabled
                     ? 'bg-gray-100 text-gray-400 opacity-50 cursor-not-allowed'
                     : isActive
-                    ? 'bg-blue-600 text-white cursor-pointer'
+                    ? 'bg-primary text-white cursor-pointer'
                     : isCompleted
-                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-200 cursor-pointer'
+                    ? 'bg-primary/15 text-primary-dark hover:bg-primary/25 cursor-pointer'
                     : 'bg-gray-100 text-gray-500 hover:bg-gray-200 cursor-pointer'
                 }`}
             >
@@ -47,9 +47,9 @@ export function WizardStepIndicator({ currentStep, onStepClick, canReachStep }: 
                 className={`flex items-center justify-center w-5 h-5 rounded-full text-xs font-bold
                   ${
                     isActive
-                      ? 'bg-white text-blue-600'
+                      ? 'bg-white text-primary'
                       : isCompleted
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-primary text-white'
                       : 'bg-gray-300 text-white'
                   }`}
               >

@@ -75,7 +75,7 @@ export function StatsTab({ checkouts, onCheckout, onViewTransactions }: StatsTab
             {stats.map((row) => {
               const isCheckedOut = checkouts.some((c) => c.bank === row.bank && c.side === row.side);
               return (
-                <tr key={`${row.bank}-${row.side}`} className={`transition-colors ${isCheckedOut ? 'bg-blue-50/50' : 'hover:bg-gray-50'}`}>
+                <tr key={`${row.bank}-${row.side}`} className={`transition-colors ${isCheckedOut ? 'bg-primary/5' : 'hover:bg-gray-50'}`}>
                   <td className="px-4 py-2.5 text-xs font-medium text-gray-900">{row.bank}</td>
                   <td className="px-4 py-2.5">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold
@@ -89,11 +89,11 @@ export function StatsTab({ checkouts, onCheckout, onViewTransactions }: StatsTab
                   <td className="px-4 py-2.5 text-right"><StatBadge value={row.missingMandatoryAttributes} color="red" /></td>
                   <td className="px-4 py-2.5 text-right"><StatBadge value={row.missingOptionalAttributes} color="yellow" /></td>
                   <td className="px-4 py-2.5 text-xs text-gray-600">
-                    {isCheckedOut ? <span className="text-blue-700 font-medium">Current User</span> : <span className="text-gray-300">-</span>}
+                    {isCheckedOut ? <span className="text-primary-dark font-medium">Current User</span> : <span className="text-gray-300">-</span>}
                   </td>
                   <td className="px-4 py-2.5 text-center">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium
-                      ${isCheckedOut ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                      ${isCheckedOut ? 'bg-primary/15 text-primary-dark' : 'bg-gray-100 text-gray-500'}`}>
                       {isCheckedOut ? 'In Progress' : 'Active'}
                     </span>
                   </td>

@@ -61,7 +61,7 @@ function RangeSlider({
         <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-1 bg-gray-200 rounded" />
         {/* Active range */}
         <div
-          className="absolute top-1/2 -translate-y-1/2 h-1 bg-blue-500 rounded"
+          className="absolute top-1/2 -translate-y-1/2 h-1 bg-primary rounded"
           style={{ left: `${lowPct}%`, width: `${highPct - lowPct}%` }}
         />
         {/* Low thumb */}
@@ -75,7 +75,7 @@ function RangeSlider({
             const v = Number(e.target.value);
             onLowChange(Math.min(v, high));
           }}
-          className="absolute inset-0 w-full appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-600 [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow [&::-webkit-slider-thumb]:cursor-pointer"
+          className="absolute inset-0 w-full appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow [&::-webkit-slider-thumb]:cursor-pointer"
         />
         {/* High thumb */}
         <input
@@ -88,7 +88,7 @@ function RangeSlider({
             const v = Number(e.target.value);
             onHighChange(Math.max(v, low));
           }}
-          className="absolute inset-0 w-full appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-600 [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow [&::-webkit-slider-thumb]:cursor-pointer"
+          className="absolute inset-0 w-full appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow [&::-webkit-slider-thumb]:cursor-pointer"
         />
       </div>
     </div>
@@ -172,7 +172,7 @@ function ShowOnlyDropdown({
         onClick={() => setOpen(!open)}
         className={`text-xs px-3 py-1.5 rounded-lg border transition-colors whitespace-nowrap ${
           hasActive
-            ? 'bg-blue-50 border-blue-300 text-blue-700'
+            ? 'bg-primary/10 border-primary/30 text-primary-dark'
             : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
         }`}
       >
@@ -181,7 +181,7 @@ function ShowOnlyDropdown({
       {open && panelPos && createPortal(
         <div
           ref={panelRef}
-          className="fixed z-50 bg-white border border-gray-200 rounded-lg shadow-lg min-w-[160px]"
+          className="fixed z-50 bg-white border border-gray-200 rounded-lg shadow-lg min-w-40"
           style={{ top: panelPos.top, left: panelPos.left }}
         >
           <div className="p-2">
@@ -278,7 +278,7 @@ function FilterDropdown({
         onClick={() => setOpen(!open)}
         className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
           activeCount > 0 || isRangeActive
-            ? 'bg-blue-50 border-blue-300 text-blue-700'
+            ? 'bg-primary/10 border-primary/30 text-primary-dark'
             : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
         }`}
       >
@@ -290,7 +290,7 @@ function FilterDropdown({
         )} */}
       </button>
       {open && (
-        <div className="absolute top-full mt-1 left-0 z-50 bg-white border border-gray-200 rounded-lg shadow-lg min-w-[220px]">
+        <div className="absolute top-full mt-1 left-0 z-50 bg-white border border-gray-200 rounded-lg shadow-lg min-w-55">
           {numericInfo && (
             <div className={values.length <= 50 ? 'border-b border-gray-100' : ''}>
               <RangeSlider

@@ -8,7 +8,7 @@ interface TagBadgeProps {
 }
 
 const certaintyColors: Record<CertaintyLevelTag, string> = {
-  HIGH: 'bg-blue-100 text-blue-800 border-blue-200',
+  HIGH: 'bg-cyan-100 text-cyan-800 border-cyan-200',
   MEDIUM: 'bg-yellow-100 text-yellow-800 border-yellow-200',
   LOW: 'bg-gray-100 text-gray-700 border-gray-200',
 };
@@ -24,7 +24,7 @@ export function TagBadge({ tag, certainty = 'HIGH', isUserCreated = false, onCli
   return (
     <span
       className={`inline-flex items-center text-center px-2.5 py-0.5 rounded-full text-xs font-semibold border
-        ${colors} ${onClick ? 'cursor-pointer hover:ring-2 hover:ring-blue-300 transition-shadow' : ''}`}
+        ${colors} ${onClick ? 'cursor-pointer hover:ring-2 hover:ring-primary/30 transition-shadow' : ''}`}
       onClick={onClick}
     >
       {tag}

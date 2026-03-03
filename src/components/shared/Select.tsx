@@ -10,7 +10,7 @@ export function Select({ label, options, className = '', id, error, ...props }: 
   const selectId = id ?? label?.toLowerCase().replace(/\s+/g, '-');
   const borderClass = error
     ? 'border-red-400 focus:border-red-500 focus:ring-red-500'
-    : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500';
+    : 'border-gray-300 focus:border-primary focus:ring-primary';
   return (
     <div className="flex flex-col gap-1">
       {label && (

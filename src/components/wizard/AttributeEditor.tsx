@@ -188,7 +188,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
 
           <div className="flex items-center gap-2 justify-between">
             <div className="flex items-center gap-2">
-              <p className="text-xs text-blue-500 italic border-dashed border w-fit px-2 py-1">
+              <p className="text-xs text-primary italic border-dashed border w-fit px-2 py-1">
                 {humanizeFieldName(attribute.sourceField)} &rarr; <span className='text-orange-500'>{preview}</span>
               </p>
               {attribute.attributeTag.trim().length > 0 && (
@@ -205,7 +205,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
             )}
             {transactions && distinctValues.length > 0 && (
               <Button
-                variant="ghost" className='!text-purple-500' size="sm"
+                variant="ghost" className='text-purple-500!' size="sm"
                 onClick={() => setShowDistinct(true)}
               >
                 See all distinct values ({distinctValues.length})
@@ -220,9 +220,9 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
             onClick={() => setEditing(true)}
           >
             <p className="text-xs">
-              <span className="font-medium text-indigo-700">{attribute.attributeTag}</span>
+              <span className="font-medium text-primary-dark">{attribute.attributeTag}</span>
               <span className="text-gray-400 mx-1.5">&mdash;</span>
-              <span className="text-blue-500 italic">
+              <span className="text-primary italic">
                 {humanizeFieldName(attribute.sourceField)} &rarr; <span className='text-orange-500'>{preview}</span>
               </span>
             </p>
@@ -236,7 +236,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
             )}
             {transactions && distinctValues.length > 0 && (
               <Button
-                variant="ghost" className='!text-purple-500' size="sm"
+                variant="ghost" className='text-purple-500!' size="sm"
                 onClick={() => setShowDistinct(true)}
               >
                 See all distinct values ({distinctValues.length})
