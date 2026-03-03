@@ -1,6 +1,8 @@
 import { useState, useCallback } from 'react';
+import { useAuth } from './context/AuthContext';
 import { TagSpecProvider } from './context/TagSpecContext';
 import { TransactionDataProvider } from './context/TransactionDataContext';
+import { LoginPage } from './components/auth/LoginPage';
 import { TabContainer } from './components/layout/TabContainer';
 import { StatsTab } from './components/stats/StatsTab';
 import { TransactionsTab } from './components/transactions/TransactionsTab';
@@ -9,6 +11,7 @@ import type { CheckoutState, TagSpecDefinition, TagSpecLibrary } from './types';
 import { getContextValue } from './types/tagSpec';
 
 function App() {
+  const { isAuthenticated } = useAuth();
   const [activeTab, setActiveTab] = useState(0);
   const [checkouts, setCheckouts] = useState<CheckoutState[]>([]);
   const [activeCheckout, setActiveCheckout] = useState<CheckoutState | null>(null);
@@ -56,6 +59,8 @@ function App() {
     setEditFromRules({ definition: def, parentLib });
     setActiveTab(1);
   }, []);
+
+  if (!isAuthenticated) return <LoginPage />;
 
   return (
     <TagSpecProvider>
