@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
 import { sha256 } from '../utils/sha256';
 
 interface AuthContextValue {
@@ -9,17 +9,55 @@ interface AuthContextValue {
   getAuthHeaders: () => Record<string, string>;
 }
 
+interface StoredAuth {
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: number; // unix ms
+  username: string;
+}
+
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 const LOGIN_URL = '/api/identity/auth/login';
-const STORAGE_KEY = 'auth_token';
-const USERNAME_KEY = 'auth_username';
+const STORAGE_KEY = 'auth_session';
+
+function loadSession(): StoredAuth | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const session: StoredAuth = JSON.parse(raw);
+    if (Date.now() >= session.expiresAt) {
+      localStorage.removeItem(STORAGE_KEY);
+      return null;
+    }
+    return session;
+  } catch {
+    localStorage.removeItem(STORAGE_KEY);
+    return null;
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem(STORAGE_KEY));
-  const [username, setUsername] = useState<string | null>(() => localStorage.getItem(USERNAME_KEY));
+  const [session, setSession] = useState<StoredAuth | null>(loadSession);
 
-  const isAuthenticated = token !== null;
+  const isAuthenticated = session !== null;
+  const username = session?.username ?? null;
+
+  // Auto-logout when token expires
+  useEffect(() => {
+    if (!session) return;
+    const remaining = session.expiresAt - Date.now();
+    if (remaining <= 0) {
+      setSession(null);
+      localStorage.removeItem(STORAGE_KEY);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setSession(null);
+      localStorage.removeItem(STORAGE_KEY);
+    }, remaining);
+    return () => clearTimeout(timer);
+  }, [session]);
 
   const login = useCallback(async (user: string, pass: string): Promise<boolean> => {
     const hashedPassword = await sha256(pass);
@@ -36,24 +74,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!data.accessToken) return false;
 
-    localStorage.setItem(STORAGE_KEY, data.accessToken);
-    localStorage.setItem(USERNAME_KEY, user);
-    setToken(data.accessToken);
-    setUsername(user);
+    const newSession: StoredAuth = {
+      accessToken: data.accessToken,
+      refreshToken: data.refreshToken,
+      expiresAt: Date.now() + data.expiresIn * 1000,
+      username: user,
+    };
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(newSession));
+    setSession(newSession);
     return true;
   }, []);
 
   const logout = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem(USERNAME_KEY);
-    setToken(null);
-    setUsername(null);
+    setSession(null);
   }, []);
 
   const getAuthHeaders = useCallback((): Record<string, string> => {
-    if (!token) return {};
-    return { Authorization: `Bearer ${token}` };
-  }, [token]);
+    if (!session) return {};
+    return { Authorization: `Bearer ${session.accessToken}` };
+  }, [session]);
 
   return (
     <AuthContext.Provider value={{ isAuthenticated, username, login, logout, getAuthHeaders }}>
