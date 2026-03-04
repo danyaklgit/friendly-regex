@@ -287,7 +287,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
         <Modal open onClose={() => setShowDistinct(false)} title={`Distinct values for "${attribute.attributeTag || 'Attribute'}"`}>
           <div className="space-y-1">
             {distinctValues.map((val, i) => (
-              <div key={i} className="px-3 py-1.5 text-sm font-mono bg-surface-secondary rounded border border-border">
+              <div key={i} className="px-3 py-1.5 text-sm font-mono bg-surface-secondary rounded border border-border dark:text-primary-light">
                 {val}
               </div>
             ))}

@@ -28,7 +28,7 @@ export const TransactionDataContext = createContext<TransactionDataContextValue 
 const defaultTransactions = (sampleTransactionData as unknown as { Transactions: TransactionRow[] }).Transactions;
 
 export function TransactionDataProvider({ children }: { children: ReactNode }) {
-  const { useDummyData, userId, getAuthHeaders } = useAuth();
+  const { useDummyData, userId, getAuthHeaders, refreshIfNeeded } = useAuth();
   const tepConfig = useTepConfig();
   const isLiveMode = !useDummyData;
 
@@ -63,6 +63,9 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
 
   const fetchPage = useCallback(async (filters: Record<string, Set<string>>, append: boolean) => {
     if (!isLiveMode) return;
+
+    // Auto-refresh session if <5 min remaining
+    await refreshIfNeeded();
 
     const authHeaders = getAuthHeaders();
     const token = authHeaders.Authorization?.replace('Bearer ', '') ?? '';
@@ -108,7 +111,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, [isLiveMode, getAuthHeaders, userId, tepConfig]);
+  }, [isLiveMode, getAuthHeaders, refreshIfNeeded, userId, tepConfig]);
 
   return (
     <TransactionDataContext.Provider value={{

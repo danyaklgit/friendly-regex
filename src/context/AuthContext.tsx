@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { sha256 } from '../utils/sha256';
 import { loginApi, refreshTokenApi, logoutApi, getUserInfo } from '../api/identity';
 
@@ -15,6 +15,7 @@ interface AuthContextValue {
   refreshSession: () => Promise<boolean>;
   dismissWarning: () => void;
   getAuthHeaders: () => Record<string, string>;
+  refreshIfNeeded: () => Promise<void>;
 }
 
 interface StoredAuth {
@@ -31,6 +32,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 const STORAGE_KEY = 'auth_session';
 const WARNING_BEFORE_MS = 60_000; // show warning 1 minute before expiry
+const AUTO_REFRESH_THRESHOLD_MS = 5 * 60_000; // auto-refresh when <5 min remaining
 
 function loadSession(): StoredAuth | null {
   try {
@@ -178,10 +180,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { Authorization: `Bearer ${session.accessToken}` };
   }, [session]);
 
+  const refreshingRef = useRef(false);
+  const refreshIfNeeded = useCallback(async () => {
+    if (!session || refreshingRef.current) return;
+    const remaining = session.expiresAt - Date.now();
+    if (remaining > AUTO_REFRESH_THRESHOLD_MS) return;
+    refreshingRef.current = true;
+    try {
+      await refreshSession();
+    } finally {
+      refreshingRef.current = false;
+    }
+  }, [session, refreshSession]);
+
   return (
     <AuthContext.Provider value={{
       isAuthenticated, username, displayName, userId, useDummyData, expiresAt, showSessionWarning,
-      login, logout, refreshSession, dismissWarning, getAuthHeaders,
+      login, logout, refreshSession, dismissWarning, getAuthHeaders, refreshIfNeeded,
     }}>
       {children}
     </AuthContext.Provider>
