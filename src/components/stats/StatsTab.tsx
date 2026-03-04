@@ -50,8 +50,9 @@ export function StatsTab({ checkouts, onCheckout, onViewTransactions }: StatsTab
     <div>
       <div className="mb-4">
         {/* <h2 className="text-base font-semibold text-heading">Bank Statistics</h2> */}
-        <p className="text-sm text-muted mt-0.5 text-right text-primary-dark">
-          Check out a combination to start working.
+        <p className="text-sm mt-0.5 text-right text-primary-dark">
+          {/* Check out a combination to start working. */}
+          Check out a Tag Spec Library to start.
         </p>
       </div>
 
@@ -73,7 +74,8 @@ export function StatsTab({ checkouts, onCheckout, onViewTransactions }: StatsTab
           </thead>
           <tbody className="bg-surface divide-y divide-divide">
             {stats.map((row) => {
-              const isCheckedOut = checkouts.some((c) => c.bank === row.bank && c.side === row.side);
+              const checkout = checkouts.find((c) => c.bank === row.bank && c.side === row.side);
+              const isCheckedOut = !!checkout;
               return (
                 <tr key={`${row.bank}-${row.side}`} className={`transition-colors ${isCheckedOut ? 'bg-primary/5' : 'hover:bg-surface-hover'}`}>
                   <td className="px-4 py-2.5 text-xs font-medium text-heading">{row.bank}</td>
@@ -89,7 +91,7 @@ export function StatsTab({ checkouts, onCheckout, onViewTransactions }: StatsTab
                   <td className="px-4 py-2.5 text-right"><StatBadge value={row.missingMandatoryAttributes} color="red" /></td>
                   <td className="px-4 py-2.5 text-right"><StatBadge value={row.missingOptionalAttributes} color="yellow" /></td>
                   <td className="px-4 py-2.5 text-xs text-body-secondary">
-                    {isCheckedOut ? <span className="text-primary-dark font-medium">Current User</span> : <span className="text-faint">-</span>}
+                    {isCheckedOut ? <span className="text-primary-dark font-medium">{checkout?.operatorName ?? 'Current User'}</span> : <span className="text-faint">-</span>}
                   </td>
                   <td className="px-4 py-2.5 text-center">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium

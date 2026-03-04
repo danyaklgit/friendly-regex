@@ -10,7 +10,7 @@ interface PageHeaderProps {
 }
 
 export function PageHeader({ tabs, activeIndex, onTabChange }: PageHeaderProps) {
-  const { logout, username, expiresAt } = useAuth();
+  const { logout, username, displayName, expiresAt } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const timeRemaining = useTimeRemaining(expiresAt);
 
@@ -36,7 +36,7 @@ export function PageHeader({ tabs, activeIndex, onTabChange }: PageHeaderProps) 
         </nav>
         <div className="ml-auto flex items-center gap-3">
           <Tooltip content={timeRemaining} placement="bottom">
-            <span className="text-xs text-body">{username}</span>
+            <span className="text-xs text-body">{displayName ?? username}</span>
           </Tooltip>
           <button
             onClick={toggleTheme}

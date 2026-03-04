@@ -12,20 +12,22 @@ import type { CheckoutState, TagSpecDefinition, TagSpecLibrary } from './types';
 import { getContextValue } from './types/tagSpec';
 
 function App() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, displayName, username } = useAuth();
   const [activeTab, setActiveTab] = useState(0);
   const [checkouts, setCheckouts] = useState<CheckoutState[]>([]);
   const [activeCheckout, setActiveCheckout] = useState<CheckoutState | null>(null);
   const [editFromRules, setEditFromRules] = useState<{ definition: TagSpecDefinition; parentLib: TagSpecLibrary } | null>(null);
 
+  const operatorName = displayName ?? username ?? undefined;
+
   const handleCheckout = useCallback((bank: string, side: string) => {
     setCheckouts((prev) => {
       if (prev.some((c) => c.bank === bank && c.side === side)) return prev;
-      return [...prev, { bank, side }];
+      return [...prev, { bank, side, operatorName }];
     });
-    setActiveCheckout({ bank, side });
+    setActiveCheckout({ bank, side, operatorName });
     setActiveTab(1);
-  }, []);
+  }, [operatorName]);
 
   const handleViewTransactions = useCallback((bank: string, side: string) => {
     setActiveCheckout({ bank, side });
@@ -52,14 +54,14 @@ function App() {
   const handleEditInTransactions = useCallback((def: TagSpecDefinition, parentLib: TagSpecLibrary) => {
     const bank = getContextValue(parentLib.Context, 'BankSwiftCode') ?? '';
     const side = getContextValue(parentLib.Context, 'Side') ?? '';
-    setActiveCheckout({ bank, side });
+    setActiveCheckout({ bank, side, operatorName });
     setCheckouts((prev) => {
       if (prev.some((c) => c.bank === bank && c.side === side)) return prev;
-      return [...prev, { bank, side }];
+      return [...prev, { bank, side, operatorName }];
     });
     setEditFromRules({ definition: def, parentLib });
     setActiveTab(1);
-  }, []);
+  }, [operatorName]);
 
   if (!isAuthenticated) return <LoginPage />;
 

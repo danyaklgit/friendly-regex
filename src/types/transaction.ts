@@ -9,4 +9,5 @@ export interface TransactionData {
 export interface CheckoutState {
   bank: string;
   side: string;
+  operatorName?: string;
 }

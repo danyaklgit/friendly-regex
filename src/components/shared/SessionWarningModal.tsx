@@ -33,9 +33,9 @@ export function SessionWarningModal() {
     >
       <div className="text-center py-4">
         <div className="text-4xl mb-4">&#9200;</div>
-        <p className="text-body-secondary mb-2">
+        {/* <p className="text-body-secondary mb-2">
           You've been inactive for a while.
-        </p>
+        </p> */}
         <p className="text-heading font-medium text-lg">
           {timeRemaining}
         </p>

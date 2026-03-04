@@ -1,9 +1,11 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
 import { sha256 } from '../utils/sha256';
+import { loginApi, refreshTokenApi, logoutApi, getUserInfo } from '../api/identity';
 
 interface AuthContextValue {
   isAuthenticated: boolean;
   username: string | null;
+  displayName: string | null;
   expiresAt: number | null;
   showSessionWarning: boolean;
   login: (username: string, password: string) => Promise<boolean>;
@@ -18,12 +20,11 @@ interface StoredAuth {
   refreshToken: string;
   expiresAt: number; // unix ms
   username: string;
+  displayName: string | null;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const LOGIN_URL = '/api/identity/auth/login';
-const REFRESH_URL = '/api/identity/auth/refresh';
 const STORAGE_KEY = 'auth_session';
 const WARNING_BEFORE_MS = 60_000; // show warning 1 minute before expiry
 
@@ -49,6 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const isAuthenticated = session !== null;
   const username = session?.username ?? null;
+  const displayName = session?.displayName ?? null;
   const expiresAt = session?.expiresAt ?? null;
 
   // Dual timers: warning at 1min before, logout at expiry
@@ -72,7 +74,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (warningIn > 0) {
       timers.push(setTimeout(() => setShowSessionWarning(true), warningIn));
     } else {
-      // Less than 1 minute remaining — show warning immediately
       setShowSessionWarning(true);
     }
 
@@ -86,54 +87,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [session]);
 
   const login = useCallback(async (user: string, pass: string): Promise<boolean> => {
-    const hashedPassword = await sha256(pass);
+    try {
+      const hashedPassword = await sha256(pass);
+      const data = await loginApi({ Username: user, Password: hashedPassword });
 
-    const res = await fetch(LOGIN_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ Username: user, Password: hashedPassword }),
-    });
+      if (!data.accessToken) return false;
 
-    if (!res.ok) return false;
+      // Fetch user info to get display name
+      let name: string | null = null;
+      try {
+        const info = await getUserInfo(data.accessToken);
+        name = [info.firstName, info.lastName].filter(Boolean).join(' ') || null;
+      } catch {
+        // getUserInfo failed — proceed with email as fallback
+      }
 
-    const data = await res.json();
+      const newSession: StoredAuth = {
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+        expiresAt: Date.now() + data.expiresIn * 1000,
+        username: user,
+        displayName: name,
+      };
 
-    if (!data.accessToken) return false;
-
-    const newSession: StoredAuth = {
-      accessToken: data.accessToken,
-      refreshToken: data.refreshToken,
-      expiresAt: Date.now() + data.expiresIn * 1000,
-      username: user,
-    };
-
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newSession));
-    setSession(newSession);
-    return true;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newSession));
+      setSession(newSession);
+      return true;
+    } catch {
+      return false;
+    }
   }, []);
 
   const logout = useCallback(() => {
+    // Fire-and-forget server-side logout
+    if (session?.accessToken) {
+      logoutApi(session.accessToken).catch(() => {});
+    }
     localStorage.removeItem(STORAGE_KEY);
     setShowSessionWarning(false);
     setSession(null);
-  }, []);
+  }, [session]);
 
   const refreshSession = useCallback(async (): Promise<boolean> => {
     if (!session) return false;
 
     try {
-      const res = await fetch(REFRESH_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ RefreshToken: session.refreshToken }),
-      });
-
-      if (!res.ok) {
-        logout();
-        return false;
-      }
-
-      const data = await res.json();
+      const data = await refreshTokenApi(session.refreshToken);
 
       if (!data.accessToken) {
         logout();
@@ -145,6 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         refreshToken: data.refreshToken,
         expiresAt: Date.now() + data.expiresIn * 1000,
         username: session.username,
+        displayName: session.displayName,
       };
 
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newSession));
@@ -168,7 +168,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={{
-      isAuthenticated, username, expiresAt, showSessionWarning,
+      isAuthenticated, username, displayName, expiresAt, showSessionWarning,
       login, logout, refreshSession, dismissWarning, getAuthHeaders,
     }}>
       {children}
