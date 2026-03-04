@@ -72,7 +72,7 @@ function App() {
           activeIndex={activeTab}
           onTabChange={setActiveTab}
           tabs={[
-            { label: 'Stats', content: <StatsTab checkouts={checkouts} onCheckout={handleCheckout} onCheckin={handleCheckin} onViewTransactions={handleViewTransactions} /> },
+            { label: 'Overview', content: <StatsTab checkouts={checkouts} onCheckout={handleCheckout} onCheckin={handleCheckin} onViewTransactions={handleViewTransactions} /> },
             { label: 'Transactions', content: <TransactionsTab activeCheckout={activeCheckout} onCheckin={handleCheckin} onRelease={handleRelease} editFromRules={editFromRules} onClearEditFromRules={() => setEditFromRules(null)} /> },
             { label: 'Tag Rules', content: <TagRulesTab checkouts={checkouts} onEditInTransactions={handleEditInTransactions} /> },
           ]}

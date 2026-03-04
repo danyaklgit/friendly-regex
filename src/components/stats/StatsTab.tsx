@@ -49,9 +49,9 @@ export function StatsTab({ checkouts, onCheckout, onViewTransactions }: StatsTab
   return (
     <div>
       <div className="mb-4">
-        <h2 className="text-base font-semibold text-heading">Bank Statistics</h2>
-        <p className="text-sm text-muted mt-0.5">
-          Overview of transaction data by bank and side. Check out a combination to start working.
+        {/* <h2 className="text-base font-semibold text-heading">Bank Statistics</h2> */}
+        <p className="text-sm text-muted mt-0.5 text-right text-primary-dark">
+          Check out a combination to start working.
         </p>
       </div>
 
