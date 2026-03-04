@@ -4,6 +4,10 @@
     {
       "source": "/api/identity/:path*",
       "destination": "https://identity.swittlelab.com/:path*"
+    },
+    {
+      "source": "/api/tep/:path*",
+      "destination": "https://tepapi.swittlelab.com/:path*"
     }
   ]
 }

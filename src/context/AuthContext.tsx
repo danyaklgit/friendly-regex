@@ -6,9 +6,11 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   username: string | null;
   displayName: string | null;
+  userId: string | null;
+  useDummyData: boolean;
   expiresAt: number | null;
   showSessionWarning: boolean;
-  login: (username: string, password: string) => Promise<boolean>;
+  login: (username: string, password: string, useDummy?: boolean) => Promise<boolean>;
   logout: () => void;
   refreshSession: () => Promise<boolean>;
   dismissWarning: () => void;
@@ -21,6 +23,8 @@ interface StoredAuth {
   expiresAt: number; // unix ms
   username: string;
   displayName: string | null;
+  userId: string | null;
+  useDummyData: boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -51,6 +55,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isAuthenticated = session !== null;
   const username = session?.username ?? null;
   const displayName = session?.displayName ?? null;
+  const userId = session?.userId ?? null;
+  const useDummyData = session?.useDummyData ?? true;
   const expiresAt = session?.expiresAt ?? null;
 
   // Dual timers: warning at 1min before, logout at expiry
@@ -86,18 +92,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => timers.forEach(clearTimeout);
   }, [session]);
 
-  const login = useCallback(async (user: string, pass: string): Promise<boolean> => {
+  const login = useCallback(async (user: string, pass: string, useDummy = true): Promise<boolean> => {
     try {
       const hashedPassword = await sha256(pass);
       const data = await loginApi({ Username: user, Password: hashedPassword });
 
       if (!data.accessToken) return false;
 
-      // Fetch user info to get display name
+      // Fetch user info to get display name and userId
       let name: string | null = null;
+      let uid: string | null = null;
       try {
         const info = await getUserInfo(data.accessToken);
         name = [info.firstName, info.lastName].filter(Boolean).join(' ') || null;
+        uid = info.id || null;
       } catch {
         // getUserInfo failed — proceed with email as fallback
       }
@@ -108,6 +116,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         expiresAt: Date.now() + data.expiresIn * 1000,
         username: user,
         displayName: name,
+        userId: uid,
+        useDummyData: useDummy,
       };
 
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newSession));
@@ -145,6 +155,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         expiresAt: Date.now() + data.expiresIn * 1000,
         username: session.username,
         displayName: session.displayName,
+        userId: session.userId,
+        useDummyData: session.useDummyData,
       };
 
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newSession));
@@ -168,7 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={{
-      isAuthenticated, username, displayName, expiresAt, showSessionWarning,
+      isAuthenticated, username, displayName, userId, useDummyData, expiresAt, showSessionWarning,
       login, logout, refreshSession, dismissWarning, getAuthHeaders,
     }}>
       {children}

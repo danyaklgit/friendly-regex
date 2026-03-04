@@ -15,6 +15,12 @@ export default defineConfig(({ mode }) => {
           secure: true,
           rewrite: (path) => path.replace(/^\/api\/identity/, ''),
         },
+        '/api/tep': {
+          target: env.VITE_TEP_API_URL,
+          changeOrigin: true,
+          secure: true,
+          rewrite: (path) => path.replace(/^\/api\/tep/, ''),
+        },
       },
     },
   }

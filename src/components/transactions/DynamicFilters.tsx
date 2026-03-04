@@ -28,6 +28,7 @@ interface DynamicFiltersProps {
   onShowOnlyDeadEndChange: (value: boolean) => void;
   baseFilters?: FilterState;
   endSlot?: ReactNode;
+  isLiveMode?: boolean;
 }
 
 /** Dual-thumb range slider for numeric filters */
@@ -357,31 +358,44 @@ export function DynamicFilters({
   onShowOnlyDeadEndChange,
   baseFilters,
   endSlot,
+  isLiveMode,
 }: DynamicFiltersProps) {
   const [expanded, _setExpanded] = useState(true);
 
   const filterableColumns = useMemo(() => {
-    const excluded = new Set([...FILTER_EXCLUSIONS, fieldMeta.identifierField]);
     const result: { field: string; values: string[]; isNumeric: boolean }[] = [];
 
-    for (const field of fieldMeta.dataFields) {
-      if (excluded.has(field) || /date/i.test(field)) continue;
-      const distinctValues = new Set<string>();
-      let allNumeric = true;
-      for (const item of data) {
-        const val = item.row[field];
-        if (val !== null && val !== undefined && val !== '') {
-          const str = String(val);
-          distinctValues.add(str);
-          if (allNumeric && isNaN(Number(str))) allNumeric = false;
-        }
+    if (isLiveMode) {
+      // In live mode, only show fields that have active filter selections
+      for (const [field, selected] of Object.entries(filters)) {
+        if (field === '__tags') continue;
+        if (selected.size === 0) continue;
+        result.push({ field, values: Array.from(selected).sort(), isNumeric: false });
       }
-      const isNumeric = allNumeric && distinctValues.size > 0;
-      if (distinctValues.size >= 2 && (isNumeric || distinctValues.size <= 50)) {
-        const values = Array.from(distinctValues).sort(
-          isNumeric ? (a, b) => Number(a) - Number(b) : undefined
-        );
-        result.push({ field, values, isNumeric });
+    } else {
+      const excluded = new Set([...FILTER_EXCLUSIONS, fieldMeta.identifierField]);
+      const includedFields = new Set<string>();
+
+      for (const field of fieldMeta.dataFields) {
+        if (excluded.has(field) || /date/i.test(field)) continue;
+        const distinctValues = new Set<string>();
+        let allNumeric = true;
+        for (const item of data) {
+          const val = item.row[field];
+          if (val !== null && val !== undefined && val !== '') {
+            const str = String(val);
+            distinctValues.add(str);
+            if (allNumeric && isNaN(Number(str))) allNumeric = false;
+          }
+        }
+        const isNumeric = allNumeric && distinctValues.size > 0;
+        if (distinctValues.size >= 2 && (isNumeric || distinctValues.size <= 50)) {
+          const values = Array.from(distinctValues).sort(
+            isNumeric ? (a, b) => Number(a) - Number(b) : undefined
+          );
+          result.push({ field, values, isNumeric });
+          includedFields.add(field);
+        }
       }
     }
 
@@ -396,7 +410,7 @@ export function DynamicFilters({
     });
 
     return result;
-  }, [data, fieldMeta]);
+  }, [data, fieldMeta, filters, isLiveMode]);
 
   const tagFilterValues = useMemo(() => {
     if (tagDefinitions.length === 0) return null;
@@ -463,16 +477,18 @@ export function DynamicFilters({
 
       {expanded && (
         <div className="flex flex-wrap items-center gap-2 mt-2 p-3 bg-surface-secondary rounded-lg border border-border">
-          <ShowOnlyDropdown
-            showOnlyUntagged={showOnlyUntagged}
-            onShowOnlyUntaggedChange={onShowOnlyUntaggedChange}
-            showOnlyMultiTagged={showOnlyMultiTagged}
-            onShowOnlyMultiTaggedChange={onShowOnlyMultiTaggedChange}
-            showOnlyDeadEnd={showOnlyDeadEnd}
-            onShowOnlyDeadEndChange={onShowOnlyDeadEndChange}
-          />
+          {!isLiveMode && (
+            <ShowOnlyDropdown
+              showOnlyUntagged={showOnlyUntagged}
+              onShowOnlyUntaggedChange={onShowOnlyUntaggedChange}
+              showOnlyMultiTagged={showOnlyMultiTagged}
+              onShowOnlyMultiTaggedChange={onShowOnlyMultiTaggedChange}
+              showOnlyDeadEnd={showOnlyDeadEnd}
+              onShowOnlyDeadEndChange={onShowOnlyDeadEndChange}
+            />
+          )}
 
-          {tagFilterValues && (
+          {!isLiveMode && tagFilterValues && (
             <FilterDropdown
               label="Tags"
               values={tagFilterValues}

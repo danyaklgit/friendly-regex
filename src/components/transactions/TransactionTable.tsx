@@ -20,6 +20,7 @@ interface TransactionTableProps {
   columnOrder?: string[];
   onColumnsReady?: (columns: ColumnDef[]) => void;
   builderHeight?: number;
+  loading?: boolean;
 }
 
 type ColumnDef =
@@ -282,7 +283,7 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
 
 export type { ColumnDef };
 
-export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, highlightExpressions, stickyFields, onTagClick, onFlagDeadEnd, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady, builderHeight = 0 }: TransactionTableProps) {
+export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, highlightExpressions, stickyFields, onTagClick, onFlagDeadEnd, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady, builderHeight = 0, loading = false }: TransactionTableProps) {
   const { fieldMeta } = useTransactionData();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -865,7 +866,17 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                   colSpan={visibleColumns.length}
                   className="px-3 py-6 text-center text-xs text-faint"
                 >
-                  No transactions match the current filter.
+                  {loading ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <svg className="animate-spin h-4 w-4 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      <span>Loading transactions…</span>
+                    </div>
+                  ) : (
+                    'No transactions match the current filter.'
+                  )}
                 </td>
               </tr>
             ) : (

@@ -97,7 +97,10 @@ const BATCH_SIZE = 50;
 
 export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFromRules, onClearEditFromRules }: TransactionsTabProps) {
   const { libraries, tagDefinitions, originalDefinitionIds, dispatch } = useTagSpecs();
-  const { transactions, fieldMeta, loadTransactions, resetToSample, isCustomData, flagDeadEnd } = useTransactionData();
+  const {
+    transactions, fieldMeta, loadTransactions, resetToSample, isCustomData, flagDeadEnd,
+    isLiveMode, loading, hasMore: liveHasMore, fetchPage,
+  } = useTransactionData();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Rule builder state (reuses the wizard form hook)
@@ -194,6 +197,15 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
       setShowOnlyMultiTagged(false);
     }
   }, [baseFilters]);
+
+  // Live mode: fetch from API when filters change (debounced to avoid multiple calls during filter transitions)
+  useEffect(() => {
+    if (!isLiveMode) return;
+    const timer = setTimeout(() => {
+      fetchPage(filters, false);
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [isLiveMode, filters, fetchPage]);
   const [visibleCount, setVisibleCount] = useState(BATCH_SIZE);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardInitialState, setWizardInitialState] = useState<WizardFormState | undefined>(undefined);
@@ -285,7 +297,8 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
         result = result.filter((item) =>
           item.analysis.tags.some((tag) => selectedValues.has(tag))
         );
-      } else {
+      } else if (!isLiveMode) {
+        // In live mode, data-field filtering is handled server-side by the API
         result = result.filter((item) => {
           const val = item.row[field];
           return val !== null && val !== undefined && selectedValues.has(String(val));
@@ -294,7 +307,7 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
     }
 
     return result;
-  }, [analyzedData, showOnlyUntagged, showOnlyMultiTagged, showOnlyDeadEnd, filters]);
+  }, [analyzedData, showOnlyUntagged, showOnlyMultiTagged, showOnlyDeadEnd, filters, isLiveMode]);
 
   // Reset visible count when filters or data change
   const filteredLen = filteredData.length;
@@ -303,10 +316,10 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
   }, [filteredLen]);
 
   const visibleData = useMemo(
-    () => filteredData.slice(0, visibleCount),
-    [filteredData, visibleCount]
+    () => isLiveMode ? filteredData : filteredData.slice(0, visibleCount),
+    [filteredData, visibleCount, isLiveMode]
   );
-  const hasMore = visibleCount < filteredLen;
+  const hasMore = isLiveMode ? liveHasMore : visibleCount < filteredLen;
 
   // Flatten temp definition's rule expressions for highlighting
   const highlightExpressions: RuleExpression[] | undefined = useMemo(() => {
@@ -458,12 +471,12 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
             className="hidden"
             onChange={handleFileUpload}
           />
-          {!builderOpen && <Button variant="primary" size="sm" onClick={() => {
+          {!builderOpen && !isLiveMode && <Button variant="primary" size="sm" onClick={() => {
             fileInputRef.current?.click()
           }}>
             Upload Data
           </Button>}
-          {isCustomData && (
+          {isCustomData && !isLiveMode && (
             <Button variant="danger" size="sm" onClick={resetToSample}>
               Reset to Sample
             </Button>
@@ -512,6 +525,7 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
         showOnlyDeadEnd={showOnlyDeadEnd}
         onShowOnlyDeadEndChange={setShowOnlyDeadEnd}
         baseFilters={baseFilters}
+        isLiveMode={isLiveMode}
         endSlot={tableColumns.length > 0 ? (
           <ColumnPicker columns={tableColumns} hiddenColumns={hiddenColumns} onChange={setHiddenColumns} columnOrder={columnOrder} onColumnOrderChange={setColumnOrder} showAttributes={showAttributes} defaultHiddenColumns={defaultHiddenColumns} onReset={handleColumnReset} />
         ) : undefined}
@@ -599,16 +613,31 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
         columnOrder={columnOrder}
         onColumnsReady={setTableColumns}
         builderHeight={builderHeight}
+        loading={loading}
       />
 
-      {hasMore && (
+      {(hasMore || loading) && (
         <div className="flex items-center justify-center gap-3 py-2 mt-1 border border-border bg-surface-secondary rounded-lg">
-          <span className="text-xs text-muted">
-            Showing {visibleCount.toLocaleString()} of {filteredLen.toLocaleString()}
-          </span>
-          <Button variant="secondary" size="sm" onClick={() => setVisibleCount((c) => c + BATCH_SIZE)}>
-            Show more
-          </Button>
+          {loading ? (
+            <span className="text-xs text-muted">Loading…</span>
+          ) : (
+            <>
+              {!isLiveMode && (
+                <span className="text-xs text-muted">
+                  Showing {visibleCount.toLocaleString()} of {filteredLen.toLocaleString()}
+                </span>
+              )}
+              <Button variant="secondary" size="sm" onClick={() => {
+                if (isLiveMode) {
+                  fetchPage(filters, true);
+                } else {
+                  setVisibleCount((c) => c + BATCH_SIZE);
+                }
+              }}>
+                Show more
+              </Button>
+            </>
+          )}
         </div>
       )}
 

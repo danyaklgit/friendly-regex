@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { useAuth } from './context/AuthContext';
 import { TagSpecProvider } from './context/TagSpecContext';
 import { TransactionDataProvider } from './context/TransactionDataContext';
+import { TepConfigProvider } from './context/TepConfigContext';
 import { LoginPage } from './components/auth/LoginPage';
 import { TabContainer } from './components/layout/TabContainer';
 import { StatsTab } from './components/stats/StatsTab';
@@ -66,6 +67,7 @@ function App() {
   if (!isAuthenticated) return <LoginPage />;
 
   return (
+    <TepConfigProvider>
     <TagSpecProvider>
       <TransactionDataProvider>
       <SessionWarningModal />
@@ -82,6 +84,7 @@ function App() {
       </div>
       </TransactionDataProvider>
     </TagSpecProvider>
+    </TepConfigProvider>
   );
 }
 

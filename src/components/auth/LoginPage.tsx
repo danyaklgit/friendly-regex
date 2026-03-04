@@ -101,6 +101,7 @@ export function LoginPage() {
   const { theme, toggleTheme } = useTheme();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [useDummy, setUseDummy] = useState(true);
   const [error, setError] = useState(false);
   const [shakeKey, setShakeKey] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -111,7 +112,7 @@ export function LoginPage() {
     setLoading(true);
 
     try {
-      const success = await login(username, password);
+      const success = await login(username, password, useDummy);
       if (!success) {
         setError(true);
         setShakeKey((k) => k + 1);
@@ -196,6 +197,16 @@ export function LoginPage() {
                 required
               />
             </div>
+
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={useDummy}
+                onChange={(e) => setUseDummy(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary/50 dark:border-white/20 dark:bg-white/5 cursor-pointer"
+              />
+              <span className="text-xs text-body-secondary dark:text-slate-400">Use dummy transactions</span>
+            </label>
 
             {/* Error message */}
             {error && (
