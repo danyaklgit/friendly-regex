@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import { useTagSpecs } from '../../hooks/useTagSpecs';
 import type { TagSpecDefinition, TagSpecLibrary, CheckoutState } from '../../types';
 import type { WizardFormResult } from '../../hooks/useWizardForm';
@@ -30,18 +30,18 @@ export function TagRulesTab({ checkouts, onEditInTransactions }: TagRulesTabProp
     return `${bank}:${side}`;
   };
 
-  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => {
-    if (checkouts.length === 0) return new Set<string>();
-    return new Set(
-      libraries
-        .filter((lib) => {
-          const bank = getContextValue(lib.Context, 'BankSwiftCode') ?? '';
-          const side = getContextValue(lib.Context, 'Side') ?? '';
-          return !checkouts.some((c) => c.bank === bank && c.side === side);
-        })
-        .map(getLibKey)
-    );
-  });
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() =>
+    new Set(libraries.map(getLibKey))
+  );
+
+  // Collapse any newly added pairs
+  useEffect(() => {
+    setCollapsedIds((prev) => {
+      const next = new Set(prev);
+      for (const lib of libraries) next.add(getLibKey(lib));
+      return next;
+    });
+  }, [libraries]);
 
   const toggleCollapse = (key: string) => {
     setCollapsedIds((prev) => {
