@@ -150,10 +150,10 @@ export function LoginPage() {
 
       <div className="relative w-full max-w-sm mx-4">
         {/* Card */}
-        <div key={shakeKey} className={`bg-white border border-gray-200 shadow-xl dark:bg-white/6 dark:backdrop-blur-xl dark:border-white/10 dark:shadow-[0_24px_64px_-16px_rgba(18,189,206,0.12),0_8px_24px_-8px_rgba(0,0,0,0.3)] rounded-2xl p-8 transition-transform duration-300 ${error ? 'animate-shake' : ''}`}>
+        <div key={shakeKey} className={`border border-gray-200 dark:bg-black/20 bg-white/50 dark:border-gray-700 shadow-xl  dark:shadow-[0_24px_64px_-16px_rgba(18,189,206,0.12),0_8px_24px_-8px_rgba(0,0,0,0.3)] rounded-2xl p-8 transition-transform duration-300 ${error ? 'animate-shake' : ''}`}>
           {/* Header */}
           <div className="text-center mb-8">
-            <img src="https://swittle.com/swittle%20logo.png" alt="Swittle" className="h-10 mx-auto mb-7" />
+            <img src="https://swittle.com/swittle%20logo.png" alt="Swittle" className="h-8 mx-auto mb-7" />
             <h1 className="text-xl font-semibold text-heading dark:text-white">Transactions Enrichment Program</h1>
             <p className="text-sm text-muted dark:text-slate-400 mt-1">Sign in to continue</p>
           </div>
@@ -169,7 +169,7 @@ export function LoginPage() {
                 type="email"
                 value={username}
                 onChange={(e) => { setUsername(e.target.value); setError(false); }}
-                className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-heading placeholder:text-faint focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-slate-500 dark:focus:bg-white/[0.07]"
+                className="w-full rounded-lg border backdrop-blur-2xl border-gray-300 bg-white px-3.5 py-2.5 text-sm text-heading placeholder:text-faint focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-slate-500 dark:focus:bg-white/[0.07]"
                 placeholder="Enter your email"
                 autoComplete="email"
                 autoFocus
@@ -186,7 +186,7 @@ export function LoginPage() {
                 type="password"
                 value={password}
                 onChange={(e) => { setPassword(e.target.value); setError(false); }}
-                className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-heading placeholder:text-faint focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-slate-500 dark:focus:bg-white/[0.07]"
+                className="w-full rounded-lg border  backdrop-blur-2xl border-gray-300 bg-white px-3.5 py-2.5 text-sm text-heading placeholder:text-faint focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-slate-500 dark:focus:bg-white/[0.07]"
                 placeholder="Enter your password"
                 autoComplete="current-password"
                 required
