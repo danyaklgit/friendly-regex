@@ -10,6 +10,8 @@
  */
 export function humanizeFieldName(name: string): string {
   return name
+    // Replace underscores with spaces: "Additional_Information" → "Additional Information"
+    .replace(/_/g, ' ')
     // Insert space before uppercase letters that follow lowercase letters: "bankSwift" → "bank Swift"
     .replace(/([a-z])([A-Z])/g, '$1 $2')
     // Insert space before uppercase letter followed by lowercase, when preceded by uppercase: "IBANCode" → "IBAN Code"

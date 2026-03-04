@@ -1,4 +1,4 @@
-import { createContext, useState, useMemo, useCallback, useRef, type ReactNode } from 'react';
+import { createContext, useState, useMemo, useCallback, useRef, useEffect, type ReactNode } from 'react';
 import type { TransactionRow } from '../types';
 import { deriveFieldMeta, type FieldMeta } from '../utils/deriveFieldMeta';
 import { translateFilters } from '../utils/translateFilters';
@@ -20,6 +20,7 @@ export interface TransactionDataContextValue {
   isLiveMode: boolean;
   loading: boolean;
   hasMore: boolean;
+  totalTransactionsCount: number | null;
   fetchPage: (filters: Record<string, Set<string>>, append: boolean) => Promise<void>;
 }
 
@@ -36,7 +37,9 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
   const [isCustomData, setIsCustomData] = useState(false);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(false);
+  const [totalTransactionsCount, setTotalTransactionsCount] = useState<number | null>(null);
   const currentPageRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
 
   const fieldMeta = useMemo(() => deriveFieldMeta(transactions), [transactions]);
 
@@ -82,6 +85,11 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
 
     const pageIndex = append ? currentPageRef.current + 1 : 0;
 
+    // Abort any in-flight request before starting a new one
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     if (!append) {
       setTransactions([]);
     }
@@ -95,11 +103,16 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
         },
         token,
         tepHeaders,
+        controller.signal,
       );
 
       const rows = data.Transactions ?? [];
       currentPageRef.current = pageIndex;
       setHasMore(rows.length >= PAGE_SIZE);
+
+      if (!append && data.TransactionsCount != null) {
+        setTotalTransactionsCount(data.TransactionsCount);
+      }
 
       if (append) {
         setTransactions((prev) => [...prev, ...rows]);
@@ -107,16 +120,20 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
         setTransactions(rows);
       }
     } catch (err) {
+      if ((err as Error).name === 'AbortError') return;
       console.error('Failed to fetch transactions:', err);
     } finally {
       setLoading(false);
     }
   }, [isLiveMode, getAuthHeaders, refreshIfNeeded, userId, tepConfig]);
 
+  // Abort pending requests on unmount
+  useEffect(() => () => { abortRef.current?.abort(); }, []);
+
   return (
     <TransactionDataContext.Provider value={{
       transactions, fieldMeta, loadTransactions, resetToSample, isCustomData, flagDeadEnd,
-      isLiveMode, loading, hasMore, fetchPage,
+      isLiveMode, loading, hasMore, totalTransactionsCount, fetchPage,
     }}>
       {children}
     </TransactionDataContext.Provider>

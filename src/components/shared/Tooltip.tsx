@@ -18,9 +18,11 @@ interface TooltipProps {
   content: ReactNode;
   placement?: Placement;
   children: ReactElement<Record<string, unknown>>;
+  offsetAmount?: number;
+  delay?: number;
 }
 
-export function Tooltip({ content, placement = 'top', children }: TooltipProps) {
+export function Tooltip({ content, placement = 'top', children, offsetAmount = 6, delay = 200 }: TooltipProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   const { refs, floatingStyles, context } = useFloating({
@@ -28,10 +30,10 @@ export function Tooltip({ content, placement = 'top', children }: TooltipProps) 
     onOpenChange: setIsOpen,
     placement,
     whileElementsMounted: autoUpdate,
-    middleware: [offset(6), flip(), shift({ padding: 5 })],
+    middleware: [offset(offsetAmount), flip(), shift({ padding: 5 })],
   });
 
-  const hover = useHover(context, { move: false, delay: { open: 200 } });
+  const hover = useHover(context, { move: false, delay: { open: delay } });
   const focus = useFocus(context);
   const dismiss = useDismiss(context);
   const role = useRole(context, { role: 'tooltip' });

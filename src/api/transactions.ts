@@ -50,7 +50,8 @@ export async function getTransactions(
   request: GetTransactionsRequest,
   authToken: string,
   tepHeaders: TepHeaders,
-): Promise<{ Transactions: TransactionRow[] }> {
+  signal?: AbortSignal,
+): Promise<{ Transactions: TransactionRow[]; TransactionsCount?: number }> {
   const res = await fetch(`${BASE}/GetMT940Transactions`, {
     method: 'POST',
     headers: {
@@ -66,6 +67,7 @@ export async function getTransactions(
       TimeZone: tepHeaders.timeZone,
     },
     body: JSON.stringify(request),
+    signal,
   });
 
   if (!res.ok) throw new Error('Failed to fetch transactions');

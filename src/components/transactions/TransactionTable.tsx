@@ -5,6 +5,7 @@ import { PREDEFINED_PATTERNS } from '../../constants/operations';
 import { TagBadge } from './TagBadge';
 import { Tooltip } from '../shared/Tooltip';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
+import { decomposeExtractionRegex } from '../../utils/engregxify';
 
 interface TransactionTableProps {
   data: AnalyzedTransaction[];
@@ -21,6 +22,7 @@ interface TransactionTableProps {
   onColumnsReady?: (columns: ColumnDef[]) => void;
   builderHeight?: number;
   loading?: boolean;
+  accentHue?: number;
 }
 
 type ColumnDef =
@@ -43,7 +45,7 @@ const DATE_GROUP_LABELS: Record<string, string> = {
 function getColumnLabel(col: ColumnDef): string {
   switch (col.type) {
     case 'data': return humanizeFieldName(col.field);
-    case 'attribute': return col.name;
+    case 'attribute': return humanizeFieldName(col.name);
     case 'tags': return 'Tags';
     case 'dates': return 'Dates';
     case 'debit': return 'Debit Amount';
@@ -53,20 +55,40 @@ function getColumnLabel(col: ColumnDef): string {
 
 function getColumnInitials(col: ColumnDef): string {
   const label = getColumnLabel(col);
-  const words = label.split(/[\s/]+/).filter(Boolean);
+  // Split on spaces/slashes first, then split camelCase within each token
+  const tokens = label.split(/[\s/]+/).filter(Boolean);
+  const words = tokens.flatMap((t) => t.split(/(?=[A-Z])/)).filter(Boolean);
   if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
   return words.map((w) => w[0]).join('').toUpperCase();
 }
 
 function getMinimapColor(type: ColumnDef['type']): string {
   switch (type) {
-    case 'data': return 'bg-slate-300';
-    case 'attribute': return 'bg-primary';
-    case 'tags': return 'bg-emerald-400';
-    case 'dates': return 'bg-slate-300';
-    case 'debit': return 'bg-emerald-300';
-    case 'credit': return 'bg-red-300';
+    case 'data': return 'text-slate-500';
+    case 'attribute': return 'text-primary';
+    case 'tags': return 'text-emerald-500';
+    case 'dates': return 'text-slate-400';
+    case 'debit': return 'text-red-400';
+    case 'credit': return 'text-emerald-400';
   }
+}
+
+function getMinimapBorderColor(type: ColumnDef['type']): string | null {
+  switch (type) {
+    case 'attribute': return '#3b82f6'; // blue-500
+    case 'debit': return '#ef4444';     // red-500
+    case 'credit': return '#10b981';    // emerald-500
+    default: return null;
+  }
+}
+
+function getColumnAccentColor(index: number, total: number, baseHue = 190): string {
+  const hueRange = 30;
+  const t = index / Math.max(total - 1, 1); // 0 → 1
+  const hue = baseHue - hueRange / 2 + t * hueRange;
+  const lightness = 82 - t * 57; // 82% (lightest) → 25% (darkest)
+  const saturation = 40 + t * 25; // 40% → 65%
+  return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
 }
 
 function highlightText(text: string, regexes: RegExp[]): ReactNode {
@@ -111,13 +133,12 @@ function highlightText(text: string, regexes: RegExp[]): ReactNode {
   return <>{parts}</>;
 }
 
-export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, onColumnOrderChange, showAttributes = true, defaultHiddenColumns, onReset }: {
+export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, onColumnOrderChange, defaultHiddenColumns, onReset }: {
   columns: ColumnDef[];
   hiddenColumns: Set<string>;
   onChange: (hidden: Set<string>) => void;
   columnOrder?: string[];
   onColumnOrderChange?: (order: string[]) => void;
-  showAttributes?: boolean;
   defaultHiddenColumns?: Set<string>;
   onReset?: () => void;
 }) {
@@ -134,10 +155,10 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Exclude tags column (always visible) and optionally attribute columns
+  // Exclude tags (always visible) and attributes (follow their source field, not independently sortable)
   const toggleable = columns.filter((col) => {
     if (col.type === 'tags') return false;
-    if (!showAttributes && col.type === 'attribute') return false;
+    if (col.type === 'attribute') return false;
     return true;
   });
 
@@ -283,7 +304,7 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
 
 export type { ColumnDef };
 
-export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, highlightExpressions, stickyFields, onTagClick, onFlagDeadEnd, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady, builderHeight = 0, loading = false }: TransactionTableProps) {
+export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, highlightExpressions, stickyFields, onTagClick, onFlagDeadEnd, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady, builderHeight = 0, loading = false, accentHue = 190 }: TransactionTableProps) {
   const { fieldMeta } = useTransactionData();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -325,6 +346,8 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
   const viewportIndicatorRef = useRef<HTMLDivElement>(null);
   const minimapBarRef = useRef<HTMLDivElement>(null);
   const scrollInfoRef = useRef({ scrollLeft: 0, clientWidth: 0, scrollWidth: 0 });
+  const stickyLeftWidthRef = useRef(0);
+  const tagsColWidthRef = useRef(0);
 
   const [stickyLefts, setStickyLefts] = useState<Map<number, number>>(new Map());
   const [stickyRights, setStickyRights] = useState<Map<number, number>>(new Map());
@@ -478,21 +501,54 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
   const visibleColumns = useMemo(() => {
     let result = columns;
     if (!showAttributes) result = result.filter((col) => col.type !== 'attribute');
-    if (hiddenColumns.size > 0) result = result.filter((col) => !hiddenColumns.has(col.key));
-    // Always apply ordering — Tags stays first, rest sorted by custom or default order
-    const order = columnOrder && columnOrder.length > 0 ? columnOrder : DEFAULT_COLUMN_ORDER;
+    if (hiddenColumns.size > 0) result = result.filter((col) => col.type === 'attribute' || !hiddenColumns.has(col.key));
+
+    // Separate tags, attributes, and sortable columns
     const tags = result.filter((col) => col.type === 'tags');
-    const rest = result.filter((col) => col.type !== 'tags');
+    const attrs = result.filter((col) => col.type === 'attribute');
+    const sortable = result.filter((col) => col.type !== 'tags' && col.type !== 'attribute');
+
+    // Sort only non-attribute columns by custom or default order
+    const order = columnOrder && columnOrder.length > 0 ? columnOrder : DEFAULT_COLUMN_ORDER;
     const orderMap = new Map(order.map((key, idx) => [key, idx]));
-    rest.sort((a, b) => {
+    sortable.sort((a, b) => {
       const ai = orderMap.get(a.key) ?? Infinity;
       const bi = orderMap.get(b.key) ?? Infinity;
       if (ai === Infinity && bi === Infinity) return 0;
       return ai - bi;
     });
-    result = [...tags, ...rest];
-    return result;
-  }, [columns, showAttributes, hiddenColumns, columnOrder]);
+
+    // Group attributes by their source field key
+    const attrsBySourceKey = new Map<string, ColumnDef[]>();
+    for (const attr of attrs) {
+      if (attr.type === 'attribute') {
+        const sourceField = attrSourceMap.get(attr.name);
+        const sourceKey = sourceField ? `data:${sourceField}` : null;
+        if (sourceKey) {
+          if (!attrsBySourceKey.has(sourceKey)) attrsBySourceKey.set(sourceKey, []);
+          attrsBySourceKey.get(sourceKey)!.push(attr);
+        }
+      }
+    }
+
+    // Re-insert attributes after their source field
+    const final: ColumnDef[] = [...tags];
+    for (const col of sortable) {
+      final.push(col);
+      const followingAttrs = attrsBySourceKey.get(col.key);
+      if (followingAttrs) {
+        final.push(...followingAttrs);
+        attrsBySourceKey.delete(col.key);
+      }
+    }
+
+    // Orphan attributes (no matching source field in view) go at the end
+    for (const remaining of attrsBySourceKey.values()) {
+      final.push(...remaining);
+    }
+
+    return final;
+  }, [columns, showAttributes, hiddenColumns, columnOrder, attrSourceMap]);
 
   // Determine which column indices should be sticky, split into left/right groups
   const { leftIndices, rightIndices } = useMemo(() => {
@@ -568,6 +624,11 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
 
     setStickyLefts(lefts);
     setStickyRights(rights);
+    stickyLeftWidthRef.current = cumLeft;
+
+    // Measure Tags column width for minimap coordinate mapping
+    const tagsIdx = visibleColumns.findIndex((col) => col.type === 'tags');
+    tagsColWidthRef.current = tagsIdx !== -1 ? (ths[tagsIdx]?.offsetWidth ?? 0) : 0;
   }, [visibleColumns, leftIndices, rightIndices, data]);
 
   // --- Minimap scroll tracking (via refs, no re-renders) ---
@@ -577,8 +638,13 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     const el = viewportIndicatorRef.current;
     if (!el || scrollWidth <= 0) return;
 
-    const vpLeft = (scrollLeft / scrollWidth) * 100;
-    const vpWidth = (clientWidth / scrollWidth) * 100;
+    // Minimap excludes Tags column — map to non-Tags coordinate space
+    const tagsW = tagsColWidthRef.current;
+    const nonTagsTotal = scrollWidth - tagsW;
+    if (nonTagsTotal <= 0) return;
+
+    const vpLeft = (scrollLeft / nonTagsTotal) * 100;
+    const vpWidth = ((clientWidth - tagsW) / nonTagsTotal) * 100;
     el.style.left = `${vpLeft}%`;
     el.style.width = `${vpWidth}%`;
 
@@ -587,20 +653,18 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     const barWidth = bar.offsetWidth;
     if (barWidth <= 0) return;
 
-    const vpStart = vpLeft;
     const vpEnd = vpLeft + vpWidth;
     const children = bar.children;
     for (let i = 0; i < children.length - 1; i++) {
       const child = children[i] as HTMLElement;
       const blockStart = (child.offsetLeft / barWidth) * 100;
       const blockEnd = ((child.offsetLeft + child.offsetWidth) / barWidth) * 100;
+      const inView = blockStart < vpEnd && blockEnd > vpLeft;
+      child.style.opacity = inView ? '1' : '0.4';
       const span = child.querySelector('span');
       if (span) {
-        const inView = blockStart < vpEnd && blockEnd > vpStart;
         span.style.fontWeight = inView ? '700' : '300';
         span.style.fontSize = inView ? '10px' : '9px';
-        // span.style.color = inView ? 'rgba(0,0,0,0.9)' : 'rgba(0,0,0,0.6)';
-        // span.classList.toggle('text-slate-300', inView);
         if (inView) {
           span.classList.remove('text-slate-600');
         } else {
@@ -634,36 +698,48 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     };
   }, [visibleColumns, data, updateViewportIndicator]);
 
-  // Minimap: proportional block widths
+  // Per-column accent colors for minimap ↔ header visual link
+  const columnAccentColors = useMemo(() => {
+    const total = visibleColumns.length;
+    return new Map(visibleColumns.map((col, i) => [col.key, getColumnAccentColor(i, total, accentHue)]));
+  }, [visibleColumns, accentHue]);
+
+  // Minimap: proportional block widths (excludes always-visible Tags column)
   const minimapBlocks = useMemo(() => {
-    const total = colWidths.reduce((s, w) => s + w, 0);
+    let total = 0;
+    for (let i = 0; i < visibleColumns.length; i++) {
+      if (visibleColumns[i].type === 'tags') continue;
+      total += colWidths[i] ?? 0;
+    }
     if (total === 0) return [];
-    return visibleColumns.map((col, i) => ({
-      col,
-      widthPct: ((colWidths[i] ?? 0) / total) * 100,
-    }));
+    const blocks: { col: typeof visibleColumns[0]; widthPct: number; origIdx: number }[] = [];
+    for (let i = 0; i < visibleColumns.length; i++) {
+      if (visibleColumns[i].type === 'tags') continue;
+      blocks.push({ col: visibleColumns[i], widthPct: ((colWidths[i] ?? 0) / total) * 100, origIdx: i });
+    }
+    return blocks;
   }, [visibleColumns, colWidths]);
 
   // Minimap: click/drag to scroll
   const scrollToMinimapX = useCallback((clientX: number, rect: DOMRect) => {
     const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     const { scrollWidth, clientWidth } = scrollInfoRef.current;
-    const target = ratio * scrollWidth - clientWidth / 2;
+    const tagsW = tagsColWidthRef.current;
+    const nonTagsTotal = scrollWidth - tagsW;
+    const target = ratio * nonTagsTotal - (clientWidth - tagsW) / 2;
     scrollContainerRef.current?.scrollTo({ left: Math.max(0, target) });
   }, []);
 
   const getColumnAtMinimapX = useCallback((clientX: number, rect: DOMRect): number => {
+    if (minimapBlocks.length === 0) return 0;
     const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    const total = colWidths.reduce((s, w) => s + w, 0);
-    if (total === 0) return 0;
-    const target = ratio * total;
     let cum = 0;
-    for (let i = 0; i < colWidths.length; i++) {
-      cum += colWidths[i];
-      if (cum >= target) return i;
+    for (const block of minimapBlocks) {
+      cum += block.widthPct;
+      if (cum >= ratio * 100) return block.origIdx;
     }
-    return colWidths.length - 1;
-  }, [colWidths]);
+    return minimapBlocks[minimapBlocks.length - 1].origIdx;
+  }, [minimapBlocks]);
 
   const flashColumnHeader = useCallback((colIdx: number) => {
     if (!theadRef.current) return;
@@ -700,6 +776,43 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     }
     return null;
   };
+
+  // Get tooltip for an attribute cell based on the tag that produced it for this row
+  const getAttributeTooltip = (item: AnalyzedTransaction, attrName: string): string | null => {
+    for (const def of item.analysis.matchedDefinitions) {
+      const attr = def.Attributes.find((a) => a.AttributeTag === attrName);
+      if (attr) {
+        const expr = attr.AttributeRuleExpression;
+        const source = humanizeFieldName(expr.SourceField);
+        const decomposed = decomposeExtractionRegex(expr.Regex);
+        switch (decomposed.operation) {
+          case 'extract_between':
+            return `Extracted from ${source} between '${decomposed.prefix}' and '${decomposed.suffix}'`;
+          case 'extract_after':
+            return `Extracted from ${source} after '${decomposed.prefix}'`;
+          case 'extract_before':
+            return `Extracted from ${source} before '${decomposed.suffix}'`;
+          case 'extract_matching':
+          default:
+            return `Extracted from ${source} matching '${decomposed.pattern || expr.Regex}'`;
+        }
+      }
+    }
+    return null;
+  };
+
+  // Get the source field for an attribute cell based on the tag that produced it for this row
+  const getAttributeSourceField = (item: AnalyzedTransaction, attrName: string): string | null => {
+    for (const def of item.analysis.matchedDefinitions) {
+      const attr = def.Attributes.find((a) => a.AttributeTag === attrName);
+      if (attr) return attr.AttributeRuleExpression.SourceField;
+    }
+    return null;
+  };
+
+  // Track which source field cell to highlight: { rowIndex, fieldName }
+  const [highlightSource, setHighlightSource] = useState<{ rowIdx: number; field: string; attrKey: string } | null>(null);
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const renderCellContent = (field: string, value: string | number | boolean | null) => {
     if (value == null) return <span className="text-faint">-</span>;
@@ -798,17 +911,17 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
       {hasOverflow && (
         <div
           ref={minimapBarRef}
-          className="relative h-5 bg-surface border-b border-border-subtle cursor-pointer select-none flex shrink-0"
+          className="sticky top-0 z-20 h-5 bg-surface border-b border-border-subtle cursor-pointer select-none flex shrink-0"
           onPointerDown={handleMinimapPointerDown}
           onPointerMove={handleMinimapPointerMove}
         >
-          {minimapBlocks.map((block, i) => (
-            <Tooltip key={visibleColumns[i].key} content={getColumnLabel(block.col)} placement="bottom">
+          {minimapBlocks.map((block) => (
+            <Tooltip key={block.col.key} content={getColumnLabel(block.col)} placement="bottom">
               <div
-                className={`h-full ${getMinimapColor(block.col.type)} opacity-80 hover:opacity-100 transition-opacity overflow-hidden flex items-center px-px`}
-                style={{ width: `${block.widthPct}%`, borderRight: '1px solid white' }}
+                className="h-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors overflow-hidden flex items-center px-px"
+                style={{ width: `${block.widthPct}%`, minWidth: 35, borderRight: '1px solid white', borderBottom: `3px solid ${getMinimapBorderColor(block.col.type) ?? columnAccentColors.get(block.col.key)}` }}
               >
-                <span className="text-[9px] leading-none font-light text-slate-600 whitespace-nowrap">
+                <span className={`text-[9px] pl-2 leading-none font-medium whitespace-nowrap ${getMinimapColor(block.col.type)}`}>
                   {getColumnInitials(block.col)}
                 </span>
               </div>
@@ -831,12 +944,12 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                 return (
                   <th
                     key={col.key}
-                    className={`px-3 ${cellPy} text-left text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap ${isAttr ? 'text-primary-dark bg-primary/10' : 'text-body-secondary bg-surface-secondary'
+                    className={`px-3 ${cellPy} text-left text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap ${isAttr ? 'text-primary-dark bg-white dark:bg-slate-800' : 'text-body-secondary bg-surface-secondary'
                       }`}
-                    style={getCellStyle(idx, true)}
+                    style={{ ...getCellStyle(idx, true),paddingBottom: 8, boxShadow: hasOverflow ? `inset 0 -3px 0 ${columnAccentColors.get(col.key)}` : undefined }}
                   >
                     {col.type === 'data' && humanizeFieldName(col.field)}
-                    {col.type === 'attribute' && col.name}
+                    {col.type === 'attribute' && humanizeFieldName(col.name)}
                     {col.type === 'tags' && (
                       <div className="flex items-center gap-1.5">
                         {onFlagDeadEnd && (
@@ -891,13 +1004,15 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                       const stickyBg = isStickyCol ? 'bg-surface group-hover:bg-surface-hover' : '';
 
                       switch (col.type) {
-                        case 'data':
+                        case 'data': {
+                          const isHighlighted = highlightSource?.rowIdx === i && highlightSource.field === col.field;
                           return (
-                            <td key={col.key} className={`px-3 ${cellPy} text-xs text-body-secondary ${relaxedMode ? 'whitespace-nowrap' : 'max-w-200'} ${stickyBg}`} style={getCellStyle(colIdx, false)}>
+                            <td key={col.key} className={`px-3 ${cellPy} text-xs text-body-secondary ${relaxedMode ? 'whitespace-nowrap' : 'max-w-200'} ${stickyBg} ${isHighlighted ? 'ring-2 ring-gray-400/60 ring-inset bg-gray-100 dark:bg-gray-700/40' : ''}`} style={getCellStyle(colIdx, false)}>
                               {renderCellContent(col.field, item.row[col.field])}
                               {stickyEdgeShadow(colIdx)}
                             </td>
                           );
+                        }
                         case 'dates':
                           return (
                             <td key={col.key} className={`px-3 ${cellPy} text-xs text-body-secondary ${stickyBg}`} style={getCellStyle(colIdx, false)}>
@@ -967,16 +1082,33 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                               : <span className="text-red-400 mr-1" title="Invalid">&#10007;</span>;
                           }
                           const displayVal = val ?? (validation ? String(item.row[validation.sourceField] ?? '') : null);
+                          const srcField = getAttributeSourceField(item, col.name);
+                          const isAttrHighlighted = highlightSource?.rowIdx === i && highlightSource.attrKey === col.key;
                           return (
                             <td
                               key={col.key}
                               className={`px-3 ${cellPy} text-xs ${relaxedMode ? 'whitespace-nowrap' : ''}
                               ${validationIcon ? 'text-center' : 'text-left'}
                               ${validationPassed === true ? 'text-emerald-500' : validationPassed === false ? 'text-red-400' : 'text-primary-dark'}
-                              ${isStickyCol ? 'bg-primary/10 group-hover:bg-primary/15' : 'bg-primary/5'}`}
+                              ${isAttrHighlighted ? 'ring-2 ring-blue-400/60 ring-inset bg-blue-50 dark:bg-blue-900/30' : isStickyCol ? 'bg-primary/10 group-hover:bg-primary/15' : 'bg-primary/5'}`}
                               style={getCellStyle(colIdx, false)}
+                              onMouseEnter={() => {
+                                if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+                                if (srcField) {
+                                  highlightTimerRef.current = setTimeout(() => setHighlightSource({ rowIdx: i, field: srcField, attrKey: col.key }), 500);
+                                }
+                              }}
+                              onMouseLeave={() => {
+                                if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+                                highlightTimerRef.current = null;
+                                setHighlightSource(null);
+                              }}
                             >
-                              {displayVal ? <>{validationIcon}{displayVal}</> : <span className="text-faint">-</span>}
+                              <Tooltip content={getAttributeTooltip(item, col.name) ?? col.name} offsetAmount={8} placement="bottom" delay={500}>
+                                <div className="w-full h-full flex items-center">
+                                  {displayVal ? <span>{validationIcon}{displayVal}</span> : <span className="text-faint">-</span>}
+                                </div>
+                              </Tooltip>
                               {stickyEdgeShadow(colIdx)}
                             </td>
                           );

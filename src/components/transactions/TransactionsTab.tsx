@@ -99,7 +99,7 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
   const { libraries, tagDefinitions, originalDefinitionIds, dispatch } = useTagSpecs();
   const {
     transactions, fieldMeta, loadTransactions, resetToSample, isCustomData, flagDeadEnd,
-    isLiveMode, loading, hasMore: liveHasMore, fetchPage,
+    isLiveMode, loading, hasMore: liveHasMore, totalTransactionsCount, fetchPage,
   } = useTransactionData();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -112,20 +112,20 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
   const [showOnlyMultiTagged, setShowOnlyMultiTagged] = useState(false);
   const [showOnlyDeadEnd, setShowOnlyDeadEnd] = useState(false);
   const [showAttributes, setShowAttributes] = useState(() => {
-    try { return localStorage.getItem('fr:showAttributes') === 'true'; } catch { return false; }
+    try { return localStorage.getItem('tep:showAttributes') === 'true'; } catch { return false; }
   });
   const [relaxedMode, setRelaxedMode] = useState(() => {
-    try { const v = localStorage.getItem('fr:relaxedMode'); return v === null ? true : v === 'true'; } catch { return true; }
+    try { const v = localStorage.getItem('tep:relaxedMode'); return v === null ? true : v === 'true'; } catch { return true; }
   });
   const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => {
     try {
-      const stored = localStorage.getItem('fr:hiddenColumns');
+      const stored = localStorage.getItem('tep:hiddenColumns');
       return stored ? new Set(JSON.parse(stored) as string[]) : new Set();
     } catch { return new Set(); }
   });
   const [columnOrder, setColumnOrder] = useState<string[]>(() => {
     try {
-      const stored = localStorage.getItem('fr:columnOrder');
+      const stored = localStorage.getItem('tep:columnOrder');
       return stored ? JSON.parse(stored) as string[] : [];
     } catch { return []; }
   });
@@ -133,10 +133,10 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
   const [filters, setFilters] = useState<Record<string, Set<string>>>({});
 
   // Persist settings to localStorage
-  useEffect(() => { try { localStorage.setItem('fr:showAttributes', String(showAttributes)); } catch { /* ignore */ } }, [showAttributes]);
-  useEffect(() => { try { localStorage.setItem('fr:relaxedMode', String(relaxedMode)); } catch { /* ignore */ } }, [relaxedMode]);
-  useEffect(() => { try { localStorage.setItem('fr:hiddenColumns', JSON.stringify([...hiddenColumns])); } catch { /* ignore */ } }, [hiddenColumns]);
-  useEffect(() => { try { localStorage.setItem('fr:columnOrder', JSON.stringify(columnOrder)); } catch { /* ignore */ } }, [columnOrder]);
+  useEffect(() => { try { localStorage.setItem('tep:showAttributes', String(showAttributes)); } catch { /* ignore */ } }, [showAttributes]);
+  useEffect(() => { try { localStorage.setItem('tep:relaxedMode', String(relaxedMode)); } catch { /* ignore */ } }, [relaxedMode]);
+  useEffect(() => { try { localStorage.setItem('tep:hiddenColumns', JSON.stringify([...hiddenColumns])); } catch { /* ignore */ } }, [hiddenColumns]);
+  useEffect(() => { try { localStorage.setItem('tep:columnOrder', JSON.stringify(columnOrder)); } catch { /* ignore */ } }, [columnOrder]);
 
   // Track builder panel height so the table can adjust its maxHeight
   useEffect(() => {
@@ -154,10 +154,11 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
     if (tableColumns.length > 0 && !defaultsApplied.current) {
       defaultsApplied.current = true;
       // Skip if user already has a stored preference
-      if (localStorage.getItem('fr:hiddenColumns')) return;
+      if (localStorage.getItem('tep:hiddenColumns')) return;
       const defaultHidden = new Set<string>();
       for (const col of tableColumns) {
         if (col.type === 'tags') continue;
+        if (col.type === 'attribute') continue; // attributes follow their source field via showAttributes
         if (col.type === 'data' && DEFAULT_VISIBLE_DATA.has(col.field)) continue;
         defaultHidden.add(col.key);
       }
@@ -169,6 +170,7 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
     const s = new Set<string>();
     for (const col of tableColumns) {
       if (col.type === 'tags') continue;
+      if (col.type === 'attribute') continue;
       if (col.type === 'data' && DEFAULT_VISIBLE_DATA.has(col.field)) continue;
       s.add(col.key);
     }
@@ -443,7 +445,7 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
       <div className="flex items-center justify-between mb-1 min-h-10">
         <div className='flex flex-col md:flex-row items-start justify-end md:items-center gap-2'>
           <h2 className="text-base font-semibold text-heading">Transactions</h2>
-          <span className='text-sm mr-5 min-w-10 text-primary-dark'>({filteredData.length})</span>
+          <span className='text-sm mr-5 min-w-10 text-primary-dark'>({isLiveMode && totalTransactionsCount != null ? totalTransactionsCount.toLocaleString() : filteredData.length})</span>
           <Toggle label="Compact mode" checked={relaxedMode} onChange={setRelaxedMode} />
           <Toggle label="Show attributes" checked={showAttributes} onChange={setShowAttributes} />
 
@@ -527,7 +529,7 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
         baseFilters={baseFilters}
         isLiveMode={isLiveMode}
         endSlot={tableColumns.length > 0 ? (
-          <ColumnPicker columns={tableColumns} hiddenColumns={hiddenColumns} onChange={setHiddenColumns} columnOrder={columnOrder} onColumnOrderChange={setColumnOrder} showAttributes={showAttributes} defaultHiddenColumns={defaultHiddenColumns} onReset={handleColumnReset} />
+          <ColumnPicker columns={tableColumns} hiddenColumns={hiddenColumns} onChange={setHiddenColumns} columnOrder={columnOrder} onColumnOrderChange={setColumnOrder} defaultHiddenColumns={defaultHiddenColumns} onReset={handleColumnReset} />
         ) : undefined}
       />
       {/* )} */}
@@ -614,6 +616,13 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
         onColumnsReady={setTableColumns}
         builderHeight={builderHeight}
         loading={loading}
+        accentHue={190}
+//   190 — cyan (default)
+// 220 — blue
+// 260 — purple
+// 340 — pink
+// 30 — orange
+// 140 — green
       />
 
       {(hasMore || loading) && (
@@ -622,11 +631,13 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
             <span className="text-xs text-muted">Loading…</span>
           ) : (
             <>
-              {!isLiveMode && (
-                <span className="text-xs text-muted">
-                  Showing {visibleCount.toLocaleString()} of {filteredLen.toLocaleString()}
-                </span>
-              )}
+              <span className="text-xs text-muted">
+                {isLiveMode
+                  ? totalTransactionsCount != null
+                    ? `${filteredData.length.toLocaleString()} out of ${totalTransactionsCount.toLocaleString()}`
+                    : ''
+                  : `Showing ${visibleCount.toLocaleString()} of ${filteredLen.toLocaleString()}`}
+              </span>
               <Button variant="secondary" size="sm" onClick={() => {
                 if (isLiveMode) {
                   fetchPage(filters, true);
