@@ -7,6 +7,7 @@ interface StatsTabProps {
   onCheckout: (bank: string, side: string) => void;
   onCheckin: (bank: string, side: string) => void;
   onViewTransactions: (bank: string, side: string) => void;
+  onRequestUndo: (bank: string, side: string) => void;
 }
 
 interface BankSideStats {
@@ -43,7 +44,7 @@ function StatBadge({ value, color }: { value: number; color: 'red' | 'yellow' | 
   );
 }
 
-export function StatsTab({ checkouts, onCheckout, onViewTransactions }: StatsTabProps) {
+export function StatsTab({ checkouts, onCheckout, onViewTransactions, onRequestUndo }: StatsTabProps) {
   const stats = bankStatsData as BankSideStats[];
 
   return (
@@ -101,16 +102,16 @@ export function StatsTab({ checkouts, onCheckout, onViewTransactions }: StatsTab
                   </td>
                   <td className="px-4 py-2.5 text-end">
                     {isCheckedOut ? (
-                      <div className="flex items-center justify-end">
-                        <Button variant="primary" size="sm" onClick={() => onViewTransactions(row.bank, row.side)}>
+                      <div className="flex items-center justify-end gap-2">
+                        <Button variant="danger_ghost" size="xs" onClick={() => onRequestUndo(row.bank, row.side)}>
+                          Undo Changes
+                        </Button>
+                        <Button variant="primary" size="xs" onClick={() => onViewTransactions(row.bank, row.side)}>
                           View Transactions
                         </Button>
-                        {/* <Button variant="secondary" size="sm" onClick={() => onCheckin(row.bank, row.side)}>
-                          Check In
-                        </Button> */}
                       </div>
                     ) : (
-                      <Button variant="primary" size="sm" onClick={() => onCheckout(row.bank, row.side)}>
+                      <Button variant="primary" size="xs" onClick={() => onCheckout(row.bank, row.side)}>
                         Checkout
                       </Button>
                     )}

@@ -38,7 +38,7 @@ export function StepAttributes({ attributes, onAdd, onRemove, onUpdate, transact
         </div>
       )}
 
-      <Button variant="secondary" size="sm" onClick={onAdd} className="mt-4">
+      <Button variant="secondary" size="xs" onClick={onAdd} className="mt-4">
         Add Attribute
       </Button>
     </div>

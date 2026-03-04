@@ -140,7 +140,7 @@ export function ConditionEditor({
           </div>
         )}
         {canRemove && (
-          <Button variant="ghost" size="sm" onClick={onRemove} className=" text-faint hover:text-red-500">
+          <Button variant="ghost" size="xs" onClick={onRemove} className=" text-faint hover:text-red-500">
             Remove Condition
           </Button>
         )}
@@ -150,7 +150,7 @@ export function ConditionEditor({
           <p className="text-xs text-primary italic text-left border-dashed border w-fit px-2 py-1">
             {humanizeFieldName(condition.sourceField)} &rarr; <span className='text-orange-500'>{preview}</span>
           </p>
-          <Button variant="primary" size="sm" onClick={() => setEditing(false)}>
+          <Button variant="primary" size="xs" onClick={() => setEditing(false)}>
             Save
           </Button>
         </div>

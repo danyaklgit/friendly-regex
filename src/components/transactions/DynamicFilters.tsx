@@ -509,7 +509,7 @@ export function DynamicFilters({
           ))}
 
           {activeFilterCount > 0 && (
-            <Button variant="danger" size="sm" onClick={clearAll}>
+            <Button variant="danger_ghost" size="xs" onClick={clearAll}>
               Clear filters
             </Button>
           )}

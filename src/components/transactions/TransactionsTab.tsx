@@ -22,6 +22,7 @@ interface TransactionsTabProps {
   activeCheckout?: CheckoutState | null;
   onCheckin?: (bank: string, side: string) => void;
   onRelease?: (bank: string, side: string) => void;
+  onRequestUndo?: (bank: string, side: string) => void;
   editFromRules?: { definition: TagSpecDefinition; parentLib: TagSpecLibrary } | null;
   onClearEditFromRules?: () => void;
 }
@@ -95,7 +96,7 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
 
 const BATCH_SIZE = 50;
 
-export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFromRules, onClearEditFromRules }: TransactionsTabProps) {
+export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onRequestUndo, editFromRules, onClearEditFromRules }: TransactionsTabProps) {
   const { libraries, tagDefinitions, originalDefinitionIds, dispatch } = useTagSpecs();
   const {
     transactions, fieldMeta, loadTransactions, resetToSample, isCustomData, flagDeadEnd,
@@ -114,6 +115,11 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
   const [showAttributes, setShowAttributes] = useState(() => {
     try { return localStorage.getItem('tep:showAttributes') === 'true'; } catch { return false; }
   });
+  const [incrementalPagination, setIncrementalPagination] = useState(() => {
+    try { const v = localStorage.getItem('tep:incrementalPagination'); return v === null ? true : v === 'true'; } catch { return true; }
+  });
+  const [currentPage, setCurrentPage] = useState(0);
+  const [pageInputValue, setPageInputValue] = useState('1');
   const [relaxedMode, setRelaxedMode] = useState(() => {
     try { const v = localStorage.getItem('tep:relaxedMode'); return v === null ? true : v === 'true'; } catch { return true; }
   });
@@ -134,6 +140,7 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
 
   // Persist settings to localStorage
   useEffect(() => { try { localStorage.setItem('tep:showAttributes', String(showAttributes)); } catch { /* ignore */ } }, [showAttributes]);
+  useEffect(() => { try { localStorage.setItem('tep:incrementalPagination', String(incrementalPagination)); } catch { /* ignore */ } }, [incrementalPagination]);
   useEffect(() => { try { localStorage.setItem('tep:relaxedMode', String(relaxedMode)); } catch { /* ignore */ } }, [relaxedMode]);
   useEffect(() => { try { localStorage.setItem('tep:hiddenColumns', JSON.stringify([...hiddenColumns])); } catch { /* ignore */ } }, [hiddenColumns]);
   useEffect(() => { try { localStorage.setItem('tep:columnOrder', JSON.stringify(columnOrder)); } catch { /* ignore */ } }, [columnOrder]);
@@ -204,10 +211,11 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
   useEffect(() => {
     if (!isLiveMode) return;
     const timer = setTimeout(() => {
-      fetchPage(filters, false);
+      fetchPage(filters, false, incrementalPagination ? undefined : 0);
+      if (!incrementalPagination) { setCurrentPage(0); setPageInputValue('1'); }
     }, 50);
     return () => clearTimeout(timer);
-  }, [isLiveMode, filters, fetchPage]);
+  }, [isLiveMode, filters, fetchPage, incrementalPagination]);
   const [visibleCount, setVisibleCount] = useState(BATCH_SIZE);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardInitialState, setWizardInitialState] = useState<WizardFormState | undefined>(undefined);
@@ -311,17 +319,26 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
     return result;
   }, [analyzedData, showOnlyUntagged, showOnlyMultiTagged, showOnlyDeadEnd, filters, isLiveMode]);
 
-  // Reset visible count when filters or data change
+  // Reset visible count / page when filtered data length changes
+  // In live + classic pagination mode, data replaces on every page nav — don't reset page from here
   const filteredLen = filteredData.length;
   useEffect(() => {
+    if (isLiveMode && !incrementalPagination) return; // page managed by nav controls + filter effect
     setVisibleCount(BATCH_SIZE);
-  }, [filteredLen]);
+    setCurrentPage(0);
+    setPageInputValue('1');
+  }, [filteredLen, isLiveMode, incrementalPagination]);
 
-  const visibleData = useMemo(
-    () => isLiveMode ? filteredData : filteredData.slice(0, visibleCount),
-    [filteredData, visibleCount, isLiveMode]
-  );
-  const hasMore = isLiveMode ? liveHasMore : visibleCount < filteredLen;
+  const classicTotalPages = Math.max(1, Math.ceil((isLiveMode ? (totalTransactionsCount ?? filteredLen) : filteredLen) / BATCH_SIZE));
+
+  const visibleData = useMemo(() => {
+    if (isLiveMode) return filteredData;
+    if (incrementalPagination) return filteredData.slice(0, visibleCount);
+    const start = currentPage * BATCH_SIZE;
+    return filteredData.slice(start, start + BATCH_SIZE);
+  }, [filteredData, visibleCount, isLiveMode, incrementalPagination, currentPage]);
+
+  const hasMore = isLiveMode ? liveHasMore : incrementalPagination ? visibleCount < filteredLen : false;
 
   // Flatten temp definition's rule expressions for highlighting
   const highlightExpressions: RuleExpression[] | undefined = useMemo(() => {
@@ -440,13 +457,20 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
   return (
     <div>
       {activeCheckout && onCheckin && onRelease && (
-        <CheckoutBanner bank={activeCheckout.bank} side={activeCheckout.side} onRelease={onRelease} onCheckin={onCheckin} />
+        <CheckoutBanner bank={activeCheckout.bank} side={activeCheckout.side} onRelease={onRelease} onCheckin={onCheckin} onRequestUndo={onRequestUndo} />
       )}
       <div className="flex items-center justify-between mb-1 min-h-10">
         <div className='flex flex-col md:flex-row items-start justify-end md:items-center gap-2'>
           <h2 className="text-base font-semibold text-heading">Transactions</h2>
           <span className='text-sm mr-5 min-w-10 text-primary-dark'>({isLiveMode && totalTransactionsCount != null ? totalTransactionsCount.toLocaleString() : filteredData.length})</span>
           <Toggle label="Compact mode" checked={relaxedMode} onChange={setRelaxedMode} />
+          <Toggle label="Incremental pagination" checked={incrementalPagination} onChange={(v) => {
+            setIncrementalPagination(v);
+            setCurrentPage(0);
+            setPageInputValue('1');
+            setVisibleCount(BATCH_SIZE);
+            if (!v && isLiveMode) fetchPage(filters, false, 0);
+          }} />
           <Toggle label="Show attributes" checked={showAttributes} onChange={setShowAttributes} />
 
           <div className="hidden md:flex items-center gap-5 ml-4 text-[11px] text-muted">
@@ -473,13 +497,13 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
             className="hidden"
             onChange={handleFileUpload}
           />
-          {!builderOpen && !isLiveMode && <Button variant="primary" size="sm" onClick={() => {
+          {!builderOpen && !isLiveMode && <Button variant="primary" size="xs" onClick={() => {
             fileInputRef.current?.click()
           }}>
             Upload Data
           </Button>}
           {isCustomData && !isLiveMode && (
-            <Button variant="danger" size="sm" onClick={resetToSample}>
+            <Button variant="danger" size="xs" onClick={resetToSample}>
               Reset to Sample
             </Button>
           )}
@@ -489,7 +513,7 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
                 <span>
                   <Button
                     variant="secondary"
-                    size="sm"
+                    size="xs"
                     disabled
                   >
                     Test a Rule
@@ -499,7 +523,7 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
             ) : (
               <Button
                 variant="secondary"
-                size="sm"
+                size="xs"
                 onClick={() => {
                   setShowOnlyUntagged(false)
                   setShowOnlyMultiTagged(false)
@@ -545,12 +569,12 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
               </p>
             </div>
             <div className="flex flex-col md:flex-row items-center gap-2">
-              <Button variant="ghost" size="sm" onClick={handleDiscard}>
+              <Button variant="ghost" size="xs" onClick={handleDiscard}>
                 Discard
               </Button>
               <Button
                 variant="primary"
-                size="sm"
+                size="xs"
                 onClick={handleCreateFromBuilder}
                 disabled={!builderHasContent}
               >
@@ -625,11 +649,11 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
 // 140 — green
       />
 
-      {(hasMore || loading) && (
+      {(hasMore || loading || (!incrementalPagination && (isLiveMode ? (totalTransactionsCount ?? 0) > BATCH_SIZE : filteredLen > BATCH_SIZE))) && (
         <div className="flex items-center justify-center gap-3 py-2 mt-1 border border-border bg-surface-secondary rounded-lg">
           {loading ? (
             <span className="text-xs text-muted">Loading…</span>
-          ) : (
+          ) : incrementalPagination ? (
             <>
               <span className="text-xs text-muted">
                 {isLiveMode
@@ -638,15 +662,70 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, editFrom
                     : ''
                   : `Showing ${visibleCount.toLocaleString()} of ${filteredLen.toLocaleString()}`}
               </span>
-              <Button variant="secondary" size="sm" onClick={() => {
-                if (isLiveMode) {
-                  fetchPage(filters, true);
-                } else {
-                  setVisibleCount((c) => c + BATCH_SIZE);
-                }
+              {hasMore && (
+                <Button variant="secondary" size="xs" onClick={() => {
+                  if (isLiveMode) {
+                    fetchPage(filters, true);
+                  } else {
+                    setVisibleCount((c) => c + BATCH_SIZE);
+                  }
+                }}>
+                  Show more
+                </Button>
+              )}
+            </>
+          ) : (
+            <>
+              <Button variant="ghost" size="xs" disabled={currentPage === 0} onClick={() => {
+                const newPage = currentPage - 1;
+                setCurrentPage(newPage);
+                setPageInputValue(String(newPage + 1));
+                if (isLiveMode) fetchPage(filters, false, newPage);
               }}>
-                Show more
+                &larr; Previous
               </Button>
+              <span className="text-xs text-muted flex items-center gap-1">
+                Page
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  className="w-10 text-center text-xs border border-border rounded px-1 py-0.5 bg-surface text-heading focus:outline-none focus:border-primary"
+                  value={pageInputValue}
+                  onChange={(e) => setPageInputValue(e.target.value)}
+                  onBlur={() => {
+                    const num = parseInt(pageInputValue, 10);
+                    if (!isNaN(num) && num >= 1 && num <= classicTotalPages) {
+                      setCurrentPage(num - 1);
+                      if (isLiveMode) fetchPage(filters, false, num - 1);
+                    }
+                    setPageInputValue(String(currentPage + 1));
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const num = parseInt(pageInputValue, 10);
+                      if (!isNaN(num) && num >= 1 && num <= classicTotalPages) {
+                        setCurrentPage(num - 1);
+                        setPageInputValue(String(num));
+                        if (isLiveMode) fetchPage(filters, false, num - 1);
+                      } else {
+                        setPageInputValue(String(currentPage + 1));
+                      }
+                    }
+                  }}
+                />
+                of {classicTotalPages.toLocaleString()}
+              </span>
+              <Button variant="ghost" size="xs" disabled={currentPage >= classicTotalPages - 1} onClick={() => {
+                const newPage = currentPage + 1;
+                setCurrentPage(newPage);
+                setPageInputValue(String(newPage + 1));
+                if (isLiveMode) fetchPage(filters, false, newPage);
+              }}>
+                Next &rarr;
+              </Button>
+              {/* <span className="text-xs text-muted ml-2">
+                ({(isLiveMode ? totalTransactionsCount ?? 0 : filteredLen).toLocaleString()} total)
+              </span> */}
             </>
           )}
         </div>

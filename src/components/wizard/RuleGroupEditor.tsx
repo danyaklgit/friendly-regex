@@ -86,11 +86,11 @@ export function RuleGroupEditor({
             </div>
           </div>
           <div className='flex justify-between w-full gap-1'>
-            <Button variant="ghost" size="sm" onClick={onAddCondition} className="mt-1 ">
+            <Button variant="ghost" size="xs" onClick={onAddCondition} className="mt-1 ">
               + Add condition
             </Button>
             {canRemoveGroup && (
-              <Button variant="ghost" size="sm" onClick={onRemoveGroup} className="text-red-400 hover:text-red-600">
+              <Button variant="ghost" size="xs" onClick={onRemoveGroup} className="text-red-400 hover:text-red-600">
                 Remove group
               </Button>
             )}

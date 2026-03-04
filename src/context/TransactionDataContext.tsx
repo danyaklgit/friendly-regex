@@ -21,7 +21,7 @@ export interface TransactionDataContextValue {
   loading: boolean;
   hasMore: boolean;
   totalTransactionsCount: number | null;
-  fetchPage: (filters: Record<string, Set<string>>, append: boolean) => Promise<void>;
+  fetchPage: (filters: Record<string, Set<string>>, append: boolean, pageIndex?: number) => Promise<void>;
 }
 
 export const TransactionDataContext = createContext<TransactionDataContextValue | null>(null);
@@ -64,7 +64,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
     );
   }, [fieldMeta.identifierField]);
 
-  const fetchPage = useCallback(async (filters: Record<string, Set<string>>, append: boolean) => {
+  const fetchPage = useCallback(async (filters: Record<string, Set<string>>, append: boolean, explicitPage?: number) => {
     if (!isLiveMode) return;
 
     // Auto-refresh session if <5 min remaining
@@ -83,7 +83,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
       requestId: tepConfig.ttpRequestId,
     };
 
-    const pageIndex = append ? currentPageRef.current + 1 : 0;
+    const pageIndex = explicitPage != null ? explicitPage : append ? currentPageRef.current + 1 : 0;
 
     // Abort any in-flight request before starting a new one
     abortRef.current?.abort();
@@ -123,7 +123,11 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
       if ((err as Error).name === 'AbortError') return;
       console.error('Failed to fetch transactions:', err);
     } finally {
-      setLoading(false);
+      // Only clear loading if this controller is still the active one
+      // (i.e. it wasn't replaced by a newer fetch)
+      if (abortRef.current === controller) {
+        setLoading(false);
+      }
     }
   }, [isLiveMode, getAuthHeaders, refreshIfNeeded, userId, tepConfig]);
 

@@ -153,12 +153,7 @@ export function LoginPage() {
         <div key={shakeKey} className={`bg-white border border-gray-200 shadow-xl dark:bg-white/6 dark:backdrop-blur-xl dark:border-white/10 dark:shadow-[0_24px_64px_-16px_rgba(18,189,206,0.12),0_8px_24px_-8px_rgba(0,0,0,0.3)] rounded-2xl p-8 transition-transform duration-300 ${error ? 'animate-shake' : ''}`}>
           {/* Header */}
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-12 h-12 bg-primary/15 rounded-xl mb-4">
-              <svg className="w-6 h-6 text-primary" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6Z" />
-              </svg>
-            </div>
+            <img src="https://swittle.com/swittle%20logo.png" alt="Swittle" className="h-10 mx-auto mb-7" />
             <h1 className="text-xl font-semibold text-heading dark:text-white">Transactions Enrichment Program</h1>
             <p className="text-sm text-muted dark:text-slate-400 mt-1">Sign in to continue</p>
           </div>

@@ -125,7 +125,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
         if (regex.test(String(fieldValue))) passed++;
       }
       if (total === 0) return null;
-      return { allValid: passed === total, passed, total };
+      return { allValid: passed === total, passed, total, notPassed: total - passed };
     } catch {
       return null;
     }
@@ -151,7 +151,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
 
             <div className="flex items-center gap-2 ml-2">
               <Toggle label="Mandatory" checked={attribute.isMandatory} onChange={(checked) => onUpdate({ isMandatory: checked })} />
-              <Button variant="ghost" size="sm" onClick={onRemove} className="text-red-400 hover:text-red-500">
+              <Button variant="ghost" size="xs" onClick={onRemove} className="text-red-400 hover:text-red-500">
                 Remove Attribute
               </Button>
             </div>
@@ -217,15 +217,15 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
               {attribute.attributeTag.trim().length > 0 && (
                 hasChanges ? (
                   <>
-                    <Button variant="secondary" size="sm" onClick={handleDiscard}>
+                    <Button variant="secondary" size="xs" onClick={handleDiscard}>
                       Discard
                     </Button>
-                    <Button variant="primary" size="sm" onClick={() => setEditing(false)}>
+                    <Button variant="primary" size="xs" onClick={() => setEditing(false)}>
                       Save
                     </Button>
                   </>
                 ) : (
-                  <Button variant="ghost" size="sm" onClick={() => setEditing(false)}>
+                  <Button variant="ghost" size="xs" onClick={() => setEditing(false)}>
                     Collapse Attribute
                   </Button>
                 )
@@ -239,7 +239,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
             )}
             {transactions && distinctValues.length > 0 && (
               <Button
-                variant="ghost" className='text-purple-500!' size="sm"
+                variant="ghost" className='text-purple-500!' size="xs"
                 onClick={() => setShowDistinct(true)}
               >
                 See all distinct values ({distinctValues.length})
@@ -270,13 +270,13 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
             )}
             {transactions && distinctValues.length > 0 && (
               <Button
-                variant="ghost" className='text-purple-500!' size="sm"
+                variant="ghost" className='text-purple-500!' size="xs"
                 onClick={() => setShowDistinct(true)}
               >
                 See all distinct values ({distinctValues.length})
               </Button>
             )}
-            <Button variant="ghost" size="sm" onClick={onRemove} className="ml-1 text-red-400 hover:text-red-500">
+            <Button variant="ghost" size="xs" onClick={onRemove} className="ml-1 text-red-400 hover:text-red-500">
               Remove
             </Button>
           </div>

@@ -8,7 +8,7 @@ interface ConfirmDialogProps {
   title: string;
   message: string;
   confirmLabel?: string;
-  variant?: 'danger' | 'primary';
+  variant?: 'danger' | 'danger_ghost' | 'primary';
 }
 
 export function ConfirmDialog({
@@ -18,7 +18,7 @@ export function ConfirmDialog({
   title,
   message,
   confirmLabel = 'Confirm',
-  variant = 'danger',
+  variant = 'danger_ghost',
 }: ConfirmDialogProps) {
   return (
     <Modal
@@ -32,6 +32,7 @@ export function ConfirmDialog({
           </Button>
           <Button
             variant={variant}
+            
             onClick={() => {
               onConfirm();
               onClose();

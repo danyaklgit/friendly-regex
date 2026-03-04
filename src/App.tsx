@@ -9,6 +9,7 @@ import { StatsTab } from './components/stats/StatsTab';
 import { TransactionsTab } from './components/transactions/TransactionsTab';
 import { TagRulesTab } from './components/tagRules/TagRulesTab';
 import { SessionWarningModal } from './components/shared/SessionWarningModal';
+import { ConfirmDialog } from './components/shared/ConfirmDialog';
 import type { CheckoutState, TagSpecDefinition, TagSpecLibrary } from './types';
 import { getContextValue } from './types/tagSpec';
 
@@ -18,6 +19,7 @@ function App() {
   const [checkouts, setCheckouts] = useState<CheckoutState[]>([]);
   const [activeCheckout, setActiveCheckout] = useState<CheckoutState | null>(null);
   const [editFromRules, setEditFromRules] = useState<{ definition: TagSpecDefinition; parentLib: TagSpecLibrary } | null>(null);
+  const [undoTarget, setUndoTarget] = useState<{ bank: string; side: string } | null>(null);
 
   const operatorName = displayName ?? username ?? undefined;
 
@@ -52,6 +54,19 @@ function App() {
     // );
   }, []);
 
+  const handleRequestUndo = useCallback((bank: string, side: string) => {
+    setUndoTarget({ bank, side });
+  }, []);
+
+  const handleUndoConfirm = useCallback(() => {
+    if (!undoTarget) return;
+    // TODO: call undoChangesApi when endpoint is available
+    console.log('Undo changes for', undoTarget.bank, undoTarget.side);
+    // After undo succeeds, automatically check in
+    handleCheckin(undoTarget.bank, undoTarget.side);
+    setUndoTarget(null);
+  }, [undoTarget, handleCheckin]);
+
   const handleEditInTransactions = useCallback((def: TagSpecDefinition, parentLib: TagSpecLibrary) => {
     const bank = getContextValue(parentLib.Context, 'BankSwiftCode') ?? '';
     const side = getContextValue(parentLib.Context, 'Side') ?? '';
@@ -76,12 +91,21 @@ function App() {
           activeIndex={activeTab}
           onTabChange={setActiveTab}
           tabs={[
-            { label: 'Overview', content: <StatsTab checkouts={checkouts} onCheckout={handleCheckout} onCheckin={handleCheckin} onViewTransactions={handleViewTransactions} /> },
-            { label: 'Transactions', content: <TransactionsTab activeCheckout={activeCheckout} onCheckin={handleCheckin} onRelease={handleRelease} editFromRules={editFromRules} onClearEditFromRules={() => setEditFromRules(null)} /> },
+            { label: 'Overview', content: <StatsTab checkouts={checkouts} onCheckout={handleCheckout} onCheckin={handleCheckin} onViewTransactions={handleViewTransactions} onRequestUndo={handleRequestUndo} /> },
+            { label: 'Transactions', content: <TransactionsTab activeCheckout={activeCheckout} onCheckin={handleCheckin} onRelease={handleRelease} onRequestUndo={handleRequestUndo} editFromRules={editFromRules} onClearEditFromRules={() => setEditFromRules(null)} /> },
             { label: 'Tag Rules', content: <TagRulesTab checkouts={checkouts} onEditInTransactions={handleEditInTransactions} /> },
           ]}
         />
       </div>
+      <ConfirmDialog
+        open={!!undoTarget}
+        onClose={() => setUndoTarget(null)}
+        onConfirm={handleUndoConfirm}
+        title="Undo Changes"
+        message={`Are you sure you want to undo all changes made since your last checkout for Bank ${undoTarget?.bank ?? ''}, Side ${undoTarget?.side ?? ''}?`}
+        confirmLabel="Undo Changes"
+        variant="danger_ghost"
+      />
       </TransactionDataProvider>
     </TagSpecProvider>
     </TepConfigProvider>

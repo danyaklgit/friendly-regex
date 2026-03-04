@@ -155,18 +155,18 @@ export function TagRulesTab({ checkouts, onEditInTransactions }: TagRulesTabProp
             className="hidden"
             onChange={handleImport}
           />
-          <Button variant="ghost" size="sm" onClick={() => fileInputRef.current?.click()}>
+          <Button variant="ghost" size="xs" onClick={() => fileInputRef.current?.click()}>
             Import
           </Button>
           <Button
             variant="secondary"
-            size="sm"
+            size="xs"
             onClick={handleExportAll}
             disabled={tagDefinitions.length === 0}
           >
             Export All
           </Button>
-          <Button variant="primary" size="sm" onClick={handleCreate}>
+          <Button variant="primary" size="xs" onClick={handleCreate}>
             + New Tag
           </Button>
         </div>
@@ -243,7 +243,7 @@ export function TagRulesTab({ checkouts, onEditInTransactions }: TagRulesTabProp
         title="Delete Tag Rule"
         message={`Are you sure you want to delete the tag "${deleteTarget?.tag}"? This cannot be undone.`}
         confirmLabel="Delete"
-        variant="danger"
+        variant="danger_ghost"
       />
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
