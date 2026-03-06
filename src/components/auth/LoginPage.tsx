@@ -200,7 +200,7 @@ export function LoginPage() {
                 onChange={(e) => setUseDummy(e.target.checked)}
                 className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary/50 dark:border-white/20 dark:bg-white/5 cursor-pointer"
               />
-              <span className="text-xs text-body-secondary dark:text-primary">Demo mode</span>
+              <span className="text-xs text-body-secondary dark:text-primary">Preloaded data</span>
             </label>
 
             {/* Error message */}
