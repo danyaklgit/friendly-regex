@@ -1,15 +1,19 @@
 {
     "TagsHierarchy": {
-        "Id": "698de6d366c1ca1452961a02",
+        "Id": "69aae30e30142e12e7069b0f",
         "DataSetType": "MT940",
         "IsLatestVersion": true,
-        "VersionDate": "2026-02-12T00:00:00Z",
+        "VersionDate": "2026-03-06T14:22:06.5Z",
         "TagsHierarchy": [
             {
                 "Tag": "A2AGEN",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Own Account Transfers",
@@ -24,7 +28,11 @@
                 "Tag": "ACCOUNTS",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Accounts",
@@ -39,7 +47,11 @@
                 "Tag": "ATM",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "ATM Transactions",
@@ -54,7 +66,11 @@
                 "Tag": "BILLPAY",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Bill Payment",
@@ -69,7 +85,11 @@
                 "Tag": "BILLSFORCOLLECTION",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Bills for Collection",
@@ -84,7 +104,11 @@
                 "Tag": "BROKERAGE",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Brokerage",
@@ -99,7 +123,11 @@
                 "Tag": "CARDS",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Card Transactions",
@@ -114,7 +142,11 @@
                 "Tag": "CASH",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Cash Transactions",
@@ -129,7 +161,11 @@
                 "Tag": "CHECKS",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Checks and Checkbooks",
@@ -144,7 +180,11 @@
                 "Tag": "COLLECTIONS",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Collections",
@@ -159,7 +199,11 @@
                 "Tag": "COMMISSIONS",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Commissions",
@@ -174,7 +218,11 @@
                 "Tag": "DIRECTDEBIT",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Direct Debit",
@@ -189,7 +237,11 @@
                 "Tag": "DRAFTS",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Drafts",
@@ -204,7 +256,11 @@
                 "Tag": "EXPENSES",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Expenses",
@@ -219,7 +275,11 @@
                 "Tag": "FEESCHARGES",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Fees & Charges",
@@ -234,7 +294,11 @@
                 "Tag": "FINANCING",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Financing",
@@ -249,7 +313,11 @@
                 "Tag": "GOVERNMENT",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Government-Related Transactions",
@@ -264,7 +332,11 @@
                 "Tag": "INCENTIVES",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Incentives",
@@ -279,7 +351,11 @@
                 "Tag": "INFLOWS",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Inflows",
@@ -294,7 +370,11 @@
                 "Tag": "INTERESTS",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Interests",
@@ -309,7 +389,11 @@
                 "Tag": "INVEST",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Investment",
@@ -324,7 +408,11 @@
                 "Tag": "LC",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Letters of Credit",
@@ -339,7 +427,11 @@
                 "Tag": "LG",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Letters of Guarantee",
@@ -354,7 +446,11 @@
                 "Tag": "LOANS",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Loans",
@@ -369,7 +465,11 @@
                 "Tag": "OUTFLOWS",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Outflows",
@@ -384,7 +484,11 @@
                 "Tag": "OUTSOURCING",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Outsourcing",
@@ -399,7 +503,11 @@
                 "Tag": "PAYROLL",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Payroll",
@@ -414,7 +522,11 @@
                 "Tag": "POSACQ",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "POS Acquiring",
@@ -429,7 +541,11 @@
                 "Tag": "PROFITS",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Profits from Banking Instruments",
@@ -444,7 +560,11 @@
                 "Tag": "RETURNS",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Returns, Refunds, Reversals",
@@ -459,7 +579,11 @@
                 "Tag": "SADADCOLL",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "SADAD Collections",
@@ -474,7 +598,11 @@
                 "Tag": "SERVICEFEES",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Service Fees",
@@ -489,7 +617,11 @@
                 "Tag": "SETTLEMENTS",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Settlements",
@@ -504,7 +636,11 @@
                 "Tag": "STANDINGORDERS",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Standing Orders",
@@ -519,7 +655,11 @@
                 "Tag": "SUBSIDIES",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Subsidies",
@@ -534,7 +674,11 @@
                 "Tag": "SWEEPING",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Sweeping",
@@ -549,7 +693,11 @@
                 "Tag": "TAXES",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Taxes",
@@ -564,7 +712,11 @@
                 "Tag": "TRADEFINANCE",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Trade Finance",
@@ -579,7 +731,11 @@
                 "Tag": "TRANSFERSIN",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Inbound Transfers",
@@ -594,7 +750,11 @@
                 "Tag": "TRANSFERSOUT",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Outbound Transfers",
@@ -609,7 +769,11 @@
                 "Tag": "TREASURY",
                 "Level": "G",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Treasury",
@@ -624,7 +788,11 @@
                 "Tag": "A2AIN",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Inbound Account to Account Transfer",
@@ -642,7 +810,11 @@
                 "Tag": "A2AOUT",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Outbound Account to Account Transfer",
@@ -660,7 +832,11 @@
                 "Tag": "ACCMAINTFEES",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Account Maintenance Fees",
@@ -679,7 +855,11 @@
                 "Tag": "ATMAALINSTR",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Atmaal (Tanfeeth) Instructions",
@@ -697,7 +877,11 @@
                 "Tag": "BILLFORCOLLECTIONDR",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Bill for Collection (Debit)",
@@ -716,7 +900,11 @@
                 "Tag": "BROKERAGEBUY",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Brokerage Subscription / Buy",
@@ -734,7 +922,11 @@
                 "Tag": "BROKERAGEFEES",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Brokerage Fees or Commissions",
@@ -753,7 +945,11 @@
                 "Tag": "BROKERAGESELL",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Brokerage Redemption / Sell",
@@ -771,7 +967,11 @@
                 "Tag": "CARDCOLLFEES",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Card Collection Fees",
@@ -790,7 +990,11 @@
                 "Tag": "CARDINTERESTSDR",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Card Debit Interests",
@@ -809,7 +1013,11 @@
                 "Tag": "CARDMEMBFEES",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Card Membership Fees",
@@ -828,7 +1036,11 @@
                 "Tag": "CARDOTHERFEES",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Card Other Fees (Stops, Reissue, Cash Advance …)",
@@ -847,7 +1059,11 @@
                 "Tag": "CARDPAYMENT",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Card Payment",
@@ -865,7 +1081,11 @@
                 "Tag": "CASHIN",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Cash Deposit",
@@ -883,7 +1103,11 @@
                 "Tag": "CASHOUT",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Cash Withdrawal",
@@ -901,7 +1125,11 @@
                 "Tag": "CASHOUTATM",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "ATM Cash Withdrawal",
@@ -920,7 +1148,11 @@
                 "Tag": "CHANNELSERVFEES",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Channel Service Fees",
@@ -939,7 +1171,11 @@
                 "Tag": "CHECKBOOKFEES",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Checkbook Issuing Fees",
@@ -958,7 +1194,11 @@
                 "Tag": "CHECKIN",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Inbound Check Deposit",
@@ -976,7 +1216,11 @@
                 "Tag": "CHECKINBOUNCE",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Inbound Check Bounced",
@@ -995,7 +1239,11 @@
                 "Tag": "CHECKINCASHLETTER",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Inbound Check Deposit or Cash Letter",
@@ -1013,7 +1261,11 @@
                 "Tag": "CHECKOUT",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Outbound Check",
@@ -1031,7 +1283,11 @@
                 "Tag": "CHECKOUTRETURN",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Outbound Check Return",
@@ -1050,7 +1306,11 @@
                 "Tag": "COLLECTION",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Collection",
@@ -1068,7 +1328,11 @@
                 "Tag": "COLLECTIONRETURN",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Collection Return",
@@ -1087,7 +1351,11 @@
                 "Tag": "COMMISSIONCR",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Commission (Credit)",
@@ -1106,7 +1374,11 @@
                 "Tag": "COMMISSIONDR",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Commission (Debit)",
@@ -1125,7 +1397,11 @@
                 "Tag": "COMMODITYSELL",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Sale of Commodity",
@@ -1143,7 +1419,11 @@
                 "Tag": "DIGITALWALLETA2A",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Digital Wallet Account to Account Transfer",
@@ -1161,7 +1441,11 @@
                 "Tag": "DIRECTDEBITFEES",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Direct Debit Fees",
@@ -1180,7 +1464,11 @@
                 "Tag": "DIRECTDEBITPROC",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Direct Debit Processing",
@@ -1198,7 +1486,11 @@
                 "Tag": "DRAFTISSUANCE",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Draft Issuance",
@@ -1216,7 +1508,11 @@
                 "Tag": "DRAFTISSUANCEFEES",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Draft Issuance Fees",
@@ -1235,7 +1531,11 @@
                 "Tag": "EFAAGOVPAY",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "National Platform for Violations Payment",
@@ -1254,7 +1554,11 @@
                 "Tag": "EXPENSEPAYMENT",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Organization Expense Payment",
@@ -1272,7 +1576,11 @@
                 "Tag": "EXPENSEREFUND",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Organization Expense Refund",
@@ -1290,7 +1598,11 @@
                 "Tag": "FEESREFUND",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Fees Refund",
@@ -1310,7 +1622,11 @@
                 "Tag": "FINANCINGIN",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Financing Inward Funds",
@@ -1328,7 +1644,11 @@
                 "Tag": "FINREPAY",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Financing Repayment",
@@ -1346,7 +1666,11 @@
                 "Tag": "INCENTIVE",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Financial Incentive",
@@ -1364,7 +1688,11 @@
                 "Tag": "INTERESTCR",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Credit Interest",
@@ -1383,7 +1711,11 @@
                 "Tag": "INTERESTDR",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Debit Interest",
@@ -1402,7 +1734,11 @@
                 "Tag": "LCAMENDMENT",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Letter of Credit Amendment",
@@ -1421,7 +1757,11 @@
                 "Tag": "LCCANCELLATION",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Letter of Credit Cancellation",
@@ -1440,7 +1780,11 @@
                 "Tag": "LCEXPADVISING",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Export Letter of Credit Advising",
@@ -1459,7 +1803,11 @@
                 "Tag": "LCEXPAMENDMENT",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Export Letter of Credit Amendment",
@@ -1478,7 +1826,11 @@
                 "Tag": "LCEXPFEES",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Export Letter of Credit Fees",
@@ -1498,7 +1850,11 @@
                 "Tag": "LCEXPSETTLEMENT",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Export Letter of Credit Settlement",
@@ -1517,7 +1873,11 @@
                 "Tag": "LCEXPSETTLEMENTREVERSAL",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Export Letter of Credit Settlement Reversal",
@@ -1537,7 +1897,11 @@
                 "Tag": "LCIMPAMENDMENT",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Import Letter of Credit Amendment",
@@ -1556,7 +1920,11 @@
                 "Tag": "LCIMPCANCELLATION",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Import Letter of Credit Cancellation",
@@ -1575,7 +1943,11 @@
                 "Tag": "LCIMPFEES",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Import Letter of Credit Fees",
@@ -1594,7 +1966,11 @@
                 "Tag": "LCIMPINSURANCE",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Import Letter of Credit Insurance",
@@ -1614,7 +1990,11 @@
                 "Tag": "LCIMPSETTLEMENT",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Import Letter of Credit Settlement",
@@ -1633,7 +2013,11 @@
                 "Tag": "LGFEES",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Letter of Guarantee Fees",
@@ -1653,7 +2037,11 @@
                 "Tag": "LGINVOCATION",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Letter of Guarantee Invocation",
@@ -1672,7 +2060,11 @@
                 "Tag": "LGISSUANCE",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Letter of Guarantee Issuance",
@@ -1691,7 +2083,11 @@
                 "Tag": "LOANDEPOSIT",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Loan Deposit",
@@ -1709,7 +2105,11 @@
                 "Tag": "LOANTXNCR",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Loan Credit Transaction",
@@ -1727,7 +2127,11 @@
                 "Tag": "LOANTXNDR",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Loan Debit Transaction or Installment",
@@ -1745,7 +2149,11 @@
                 "Tag": "MERCHANTSETTIN",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Inbound Merchant Settlement",
@@ -1764,7 +2172,11 @@
                 "Tag": "MISCCHARGESCR",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Miscellaneous Charges Credits",
@@ -1782,7 +2194,11 @@
                 "Tag": "MISCCHARGESDR",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Miscellaneous Charges Debit",
@@ -1801,7 +2217,11 @@
                 "Tag": "MISCCREDIT",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Miscellaneous Credit",
@@ -1819,7 +2239,11 @@
                 "Tag": "MISCCREDITFX",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Miscellaneous Credit Foreign Exchange",
@@ -1837,7 +2261,11 @@
                 "Tag": "MISCDEBIT",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Miscellaneous Debit",
@@ -1855,7 +2283,11 @@
                 "Tag": "MISCDEBITFX",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Miscellaneous Debit Foreign Exchange",
@@ -1873,7 +2305,11 @@
                 "Tag": "MUDARABAHADEPOSIT",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Deposit made into Mudaraba or Murabaha Instruments",
@@ -1891,7 +2327,11 @@
                 "Tag": "MUDARABAHAPROFIT",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Profits made from Mudaraba or Murabaha Instruments",
@@ -1910,7 +2350,11 @@
                 "Tag": "PAYROLLDEDUCTION",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Deduction of Payroll Amount",
@@ -1928,7 +2372,11 @@
                 "Tag": "PAYROLLFEES",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Payroll Processing Fees",
@@ -1947,7 +2395,11 @@
                 "Tag": "PAYROLLRETURN",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Payroll Return Credit Back",
@@ -1966,7 +2418,11 @@
                 "Tag": "PORTFOLIOIN",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Portfolio Inbound Funds",
@@ -1984,7 +2440,11 @@
                 "Tag": "PORTFOLIOOUT",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Portfolio Outboud Funds",
@@ -2002,7 +2462,11 @@
                 "Tag": "POSFEES",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "POS Fees",
@@ -2021,7 +2485,11 @@
                 "Tag": "POSSET",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "POS Settlement",
@@ -2040,7 +2508,11 @@
                 "Tag": "POSVAT",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "POS VAT on Fees",
@@ -2059,7 +2531,11 @@
                 "Tag": "SADADBILLPAY",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "SADAD Bill Payment",
@@ -2077,7 +2553,11 @@
                 "Tag": "SADADCOLLFEES",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "SADAD Collection Fees",
@@ -2096,7 +2576,11 @@
                 "Tag": "SADADCOLLSET",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "SADAD Biller Collections Settlement",
@@ -2115,7 +2599,11 @@
                 "Tag": "SADADGOVPAY",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "SADAD Government Fees Payment",
@@ -2134,7 +2622,11 @@
                 "Tag": "SADADGOVPAYREFUND",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "SADAD Government Fees Payment Refund",
@@ -2154,7 +2646,11 @@
                 "Tag": "STANDINGORDERFEES",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Standing Order Fees",
@@ -2173,7 +2669,11 @@
                 "Tag": "STANDINGORDEROUT",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Standing Order Execution Outbound",
@@ -2191,7 +2691,11 @@
                 "Tag": "STATEMENTFEES",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Statement Issuance Fees",
@@ -2210,7 +2714,11 @@
                 "Tag": "SUBSIDY",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Subsidy",
@@ -2228,7 +2736,11 @@
                 "Tag": "SWEEPINGIN",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Sweeping In",
@@ -2246,7 +2758,11 @@
                 "Tag": "SWEEPINGOUT",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Sweeping Out",
@@ -2264,7 +2780,11 @@
                 "Tag": "TRAFFICVIOLATION",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Traffic Violation",
@@ -2283,7 +2803,11 @@
                 "Tag": "TRANSFERIN",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Inbound Transfer",
@@ -2301,7 +2825,11 @@
                 "Tag": "TRANSFERINDOM",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Inbound Domestic Transfer",
@@ -2319,7 +2847,11 @@
                 "Tag": "TRANSFERINFEES",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Fees on Inbound Transfer Fees",
@@ -2338,7 +2870,11 @@
                 "Tag": "TRANSFERININSTANT",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Inbound Instant Transfer",
@@ -2356,7 +2892,11 @@
                 "Tag": "TRANSFERININTL",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Inbound International Transfer",
@@ -2374,7 +2914,11 @@
                 "Tag": "TRANSFERININTRA",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Inbound Intrabank Transfer",
@@ -2392,7 +2936,11 @@
                 "Tag": "TRANSFERINRETURN",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Inbound Transfer Return",
@@ -2411,7 +2959,11 @@
                 "Tag": "TRANSFERINVAT",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Inbound Transfer VAT on Fees",
@@ -2430,7 +2982,11 @@
                 "Tag": "TRANSFEROUT",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Outbound Transfer",
@@ -2448,7 +3004,11 @@
                 "Tag": "TRANSFEROUTDOM",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Outbound Domestic Transfer",
@@ -2466,7 +3026,11 @@
                 "Tag": "TRANSFEROUTFEES",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Fees on Outbound Transfer Fees",
@@ -2485,7 +3049,11 @@
                 "Tag": "TRANSFEROUTFEESREFUND",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Fees Refund on Returned Outbound Transfer Fees",
@@ -2505,7 +3073,11 @@
                 "Tag": "TRANSFEROUTINSTANT",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Outbound Instant Transfer",
@@ -2523,7 +3095,11 @@
                 "Tag": "TRANSFEROUTINTL",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Outbound International Transfer",
@@ -2541,7 +3117,11 @@
                 "Tag": "TRANSFEROUTINTRA",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Outbound Intrabank 3rd Party Transfer",
@@ -2559,7 +3139,11 @@
                 "Tag": "TRANSFEROUTRETURN",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Outbound Transfer Return",
@@ -2578,7 +3162,11 @@
                 "Tag": "TRANSFEROUTVAT",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Outbound Transfer VAT on Fees",
@@ -2597,7 +3185,11 @@
                 "Tag": "TREASURYCREDIT",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Treasury Credit",
@@ -2615,7 +3207,11 @@
                 "Tag": "TREASURYCREDITCONVENTIONAL",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Treasury Credit Conventional",
@@ -2633,7 +3229,11 @@
                 "Tag": "TREASURYCREDITFX",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Treasury Credit FX",
@@ -2651,7 +3251,11 @@
                 "Tag": "TREASURYCREDITISLAMIC",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Treasury Credit Islamic",
@@ -2669,7 +3273,11 @@
                 "Tag": "TREASURYCREDITSWAP",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Treasury Credit Swap",
@@ -2687,7 +3295,11 @@
                 "Tag": "TREASURYDEBIT",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Treasury Debit",
@@ -2705,7 +3317,11 @@
                 "Tag": "TREASURYDEBITCONVENTIONAL",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Treasury Debit Conventional",
@@ -2723,7 +3339,11 @@
                 "Tag": "TREASURYDEBITISLAMIC",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Treasury Debit Islamic",
@@ -2741,7 +3361,11 @@
                 "Tag": "TREASURYDEBITSWAP",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "Treasury Debit Swap",
@@ -2759,7 +3383,11 @@
                 "Tag": "VATONTXN",
                 "Level": "T",
                 "StatusTag": "ACTIVE",
-                "Actions": null,
+                "Actions": [
+                    "Move",
+                    "Archive",
+                    "Delete"
+                ],
                 "Details": [
                     {
                         "Name": "VAT on Transaction",
