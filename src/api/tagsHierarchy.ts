@@ -15,11 +15,21 @@ export interface TagHierarchyRawNode {
   Tag: string;
   Level: 'G' | 'T';
   StatusTag: string;
+  Actions: string[] | null;
   Details: TagHierarchyDetail[] | null;
   /** For T nodes: array of group Tag names this leaf belongs to. For G nodes: null */
   GroupTags: string[] | null;
   /** For T nodes: another Tag name (string) as parent reference, or null. For G nodes: null */
   ParentTag: string | null;
+}
+
+/** Wrapper object for the full hierarchy (used for save/load) */
+export interface TagsHierarchyWrapper {
+  Id: string;
+  DataSetType: string;
+  IsLatestVersion: boolean;
+  VersionDate: string;
+  TagsHierarchy: TagHierarchyRawNode[];
 }
 
 // --- Built tree types ---
@@ -88,6 +98,21 @@ export function buildTagTree(rawNodes: TagHierarchyRawNode[]): TagTreeNode[] {
 
 // --- API client ---
 
+function buildFetchHeaders(authToken: string, tepHeaders: TepHeaders, activityTag: string): Record<string, string> {
+  return {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+    Authorization: `Bearer ${authToken}`,
+    'x-apikey': tepHeaders.apiKey,
+    ActivityTag: activityTag,
+    LanguageCode: 'en',
+    TTPUserId: tepHeaders.userId,
+    TTPTenantCode: tepHeaders.tenantCode,
+    TTPRequestId: tepHeaders.requestId,
+    TimeZone: tepHeaders.timeZone,
+  };
+}
+
 export async function getTagsHierarchy(
   authToken: string,
   tepHeaders: TepHeaders,
@@ -95,18 +120,7 @@ export async function getTagsHierarchy(
 ): Promise<TagTreeNode[]> {
   const res = await fetch(`${BASE}/GetTagsHierarchy`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      Authorization: `Bearer ${authToken}`,
-      'x-apikey': tepHeaders.apiKey,
-      ActivityTag: 'GetTagsHierarchy',
-      LanguageCode: 'en',
-      TTPUserId: tepHeaders.userId,
-      TTPTenantCode: tepHeaders.tenantCode,
-      TTPRequestId: tepHeaders.requestId,
-      TimeZone: tepHeaders.timeZone,
-    },
+    headers: buildFetchHeaders(authToken, tepHeaders, 'GetTagsHierarchy'),
     body: JSON.stringify({ DataSetType: 'MT940' }),
     signal,
   });
@@ -117,4 +131,50 @@ export async function getTagsHierarchy(
   // Response shape: { TagsHierarchy: { Id, DataSetType, ..., TagsHierarchy: [...flat nodes] } }
   const rawNodes: TagHierarchyRawNode[] = Array.isArray(wrapper) ? wrapper : wrapper?.TagsHierarchy ?? [];
   return buildTagTree(rawNodes);
+}
+
+/** Fetch raw hierarchy wrapper (includes metadata needed for save) */
+export async function getRawTagsHierarchy(
+  authToken: string,
+  tepHeaders: TepHeaders,
+  signal?: AbortSignal,
+): Promise<TagsHierarchyWrapper> {
+  const res = await fetch(`${BASE}/GetTagsHierarchy`, {
+    method: 'POST',
+    headers: buildFetchHeaders(authToken, tepHeaders, 'GetTagsHierarchy'),
+    body: JSON.stringify({ DataSetType: 'MT940' }),
+    signal,
+  });
+
+  if (!res.ok) throw new Error('Failed to fetch tags hierarchy');
+  const json = await res.json();
+  const outer = json.TagsHierarchy;
+  if (Array.isArray(outer)) {
+    // Flat array directly — construct wrapper
+    return { Id: '', DataSetType: 'MT940', IsLatestVersion: true, VersionDate: new Date().toISOString(), TagsHierarchy: outer };
+  }
+  return {
+    Id: outer.Id ?? '',
+    DataSetType: outer.DataSetType ?? 'MT940',
+    IsLatestVersion: outer.IsLatestVersion ?? true,
+    VersionDate: outer.VersionDate ?? new Date().toISOString(),
+    TagsHierarchy: outer.TagsHierarchy ?? [],
+  };
+}
+
+/** Save the full tags hierarchy back to the API */
+export async function saveTagsHierarchy(
+  authToken: string,
+  tepHeaders: TepHeaders,
+  wrapper: TagsHierarchyWrapper,
+  signal?: AbortSignal,
+): Promise<void> {
+  const res = await fetch(`${BASE}/SaveTagsHierarchy`, {
+    method: 'POST',
+    headers: buildFetchHeaders(authToken, tepHeaders, 'SaveTagsHierarchy'),
+    body: JSON.stringify({ TagsHierarchy: wrapper }),
+    signal,
+  });
+
+  if (!res.ok) throw new Error('Failed to save tags hierarchy');
 }

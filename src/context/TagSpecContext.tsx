@@ -1,9 +1,9 @@
 import { createContext, useReducer, useMemo, useRef, useEffect, useCallback, useState, type ReactNode, type Dispatch } from 'react';
 import type { TagSpecDefinition, TagSpecLibrary, ContextEntry } from '../types';
 import type { TepHeaders } from '../api/transactions';
-import type { TagTreeNode } from '../api/tagsHierarchy';
+import type { TagTreeNode, TagHierarchyRawNode, TagsHierarchyWrapper } from '../api/tagsHierarchy';
 import { getTagSpecLibraries } from '../api/tagSpecs';
-import { getTagsHierarchy, buildTagTree } from '../api/tagsHierarchy';
+import { getRawTagsHierarchy, buildTagTree } from '../api/tagsHierarchy';
 import sampleTagData from '../data/sample.json';
 import sampleHierarchyData from '../data/sampleHiearchy.json';
 
@@ -148,6 +148,46 @@ function tagSpecReducer(
   }
 }
 
+// --- Hierarchy reducer ---
+
+export type HierarchyAction =
+  | { type: 'REPLACE_ALL'; payload: TagHierarchyRawNode[] }
+  | { type: 'ADD_NODE'; payload: TagHierarchyRawNode }
+  | { type: 'UPDATE_NODE'; payload: { tag: string; updates: Partial<TagHierarchyRawNode> } }
+  | { type: 'DELETE_NODE'; payload: { tag: string } };
+
+function hierarchyReducer(
+  state: TagHierarchyRawNode[],
+  action: HierarchyAction,
+): TagHierarchyRawNode[] {
+  switch (action.type) {
+    case 'REPLACE_ALL':
+      return action.payload;
+
+    case 'ADD_NODE':
+      return [...state, action.payload];
+
+    case 'UPDATE_NODE': {
+      const { tag, updates } = action.payload;
+      return state.map((n) => (n.Tag === tag ? { ...n, ...updates } : n));
+    }
+
+    case 'DELETE_NODE': {
+      const deletedTag = action.payload.tag;
+      return state
+        .filter((n) => n.Tag !== deletedTag)
+        .map((n) => ({
+          ...n,
+          ParentTag: n.ParentTag === deletedTag ? null : n.ParentTag,
+          GroupTags: n.GroupTags ? n.GroupTags.filter((g) => g !== deletedTag) : n.GroupTags,
+        }));
+    }
+
+    default:
+      return state;
+  }
+}
+
 // --- Context ---
 
 export interface TagSpecContextValue {
@@ -157,8 +197,15 @@ export interface TagSpecContextValue {
   dispatch: Dispatch<TagSpecAction>;
   loading: boolean;
   refetchTagSpecs: () => void;
+  refetchHierarchy: () => Promise<void>;
   tagsHierarchy: TagTreeNode[];
   tagsHierarchyLoading: boolean;
+  rawHierarchyNodes: TagHierarchyRawNode[];
+  hierarchyWrapper: TagsHierarchyWrapper | null;
+  originalRawNodes: TagHierarchyRawNode[];
+  hierarchyDispatch: Dispatch<HierarchyAction>;
+  setOriginalRawNodes: (nodes: TagHierarchyRawNode[]) => void;
+  setHierarchyWrapper: (wrapper: TagsHierarchyWrapper | null) => void;
 }
 
 interface TagSpecProviderProps {
@@ -170,19 +217,41 @@ interface TagSpecProviderProps {
 
 export const TagSpecContext = createContext<TagSpecContextValue | null>(null);
 
+function extractRawNodes(data: Record<string, unknown>): TagHierarchyRawNode[] {
+  const outer = data.TagsHierarchy as Record<string, unknown> | unknown[];
+  const raw = Array.isArray(outer) ? outer : (outer as Record<string, unknown>)?.TagsHierarchy ?? [];
+  return raw as TagHierarchyRawNode[];
+}
+
 export function TagSpecProvider({ children, useDummyData, authToken, tepHeaders }: TagSpecProviderProps) {
   const initialData = useDummyData ? (sampleTagData as TagSpecLibrary[]) : [];
   const [libraries, dispatch] = useReducer(tagSpecReducer, initialData);
   const tagDefinitions = useMemo(() => flattenDefinitions(libraries), [libraries]);
   const [loading, setLoading] = useState(!useDummyData);
-  const initialHierarchy = useMemo(() => {
-    if (!useDummyData) return [];
-    const wrapper = (sampleHierarchyData as Record<string, unknown>).TagsHierarchy as Record<string, unknown> | unknown[];
-    const rawNodes = Array.isArray(wrapper) ? wrapper : (wrapper as Record<string, unknown>)?.TagsHierarchy ?? [];
-    return buildTagTree(rawNodes as Parameters<typeof buildTagTree>[0]);
-  }, [useDummyData]);
-  const [tagsHierarchy, setTagsHierarchy] = useState<TagTreeNode[]>(initialHierarchy);
   const [tagsHierarchyLoading, setTagsHierarchyLoading] = useState(!useDummyData);
+
+  // Raw hierarchy state
+  const initialRawNodes = useMemo(() => {
+    if (!useDummyData) return [];
+    return extractRawNodes(sampleHierarchyData as Record<string, unknown>);
+  }, [useDummyData]);
+
+  const [rawHierarchyNodes, hierarchyDispatch] = useReducer(hierarchyReducer, initialRawNodes);
+  const [originalRawNodes, setOriginalRawNodes] = useState<TagHierarchyRawNode[]>(initialRawNodes);
+  const [hierarchyWrapper, setHierarchyWrapper] = useState<TagsHierarchyWrapper | null>(() => {
+    if (!useDummyData) return null;
+    const outer = (sampleHierarchyData as Record<string, unknown>).TagsHierarchy as Record<string, unknown>;
+    return {
+      Id: (outer.Id as string) ?? '',
+      DataSetType: (outer.DataSetType as string) ?? 'MT940',
+      IsLatestVersion: (outer.IsLatestVersion as boolean) ?? true,
+      VersionDate: (outer.VersionDate as string) ?? new Date().toISOString(),
+      TagsHierarchy: [],  // filled from reducer state on save
+    };
+  });
+
+  // Derive built tree from raw nodes for TagTreePicker
+  const tagsHierarchy = useMemo(() => buildTagTree(rawHierarchyNodes), [rawHierarchyNodes]);
 
   // Capture IDs from the initially loaded data (predefined); anything else is user-created
   const originalDefinitionIds = useRef(
@@ -194,15 +263,16 @@ export function TagSpecProvider({ children, useDummyData, authToken, tepHeaders 
     setLoading(true);
     setTagsHierarchyLoading(true);
     try {
-      const [libsData, hierarchyData] = await Promise.all([
+      const [libsData, wrapperData] = await Promise.all([
         getTagSpecLibraries(authToken, tepHeaders, signal),
-        getTagsHierarchy(authToken, tepHeaders, signal),
+        getRawTagsHierarchy(authToken, tepHeaders, signal),
       ]);
       dispatch({ type: 'REPLACE_ALL', payload: libsData });
-      // Update original IDs from API data
       const ids = flattenDefinitions(libsData).map((d) => d.Id);
       for (const id of ids) originalDefinitionIds.add(id);
-      setTagsHierarchy(hierarchyData);
+      hierarchyDispatch({ type: 'REPLACE_ALL', payload: wrapperData.TagsHierarchy });
+      setOriginalRawNodes(wrapperData.TagsHierarchy);
+      setHierarchyWrapper(wrapperData);
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return;
       console.error('Failed to fetch tag spec data:', err);
@@ -224,8 +294,37 @@ export function TagSpecProvider({ children, useDummyData, authToken, tepHeaders 
     fetchTagSpecs();
   }, [fetchTagSpecs]);
 
+  const refetchHierarchy = useCallback(async () => {
+    if (useDummyData) {
+      // In dummy mode, reset to sample data
+      const nodes = extractRawNodes(sampleHierarchyData as Record<string, unknown>);
+      hierarchyDispatch({ type: 'REPLACE_ALL', payload: nodes });
+      setOriginalRawNodes(nodes);
+      return;
+    }
+    if (!authToken || !tepHeaders) return;
+    setTagsHierarchyLoading(true);
+    try {
+      const wrapperData = await getRawTagsHierarchy(authToken, tepHeaders);
+      hierarchyDispatch({ type: 'REPLACE_ALL', payload: wrapperData.TagsHierarchy });
+      setOriginalRawNodes(wrapperData.TagsHierarchy);
+      setHierarchyWrapper(wrapperData);
+    } catch (err) {
+      console.error('Failed to refetch tags hierarchy:', err);
+    } finally {
+      setTagsHierarchyLoading(false);
+    }
+  }, [useDummyData, authToken, tepHeaders]);
+
+  const value = useMemo<TagSpecContextValue>(() => ({
+    libraries, tagDefinitions, originalDefinitionIds, dispatch, loading, refetchTagSpecs, refetchHierarchy,
+    tagsHierarchy, tagsHierarchyLoading,
+    rawHierarchyNodes, hierarchyWrapper, originalRawNodes, hierarchyDispatch,
+    setOriginalRawNodes, setHierarchyWrapper,
+  }), [libraries, tagDefinitions, originalDefinitionIds, loading, refetchTagSpecs, tagsHierarchy, tagsHierarchyLoading, rawHierarchyNodes, hierarchyWrapper, originalRawNodes]);
+
   return (
-    <TagSpecContext.Provider value={{ libraries, tagDefinitions, originalDefinitionIds, dispatch, loading, refetchTagSpecs, tagsHierarchy, tagsHierarchyLoading }}>
+    <TagSpecContext.Provider value={value}>
       {children}
     </TagSpecContext.Provider>
   );

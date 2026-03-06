@@ -8,6 +8,7 @@ import { TabContainer } from './components/layout/TabContainer';
 import { StatsTab } from './components/stats/StatsTab';
 import { TransactionsTab } from './components/transactions/TransactionsTab';
 import { TagRulesTab } from './components/tagRules/TagRulesTab';
+import { TagsHierarchyTab } from './components/tagsHierarchy/TagsHierarchyTab';
 import { SessionWarningModal } from './components/shared/SessionWarningModal';
 import { ConfirmDialog } from './components/shared/ConfirmDialog';
 import type { CheckoutState, TagSpecDefinition, TagSpecLibrary } from './types';
@@ -114,6 +115,7 @@ function AppContent() {
             { label: 'Overview', content: <StatsTab checkouts={checkouts} onCheckout={handleCheckout} onCheckin={handleCheckin} onViewTransactions={handleViewTransactions} onRequestUndo={handleRequestUndo} /> },
             { label: 'Transactions', content: <TransactionsTab activeCheckout={activeCheckout} onCheckin={handleCheckin} onRelease={handleRelease} onRequestUndo={handleRequestUndo} editFromRules={editFromRules} onClearEditFromRules={() => setEditFromRules(null)} /> },
             { label: 'Tag Rules', content: <TagRulesTab checkouts={checkouts} onEditInTransactions={handleEditInTransactions} /> },
+            { label: 'Tags Hierarchy', content: <TagsHierarchyTab /> },
           ]}
         />
       </div>
