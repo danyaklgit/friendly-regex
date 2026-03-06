@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import type { TagTreeNode } from '../../api/tagsHierarchy';
 
 interface TagTreePickerProps {
@@ -99,6 +99,27 @@ export function TagTreePicker({ label, nodes, value, onChange, loading, required
     }
     return map;
   }, [safeNodes]);
+
+  // Case-insensitive lookup: normalize incoming value to hierarchy's canonical casing
+  const canonicalTagMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const group of safeNodes) {
+      for (const leaf of group.children) {
+        const lower = leaf.tag.toLowerCase();
+        if (!map.has(lower)) map.set(lower, leaf.tag);
+      }
+    }
+    return map;
+  }, [safeNodes]);
+
+  // Auto-correct casing when value doesn't exactly match hierarchy
+  useEffect(() => {
+    if (!value || safeNodes.length === 0) return;
+    const canonical = canonicalTagMap.get(value.toLowerCase());
+    if (canonical && canonical !== value) {
+      onChange(canonical);
+    }
+  }, [value, canonicalTagMap, onChange, safeNodes.length]);
 
   // When searching: collect unique matching leaf tags as a flat list (no groups)
   // When not searching: show the full tree

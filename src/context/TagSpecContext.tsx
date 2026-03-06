@@ -3,8 +3,9 @@ import type { TagSpecDefinition, TagSpecLibrary, ContextEntry } from '../types';
 import type { TepHeaders } from '../api/transactions';
 import type { TagTreeNode } from '../api/tagsHierarchy';
 import { getTagSpecLibraries } from '../api/tagSpecs';
-import { getTagsHierarchy } from '../api/tagsHierarchy';
+import { getTagsHierarchy, buildTagTree } from '../api/tagsHierarchy';
 import sampleTagData from '../data/sample.json';
+import sampleHierarchyData from '../data/sampleHiearchy.json';
 
 // --- Helpers ---
 
@@ -174,7 +175,13 @@ export function TagSpecProvider({ children, useDummyData, authToken, tepHeaders 
   const [libraries, dispatch] = useReducer(tagSpecReducer, initialData);
   const tagDefinitions = useMemo(() => flattenDefinitions(libraries), [libraries]);
   const [loading, setLoading] = useState(!useDummyData);
-  const [tagsHierarchy, setTagsHierarchy] = useState<TagTreeNode[]>([]);
+  const initialHierarchy = useMemo(() => {
+    if (!useDummyData) return [];
+    const wrapper = (sampleHierarchyData as Record<string, unknown>).TagsHierarchy as Record<string, unknown> | unknown[];
+    const rawNodes = Array.isArray(wrapper) ? wrapper : (wrapper as Record<string, unknown>)?.TagsHierarchy ?? [];
+    return buildTagTree(rawNodes as Parameters<typeof buildTagTree>[0]);
+  }, [useDummyData]);
+  const [tagsHierarchy, setTagsHierarchy] = useState<TagTreeNode[]>(initialHierarchy);
   const [tagsHierarchyLoading, setTagsHierarchyLoading] = useState(!useDummyData);
 
   // Capture IDs from the initially loaded data (predefined); anything else is user-created

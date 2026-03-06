@@ -1,0 +1,2818 @@
+{
+    "TagsHierarchy": {
+        "Id": "698de6d366c1ca1452961a02",
+        "DataSetType": "MT940",
+        "IsLatestVersion": true,
+        "VersionDate": "2026-02-12T00:00:00Z",
+        "TagsHierarchy": [
+            {
+                "Tag": "A2AGEN",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Own Account Transfers",
+                        "Description": "Own Account Transfers",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "ACCOUNTS",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Accounts",
+                        "Description": "Accounts",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "ATM",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "ATM Transactions",
+                        "Description": "ATM Transactions",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "BILLPAY",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Bill Payment",
+                        "Description": "Bill Payment",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "BILLSFORCOLLECTION",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Bills for Collection",
+                        "Description": "Bills for Collection",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "BROKERAGE",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Brokerage",
+                        "Description": "Brokerage",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "CARDS",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Card Transactions",
+                        "Description": "Card Transactions",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "CASH",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Cash Transactions",
+                        "Description": "Cash Transactions",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "CHECKS",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Checks and Checkbooks",
+                        "Description": "Checks and Checkbooks",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "COLLECTIONS",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Collections",
+                        "Description": "Collections",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "COMMISSIONS",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Commissions",
+                        "Description": "Commissions",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "DIRECTDEBIT",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Direct Debit",
+                        "Description": "Direct Debit",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "DRAFTS",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Drafts",
+                        "Description": "Drafts",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "EXPENSES",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Expenses",
+                        "Description": "Expenses",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "FEESCHARGES",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Fees & Charges",
+                        "Description": "Fees & Charges",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "FINANCING",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Financing",
+                        "Description": "Financing",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "GOVERNMENT",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Government-Related Transactions",
+                        "Description": "Government-Related Transactions",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "INCENTIVES",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Incentives",
+                        "Description": "Incentives",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "INFLOWS",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Inflows",
+                        "Description": "Inflows",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "INTERESTS",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Interests",
+                        "Description": "Interests",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "INVEST",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Investment",
+                        "Description": "Investment",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "LC",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Letters of Credit",
+                        "Description": "Letters of Credit",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "LG",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Letters of Guarantee",
+                        "Description": "Letters of Guarantee",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "LOANS",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Loans",
+                        "Description": "Loans",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "OUTFLOWS",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Outflows",
+                        "Description": "Outflows",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "OUTSOURCING",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Outsourcing",
+                        "Description": "Outsourcing",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "PAYROLL",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Payroll",
+                        "Description": "Payroll",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "POSACQ",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "POS Acquiring",
+                        "Description": "POS Acquiring",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "PROFITS",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Profits from Banking Instruments",
+                        "Description": "Profits from Banking Instruments",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "RETURNS",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Returns, Refunds, Reversals",
+                        "Description": "Returns, Refunds, Reversals",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "SADADCOLL",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "SADAD Collections",
+                        "Description": "SADAD Collections",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "SERVICEFEES",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Service Fees",
+                        "Description": "Service Fees",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "SETTLEMENTS",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Settlements",
+                        "Description": "Settlements",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "STANDINGORDERS",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Standing Orders",
+                        "Description": "Standing Orders",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "SUBSIDIES",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Subsidies",
+                        "Description": "Subsidies",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "SWEEPING",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Sweeping",
+                        "Description": "Sweeping",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "TAXES",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Taxes",
+                        "Description": "Taxes",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "TRADEFINANCE",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Trade Finance",
+                        "Description": "Trade Finance",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "TRANSFERSIN",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Inbound Transfers",
+                        "Description": "Inbound Transfers",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "TRANSFERSOUT",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Outbound Transfers",
+                        "Description": "Outbound Transfers",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "TREASURY",
+                "Level": "G",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Treasury",
+                        "Description": "Treasury",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": null,
+                "ParentTag": null
+            },
+            {
+                "Tag": "A2AIN",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Inbound Account to Account Transfer",
+                        "Description": "Inbound Account to Account Transfer",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "A2AGEN",
+                    "INFLOWS"
+                ],
+                "ParentTag": "MISCCREDIT"
+            },
+            {
+                "Tag": "A2AOUT",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Outbound Account to Account Transfer",
+                        "Description": "Outbound Account to Account Transfer",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "A2AGEN",
+                    "OUTFLOWS"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "ACCMAINTFEES",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Account Maintenance Fees",
+                        "Description": "Account Maintenance Fees",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "ACCOUNTS",
+                    "OUTFLOWS",
+                    "FEESCHARGES"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "ATMAALINSTR",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Atmaal (Tanfeeth) Instructions",
+                        "Description": "Atmaal (Tanfeeth) Instructions",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "OUTSOURCING",
+                    "OUTFLOWS"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "BILLFORCOLLECTIONDR",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Bill for Collection (Debit)",
+                        "Description": "Bill for Collection (Debit)",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TRADEFINANCE",
+                    "OUTFLOWS",
+                    "BILLSFORCOLLECTION"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "BROKERAGEBUY",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Brokerage Subscription / Buy",
+                        "Description": "Brokerage Subscription / Buy",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "BROKERAGE",
+                    "OUTFLOWS"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "BROKERAGEFEES",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Brokerage Fees or Commissions",
+                        "Description": "Brokerage Fees or Commissions",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "BROKERAGE",
+                    "OUTFLOWS",
+                    "FEESCHARGES"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "BROKERAGESELL",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Brokerage Redemption / Sell",
+                        "Description": "Brokerage Redemption / Sell",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "BROKERAGE",
+                    "INFLOWS"
+                ],
+                "ParentTag": "MISCCREDIT"
+            },
+            {
+                "Tag": "CARDCOLLFEES",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Card Collection Fees",
+                        "Description": "Card Collection Fees",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "CARDS",
+                    "OUTFLOWS",
+                    "FEESCHARGES"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "CARDINTERESTSDR",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Card Debit Interests",
+                        "Description": "Card Debit Interests",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "CARDS",
+                    "OUTFLOWS",
+                    "INTERESTS"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "CARDMEMBFEES",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Card Membership Fees",
+                        "Description": "Card Membership Fees",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "CARDS",
+                    "OUTFLOWS",
+                    "FEESCHARGES"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "CARDOTHERFEES",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Card Other Fees (Stops, Reissue, Cash Advance …)",
+                        "Description": "Card Other Fees (Stops, Reissue, Cash Advance …)",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "CARDS",
+                    "OUTFLOWS",
+                    "FEESCHARGES"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "CARDPAYMENT",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Card Payment",
+                        "Description": "Card Payment",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "CARDS",
+                    "OUTFLOWS"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "CASHIN",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Cash Deposit",
+                        "Description": "Cash Deposit",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "CASH",
+                    "INFLOWS"
+                ],
+                "ParentTag": "MISCCREDIT"
+            },
+            {
+                "Tag": "CASHOUT",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Cash Withdrawal",
+                        "Description": "Cash Withdrawal",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "CASH",
+                    "OUTFLOWS"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "CASHOUTATM",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "ATM Cash Withdrawal",
+                        "Description": "ATM Cash Withdrawal",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "CASH",
+                    "OUTFLOWS",
+                    "ATM"
+                ],
+                "ParentTag": "CASHOUT"
+            },
+            {
+                "Tag": "CHANNELSERVFEES",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Channel Service Fees",
+                        "Description": "Channel Service Fees",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "ACCOUNTS",
+                    "OUTFLOWS",
+                    "FEESCHARGES"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "CHECKBOOKFEES",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Checkbook Issuing Fees",
+                        "Description": "Checkbook Issuing Fees",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "CHECKS",
+                    "OUTFLOWS",
+                    "FEESCHARGES"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "CHECKIN",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Inbound Check Deposit",
+                        "Description": "Inbound Check Deposit",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "CHECKS",
+                    "INFLOWS"
+                ],
+                "ParentTag": "MISCCREDIT"
+            },
+            {
+                "Tag": "CHECKINBOUNCE",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Inbound Check Bounced",
+                        "Description": "Inbound Check Bounced",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "CHECKS",
+                    "OUTFLOWS",
+                    "RETURNS"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "CHECKINCASHLETTER",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Inbound Check Deposit or Cash Letter",
+                        "Description": "Inbound Check Deposit or Cash Letter",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "CHECKS",
+                    "INFLOWS"
+                ],
+                "ParentTag": "MISCCREDIT"
+            },
+            {
+                "Tag": "CHECKOUT",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Outbound Check",
+                        "Description": "Outbound Check",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "CHECKS",
+                    "OUTFLOWS"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "CHECKOUTRETURN",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Outbound Check Return",
+                        "Description": "Outbound Check Return",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "CHECKS",
+                    "INFLOWS",
+                    "RETURNS"
+                ],
+                "ParentTag": "MISCCREDIT"
+            },
+            {
+                "Tag": "COLLECTION",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Collection",
+                        "Description": "Collection",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "COLLECTIONS",
+                    "INFLOWS"
+                ],
+                "ParentTag": "MISCCREDIT"
+            },
+            {
+                "Tag": "COLLECTIONRETURN",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Collection Return",
+                        "Description": "Collection Return",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "COLLECTIONS",
+                    "OUTFLOWS",
+                    "RETURNS"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "COMMISSIONCR",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Commission (Credit)",
+                        "Description": "Commission (Credit)",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "COMMISSIONS",
+                    "INFLOWS",
+                    "PROFITS"
+                ],
+                "ParentTag": "MISCCREDIT"
+            },
+            {
+                "Tag": "COMMISSIONDR",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Commission (Debit)",
+                        "Description": "Commission (Debit)",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "COMMISSIONS",
+                    "OUTFLOWS",
+                    "FEESCHARGES"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "COMMODITYSELL",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Sale of Commodity",
+                        "Description": "Sale of Commodity",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "BROKERAGE",
+                    "INFLOWS"
+                ],
+                "ParentTag": "MISCCREDIT"
+            },
+            {
+                "Tag": "DIGITALWALLETA2A",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Digital Wallet Account to Account Transfer",
+                        "Description": "Digital Wallet Account to Account Transfer",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "COLLECTIONS",
+                    "INFLOWS"
+                ],
+                "ParentTag": null
+            },
+            {
+                "Tag": "DIRECTDEBITFEES",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Direct Debit Fees",
+                        "Description": "Direct Debit Fees",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "DIRECTDEBIT",
+                    "OUTFLOWS",
+                    "FEESCHARGES"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "DIRECTDEBITPROC",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Direct Debit Processing",
+                        "Description": "Direct Debit Processing",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "DIRECTDEBIT",
+                    "OUTFLOWS"
+                ],
+                "ParentTag": "MISCCREDIT"
+            },
+            {
+                "Tag": "DRAFTISSUANCE",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Draft Issuance",
+                        "Description": "Draft Issuance",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "DRAFTS",
+                    "OUTFLOWS"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "DRAFTISSUANCEFEES",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Draft Issuance Fees",
+                        "Description": "Draft Issuance Fees",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "DRAFTS",
+                    "OUTFLOWS",
+                    "FEESCHARGES"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "EFAAGOVPAY",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "National Platform for Violations Payment",
+                        "Description": "National Platform for Violations Payment",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "BILLPAY",
+                    "OUTFLOWS",
+                    "GOVERNMENT"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "EXPENSEPAYMENT",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Organization Expense Payment",
+                        "Description": "Organization Expense Payment",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "EXPENSES",
+                    "OUTFLOWS"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "EXPENSEREFUND",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Organization Expense Refund",
+                        "Description": "Organization Expense Refund",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "EXPENSES",
+                    "INFLOWS"
+                ],
+                "ParentTag": "MISCCREDIT"
+            },
+            {
+                "Tag": "FEESREFUND",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Fees Refund",
+                        "Description": "Fees Refund",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "ACCOUNTS",
+                    "INFLOWS",
+                    "FEESCHARGES",
+                    "RETURNS"
+                ],
+                "ParentTag": "MISCCREDIT"
+            },
+            {
+                "Tag": "FINANCINGIN",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Financing Inward Funds",
+                        "Description": "Financing Inward Funds",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "FINANCING",
+                    "INFLOWS"
+                ],
+                "ParentTag": "MISCCREDIT"
+            },
+            {
+                "Tag": "FINREPAY",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Financing Repayment",
+                        "Description": "Financing Repayment",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "FINANCING",
+                    "OUTFLOWS"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "INCENTIVE",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Financial Incentive",
+                        "Description": "Financial Incentive",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "INCENTIVES",
+                    "INFLOWS"
+                ],
+                "ParentTag": "MISCCREDIT"
+            },
+            {
+                "Tag": "INTERESTCR",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Credit Interest",
+                        "Description": "Credit Interest",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "ACCOUNTS",
+                    "INFLOWS",
+                    "INTERESTS"
+                ],
+                "ParentTag": "MISCCREDIT"
+            },
+            {
+                "Tag": "INTERESTDR",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Debit Interest",
+                        "Description": "Debit Interest",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "ACCOUNTS",
+                    "OUTFLOWS",
+                    "INTERESTS"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "LCAMENDMENT",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Letter of Credit Amendment",
+                        "Description": "Letter of Credit Amendment",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TRADEFINANCE",
+                    "OUTFLOWS",
+                    "LC"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "LCCANCELLATION",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Letter of Credit Cancellation",
+                        "Description": "Letter of Credit Cancellation",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TRADEFINANCE",
+                    "OUTFLOWS",
+                    "LC"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "LCEXPADVISING",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Export Letter of Credit Advising",
+                        "Description": "Export Letter of Credit Advising",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TRADEFINANCE",
+                    "OUTFLOWS",
+                    "LC"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "LCEXPAMENDMENT",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Export Letter of Credit Amendment",
+                        "Description": "Export Letter of Credit Amendment",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TRADEFINANCE",
+                    "OUTFLOWS",
+                    "LC"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "LCEXPFEES",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Export Letter of Credit Fees",
+                        "Description": "Export Letter of Credit Fees",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TRADEFINANCE",
+                    "OUTFLOWS",
+                    "LC",
+                    "FEESCHARGES"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "LCEXPSETTLEMENT",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Export Letter of Credit Settlement",
+                        "Description": "Export Letter of Credit Settlement",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TRADEFINANCE",
+                    "INFLOWS",
+                    "LC"
+                ],
+                "ParentTag": "MISCCREDIT"
+            },
+            {
+                "Tag": "LCEXPSETTLEMENTREVERSAL",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Export Letter of Credit Settlement Reversal",
+                        "Description": "Export Letter of Credit Settlement Reversal",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TRADEFINANCE",
+                    "INFLOWS",
+                    "LC",
+                    "RETURNS"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "LCIMPAMENDMENT",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Import Letter of Credit Amendment",
+                        "Description": "Import Letter of Credit Amendment",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TRADEFINANCE",
+                    "OUTFLOWS",
+                    "LC"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "LCIMPCANCELLATION",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Import Letter of Credit Cancellation",
+                        "Description": "Import Letter of Credit Cancellation",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TRADEFINANCE",
+                    "OUTFLOWS",
+                    "LC"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "LCIMPFEES",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Import Letter of Credit Fees",
+                        "Description": "Import Letter of Credit Fees",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TRADEFINANCE",
+                    "OUTFLOWS",
+                    "LC"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "LCIMPINSURANCE",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Import Letter of Credit Insurance",
+                        "Description": "Import Letter of Credit Insurance",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TRADEFINANCE",
+                    "OUTFLOWS",
+                    "LC",
+                    "FEESCHARGES"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "LCIMPSETTLEMENT",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Import Letter of Credit Settlement",
+                        "Description": "Import Letter of Credit Settlement",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TRADEFINANCE",
+                    "OUTFLOWS",
+                    "LC"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "LGFEES",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Letter of Guarantee Fees",
+                        "Description": "Letter of Guarantee Fees",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TRADEFINANCE",
+                    "OUTFLOWS",
+                    "LG",
+                    "FEESCHARGES"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "LGINVOCATION",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Letter of Guarantee Invocation",
+                        "Description": "Letter of Guarantee Invocation",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TRADEFINANCE",
+                    "INFLOWS",
+                    "LG"
+                ],
+                "ParentTag": "MISCCREDIT"
+            },
+            {
+                "Tag": "LGISSUANCE",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Letter of Guarantee Issuance",
+                        "Description": "Letter of Guarantee Issuance",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TRADEFINANCE",
+                    "OUTFLOWS",
+                    "LG"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "LOANDEPOSIT",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Loan Deposit",
+                        "Description": "Loan Deposit",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "LOANS",
+                    "OUTFLOWS"
+                ],
+                "ParentTag": "MISCCREDIT"
+            },
+            {
+                "Tag": "LOANTXNCR",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Loan Credit Transaction",
+                        "Description": "Loan Credit Transaction",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "LOANS",
+                    "INFLOWS"
+                ],
+                "ParentTag": "MISCCREDIT"
+            },
+            {
+                "Tag": "LOANTXNDR",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Loan Debit Transaction or Installment",
+                        "Description": "Loan Debit Transaction or Installment",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "LOANS",
+                    "OUTFLOWS"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "MERCHANTSETTIN",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Inbound Merchant Settlement",
+                        "Description": "Inbound Merchant Settlement",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "COLLECTIONS",
+                    "INFLOWS",
+                    "SETTLEMENTS"
+                ],
+                "ParentTag": "COLLECTION"
+            },
+            {
+                "Tag": "MISCCHARGESCR",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Miscellaneous Charges Credits",
+                        "Description": "Miscellaneous Charges Credits",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "ACCOUNTS",
+                    "INFLOWS"
+                ],
+                "ParentTag": "MISCCREDIT"
+            },
+            {
+                "Tag": "MISCCHARGESDR",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Miscellaneous Charges Debit",
+                        "Description": "Miscellaneous Charges Debit",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "ACCOUNTS",
+                    "OUTFLOWS",
+                    "FEESCHARGES"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "MISCCREDIT",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Miscellaneous Credit",
+                        "Description": "Miscellaneous Credit",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "ACCOUNTS",
+                    "INFLOWS"
+                ],
+                "ParentTag": ""
+            },
+            {
+                "Tag": "MISCCREDITFX",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Miscellaneous Credit Foreign Exchange",
+                        "Description": "Miscellaneous Credit Foreign Exchange",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "ACCOUNTS",
+                    "INFLOWS"
+                ],
+                "ParentTag": "MISCCREDIT"
+            },
+            {
+                "Tag": "MISCDEBIT",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Miscellaneous Debit",
+                        "Description": "Miscellaneous Debit",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "ACCOUNTS",
+                    "OUTFLOWS"
+                ],
+                "ParentTag": ""
+            },
+            {
+                "Tag": "MISCDEBITFX",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Miscellaneous Debit Foreign Exchange",
+                        "Description": "Miscellaneous Debit Foreign Exchange",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "ACCOUNTS",
+                    "OUTFLOWS"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "MUDARABAHADEPOSIT",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Deposit made into Mudaraba or Murabaha Instruments",
+                        "Description": "Deposit made into Mudaraba or Murabaha Instruments",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "INVEST",
+                    "OUTFLOWS"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "MUDARABAHAPROFIT",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Profits made from Mudaraba or Murabaha Instruments",
+                        "Description": "Profits made from Mudaraba or Murabaha Instruments",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "INVEST",
+                    "INFLOWS",
+                    "PROFITS"
+                ],
+                "ParentTag": "MISCCREDIT"
+            },
+            {
+                "Tag": "PAYROLLDEDUCTION",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Deduction of Payroll Amount",
+                        "Description": "Deduction of Payroll Amount",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "PAYROLL",
+                    "OUTFLOWS"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "PAYROLLFEES",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Payroll Processing Fees",
+                        "Description": "Payroll Processing Fees",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "PAYROLL",
+                    "OUTFLOWS",
+                    "FEESCHARGES"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "PAYROLLRETURN",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Payroll Return Credit Back",
+                        "Description": "Payroll Return Credit Back",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "PAYROLL",
+                    "INFLOWS",
+                    "RETURNS"
+                ],
+                "ParentTag": "MISCCREDIT"
+            },
+            {
+                "Tag": "PORTFOLIOIN",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Portfolio Inbound Funds",
+                        "Description": "Portfolio Inbound Funds",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "INVEST",
+                    "INFLOWS"
+                ],
+                "ParentTag": "MISCCREDIT"
+            },
+            {
+                "Tag": "PORTFOLIOOUT",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Portfolio Outboud Funds",
+                        "Description": "Portfolio Outboud Funds",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "INVEST",
+                    "OUTFLOWS"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "POSFEES",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "POS Fees",
+                        "Description": "POS Fees",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "COLLECTIONS",
+                    "OUTFLOWS",
+                    "POSACQ"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "POSSET",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "POS Settlement",
+                        "Description": "POS Settlement",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "COLLECTIONS",
+                    "INFLOWS",
+                    "POSACQ"
+                ],
+                "ParentTag": "COLLECTION"
+            },
+            {
+                "Tag": "POSVAT",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "POS VAT on Fees",
+                        "Description": "POS VAT on Fees",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "COLLECTIONS",
+                    "OUTFLOWS",
+                    "POSACQ"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "SADADBILLPAY",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "SADAD Bill Payment",
+                        "Description": "SADAD Bill Payment",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "BILLPAY",
+                    "OUTFLOWS"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "SADADCOLLFEES",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "SADAD Collection Fees",
+                        "Description": "SADAD Collection Fees",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "COLLECTIONS",
+                    "OUTFLOWS",
+                    "SADADCOLL"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "SADADCOLLSET",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "SADAD Biller Collections Settlement",
+                        "Description": "SADAD Biller Collections Settlement",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "COLLECTIONS",
+                    "INFLOWS",
+                    "SADADCOLL"
+                ],
+                "ParentTag": "COLLECTION"
+            },
+            {
+                "Tag": "SADADGOVPAY",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "SADAD Government Fees Payment",
+                        "Description": "SADAD Government Fees Payment",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "BILLPAY",
+                    "OUTFLOWS",
+                    "GOVERNMENT"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "SADADGOVPAYREFUND",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "SADAD Government Fees Payment Refund",
+                        "Description": "SADAD Government Fees Payment Refund",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "BILLPAY",
+                    "INFLOWS",
+                    "GOVERNMENT",
+                    "RETURNS"
+                ],
+                "ParentTag": "MISCCREDIT"
+            },
+            {
+                "Tag": "STANDINGORDERFEES",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Standing Order Fees",
+                        "Description": "Standing Order Fees",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "STANDINGORDERS",
+                    "OUTFLOWS",
+                    "FEESCHARGES"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "STANDINGORDEROUT",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Standing Order Execution Outbound",
+                        "Description": "Standing Order Execution Outbound",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "STANDINGORDERS",
+                    "OUTFLOWS"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "STATEMENTFEES",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Statement Issuance Fees",
+                        "Description": "Statement Issuance Fees",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "SERVICEFEES",
+                    "OUTFLOWS",
+                    "FEESCHARGES"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "SUBSIDY",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Subsidy",
+                        "Description": "Subsidy",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "SUBSIDIES",
+                    "INFLOWS"
+                ],
+                "ParentTag": "MISCCREDIT"
+            },
+            {
+                "Tag": "SWEEPINGIN",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Sweeping In",
+                        "Description": "Sweeping In",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "SWEEPING",
+                    "INFLOWS"
+                ],
+                "ParentTag": "MISCCREDIT"
+            },
+            {
+                "Tag": "SWEEPINGOUT",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Sweeping Out",
+                        "Description": "Sweeping Out",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "SWEEPING",
+                    "OUTFLOWS"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "TRAFFICVIOLATION",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Traffic Violation",
+                        "Description": "Traffic Violation",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "BILLPAY",
+                    "OUTFLOWS",
+                    "GOVERNMENT"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "TRANSFERIN",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Inbound Transfer",
+                        "Description": "Inbound Transfer",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TRANSFERSIN",
+                    "INFLOWS"
+                ],
+                "ParentTag": "MISCCREDIT"
+            },
+            {
+                "Tag": "TRANSFERINDOM",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Inbound Domestic Transfer",
+                        "Description": "Inbound Domestic Transfer",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TRANSFERSIN",
+                    "INFLOWS"
+                ],
+                "ParentTag": "TRANSFERIN"
+            },
+            {
+                "Tag": "TRANSFERINFEES",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Fees on Inbound Transfer Fees",
+                        "Description": "Fees on Inbound Transfer Fees",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TRANSFERSIN",
+                    "OUTFLOWS",
+                    "FEESCHARGES"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "TRANSFERININSTANT",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Inbound Instant Transfer",
+                        "Description": "Inbound Instant Transfer",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TRANSFERSIN",
+                    "INFLOWS"
+                ],
+                "ParentTag": "TRANSFERIN"
+            },
+            {
+                "Tag": "TRANSFERININTL",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Inbound International Transfer",
+                        "Description": "Inbound International Transfer",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TRANSFERSIN",
+                    "INFLOWS"
+                ],
+                "ParentTag": "TRANSFERIN"
+            },
+            {
+                "Tag": "TRANSFERININTRA",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Inbound Intrabank Transfer",
+                        "Description": "Inbound Intrabank Transfer",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TRANSFERSIN",
+                    "INFLOWS"
+                ],
+                "ParentTag": "TRANSFERIN"
+            },
+            {
+                "Tag": "TRANSFERINRETURN",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Inbound Transfer Return",
+                        "Description": "Inbound Transfer Return",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TRANSFERSIN",
+                    "OUTFLOWS",
+                    "RETURNS"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "TRANSFERINVAT",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Inbound Transfer VAT on Fees",
+                        "Description": "Inbound Transfer VAT on Fees",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TRANSFERSIN",
+                    "OUTFLOWS",
+                    "TAXES"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "TRANSFEROUT",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Outbound Transfer",
+                        "Description": "Outbound Transfer",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TRANSFERSOUT",
+                    "OUTFLOWS"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "TRANSFEROUTDOM",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Outbound Domestic Transfer",
+                        "Description": "Outbound Domestic Transfer",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TRANSFERSOUT",
+                    "OUTFLOWS"
+                ],
+                "ParentTag": "TRANSFEROUT"
+            },
+            {
+                "Tag": "TRANSFEROUTFEES",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Fees on Outbound Transfer Fees",
+                        "Description": "Fees on Outbound Transfer Fees",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TRANSFERSOUT",
+                    "OUTFLOWS",
+                    "FEESCHARGES"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "TRANSFEROUTFEESREFUND",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Fees Refund on Returned Outbound Transfer Fees",
+                        "Description": "Fees Refund on Returned Outbound Transfer Fees",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TRANSFERSOUT",
+                    "INFLOWS",
+                    "FEESCHARGES",
+                    "RETURNS"
+                ],
+                "ParentTag": "MISCCREDIT"
+            },
+            {
+                "Tag": "TRANSFEROUTINSTANT",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Outbound Instant Transfer",
+                        "Description": "Outbound Instant Transfer",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TRANSFERSOUT",
+                    "OUTFLOWS"
+                ],
+                "ParentTag": "TRANSFEROUT"
+            },
+            {
+                "Tag": "TRANSFEROUTINTL",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Outbound International Transfer",
+                        "Description": "Outbound International Transfer",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TRANSFERSOUT",
+                    "OUTFLOWS"
+                ],
+                "ParentTag": "TRANSFEROUT"
+            },
+            {
+                "Tag": "TRANSFEROUTINTRA",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Outbound Intrabank 3rd Party Transfer",
+                        "Description": "Outbound Intrabank 3rd Party Transfer",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TRANSFERSOUT",
+                    "OUTFLOWS"
+                ],
+                "ParentTag": "TRANSFEROUT"
+            },
+            {
+                "Tag": "TRANSFEROUTRETURN",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Outbound Transfer Return",
+                        "Description": "Outbound Transfer Return",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TRANSFERSOUT",
+                    "OUTFLOWS",
+                    "RETURNS"
+                ],
+                "ParentTag": "MISCCREDIT"
+            },
+            {
+                "Tag": "TRANSFEROUTVAT",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Outbound Transfer VAT on Fees",
+                        "Description": "Outbound Transfer VAT on Fees",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TRANSFERSOUT",
+                    "OUTFLOWS",
+                    "TAXES"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "TREASURYCREDIT",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Treasury Credit",
+                        "Description": "Treasury Credit",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TREASURY",
+                    "INFLOWS"
+                ],
+                "ParentTag": "MISCCREDIT"
+            },
+            {
+                "Tag": "TREASURYCREDITCONVENTIONAL",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Treasury Credit Conventional",
+                        "Description": "Treasury Credit Conventional",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TREASURY",
+                    "INFLOWS"
+                ],
+                "ParentTag": "MISCCREDIT"
+            },
+            {
+                "Tag": "TREASURYCREDITFX",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Treasury Credit FX",
+                        "Description": "Treasury Credit FX",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TREASURY",
+                    "INFLOWS"
+                ],
+                "ParentTag": "TREASURYCREDIT"
+            },
+            {
+                "Tag": "TREASURYCREDITISLAMIC",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Treasury Credit Islamic",
+                        "Description": "Treasury Credit Islamic",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TREASURY",
+                    "INFLOWS"
+                ],
+                "ParentTag": "TREASURYCREDIT"
+            },
+            {
+                "Tag": "TREASURYCREDITSWAP",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Treasury Credit Swap",
+                        "Description": "Treasury Credit Swap",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TREASURY",
+                    "INFLOWS"
+                ],
+                "ParentTag": "TREASURYCREDIT"
+            },
+            {
+                "Tag": "TREASURYDEBIT",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Treasury Debit",
+                        "Description": "Treasury Debit",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TREASURY",
+                    "OUTFLOWS"
+                ],
+                "ParentTag": "MISCDEBIT"
+            },
+            {
+                "Tag": "TREASURYDEBITCONVENTIONAL",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Treasury Debit Conventional",
+                        "Description": "Treasury Debit Conventional",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TREASURY",
+                    "OUTFLOWS"
+                ],
+                "ParentTag": "TREASURYDEBIT"
+            },
+            {
+                "Tag": "TREASURYDEBITISLAMIC",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Treasury Debit Islamic",
+                        "Description": "Treasury Debit Islamic",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TREASURY",
+                    "OUTFLOWS"
+                ],
+                "ParentTag": "TREASURYDEBIT"
+            },
+            {
+                "Tag": "TREASURYDEBITSWAP",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "Treasury Debit Swap",
+                        "Description": "Treasury Debit Swap",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "TREASURY",
+                    "OUTFLOWS"
+                ],
+                "ParentTag": "TREASURYDEBIT"
+            },
+            {
+                "Tag": "VATONTXN",
+                "Level": "T",
+                "StatusTag": "ACTIVE",
+                "Actions": null,
+                "Details": [
+                    {
+                        "Name": "VAT on Transaction",
+                        "Description": "VAT on Transaction",
+                        "LanguageCode": "en"
+                    }
+                ],
+                "GroupTags": [
+                    "ACCOUNTS",
+                    "OUTFLOWS",
+                    "TAXES"
+                ],
+                "ParentTag": "MISCDEBIT"
+            }
+        ]
+    },
+    "SFM": {
+        "Constant": "SFM_SUCCESS",
+        "BackendTag": null,
+        "Major": {
+            "Constant": "MAJ_SUCCESS",
+            "MajorRetCodeDetails": [
+                {
+                    "LanguageCode": "en",
+                    "ShortDescription": "Success",
+                    "LongDescription": "Operation was successful."
+                }
+            ]
+        },
+        "Minor": [
+            {
+                "Constant": "SUCCESS",
+                "ActionCodes": [
+                    {
+                        "Constant": "ACT_INFO_OK",
+                        "ActionCodeDetails": [
+                            {
+                                "LanguageCode": "en",
+                                "ShortDescription": "OK",
+                                "LongDescription": "OK - No Action (Default Setting)"
+                            }
+                        ]
+                    }
+                ],
+                "MinorRetCodeDetails": [
+                    {
+                        "LanguageCode": "en",
+                        "ShortDescription": "Success.",
+                        "LongDescription": "Success.",
+                        "DebugDescription": "Success."
+                    }
+                ]
+            }
+        ]
+    }
+}
