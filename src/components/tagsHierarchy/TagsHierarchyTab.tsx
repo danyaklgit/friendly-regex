@@ -568,6 +568,7 @@ export function TagsHierarchyTab() {
         originalNodes={originalRawNodes}
         onConfirm={handleSync}
         syncing={syncing}
+        demoMode={useDummyData}
       />
 
       <ConfirmDialog

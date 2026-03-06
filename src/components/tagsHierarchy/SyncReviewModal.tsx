@@ -11,6 +11,7 @@ interface SyncReviewModalProps {
   originalNodes: TagHierarchyRawNode[];
   onConfirm: () => void;
   syncing: boolean;
+  demoMode?: boolean;
 }
 
 interface NodeDiff {
@@ -76,7 +77,7 @@ export function computeDiff(
   return { added, removed, modified };
 }
 
-export function SyncReviewModal({ open, onClose, currentNodes, originalNodes, onConfirm, syncing }: SyncReviewModalProps) {
+export function SyncReviewModal({ open, onClose, currentNodes, originalNodes, onConfirm, syncing, demoMode }: SyncReviewModalProps) {
   const diff = useMemo(
     () => computeDiff(currentNodes, originalNodes),
     [currentNodes, originalNodes],
@@ -91,10 +92,12 @@ export function SyncReviewModal({ open, onClose, currentNodes, originalNodes, on
       title="Review Changes"
       footer={
         <>
-          <Button variant="ghost" onClick={onClose} disabled={syncing}>Cancel</Button>
-          <Button variant="primary" onClick={onConfirm} disabled={syncing || totalChanges === 0}>
-            {syncing ? 'Syncing...' : 'Sync Tags'}
-          </Button>
+          <Button variant="ghost" onClick={onClose} disabled={syncing}>{demoMode ? 'Close' : 'Cancel'}</Button>
+          {!demoMode && (
+            <Button variant="primary" onClick={onConfirm} disabled={syncing || totalChanges === 0}>
+              {syncing ? 'Syncing...' : 'Sync Tags'}
+            </Button>
+          )}
         </>
       }
     >
