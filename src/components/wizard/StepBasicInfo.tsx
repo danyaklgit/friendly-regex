@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { WizardFormState } from '../../types';
-import { Input } from '../shared/Input';
+import { useTagSpecs } from '../../hooks/useTagSpecs';
+import { TagTreePicker } from '../shared/TagTreePicker';
 import { Select } from '../shared/Select';
 import { STATUS_OPTIONS, CERTAINTY_OPTIONS, SIDE_OPTIONS, TXN_TYPE_OPTIONS, BANK_SWIFT_CODE_OPTIONS } from '../../constants/fields';
 
@@ -11,6 +12,7 @@ interface StepBasicInfoProps {
 }
 
 export function StepBasicInfo({ formState, onUpdate, fromCheckoutContext }: StepBasicInfoProps) {
+  const { tagsHierarchy, tagsHierarchyLoading } = useTagSpecs();
   const [touched, setTouched] = useState<Set<string>>(new Set());
   const markTouched = (field: string) => setTouched((prev) => new Set(prev).add(field));
 
@@ -22,12 +24,12 @@ export function StepBasicInfo({ formState, onUpdate, fromCheckoutContext }: Step
 
   return (
     <div className="space-y-4">
-      <Input
-        label="Tag Name"
-        placeholder="e.g., A2AIn, PaymentOut"
+      <TagTreePicker
+        label="Tag"
+        nodes={tagsHierarchy}
         value={formState.tag}
-        onChange={(e) => { onUpdate({ tag: e.target.value }); markTouched('tag'); }}
-        onBlur={() => markTouched('tag')}
+        onChange={(tag) => { onUpdate({ tag }); markTouched('tag'); }}
+        loading={tagsHierarchyLoading}
         required
         error={isTagError}
       />

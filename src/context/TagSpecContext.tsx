@@ -1,7 +1,9 @@
 import { createContext, useReducer, useMemo, useRef, useEffect, useCallback, useState, type ReactNode, type Dispatch } from 'react';
 import type { TagSpecDefinition, TagSpecLibrary, ContextEntry } from '../types';
 import type { TepHeaders } from '../api/transactions';
+import type { TagTreeNode } from '../api/tagsHierarchy';
 import { getTagSpecLibraries } from '../api/tagSpecs';
+import { getTagsHierarchy } from '../api/tagsHierarchy';
 import sampleTagData from '../data/sample.json';
 
 // --- Helpers ---
@@ -154,6 +156,8 @@ export interface TagSpecContextValue {
   dispatch: Dispatch<TagSpecAction>;
   loading: boolean;
   refetchTagSpecs: () => void;
+  tagsHierarchy: TagTreeNode[];
+  tagsHierarchyLoading: boolean;
 }
 
 interface TagSpecProviderProps {
@@ -170,6 +174,8 @@ export function TagSpecProvider({ children, useDummyData, authToken, tepHeaders 
   const [libraries, dispatch] = useReducer(tagSpecReducer, initialData);
   const tagDefinitions = useMemo(() => flattenDefinitions(libraries), [libraries]);
   const [loading, setLoading] = useState(!useDummyData);
+  const [tagsHierarchy, setTagsHierarchy] = useState<TagTreeNode[]>([]);
+  const [tagsHierarchyLoading, setTagsHierarchyLoading] = useState(!useDummyData);
 
   // Capture IDs from the initially loaded data (predefined); anything else is user-created
   const originalDefinitionIds = useRef(
@@ -179,17 +185,23 @@ export function TagSpecProvider({ children, useDummyData, authToken, tepHeaders 
   const fetchTagSpecs = useCallback(async (signal?: AbortSignal) => {
     if (useDummyData || !authToken || !tepHeaders) return;
     setLoading(true);
+    setTagsHierarchyLoading(true);
     try {
-      const data = await getTagSpecLibraries(authToken, tepHeaders, signal);
-      dispatch({ type: 'REPLACE_ALL', payload: data });
+      const [libsData, hierarchyData] = await Promise.all([
+        getTagSpecLibraries(authToken, tepHeaders, signal),
+        getTagsHierarchy(authToken, tepHeaders, signal),
+      ]);
+      dispatch({ type: 'REPLACE_ALL', payload: libsData });
       // Update original IDs from API data
-      const ids = flattenDefinitions(data).map((d) => d.Id);
+      const ids = flattenDefinitions(libsData).map((d) => d.Id);
       for (const id of ids) originalDefinitionIds.add(id);
+      setTagsHierarchy(hierarchyData);
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return;
-      console.error('Failed to fetch tag spec libraries:', err);
+      console.error('Failed to fetch tag spec data:', err);
     } finally {
       setLoading(false);
+      setTagsHierarchyLoading(false);
     }
   }, [useDummyData, authToken, tepHeaders, originalDefinitionIds]);
 
@@ -206,7 +218,7 @@ export function TagSpecProvider({ children, useDummyData, authToken, tepHeaders 
   }, [fetchTagSpecs]);
 
   return (
-    <TagSpecContext.Provider value={{ libraries, tagDefinitions, originalDefinitionIds, dispatch, loading, refetchTagSpecs }}>
+    <TagSpecContext.Provider value={{ libraries, tagDefinitions, originalDefinitionIds, dispatch, loading, refetchTagSpecs, tagsHierarchy, tagsHierarchyLoading }}>
       {children}
     </TagSpecContext.Provider>
   );
