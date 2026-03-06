@@ -1,8 +1,8 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useAuth } from './context/AuthContext';
 import { TagSpecProvider } from './context/TagSpecContext';
 import { TransactionDataProvider } from './context/TransactionDataContext';
-import { TepConfigProvider } from './context/TepConfigContext';
+import { TepConfigProvider, useTepConfig } from './context/TepConfigContext';
 import { LoginPage } from './components/auth/LoginPage';
 import { TabContainer } from './components/layout/TabContainer';
 import { StatsTab } from './components/stats/StatsTab';
@@ -11,10 +11,31 @@ import { TagRulesTab } from './components/tagRules/TagRulesTab';
 import { SessionWarningModal } from './components/shared/SessionWarningModal';
 import { ConfirmDialog } from './components/shared/ConfirmDialog';
 import type { CheckoutState, TagSpecDefinition, TagSpecLibrary } from './types';
+import type { TepHeaders } from './api/transactions';
 import { getContextValue } from './types/tagSpec';
 
-function App() {
-  const { isAuthenticated, displayName, username } = useAuth();
+function AppContent() {
+  const { isAuthenticated, displayName, username, userId, useDummyData, getAuthHeaders } = useAuth();
+  const tepConfig = useTepConfig();
+
+  const authToken = useMemo(() => {
+    const headers = getAuthHeaders();
+    const auth = headers['Authorization'];
+    return auth?.startsWith('Bearer ') ? auth.slice(7) : null;
+  }, [getAuthHeaders]);
+
+  const tepHeaders = useMemo((): TepHeaders | null => {
+    if (!userId) return null;
+    return {
+      apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
+      userId,
+      tenantCode: tepConfig.ttpTenantCode,
+      languageCode: tepConfig.languageCode,
+      timeZone: tepConfig.timeZone,
+      requestId: tepConfig.ttpRequestId,
+    };
+  }, [userId, tepConfig]);
+
   const [activeTab, setActiveTab] = useState(0);
   const [checkouts, setCheckouts] = useState<CheckoutState[]>([]);
   const [activeCheckout, setActiveCheckout] = useState<CheckoutState | null>(null);
@@ -82,8 +103,7 @@ function App() {
   if (!isAuthenticated) return <LoginPage />;
 
   return (
-    <TepConfigProvider>
-    <TagSpecProvider>
+    <TagSpecProvider useDummyData={useDummyData} authToken={authToken} tepHeaders={tepHeaders}>
       <TransactionDataProvider>
       <SessionWarningModal />
       <div className="min-h-screen bg-surface-secondary">
@@ -108,6 +128,13 @@ function App() {
       />
       </TransactionDataProvider>
     </TagSpecProvider>
+  );
+}
+
+function App() {
+  return (
+    <TepConfigProvider>
+      <AppContent />
     </TepConfigProvider>
   );
 }

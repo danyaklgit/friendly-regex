@@ -1,5 +1,7 @@
-import { createContext, useReducer, useMemo, useRef, type ReactNode, type Dispatch } from 'react';
+import { createContext, useReducer, useMemo, useRef, useEffect, useCallback, useState, type ReactNode, type Dispatch } from 'react';
 import type { TagSpecDefinition, TagSpecLibrary, ContextEntry } from '../types';
+import type { TepHeaders } from '../api/transactions';
+import { getTagSpecLibraries } from '../api/tagSpecs';
 import sampleTagData from '../data/sample.json';
 
 // --- Helpers ---
@@ -150,22 +152,61 @@ export interface TagSpecContextValue {
   tagDefinitions: TagSpecDefinition[];
   originalDefinitionIds: Set<string>;
   dispatch: Dispatch<TagSpecAction>;
+  loading: boolean;
+  refetchTagSpecs: () => void;
+}
+
+interface TagSpecProviderProps {
+  children: ReactNode;
+  useDummyData: boolean;
+  authToken: string | null;
+  tepHeaders: TepHeaders | null;
 }
 
 export const TagSpecContext = createContext<TagSpecContextValue | null>(null);
 
-export function TagSpecProvider({ children }: { children: ReactNode }) {
-  const initialData = sampleTagData as TagSpecLibrary[];
+export function TagSpecProvider({ children, useDummyData, authToken, tepHeaders }: TagSpecProviderProps) {
+  const initialData = useDummyData ? (sampleTagData as TagSpecLibrary[]) : [];
   const [libraries, dispatch] = useReducer(tagSpecReducer, initialData);
   const tagDefinitions = useMemo(() => flattenDefinitions(libraries), [libraries]);
+  const [loading, setLoading] = useState(!useDummyData);
 
   // Capture IDs from the initially loaded data (predefined); anything else is user-created
   const originalDefinitionIds = useRef(
     new Set(flattenDefinitions(initialData).map((d) => d.Id))
   ).current;
 
+  const fetchTagSpecs = useCallback(async (signal?: AbortSignal) => {
+    if (useDummyData || !authToken || !tepHeaders) return;
+    setLoading(true);
+    try {
+      const data = await getTagSpecLibraries(authToken, tepHeaders, signal);
+      dispatch({ type: 'REPLACE_ALL', payload: data });
+      // Update original IDs from API data
+      const ids = flattenDefinitions(data).map((d) => d.Id);
+      for (const id of ids) originalDefinitionIds.add(id);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      console.error('Failed to fetch tag spec libraries:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [useDummyData, authToken, tepHeaders, originalDefinitionIds]);
+
+  // Fetch on mount in live mode
+  useEffect(() => {
+    if (useDummyData) return;
+    const controller = new AbortController();
+    fetchTagSpecs(controller.signal);
+    return () => controller.abort();
+  }, [useDummyData, fetchTagSpecs]);
+
+  const refetchTagSpecs = useCallback(() => {
+    fetchTagSpecs();
+  }, [fetchTagSpecs]);
+
   return (
-    <TagSpecContext.Provider value={{ libraries, tagDefinitions, originalDefinitionIds, dispatch }}>
+    <TagSpecContext.Provider value={{ libraries, tagDefinitions, originalDefinitionIds, dispatch, loading, refetchTagSpecs }}>
       {children}
     </TagSpecContext.Provider>
   );

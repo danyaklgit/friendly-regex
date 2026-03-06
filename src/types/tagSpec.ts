@@ -93,7 +93,7 @@ export interface TagSpecLibrary {
   StatusTag: StatusTag;
   DataSetType: string;
   Version: number;
-  IsLatestVersion: boolean;
+  IsLatestVersion?: boolean;
   VersionDate: string;
   Context: ContextEntry[];
   TagSpecDefinitions: TagSpecDefinition[];
