@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { sha256 } from '../utils/sha256';
-import { loginApi, refreshTokenApi, logoutApi, getUserInfo } from '../api/identity';
+import { loginApi, refreshTokenApi, logoutApi, getUserInfo, getUsersInfo } from '../api/identity';
 
 interface AuthContextValue {
   isAuthenticated: boolean;
@@ -10,6 +10,7 @@ interface AuthContextValue {
   useDummyData: boolean;
   expiresAt: number | null;
   showSessionWarning: boolean;
+  usersMap: Map<string, string>;
   login: (username: string, password: string, useDummy?: boolean) => Promise<boolean>;
   logout: () => void;
   refreshSession: () => Promise<boolean>;
@@ -53,6 +54,7 @@ function loadSession(): StoredAuth | null {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<StoredAuth | null>(loadSession);
   const [showSessionWarning, setShowSessionWarning] = useState(false);
+  const [usersMap, setUsersMap] = useState<Map<string, string>>(new Map());
 
   const isAuthenticated = session !== null;
   const username = session?.username ?? null;
@@ -110,6 +112,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         uid = info.id || null;
       } catch {
         // getUserInfo failed — proceed with email as fallback
+      }
+
+      // Fetch all users for OperatorId → name resolution
+      try {
+        const allUsers = await getUsersInfo(data.accessToken);
+        setUsersMap(new Map(allUsers.map(u => [u.id, `${u.firstName} ${u.lastName}`.trim()])));
+      } catch {
+        // getUsersInfo failed — usersMap stays empty
       }
 
       const newSession: StoredAuth = {
@@ -195,7 +205,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={{
-      isAuthenticated, username, displayName, userId, useDummyData, expiresAt, showSessionWarning,
+      isAuthenticated, username, displayName, userId, useDummyData, expiresAt, showSessionWarning, usersMap,
       login, logout, refreshSession, dismissWarning, getAuthHeaders, refreshIfNeeded,
     }}>
       {children}

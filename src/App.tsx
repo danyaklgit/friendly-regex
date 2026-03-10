@@ -45,15 +45,6 @@ function AppContent() {
 
   const operatorName = displayName ?? username ?? undefined;
 
-  const handleCheckout = useCallback((bank: string, side: string) => {
-    setCheckouts((prev) => {
-      if (prev.some((c) => c.bank === bank && c.side === side)) return prev;
-      return [...prev, { bank, side, operatorName }];
-    });
-    setActiveCheckout({ bank, side, operatorName });
-    setActiveTab(1);
-  }, [operatorName]);
-
   const handleViewTransactions = useCallback((bank: string, side: string) => {
     setActiveCheckout({ bank, side });
     setActiveTab(1);
@@ -112,7 +103,7 @@ function AppContent() {
           activeIndex={activeTab}
           onTabChange={setActiveTab}
           tabs={[
-            { label: 'Overview', content: <StatsTab checkouts={checkouts} onCheckout={handleCheckout} onCheckin={handleCheckin} onViewTransactions={handleViewTransactions} onRequestUndo={handleRequestUndo} /> },
+            { label: 'Overview', content: <StatsTab onViewTransactions={handleViewTransactions} authToken={authToken} tepHeaders={tepHeaders} /> },
             { label: 'Transactions', content: <TransactionsTab activeCheckout={activeCheckout} onCheckin={handleCheckin} onRelease={handleRelease} onRequestUndo={handleRequestUndo} editFromRules={editFromRules} onClearEditFromRules={() => setEditFromRules(null)} /> },
             { label: 'Tag Rules', content: <TagRulesTab checkouts={checkouts} onEditInTransactions={handleEditInTransactions} /> },
             { label: 'Tags Hierarchy', content: <TagsHierarchyTab /> },

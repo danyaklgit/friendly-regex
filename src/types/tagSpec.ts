@@ -70,7 +70,7 @@ export interface TagValidity {
   EndDate: string | null;
 }
 
-export type StatusTag = 'ACTIVE' | 'INACTIVE' | 'DRAFT';
+export type StatusTag = 'ACTIVE' | 'INACTIVE' | 'DRAFT' | 'INPROGRESS' ;
 export type CertaintyLevelTag = 'HIGH' | 'MEDIUM' | 'LOW';
 
 export interface TagSpecDefinition {

@@ -17,53 +17,47 @@ function buildHeaders(token: string, tepHeaders: TepHeaders): Record<string, str
   };
 }
 
-export async function checkoutApi(
-  bank: string,
-  side: string,
+export async function tagSpecLibraryCheckOut(
+  tagSpecLibraryId: string,
   token: string,
   tepHeaders: TepHeaders,
   signal?: AbortSignal,
 ): Promise<void> {
-  // TODO: wire to real endpoint when available
-  const res = await fetch(`${BASE}/Checkout`, {
+  const res = await fetch(`${BASE}/TagSpecLibraryCheckOut`, {
     method: 'POST',
     headers: buildHeaders(token, tepHeaders),
-    body: JSON.stringify({ Bank: bank, Side: side }),
+    body: JSON.stringify({ TagSpecLibraryId: tagSpecLibraryId }),
     signal,
   });
   if (!res.ok) throw new Error('Checkout failed');
 }
 
-export async function checkinApi(
-  bank: string,
-  side: string,
+export async function tagSpecLibraryCheckIn(
+  tagSpecLibraryId: string,
   token: string,
   tepHeaders: TepHeaders,
   signal?: AbortSignal,
 ): Promise<void> {
-  // TODO: wire to real endpoint when available
-  const res = await fetch(`${BASE}/Checkin`, {
+  const res = await fetch(`${BASE}/TagSpecLibraryCheckIn`, {
     method: 'POST',
     headers: buildHeaders(token, tepHeaders),
-    body: JSON.stringify({ Bank: bank, Side: side }),
+    body: JSON.stringify({ TagSpecLibraryId: tagSpecLibraryId }),
     signal,
   });
   if (!res.ok) throw new Error('Checkin failed');
 }
 
-export async function undoChangesApi(
-  bank: string,
-  side: string,
+export async function tagSpecLibraryRollback(
+  tagSpecLibraryId: string,
   token: string,
   tepHeaders: TepHeaders,
   signal?: AbortSignal,
 ): Promise<void> {
-  // TODO: wire to real endpoint when available
-  const res = await fetch(`${BASE}/UndoChanges`, {
+  const res = await fetch(`${BASE}/TagSpecLibraryRollback`, {
     method: 'POST',
     headers: buildHeaders(token, tepHeaders),
-    body: JSON.stringify({ Bank: bank, Side: side }),
+    body: JSON.stringify({ TagSpecLibraryId: tagSpecLibraryId }),
     signal,
   });
-  if (!res.ok) throw new Error('Undo changes failed');
+  if (!res.ok) throw new Error('Rollback failed');
 }

@@ -1,25 +1,19 @@
-import bankStatsData from '../../data/bankStats.json';
+import { useState, useMemo, useCallback } from 'react';
+import { useTagSpecs } from '../../hooks/useTagSpecs';
+import { useAuth } from '../../context/AuthContext';
+import { getContextValue } from '../../types/tagSpec';
+import { tagSpecLibraryCheckOut, tagSpecLibraryCheckIn, tagSpecLibraryRollback } from '../../api/checkout';
 import { Button } from '../shared/Button';
-import type { CheckoutState } from '../../types';
+import { ConfirmDialog } from '../shared/ConfirmDialog';
+import { Toast } from '../shared/Toast';
+import { ComparisonModal } from './ComparisonModal';
+import type { TepHeaders } from '../../api/transactions';
+import type { TagSpecLibrary } from '../../types';
 
 interface StatsTabProps {
-  checkouts: CheckoutState[];
-  onCheckout: (bank: string, side: string) => void;
-  onCheckin: (bank: string, side: string) => void;
   onViewTransactions: (bank: string, side: string) => void;
-  onRequestUndo: (bank: string, side: string) => void;
-}
-
-interface BankSideStats {
-  bank: string;
-  side: string;
-  totalTransactions: number;
-  untaggedCount: number;
-  multiTaggedCount: number;
-  missingMandatoryAttributes: number;
-  missingOptionalAttributes: number;
-  status: string;
-  checkedOutBy: string | null;
+  authToken: string | null;
+  tepHeaders: TepHeaders | null;
 }
 
 const sideLabel: Record<string, string> = {
@@ -29,99 +23,208 @@ const sideLabel: Record<string, string> = {
   RD: 'Rev. Debit',
 };
 
-function StatBadge({ value, color }: { value: number; color: 'red' | 'yellow' | 'green' | 'gray' }) {
-  if (value === 0) return <span className="text-faint text-xs">0</span>;
-  const colors = {
-    red: 'bg-red-100 text-red-700',
-    yellow: 'bg-yellow-100 text-yellow-700',
-    green: 'bg-green-100 text-green-700',
-    gray: 'bg-surface-tertiary text-body-secondary',
-  };
-  return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${colors[color]}`}>
-      {value.toLocaleString()}
-    </span>
-  );
+interface DisplayRow {
+  library: TagSpecLibrary;
+  bank: string;
+  side: string;
+  operatorName: string | null;
+  isInProgress: boolean;
+  isCheckedOut: boolean;
+  inProgressLib: TagSpecLibrary | undefined;
 }
 
-export function StatsTab({ checkouts, onCheckout, onViewTransactions, onRequestUndo }: StatsTabProps) {
-  const stats = bankStatsData as BankSideStats[];
+export function StatsTab({ onViewTransactions, authToken, tepHeaders }: StatsTabProps) {
+  const { libraries, loading, refetchTagSpecs } = useTagSpecs();
+  const { usersMap, useDummyData } = useAuth();
+
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [rollbackTarget, setRollbackTarget] = useState<DisplayRow | null>(null);
+  const [compareTarget, setCompareTarget] = useState<DisplayRow | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  const rows = useMemo<DisplayRow[]>(() => {
+    const referencedIds = new Set(
+      libraries.filter(l => l.ActiveTagSpecLibId && l.StatusTag === 'ACTIVE').map(l => l.ActiveTagSpecLibId!)
+    );
+
+    const activeLibs = libraries.filter(
+      l => l.StatusTag === 'ACTIVE' && l.Id && !referencedIds.has(l.Id)
+    );
+
+    return activeLibs.map(lib => {
+      const inProgressLib = libraries.find(
+        l => l.ActiveTagSpecLibId === lib.Id && l.StatusTag === 'INPROGRESS'
+      );
+      return {
+        library: lib,
+        bank: getContextValue(lib.Context, 'BankSwiftCode') ?? '',
+        side: getContextValue(lib.Context, 'Side') ?? '',
+        operatorName: inProgressLib
+          ? usersMap.get(inProgressLib.OperatorId) ?? inProgressLib.OperatorId
+          : null,
+        isInProgress: !!inProgressLib,
+        isCheckedOut: !!inProgressLib && !!inProgressLib.OperatorId,
+        inProgressLib,
+      };
+    });
+  }, [libraries, usersMap]);
+
+  const handleCheckout = useCallback(async (row: DisplayRow) => {
+    if (!authToken || !tepHeaders || !row.library.Id) return;
+    setActionLoading(row.library.Id);
+    try {
+      await tagSpecLibraryCheckOut(row.library.Id, authToken, tepHeaders);
+      refetchTagSpecs();
+      setToast({ message: `Checked out ${row.bank} / ${row.side}`, type: 'success' });
+    } catch {
+      setToast({ message: 'Checkout failed', type: 'error' });
+    } finally {
+      setActionLoading(null);
+    }
+  }, [authToken, tepHeaders, refetchTagSpecs]);
+
+  const handleCheckin = useCallback(async (row: DisplayRow) => {
+    if (!authToken || !tepHeaders || !row.inProgressLib?.Id) return;
+    setActionLoading(row.library.Id!);
+    try {
+      await tagSpecLibraryCheckIn(row.inProgressLib.Id, authToken, tepHeaders);
+      refetchTagSpecs();
+      setToast({ message: `Checked in ${row.bank} / ${row.side}`, type: 'success' });
+    } catch {
+      setToast({ message: 'Checkin failed', type: 'error' });
+    } finally {
+      setActionLoading(null);
+    }
+  }, [authToken, tepHeaders, refetchTagSpecs]);
+
+  const handleRollbackConfirm = useCallback(async () => {
+    if (!authToken || !tepHeaders || !rollbackTarget?.inProgressLib?.Id) return;
+    setActionLoading(rollbackTarget.library.Id!);
+    try {
+      await tagSpecLibraryRollback(rollbackTarget.inProgressLib.Id, authToken, tepHeaders);
+      refetchTagSpecs();
+      setToast({ message: `Rolled back ${rollbackTarget.bank} / ${rollbackTarget.side}`, type: 'success' });
+    } catch {
+      setToast({ message: 'Rollback failed', type: 'error' });
+    } finally {
+      setActionLoading(null);
+      setRollbackTarget(null);
+    }
+  }, [authToken, tepHeaders, rollbackTarget, refetchTagSpecs]);
+
+  const canAct = !useDummyData && !!authToken && !!tepHeaders;
 
   return (
     <div>
       <div className="mb-4">
-        {/* <h2 className="text-base font-semibold text-heading">Bank Statistics</h2> */}
         <p className="text-sm mt-0.5 text-right text-primary-dark">
-          {/* Check out a combination to start working. */}
           Check out a Tag Spec Library to start.
         </p>
       </div>
 
-      <div className="overflow-hidden border border-border rounded-lg">
-        <table className="min-w-full divide-y divide-divide">
-          <thead className="bg-surface-secondary">
-            <tr>
-              <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Bank</th>
-              <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Side</th>
-              <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Total</th>
-              <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Untagged</th>
-              <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Multi-tagged</th>
-              <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Missing Mandatory</th>
-              <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Missing Optional</th>
-              <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Operator</th>
-              <th className="px-4 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Status</th>
-              <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Action</th>
-            </tr>
-          </thead>
-          <tbody className="bg-surface divide-y divide-divide">
-            {stats.map((row) => {
-              const checkout = checkouts.find((c) => c.bank === row.bank && c.side === row.side);
-              const isCheckedOut = !!checkout;
-              return (
-                <tr key={`${row.bank}-${row.side}`} className={`transition-colors ${isCheckedOut ? 'bg-primary/5' : 'hover:bg-surface-hover'}`}>
-                  <td className="px-4 py-2.5 text-xs font-medium text-heading">{row.bank}</td>
-                  <td className="px-4 py-2.5">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold
-                      ${row.side === 'CR' ? 'bg-emerald-50 text-emerald-700' : row.side === 'DR' ? 'bg-red-50 text-red-700' : 'bg-surface-tertiary text-body-secondary'}`}>
-                      {row.side} {sideLabel[row.side] ? `- ${sideLabel[row.side]}` : ''}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2.5 text-xs text-body text-right font-medium">{row.totalTransactions.toLocaleString()}</td>
-                  <td className="px-4 py-2.5 text-right"><StatBadge value={row.untaggedCount} color="red" /></td>
-                  <td className="px-4 py-2.5 text-right"><StatBadge value={row.multiTaggedCount} color="yellow" /></td>
-                  <td className="px-4 py-2.5 text-right"><StatBadge value={row.missingMandatoryAttributes} color="red" /></td>
-                  <td className="px-4 py-2.5 text-right"><StatBadge value={row.missingOptionalAttributes} color="yellow" /></td>
-                  <td className="px-4 py-2.5 text-xs text-body-secondary">
-                    {isCheckedOut ? <span className="text-primary-dark font-medium">{checkout?.operatorName ?? 'Current User'}</span> : <span className="text-faint">-</span>}
-                  </td>
-                  <td className="px-4 py-2.5 text-center">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium
-                      ${isCheckedOut ? 'bg-primary/15 text-primary-dark' : 'bg-surface-tertiary text-muted'}`}>
-                      {isCheckedOut ? 'In Progress' : 'Active'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2.5 text-end">
-                    {isCheckedOut ? (
-                      <div className="flex items-center justify-end gap-2">
-                        <Button variant="danger_ghost" size="xs" onClick={() => onRequestUndo(row.bank, row.side)}>
-                          Undo Changes
+      {loading ? (
+        <div className="text-center py-12 text-body-secondary text-sm">Loading libraries...</div>
+      ) : rows.length === 0 ? (
+        <div className="text-center py-12 text-body-secondary text-sm">No active libraries found.</div>
+      ) : (
+        <div className="overflow-hidden border border-border rounded-lg">
+          <table className="min-w-full divide-y divide-divide">
+            <thead className="bg-surface-secondary">
+              <tr>
+                <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Bank</th>
+                <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Side</th>
+                <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Total</th>
+                <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Untagged</th>
+                <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Multi-tagged</th>
+                <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Missing Mandatory</th>
+                <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Missing Optional</th>
+                <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Operator</th>
+                <th className="px-4 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Status</th>
+                <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Action</th>
+              </tr>
+            </thead>
+            <tbody className="bg-surface divide-y divide-divide">
+              {rows.map((row) => {
+                const isLoading = actionLoading === row.library.Id;
+                return (
+                  <tr key={row.library.Id} className={`transition-colors ${row.isInProgress ? 'bg-primary/5' : 'hover:bg-surface-hover'}`}>
+                    <td className="px-4 py-2.5 text-xs font-medium text-heading">{row.bank}</td>
+                    <td className="px-4 py-2.5">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold
+                        ${row.side === 'CR' ? 'bg-emerald-50 text-emerald-700' : row.side === 'DR' ? 'bg-red-50 text-red-700' : 'bg-surface-tertiary text-body-secondary'}`}>
+                        {row.side} {sideLabel[row.side] ? `- ${sideLabel[row.side]}` : ''}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-faint text-right">-</td>
+                    <td className="px-4 py-2.5 text-xs text-faint text-right">-</td>
+                    <td className="px-4 py-2.5 text-xs text-faint text-right">-</td>
+                    <td className="px-4 py-2.5 text-xs text-faint text-right">-</td>
+                    <td className="px-4 py-2.5 text-xs text-faint text-right">-</td>
+                    <td className="px-4 py-2.5 text-xs text-body-secondary">
+                      {row.operatorName
+                        ? <span className="text-primary-dark font-medium">{row.operatorName}</span>
+                        : <span className="text-faint">-</span>}
+                    </td>
+                    <td className="px-4 py-2.5 text-center">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium
+                        ${row.isInProgress ? 'bg-primary/15 text-primary-dark' : 'bg-surface-tertiary text-muted'}`}>
+                        {row.isInProgress ? 'In Progress' : 'Active'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-end">
+                      {row.isInProgress ? (
+                        <div className="flex items-center justify-end gap-2">
+                          <Button variant="ghost" size="xs" onClick={() => setCompareTarget(row)} disabled={isLoading}>
+                            Compare
+                          </Button>
+                          {row.isCheckedOut && (
+                            <Button variant="danger_ghost" size="xs" onClick={() => setRollbackTarget(row)} disabled={isLoading}>
+                              Rollback
+                            </Button>
+                          )}
+                          <Button variant="primary" size="xs" onClick={() => handleCheckin(row)} disabled={isLoading}>
+                            Checkin
+                          </Button>
+                          <Button variant="primary" size="xs" onClick={() => onViewTransactions(row.bank, row.side)} disabled={isLoading}>
+                            View Transactions
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button variant="primary" size="xs" onClick={() => handleCheckout(row)} disabled={!canAct || isLoading}>
+                          Checkout
                         </Button>
-                        <Button variant="primary" size="xs" onClick={() => onViewTransactions(row.bank, row.side)}>
-                          View Transactions
-                        </Button>
-                      </div>
-                    ) : (
-                      <Button variant="primary" size="xs" onClick={() => onCheckout(row.bank, row.side)}>
-                        Checkout
-                      </Button>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={!!rollbackTarget}
+        onClose={() => setRollbackTarget(null)}
+        onConfirm={handleRollbackConfirm}
+        title="Rollback Changes"
+        message={`Are you sure you want to rollback all changes for ${rollbackTarget?.bank ?? ''} / ${rollbackTarget?.side ?? ''}? This cannot be undone.`}
+        confirmLabel="Rollback"
+        variant="danger_ghost"
+      />
+
+      {compareTarget && compareTarget.inProgressLib && (
+        <ComparisonModal
+          open
+          onClose={() => setCompareTarget(null)}
+          activeLib={compareTarget.library}
+          inProgressLib={compareTarget.inProgressLib}
+        />
+      )}
+
+      {toast && (
+        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
+      )}
     </div>
   );
 }
