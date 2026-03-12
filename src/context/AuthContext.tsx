@@ -60,7 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const username = session?.username ?? null;
   const displayName = session?.displayName ?? null;
   const userId = session?.userId ?? null;
-  const useDummyData = session?.useDummyData ?? true;
+  const useDummyData = session?.useDummyData ?? false;
   const expiresAt = session?.expiresAt ?? null;
 
   // Dual timers: warning at 1min before, logout at expiry

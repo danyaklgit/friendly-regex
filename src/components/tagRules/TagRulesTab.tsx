@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo, useEffect } from 'react';
 import { useTagSpecs } from '../../hooks/useTagSpecs';
-import type { TagSpecDefinition, TagSpecLibrary, CheckoutState } from '../../types';
+import type { TagSpecDefinition, TagSpecLibrary } from '../../types';
 import type { WizardFormResult } from '../../hooks/useWizardForm';
 import { getContextValue } from '../../types/tagSpec';
 import { exportTagLibraries, exportSingleDefinition, importTagLibraries } from '../../utils/persistence';
@@ -12,11 +12,10 @@ import { EmptyState } from '../shared/EmptyState';
 import { Toast } from '../shared/Toast';
 
 interface TagRulesTabProps {
-  checkouts: CheckoutState[];
   onEditInTransactions?: (def: TagSpecDefinition, parentLib: TagSpecLibrary) => void;
 }
 
-export function TagRulesTab({ checkouts, onEditInTransactions }: TagRulesTabProps) {
+export function TagRulesTab({ onEditInTransactions }: TagRulesTabProps) {
   const { libraries, tagDefinitions, dispatch } = useTagSpecs();
   const [wizardOpen, setWizardOpen] = useState(false);
   const [editingDef, setEditingDef] = useState<TagSpecDefinition | undefined>(undefined);
@@ -52,20 +51,35 @@ export function TagRulesTab({ checkouts, onEditInTransactions }: TagRulesTabProp
     });
   };
 
+  // Filter to ACTIVE-only libs (same as StatsTab) to avoid duplicates
+  const activeLibraries = useMemo(() => {
+    return libraries.filter((l) => l.StatusTag === 'ACTIVE');
+  }, [libraries]);
+
+  // Derive checked-out status from library data (INPROGRESS + has OperatorId)
+  const checkedOutPairs = useMemo(() => {
+    const pairs = new Set<string>();
+    for (const lib of libraries) {
+      if (lib.StatusTag === 'INPROGRESS' && lib.OperatorId) {
+        const bank = getContextValue(lib.Context, 'BankSwiftCode') ?? '';
+        const side = getContextValue(lib.Context, 'Side') ?? '';
+        pairs.add(`${bank}:${side}`);
+      }
+    }
+    return pairs;
+  }, [libraries]);
+
   const sortedLibraries = useMemo(() => {
-    if (checkouts.length === 0) return libraries;
-    return [...libraries].sort((a, b) => {
-      const aBank = getContextValue(a.Context, 'BankSwiftCode') ?? '';
-      const aSide = getContextValue(a.Context, 'Side') ?? '';
-      const bBank = getContextValue(b.Context, 'BankSwiftCode') ?? '';
-      const bSide = getContextValue(b.Context, 'Side') ?? '';
-      const aMatch = checkouts.some((c) => c.bank === aBank && c.side === aSide);
-      const bMatch = checkouts.some((c) => c.bank === bBank && c.side === bSide);
+    return [...activeLibraries].sort((a, b) => {
+      const aKey = getLibKey(a);
+      const bKey = getLibKey(b);
+      const aMatch = checkedOutPairs.has(aKey);
+      const bMatch = checkedOutPairs.has(bKey);
       if (aMatch && !bMatch) return -1;
       if (!aMatch && bMatch) return 1;
       return 0;
     });
-  }, [libraries, checkouts]);
+  }, [activeLibraries, checkedOutPairs]);
 
   const handleCreate = () => {
     setEditingDef(undefined);
@@ -183,7 +197,7 @@ export function TagRulesTab({ checkouts, onEditInTransactions }: TagRulesTabProp
           {sortedLibraries.map((lib) => {
             const side = getContextValue(lib.Context, 'Side') ?? '?';
             const bank = getContextValue(lib.Context, 'BankSwiftCode') ?? '?';
-            const isCheckedOut = checkouts.some((c) => c.bank === bank && c.side === side);
+            const isCheckedOut = checkedOutPairs.has(`${bank}:${side}`);
             const libKey = getLibKey(lib);
             const isCollapsed = collapsedIds.has(libKey);
             return (

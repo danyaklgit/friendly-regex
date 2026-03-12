@@ -15,7 +15,7 @@ export function CheckoutBanner({ bank, side, onRelease, onCheckin, onRequestUndo
         <span className="font-semibold">You're working on</span> Bank {bank}, Side {side}
       </span>
       <div className='flex gap-3'>
-        <Button disabled={true} variant="primary" size="xs" onClick={() => onRelease(bank, side)}>
+        <Button variant="primary" size="xs" onClick={() => onRelease(bank, side)}>
           Release
         </Button>
         {onRequestUndo && (

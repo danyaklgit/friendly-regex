@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useTagSpecs } from '../../hooks/useTagSpecs';
 import { useAuth } from '../../context/AuthContext';
 import { getContextValue } from '../../types/tagSpec';
@@ -12,6 +12,7 @@ import type { TagSpecLibrary } from '../../types';
 
 interface StatsTabProps {
   onViewTransactions: (bank: string, side: string) => void;
+  onCheckoutComplete: (bank: string, side: string) => void;
   authToken: string | null;
   tepHeaders: TepHeaders | null;
 }
@@ -29,18 +30,26 @@ interface DisplayRow {
   side: string;
   operatorName: string | null;
   isInProgress: boolean;
-  isCheckedOut: boolean;
+  isOwnedByMe: boolean;
+  hasOperator: boolean;
   inProgressLib: TagSpecLibrary | undefined;
 }
 
-export function StatsTab({ onViewTransactions, authToken, tepHeaders }: StatsTabProps) {
+export function StatsTab({ onViewTransactions, onCheckoutComplete, authToken, tepHeaders }: StatsTabProps) {
   const { libraries, loading, refetchTagSpecs } = useTagSpecs();
-  const { usersMap, useDummyData } = useAuth();
+  const { usersMap, useDummyData, userId } = useAuth();
 
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [rollbackTarget, setRollbackTarget] = useState<DisplayRow | null>(null);
   const [compareTarget, setCompareTarget] = useState<DisplayRow | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  // Background refetch on mount (fires each time user navigates to Overview tab)
+  useEffect(() => {
+    if (useDummyData) return;
+    refetchTagSpecs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const rows = useMemo<DisplayRow[]>(() => {
     const referencedIds = new Set(
@@ -55,33 +64,37 @@ export function StatsTab({ onViewTransactions, authToken, tepHeaders }: StatsTab
       const inProgressLib = libraries.find(
         l => l.ActiveTagSpecLibId === lib.Id && l.StatusTag === 'INPROGRESS'
       );
+      const hasOperator = !!inProgressLib?.OperatorId;
       return {
         library: lib,
         bank: getContextValue(lib.Context, 'BankSwiftCode') ?? '',
         side: getContextValue(lib.Context, 'Side') ?? '',
-        operatorName: inProgressLib
-          ? usersMap.get(inProgressLib.OperatorId) ?? inProgressLib.OperatorId
+        operatorName: hasOperator
+          ? usersMap.get(inProgressLib!.OperatorId) ?? inProgressLib!.OperatorId
           : null,
         isInProgress: !!inProgressLib,
-        isCheckedOut: !!inProgressLib && !!inProgressLib.OperatorId,
+        hasOperator,
+        isOwnedByMe: hasOperator && inProgressLib!.OperatorId === userId,
         inProgressLib,
       };
     });
-  }, [libraries, usersMap]);
+  }, [libraries, usersMap, userId]);
 
   const handleCheckout = useCallback(async (row: DisplayRow) => {
-    if (!authToken || !tepHeaders || !row.library.Id) return;
-    setActionLoading(row.library.Id);
+    const checkoutId = row.inProgressLib?.Id ?? row.library.Id;
+    if (!authToken || !tepHeaders || !checkoutId) return;
+    setActionLoading(row.library.Id!);
     try {
-      await tagSpecLibraryCheckOut(row.library.Id, authToken, tepHeaders);
-      refetchTagSpecs();
+      await tagSpecLibraryCheckOut(checkoutId, authToken, tepHeaders);
+      await refetchTagSpecs();
       setToast({ message: `Checked out ${row.bank} / ${row.side}`, type: 'success' });
+      onCheckoutComplete(row.bank, row.side);
     } catch {
       setToast({ message: 'Checkout failed', type: 'error' });
     } finally {
       setActionLoading(null);
     }
-  }, [authToken, tepHeaders, refetchTagSpecs]);
+  }, [authToken, tepHeaders, refetchTagSpecs, onCheckoutComplete]);
 
   const handleCheckin = useCallback(async (row: DisplayRow) => {
     if (!authToken || !tepHeaders || !row.inProgressLib?.Id) return;
@@ -114,6 +127,9 @@ export function StatsTab({ onViewTransactions, authToken, tepHeaders }: StatsTab
 
   const canAct = !useDummyData && !!authToken && !!tepHeaders;
 
+  // Show loading skeleton only on initial load (no data yet)
+  const showSkeleton = loading && libraries.length === 0;
+
   return (
     <div>
       <div className="mb-4">
@@ -122,7 +138,7 @@ export function StatsTab({ onViewTransactions, authToken, tepHeaders }: StatsTab
         </p>
       </div>
 
-      {loading ? (
+      {showSkeleton ? (
         <div className="text-center py-12 text-body-secondary text-sm">Loading libraries...</div>
       ) : rows.length === 0 ? (
         <div className="text-center py-12 text-body-secondary text-sm">No active libraries found.</div>
@@ -172,28 +188,36 @@ export function StatsTab({ onViewTransactions, authToken, tepHeaders }: StatsTab
                       </span>
                     </td>
                     <td className="px-4 py-2.5 text-end">
-                      {row.isInProgress ? (
-                        <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-2">
+                        {/* Compare: shown when INPROGRESS exists */}
+                        {row.isInProgress && (
                           <Button variant="ghost" size="xs" onClick={() => setCompareTarget(row)} disabled={isLoading}>
                             Compare
                           </Button>
-                          {row.isCheckedOut && (
-                            <Button variant="danger_ghost" size="xs" onClick={() => setRollbackTarget(row)} disabled={isLoading}>
-                              Rollback
-                            </Button>
-                          )}
+                        )}
+                        {/* Rollback: only when owned by me */}
+                        {row.isOwnedByMe && (
+                          <Button variant="danger_ghost" size="xs" onClick={() => setRollbackTarget(row)} disabled={isLoading}>
+                            Rollback
+                          </Button>
+                        )}
+                        {/* Checkin: only when owned by me */}
+                        {row.isOwnedByMe && (
                           <Button variant="primary" size="xs" onClick={() => handleCheckin(row)} disabled={isLoading}>
                             Checkin
                           </Button>
-                          <Button variant="primary" size="xs" onClick={() => onViewTransactions(row.bank, row.side)} disabled={isLoading}>
-                            View Transactions
+                        )}
+                        {/* Checkout: when not in progress, or in progress but no operator */}
+                        {(!row.isInProgress || (row.isInProgress && !row.hasOperator)) && (
+                          <Button variant="primary" size="xs" onClick={() => handleCheckout(row)} disabled={!canAct || isLoading}>
+                            Checkout
                           </Button>
-                        </div>
-                      ) : (
-                        <Button variant="primary" size="xs" onClick={() => handleCheckout(row)} disabled={!canAct || isLoading}>
-                          Checkout
+                        )}
+                        {/* View Transactions: always available */}
+                        <Button variant="ghost" size="xs" onClick={() => onViewTransactions(row.bank, row.side)} disabled={isLoading}>
+                          View Transactions
                         </Button>
-                      )}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -208,7 +232,9 @@ export function StatsTab({ onViewTransactions, authToken, tepHeaders }: StatsTab
         onClose={() => setRollbackTarget(null)}
         onConfirm={handleRollbackConfirm}
         title="Rollback Changes"
-        message={`Are you sure you want to rollback all changes for ${rollbackTarget?.bank ?? ''} / ${rollbackTarget?.side ?? ''}? This cannot be undone.`}
+        // message={`Are you sure you want to rollback all changes for ${rollbackTarget?.bank ?? ''} / ${rollbackTarget?.side ?? ''}? This cannot be undone.`}
+        message={`Are you want to roll back to the production version of ${rollbackTarget?.bank ?? ''} / ${rollbackTarget?.side ?? ''} ? This cannot be undone.`}
+
         confirmLabel="Rollback"
         variant="danger_ghost"
       />

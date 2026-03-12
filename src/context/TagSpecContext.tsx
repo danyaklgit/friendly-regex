@@ -196,7 +196,7 @@ export interface TagSpecContextValue {
   originalDefinitionIds: Set<string>;
   dispatch: Dispatch<TagSpecAction>;
   loading: boolean;
-  refetchTagSpecs: () => void;
+  refetchTagSpecs: () => Promise<void>;
   refetchHierarchy: () => Promise<void>;
   tagsHierarchy: TagTreeNode[];
   tagsHierarchyLoading: boolean;
@@ -258,8 +258,12 @@ export function TagSpecProvider({ children, useDummyData, authToken, tepHeaders 
     new Set(flattenDefinitions(initialData).map((d) => d.Id))
   ).current;
 
+  const isFetchingRef = useRef(false);
+
   const fetchTagSpecs = useCallback(async (signal?: AbortSignal) => {
     if (useDummyData || !authToken || !tepHeaders) return;
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
     setLoading(true);
     setTagsHierarchyLoading(true);
     try {
@@ -277,6 +281,7 @@ export function TagSpecProvider({ children, useDummyData, authToken, tepHeaders 
       if (err instanceof DOMException && err.name === 'AbortError') return;
       console.error('Failed to fetch tag spec data:', err);
     } finally {
+      isFetchingRef.current = false;
       setLoading(false);
       setTagsHierarchyLoading(false);
     }
@@ -291,7 +296,7 @@ export function TagSpecProvider({ children, useDummyData, authToken, tepHeaders 
   }, [useDummyData, fetchTagSpecs]);
 
   const refetchTagSpecs = useCallback(() => {
-    fetchTagSpecs();
+    return fetchTagSpecs();
   }, [fetchTagSpecs]);
 
   const refetchHierarchy = useCallback(async () => {

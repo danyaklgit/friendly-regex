@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useTagSpecs } from '../../hooks/useTagSpecs';
+import { useAuth } from '../../context/AuthContext';
 import { useTransactionData } from '../../hooks/useTransactionData';
 import { useWizardForm, fromExistingDefinition } from '../../hooks/useWizardForm';
 import type { TagSpecDefinition, TagSpecLibrary, AnalyzedTransaction, WizardFormState, RuleExpression, CheckoutState } from '../../types';
@@ -7,6 +8,7 @@ import type { WizardFormResult } from '../../hooks/useWizardForm';
 import { analyzeRow } from '../../utils/analyzeRow';
 import { regexify, regexifyExtraction, generateExpressionPrompt, generateExtractionPrompt } from '../../utils/regexify';
 import { generateExpressionId } from '../../utils/uuid';
+import { getContextValue } from '../../types/tagSpec';
 import { TransactionTable, ColumnPicker, type ColumnDef } from './TransactionTable';
 import { StepRuleExpressions } from '../wizard/StepRuleExpressions';
 import { StepAttributes } from '../wizard/StepAttributes';
@@ -98,6 +100,23 @@ const BATCH_SIZE = 50;
 
 export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onRequestUndo, editFromRules, onClearEditFromRules }: TransactionsTabProps) {
   const { libraries, tagDefinitions, originalDefinitionIds, dispatch } = useTagSpecs();
+  const { userId, usersMap } = useAuth();
+
+  // Determine if the current user is NOT the checkout owner (read-only mode)
+  const { isReadOnly, ownerName } = useMemo(() => {
+    if (!activeCheckout) return { isReadOnly: true, ownerName: null };
+    const inProgressLib = libraries.find(
+      (l) =>
+        l.StatusTag === 'INPROGRESS' &&
+        getContextValue(l.Context, 'BankSwiftCode') === activeCheckout.bank &&
+        getContextValue(l.Context, 'Side') === activeCheckout.side
+    );
+    if (!inProgressLib || !inProgressLib.OperatorId) return { isReadOnly: true, ownerName: null };
+    const owned = inProgressLib.OperatorId === userId;
+    const name = !owned ? (usersMap.get(inProgressLib.OperatorId) ?? inProgressLib.OperatorId) : null;
+    return { isReadOnly: !owned, ownerName: name };
+  }, [activeCheckout, libraries, userId, usersMap]);
+
   const {
     transactions, fieldMeta, loadTransactions, resetToSample, isCustomData, flagDeadEnd,
     isLiveMode, loading, hasMore: liveHasMore, totalTransactionsCount, fetchPage,
@@ -456,8 +475,18 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onReques
 
   return (
     <div>
-      {activeCheckout && onCheckin && onRelease && (
+      {activeCheckout && !isReadOnly && onCheckin && onRelease && (
         <CheckoutBanner bank={activeCheckout.bank} side={activeCheckout.side} onRelease={onRelease} onCheckin={onCheckin} onRequestUndo={onRequestUndo} />
+      )}
+      {activeCheckout && isReadOnly && ownerName && (
+        <div className="flex items-center px-4 py-2 mb-3 rounded-lg bg-amber-50 border border-amber-200 dark:bg-amber-900/20 dark:border-amber-700">
+          <svg className="w-4 h-4 text-amber-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+          </svg>
+          <span className="text-sm text-amber-800 dark:text-amber-300">
+            Checked out by <span className="font-semibold">{ownerName}</span> — read-only
+          </span>
+        </div>
       )}
       <div className="flex items-center justify-between mb-1 min-h-10">
         <div className='flex flex-col md:flex-row items-start justify-end md:items-center gap-2'>
@@ -508,7 +537,7 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onReques
             </Button>
           )}
           {!builderOpen && (
-            !(activeCheckout && onCheckin && onRelease) ? (
+            !activeCheckout ? (
               <Tooltip content="You need to check out a bank/side combination from the Stats page first" placement="bottom">
                 <span>
                   <Button
@@ -576,7 +605,7 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onReques
                 variant="primary"
                 size="xs"
                 onClick={handleCreateFromBuilder}
-                disabled={!builderHasContent}
+                disabled={!builderHasContent || isReadOnly}
               >
                 {editingDef ? `Save changes for "${editingDef.Tag}"` : 'Create Rule with current settings'}
               </Button>

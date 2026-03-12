@@ -61,3 +61,18 @@ export async function tagSpecLibraryRollback(
   });
   if (!res.ok) throw new Error('Rollback failed');
 }
+
+export async function tagSpecLibraryRelease(
+  tagSpecLibraryId: string,
+  token: string,
+  tepHeaders: TepHeaders,
+  signal?: AbortSignal,
+): Promise<void> {
+  const res = await fetch(`${BASE}/TagSpecLibraryRelease`, {
+    method: 'POST',
+    headers: { ...buildHeaders(token, tepHeaders), ActivityTag: 'TagSpecLibraryRelease' },
+    body: JSON.stringify({ TagSpecLibraryId: tagSpecLibraryId }),
+    signal,
+  });
+  if (!res.ok) throw new Error('Release failed');
+}
