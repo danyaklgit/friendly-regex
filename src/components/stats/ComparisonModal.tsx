@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Modal } from '../shared/Modal';
 import { Button } from '../shared/Button';
+import { diffDefinition } from '../../hooks/useLocalChanges';
 import type { TagSpecLibrary, TagSpecDefinition } from '../../types';
 
 interface ComparisonModalProps {
@@ -87,31 +88,24 @@ export function ComparisonModal({ open, onClose, activeLib, inProgressLib }: Com
                 Modified ({diff.modified.length})
               </h3>
               <ul className="space-y-2">
-                {diff.modified.map(({ active, inProgress }) => (
-                  <li key={active.Id} className="text-sm">
-                    <div className="flex items-center gap-2 text-body">
-                      <span className="text-yellow-600 font-medium">~</span>
-                      <span className="font-medium">{inProgress.Tag}</span>
-                    </div>
-                    <div className="ml-5 text-xs text-body-secondary space-y-0.5 mt-0.5">
-                      {active.StatusTag !== inProgress.StatusTag && (
-                        <div>Status: <span className="text-red-600">{active.StatusTag}</span> → <span className="text-green-600">{inProgress.StatusTag}</span></div>
+                {diff.modified.map(({ active, inProgress }) => {
+                  const details = diffDefinition(active, inProgress);
+                  return (
+                    <li key={active.Id} className="text-sm">
+                      <div className="flex items-center gap-2 text-body">
+                        <span className="text-yellow-600 font-medium">~</span>
+                        <span className="font-medium">{inProgress.Tag}</span>
+                      </div>
+                      {details.length > 0 && (
+                        <ul className="ml-5 text-xs text-body-secondary space-y-0.5 mt-0.5">
+                          {details.map((detail, i) => (
+                            <li key={i}>{detail}</li>
+                          ))}
+                        </ul>
                       )}
-                      {active.Tag !== inProgress.Tag && (
-                        <div>Tag: <span className="text-red-600">{active.Tag}</span> → <span className="text-green-600">{inProgress.Tag}</span></div>
-                      )}
-                      {active.CertaintyLevelTag !== inProgress.CertaintyLevelTag && (
-                        <div>Certainty: <span className="text-red-600">{active.CertaintyLevelTag}</span> → <span className="text-green-600">{inProgress.CertaintyLevelTag}</span></div>
-                      )}
-                      {JSON.stringify(active.TagRuleExpressions) !== JSON.stringify(inProgress.TagRuleExpressions) && (
-                        <div>Rules: <span className="italic">changed</span></div>
-                      )}
-                      {JSON.stringify(active.Attributes) !== JSON.stringify(inProgress.Attributes) && (
-                        <div>Attributes: <span className="italic">changed</span></div>
-                      )}
-                    </div>
-                  </li>
-                ))}
+                    </li>
+                  );
+                })}
               </ul>
             </section>
           )}

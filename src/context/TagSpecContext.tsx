@@ -4,6 +4,7 @@ import type { TepHeaders } from '../api/transactions';
 import type { TagTreeNode, TagHierarchyRawNode, TagsHierarchyWrapper } from '../api/tagsHierarchy';
 import { getTagSpecLibraries } from '../api/tagSpecs';
 import { getRawTagsHierarchy, buildTagTree } from '../api/tagsHierarchy';
+import { getContextValue } from '../types/tagSpec';
 import sampleTagData from '../data/sample.json';
 import sampleHierarchyData from '../data/sampleHiearchy.json';
 
@@ -53,7 +54,11 @@ function tagSpecReducer(
   switch (action.type) {
     case 'ADD': {
       const { parentContext, definition } = action.payload;
-      const existingIdx = state.findIndex((lib) => contextsMatch(lib.Context, parentContext));
+      // Prefer INPROGRESS library when multiple share the same context (checked-out pair)
+      let existingIdx = state.findIndex((lib) => lib.StatusTag === 'INPROGRESS' && contextsMatch(lib.Context, parentContext));
+      if (existingIdx < 0) {
+        existingIdx = state.findIndex((lib) => contextsMatch(lib.Context, parentContext));
+      }
 
       if (existingIdx >= 0) {
         // Append definition to existing library
@@ -73,10 +78,15 @@ function tagSpecReducer(
     case 'UPDATE': {
       const { parentContext, definition } = action.payload;
 
-      // First, find the library that currently contains this definition
-      const currentLibIdx = state.findIndex((lib) =>
-        lib.TagSpecDefinitions.some((d) => d.Id === definition.Id)
+      // Prefer INPROGRESS library when multiple contain the same definition ID (checked-out pair)
+      let currentLibIdx = state.findIndex((lib) =>
+        lib.StatusTag === 'INPROGRESS' && lib.TagSpecDefinitions.some((d) => d.Id === definition.Id)
       );
+      if (currentLibIdx < 0) {
+        currentLibIdx = state.findIndex((lib) =>
+          lib.TagSpecDefinitions.some((d) => d.Id === definition.Id)
+        );
+      }
 
       if (currentLibIdx < 0) return state;
 
@@ -106,8 +116,11 @@ function tagSpecReducer(
         // Remove empty libraries
         result = result.filter((lib) => lib.TagSpecDefinitions.length > 0);
 
-        // Find or create target library
-        const targetIdx = result.findIndex((lib) => contextsMatch(lib.Context, parentContext));
+        // Find or create target library (prefer INPROGRESS)
+        let targetIdx = result.findIndex((lib) => lib.StatusTag === 'INPROGRESS' && contextsMatch(lib.Context, parentContext));
+        if (targetIdx < 0) {
+          targetIdx = result.findIndex((lib) => contextsMatch(lib.Context, parentContext));
+        }
         if (targetIdx >= 0) {
           result = result.map((lib, i) =>
             i === targetIdx
@@ -271,8 +284,23 @@ export function TagSpecProvider({ children, useDummyData, authToken, tepHeaders 
         getTagSpecLibraries(authToken, tepHeaders, signal),
         getRawTagsHierarchy(authToken, tepHeaders, signal),
       ]);
-      dispatch({ type: 'REPLACE_ALL', payload: libsData });
-      const ids = flattenDefinitions(libsData).map((d) => d.Id);
+      // Merge localStorage overrides for checked-out pairs
+      const mergedLibs = libsData.map((lib) => {
+        if (lib.StatusTag !== 'INPROGRESS' || !lib.OperatorId) return lib;
+        const bank = getContextValue(lib.Context, 'BankSwiftCode') ?? '';
+        const side = getContextValue(lib.Context, 'Side') ?? '';
+        const localKey = `tep:current:${bank}:${side}`;
+        try {
+          const raw = localStorage.getItem(localKey);
+          if (raw) {
+            const localLib = JSON.parse(raw) as TagSpecLibrary;
+            return { ...lib, TagSpecDefinitions: localLib.TagSpecDefinitions };
+          }
+        } catch { /* ignore parse errors */ }
+        return lib;
+      });
+      dispatch({ type: 'REPLACE_ALL', payload: mergedLibs });
+      const ids = flattenDefinitions(mergedLibs).map((d) => d.Id);
       for (const id of ids) originalDefinitionIds.add(id);
       hierarchyDispatch({ type: 'REPLACE_ALL', payload: wrapperData.TagsHierarchy });
       setOriginalRawNodes(wrapperData.TagsHierarchy);

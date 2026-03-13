@@ -167,6 +167,7 @@ export function LoginPage() {
               <input
                 id="username"
                 type="email"
+                name='tepEmail'
                 value={username}
                 onChange={(e) => { setUsername(e.target.value); setError(false); }}
                 className="w-full rounded-lg border backdrop-blur-2xl border-gray-300 bg-white px-3.5 py-2.5 text-sm text-heading placeholder:text-faint focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-slate-500 dark:focus:bg-white/[0.07]"
@@ -184,6 +185,7 @@ export function LoginPage() {
               <input
                 id="password"
                 type="password"
+                name='tepPass'
                 value={password}
                 onChange={(e) => { setPassword(e.target.value); setError(false); }}
                 className="w-full rounded-lg border  backdrop-blur-2xl border-gray-300 bg-white px-3.5 py-2.5 text-sm text-heading placeholder:text-faint focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-slate-500 dark:focus:bg-white/[0.07]"

@@ -4,6 +4,7 @@ import { TagSpecProvider } from './context/TagSpecContext';
 import { TransactionDataProvider } from './context/TransactionDataContext';
 import { TepConfigProvider, useTepConfig } from './context/TepConfigContext';
 import { useTagSpecs } from './hooks/useTagSpecs';
+import { useLocalChanges } from './hooks/useLocalChanges';
 import { LoginPage } from './components/auth/LoginPage';
 import { TabContainer } from './components/layout/TabContainer';
 import { StatsTab } from './components/stats/StatsTab';
@@ -11,9 +12,10 @@ import { TransactionsTab } from './components/transactions/TransactionsTab';
 import { TagRulesTab } from './components/tagRules/TagRulesTab';
 import { TagsHierarchyTab } from './components/tagsHierarchy/TagsHierarchyTab';
 import { SessionWarningModal } from './components/shared/SessionWarningModal';
-import { ConfirmDialog } from './components/shared/ConfirmDialog';
+import { UndoChangesDialog } from './components/shared/UndoChangesDialog';
 import { Toast } from './components/shared/Toast';
-import { tagSpecLibraryRelease } from './api/checkout';
+import { tagSpecLibraryRelease, tagSpecLibraryCheckIn } from './api/checkout';
+import { tagSpecLibrarySave } from './api/tagSpecSave';
 import type { CheckoutState, TagSpecDefinition, TagSpecLibrary } from './types';
 import type { TepHeaders } from './api/transactions';
 import { getContextValue } from './types/tagSpec';
@@ -32,6 +34,16 @@ function AppShell({ authToken, tepHeaders, operatorName }: AppShellProps) {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const { libraries, refetchTagSpecs } = useTagSpecs();
+  const { clearChanges, getLocalLib, getChangeSummary } = useLocalChanges(activeCheckout?.bank, activeCheckout?.side);
+
+  const findInProgressLib = useCallback((bank: string, side: string) => {
+    return libraries.find(
+      (l) =>
+        l.StatusTag === 'INPROGRESS' &&
+        getContextValue(l.Context, 'BankSwiftCode') === bank &&
+        getContextValue(l.Context, 'Side') === side
+    );
+  }, [libraries]);
 
   const handleViewTransactions = useCallback((bank: string, side: string) => {
     setActiveCheckout({ bank, side });
@@ -43,46 +55,64 @@ function AppShell({ authToken, tepHeaders, operatorName }: AppShellProps) {
     setActiveTab(1);
   }, [operatorName]);
 
-  const handleCheckin = useCallback((bank: string, side: string) => {
-    setActiveCheckout((prev) =>
-      prev && prev.bank === bank && prev.side === side ? null : prev
-    );
-    setActiveTab(0);
-  }, []);
-
   const handleRelease = useCallback(async (bank: string, side: string) => {
     if (!authToken || !tepHeaders) return;
-    const inProgressLib = libraries.find(
-      (l) =>
-        l.StatusTag === 'INPROGRESS' &&
-        getContextValue(l.Context, 'BankSwiftCode') === bank &&
-        getContextValue(l.Context, 'Side') === side
-    );
+    const inProgressLib = findInProgressLib(bank, side);
     if (!inProgressLib?.Id) return;
     try {
+      // Save first if there are local changes
+      const localLib = getLocalLib(bank, side);
+      if (localLib) {
+        const libToSave = { ...inProgressLib, TagSpecDefinitions: localLib.TagSpecDefinitions };
+        await tagSpecLibrarySave(libToSave, authToken, tepHeaders);
+      }
       await tagSpecLibraryRelease(inProgressLib.Id, authToken, tepHeaders);
+      clearChanges(bank, side);
       await refetchTagSpecs();
       setActiveCheckout((prev) =>
         prev && prev.bank === bank && prev.side === side ? null : prev
       );
-      setToast({ message: `Released ${bank} / ${side}`, type: 'success' });
+      setToast({ message: `${localLib ? 'Saved and released' : 'Released'} ${bank} / ${side}`, type: 'success' });
       setActiveTab(0);
     } catch {
       setToast({ message: 'Release failed', type: 'error' });
     }
-  }, [authToken, tepHeaders, libraries, refetchTagSpecs]);
+  }, [authToken, tepHeaders, findInProgressLib, refetchTagSpecs, getLocalLib, clearChanges]);
+
+  const handleCheckinWithSave = useCallback(async (bank: string, side: string) => {
+    if (!authToken || !tepHeaders) return;
+    const inProgressLib = findInProgressLib(bank, side);
+    if (!inProgressLib?.Id) return;
+    try {
+      // Save first if there are local changes
+      const localLib = getLocalLib(bank, side);
+      if (localLib) {
+        const libToSave = { ...inProgressLib, TagSpecDefinitions: localLib.TagSpecDefinitions };
+        await tagSpecLibrarySave(libToSave, authToken, tepHeaders);
+      }
+      await tagSpecLibraryCheckIn(inProgressLib.Id, authToken, tepHeaders);
+      clearChanges(bank, side);
+      await refetchTagSpecs();
+      setActiveCheckout((prev) =>
+        prev && prev.bank === bank && prev.side === side ? null : prev
+      );
+      setToast({ message: `${localLib ? 'Saved and checked in' : 'Checked in'} ${bank} / ${side}`, type: 'success' });
+      setActiveTab(0);
+    } catch {
+      setToast({ message: 'Check in failed', type: 'error' });
+    }
+  }, [authToken, tepHeaders, findInProgressLib, refetchTagSpecs, getLocalLib, clearChanges]);
 
   const handleRequestUndo = useCallback((bank: string, side: string) => {
     setUndoTarget({ bank, side });
   }, []);
 
-  const handleUndoConfirm = useCallback(() => {
+  const handleUndoConfirm = useCallback(async () => {
     if (!undoTarget) return;
-    // TODO: call undoChangesApi when endpoint is available
-    console.log('Undo changes for', undoTarget.bank, undoTarget.side);
-    handleCheckin(undoTarget.bank, undoTarget.side);
+    clearChanges(undoTarget.bank, undoTarget.side);
+    await refetchTagSpecs();
     setUndoTarget(null);
-  }, [undoTarget, handleCheckin]);
+  }, [undoTarget, clearChanges, refetchTagSpecs]);
 
   const handleEditInTransactions = useCallback((def: TagSpecDefinition, parentLib: TagSpecLibrary) => {
     const bank = getContextValue(parentLib.Context, 'BankSwiftCode') ?? '';
@@ -101,20 +131,19 @@ function AppShell({ authToken, tepHeaders, operatorName }: AppShellProps) {
           onTabChange={setActiveTab}
           tabs={[
             { label: 'Overview', content: <StatsTab onViewTransactions={handleViewTransactions} onCheckoutComplete={handleCheckoutComplete} authToken={authToken} tepHeaders={tepHeaders} /> },
-            { label: 'Transactions', content: <TransactionsTab activeCheckout={activeCheckout} onCheckin={handleCheckin} onRelease={handleRelease} onRequestUndo={handleRequestUndo} editFromRules={editFromRules} onClearEditFromRules={() => setEditFromRules(null)} /> },
+            { label: 'Transactions', content: <TransactionsTab activeCheckout={activeCheckout} onCheckin={handleCheckinWithSave} onRelease={handleRelease} onRequestUndo={handleRequestUndo} editFromRules={editFromRules} onClearEditFromRules={() => setEditFromRules(null)} /> },
             { label: 'Tag Rules', content: <TagRulesTab onEditInTransactions={handleEditInTransactions} /> },
             { label: 'Tags Hierarchy', content: <TagsHierarchyTab /> },
           ]}
         />
       </div>
-      <ConfirmDialog
+      <UndoChangesDialog
         open={!!undoTarget}
+        bank={undoTarget?.bank ?? ''}
+        side={undoTarget?.side ?? ''}
+        changeSummary={undoTarget ? getChangeSummary(undoTarget.bank, undoTarget.side) : null}
         onClose={() => setUndoTarget(null)}
         onConfirm={handleUndoConfirm}
-        title="Undo Changes"
-        message={`Are you sure you want to undo all changes made since your last checkout for Bank ${undoTarget?.bank ?? ''}, Side ${undoTarget?.side ?? ''}?`}
-        confirmLabel="Undo Changes"
-        variant="danger_ghost"
       />
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </>

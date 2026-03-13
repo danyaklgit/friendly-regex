@@ -9,6 +9,7 @@ import { Toast } from '../shared/Toast';
 import { ComparisonModal } from './ComparisonModal';
 import type { TepHeaders } from '../../api/transactions';
 import type { TagSpecLibrary } from '../../types';
+import { useLocalChanges } from '../../hooks/useLocalChanges';
 
 interface StatsTabProps {
   onViewTransactions: (bank: string, side: string) => void;
@@ -38,6 +39,7 @@ interface DisplayRow {
 export function StatsTab({ onViewTransactions, onCheckoutComplete, authToken, tepHeaders }: StatsTabProps) {
   const { libraries, loading, refetchTagSpecs } = useTagSpecs();
   const { usersMap, useDummyData, userId } = useAuth();
+  const { clearChanges } = useLocalChanges(undefined, undefined);
 
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [rollbackTarget, setRollbackTarget] = useState<DisplayRow | null>(null);
@@ -60,7 +62,7 @@ export function StatsTab({ onViewTransactions, onCheckoutComplete, authToken, te
       l => l.StatusTag === 'ACTIVE' && l.Id && !referencedIds.has(l.Id)
     );
 
-    return activeLibs.map(lib => {
+    const unsorted = activeLibs.map(lib => {
       const inProgressLib = libraries.find(
         l => l.ActiveTagSpecLibId === lib.Id && l.StatusTag === 'INPROGRESS'
       );
@@ -77,6 +79,17 @@ export function StatsTab({ onViewTransactions, onCheckoutComplete, authToken, te
         isOwnedByMe: hasOperator && inProgressLib!.OperatorId === userId,
         inProgressLib,
       };
+    });
+
+    // Sort: my checkouts first, then other users' checkouts, then the rest.
+    // Within each bucket, sort alphabetically by bank name.
+    const bucketOrder = (r: DisplayRow) =>
+      r.isOwnedByMe ? 0 : (r.isInProgress && r.hasOperator) ? 1 : 2;
+
+    return unsorted.sort((a, b) => {
+      const bucket = bucketOrder(a) - bucketOrder(b);
+      if (bucket !== 0) return bucket;
+      return a.bank.localeCompare(b.bank);
     });
   }, [libraries, usersMap, userId]);
 
@@ -115,6 +128,7 @@ export function StatsTab({ onViewTransactions, onCheckoutComplete, authToken, te
     setActionLoading(rollbackTarget.library.Id!);
     try {
       await tagSpecLibraryRollback(rollbackTarget.inProgressLib.Id, authToken, tepHeaders);
+      clearChanges(rollbackTarget.bank, rollbackTarget.side);
       refetchTagSpecs();
       setToast({ message: `Rolled back ${rollbackTarget.bank} / ${rollbackTarget.side}`, type: 'success' });
     } catch {
@@ -123,7 +137,7 @@ export function StatsTab({ onViewTransactions, onCheckoutComplete, authToken, te
       setActionLoading(null);
       setRollbackTarget(null);
     }
-  }, [authToken, tepHeaders, rollbackTarget, refetchTagSpecs]);
+  }, [authToken, tepHeaders, rollbackTarget, refetchTagSpecs, clearChanges]);
 
   const canAct = !useDummyData && !!authToken && !!tepHeaders;
 

@@ -19,6 +19,7 @@ import { Tooltip } from '../shared/Tooltip';
 import { DynamicFilters } from './DynamicFilters';
 import { CheckoutBanner } from '../stats/CheckoutBanner';
 import { Toggle } from '../shared/Toggle';
+import { useLocalChanges } from '../../hooks/useLocalChanges';
 
 interface TransactionsTabProps {
   activeCheckout?: CheckoutState | null;
@@ -101,6 +102,7 @@ const BATCH_SIZE = 50;
 export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onRequestUndo, editFromRules, onClearEditFromRules }: TransactionsTabProps) {
   const { libraries, tagDefinitions, originalDefinitionIds, dispatch } = useTagSpecs();
   const { userId, usersMap } = useAuth();
+  const { hasChanges, saveBaseline, updateCurrent } = useLocalChanges(activeCheckout?.bank, activeCheckout?.side);
 
   // Determine if the current user is NOT the checkout owner (read-only mode)
   const { isReadOnly, ownerName } = useMemo(() => {
@@ -116,6 +118,28 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onReques
     const name = !owned ? (usersMap.get(inProgressLib.OperatorId) ?? inProgressLib.OperatorId) : null;
     return { isReadOnly: !owned, ownerName: name };
   }, [activeCheckout, libraries, userId, usersMap]);
+
+  // Persist INPROGRESS library to localStorage whenever definitions change
+  const inProgressLib = useMemo(() => {
+    if (!activeCheckout) return null;
+    return libraries.find(
+      (l) =>
+        l.StatusTag === 'INPROGRESS' &&
+        getContextValue(l.Context, 'BankSwiftCode') === activeCheckout.bank &&
+        getContextValue(l.Context, 'Side') === activeCheckout.side
+    ) ?? null;
+  }, [libraries, activeCheckout]);
+
+  useEffect(() => {
+    if (inProgressLib && activeCheckout) {
+      const baselineKey = `tep:baseline:${activeCheckout.bank}:${activeCheckout.side}`;
+      if (!localStorage.getItem(baselineKey)) {
+        saveBaseline(inProgressLib);
+      } else {
+        updateCurrent(inProgressLib);
+      }
+    }
+  }, [inProgressLib, activeCheckout, saveBaseline, updateCurrent]);
 
   const {
     transactions, fieldMeta, loadTransactions, resetToSample, isCustomData, flagDeadEnd,
@@ -436,19 +460,27 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onReques
 
   // Click a tag badge in the table → load into rule builder for live editing
   const handleTagClick = useCallback((tagName: string, definitionId?: string) => {
-    // Find the specific matched definition, or fall back to first with that tag name
+    // Find the specific matched definition, preferring INPROGRESS libraries
+    // (ACTIVE and INPROGRESS share definition IDs during checkout)
+    let foundDef: TagSpecDefinition | undefined;
+    let foundLib: TagSpecLibrary | undefined;
+
     for (const lib of libraries) {
       const def = definitionId
         ? lib.TagSpecDefinitions.find((d) => d.Id === definitionId)
         : lib.TagSpecDefinitions.find((d) => d.Tag === tagName);
       if (def) {
-        const formState = fromExistingDefinition(def, lib);
-        builder.setFormState(formState);
-        setEditingDef(def);
-        setEditingParentLib(lib);
-        setBuilderOpen(true);
-        return;
+        if (lib.StatusTag === 'INPROGRESS') { foundDef = def; foundLib = lib; break; }
+        if (!foundDef) { foundDef = def; foundLib = lib; }
       }
+    }
+
+    if (foundDef && foundLib) {
+      const formState = fromExistingDefinition(foundDef, foundLib);
+      builder.setFormState(formState);
+      setEditingDef(foundDef);
+      setEditingParentLib(foundLib);
+      setBuilderOpen(true);
     }
   }, [libraries, builder]);
 
@@ -476,7 +508,7 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onReques
   return (
     <div>
       {activeCheckout && !isReadOnly && onCheckin && onRelease && (
-        <CheckoutBanner bank={activeCheckout.bank} side={activeCheckout.side} onRelease={onRelease} onCheckin={onCheckin} onRequestUndo={onRequestUndo} />
+        <CheckoutBanner bank={activeCheckout.bank} side={activeCheckout.side} hasChanges={hasChanges ?? false} onRelease={onRelease} onCheckin={onCheckin} onRequestUndo={onRequestUndo} />
       )}
       {activeCheckout && isReadOnly && ownerName && (
         <div className="flex items-center px-4 py-2 mb-3 rounded-lg bg-amber-50 border border-amber-200 dark:bg-amber-900/20 dark:border-amber-700">

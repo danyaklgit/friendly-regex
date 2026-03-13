@@ -32,6 +32,7 @@ interface StoredAuth {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 const STORAGE_KEY = 'auth_session';
+const USERS_MAP_KEY = 'tep:usersMap';
 const WARNING_BEFORE_MS = 60_000; // show warning 1 minute before expiry
 const AUTO_REFRESH_THRESHOLD_MS = 5 * 60_000; // auto-refresh when <5 min remaining
 
@@ -54,7 +55,13 @@ function loadSession(): StoredAuth | null {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<StoredAuth | null>(loadSession);
   const [showSessionWarning, setShowSessionWarning] = useState(false);
-  const [usersMap, setUsersMap] = useState<Map<string, string>>(new Map());
+  const [usersMap, setUsersMap] = useState<Map<string, string>>(() => {
+    try {
+      const raw = localStorage.getItem(USERS_MAP_KEY);
+      if (raw) return new Map(JSON.parse(raw) as [string, string][]);
+    } catch { /* ignore */ }
+    return new Map();
+  });
 
   const isAuthenticated = session !== null;
   const username = session?.username ?? null;
@@ -117,7 +124,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Fetch all users for OperatorId → name resolution
       try {
         const allUsers = await getUsersInfo(data.accessToken);
-        setUsersMap(new Map(allUsers.map(u => [u.id, `${u.firstName} ${u.lastName}`.trim()])));
+        const entries: [string, string][] = allUsers.map(u => [u.id, `${u.firstName} ${u.lastName}`.trim()]);
+        setUsersMap(new Map(entries));
+        localStorage.setItem(USERS_MAP_KEY, JSON.stringify(entries));
       } catch {
         // getUsersInfo failed — usersMap stays empty
       }
@@ -146,8 +155,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logoutApi(session.accessToken).catch(() => {});
     }
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(USERS_MAP_KEY);
     setShowSessionWarning(false);
     setSession(null);
+    setUsersMap(new Map());
   }, [session]);
 
   const refreshSession = useCallback(async (): Promise<boolean> => {

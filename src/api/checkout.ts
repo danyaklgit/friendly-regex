@@ -2,7 +2,7 @@ import type { TepHeaders } from './transactions';
 
 const BASE = '/api/tep/api/v1/TEP';
 
-function buildHeaders(token: string, tepHeaders: TepHeaders): Record<string, string> {
+export function buildHeaders(token: string, tepHeaders: TepHeaders): Record<string, string> {
   return {
     'Content-Type': 'application/json',
     Accept: 'application/json',
