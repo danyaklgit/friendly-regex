@@ -272,31 +272,32 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onReques
     [builderOpen, builder.formState]
   );
 
-  // Combine real libraries + temp definition wrapped in a synthetic library for analysis
+  // Combine real libraries + temp definition for analysis.
+  // When editing an existing def, skip the preview — the original is already in libraries.
+  // When creating a new def, append a synthetic preview library.
   const allLibraries: TagSpecLibrary[] = useMemo(() => {
-    if (tempDefinition) {
-      const previewLib: TagSpecLibrary = {
-        Id: 'preview-lib',
-        ActiveTagSpecLibId: null,
-        OperatorId: '',
-        StatusTag: 'ACTIVE',
-        DataSetType: 'MT940',
-        Version: 1,
-        IsLatestVersion: true,
-        VersionDate: '',
-        Context: [], // Empty context — matches all rows for preview
-        TagSpecDefinitions: [tempDefinition],
-      };
-      return [...libraries, previewLib];
-    }
-    return libraries;
-  }, [libraries, tempDefinition]);
+    if (!tempDefinition || editingDef) return libraries;
+
+    const previewLib: TagSpecLibrary = {
+      Id: 'preview-lib',
+      ActiveTagSpecLibId: null,
+      OperatorId: '',
+      StatusTag: 'ACTIVE',
+      DataSetType: 'MT940',
+      Version: 1,
+      IsLatestVersion: true,
+      VersionDate: '',
+      Context: [], // Empty context — matches all rows for preview
+      TagSpecDefinitions: [tempDefinition],
+    };
+    return [...libraries, previewLib];
+  }, [libraries, tempDefinition, editingDef]);
 
   // Flat definitions including preview (for table column ordering)
   const allDefinitions = useMemo(() => {
-    if (tempDefinition) return [...tagDefinitions, tempDefinition];
-    return tagDefinitions;
-  }, [tagDefinitions, tempDefinition]);
+    if (!tempDefinition || editingDef) return tagDefinitions;
+    return [...tagDefinitions, tempDefinition];
+  }, [tagDefinitions, tempDefinition, editingDef]);
 
   // Check if builder has any real content
   const builderHasContent = builder.formState.ruleGroups.some((g) =>
@@ -442,7 +443,9 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onReques
     setEditingParentLib(undefined);
     setWizardInitialStep(undefined);
     setWizardFromCheckout(false);
-  }, []);
+    setBuilderOpen(false);
+    builder.resetForm();
+  }, [builder]);
 
   // Click a tag badge in the table → load into rule builder for live editing
   const handleTagClick = useCallback((tagName: string, definitionId?: string) => {
