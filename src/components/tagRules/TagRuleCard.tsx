@@ -11,9 +11,10 @@ interface TagRuleCardProps {
   onEdit: (def: TagSpecDefinition, parentLib?: TagSpecLibrary) => void;
   onDelete: (id: string) => void;
   onExport: (def: TagSpecDefinition, parentLib?: TagSpecLibrary) => void;
+  readOnly?: boolean;
 }
 
-export function TagRuleCard({ definition, parentLib, onEdit, onDelete, onExport }: TagRuleCardProps) {
+export function TagRuleCard({ definition, parentLib, onEdit, onDelete, onExport, readOnly }: TagRuleCardProps) {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -62,11 +63,13 @@ export function TagRuleCard({ definition, parentLib, onEdit, onDelete, onExport 
 
             {/* Actions */}
             <div className="flex items-center gap-2 pt-2 border-t border-border-subtle">
-              <Button size="xs" onClick={() => onEdit(definition, parentLib)}>Edit</Button>
+              {!readOnly && <Button size="xs" onClick={() => onEdit(definition, parentLib)}>Edit</Button>}
               <Button size="xs" variant="ghost" onClick={() => onExport(definition, parentLib)}>Export</Button>
-              <Button size="xs" variant="danger_ghost" onClick={() => onDelete(definition.Id)}>
-                Delete
-              </Button>
+              {!readOnly && (
+                <Button size="xs" variant="danger_ghost" onClick={() => onDelete(definition.Id)}>
+                  Delete
+                </Button>
+              )}
             </div>
           </div>
         </div>

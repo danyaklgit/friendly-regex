@@ -9,14 +9,13 @@ import { LoginPage } from './components/auth/LoginPage';
 import { TabContainer } from './components/layout/TabContainer';
 import { StatsTab } from './components/stats/StatsTab';
 import { TransactionsTab } from './components/transactions/TransactionsTab';
-import { TagRulesTab } from './components/tagRules/TagRulesTab';
 import { TagsHierarchyTab } from './components/tagsHierarchy/TagsHierarchyTab';
 import { SessionWarningModal } from './components/shared/SessionWarningModal';
 import { UndoChangesDialog } from './components/shared/UndoChangesDialog';
 import { Toast } from './components/shared/Toast';
 import { tagSpecLibraryRelease, tagSpecLibraryCheckIn } from './api/checkout';
 import { tagSpecLibrarySave } from './api/tagSpecSave';
-import type { CheckoutState, TagSpecDefinition, TagSpecLibrary } from './types';
+import type { CheckoutState } from './types';
 import type { TepHeaders } from './api/transactions';
 import { getContextValue } from './types/tagSpec';
 
@@ -29,7 +28,6 @@ interface AppShellProps {
 function AppShell({ authToken, tepHeaders, operatorName }: AppShellProps) {
   const [activeTab, setActiveTab] = useState(0);
   const [activeCheckout, setActiveCheckout] = useState<CheckoutState | null>(null);
-  const [editFromRules, setEditFromRules] = useState<{ definition: TagSpecDefinition; parentLib: TagSpecLibrary } | null>(null);
   const [undoTarget, setUndoTarget] = useState<{ bank: string; side: string } | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
@@ -114,14 +112,6 @@ function AppShell({ authToken, tepHeaders, operatorName }: AppShellProps) {
     setUndoTarget(null);
   }, [undoTarget, clearChanges, refetchTagSpecs]);
 
-  const handleEditInTransactions = useCallback((def: TagSpecDefinition, parentLib: TagSpecLibrary) => {
-    const bank = getContextValue(parentLib.Context, 'BankSwiftCode') ?? '';
-    const side = getContextValue(parentLib.Context, 'Side') ?? '';
-    setActiveCheckout({ bank, side, operatorName });
-    setEditFromRules({ definition: def, parentLib });
-    setActiveTab(1);
-  }, [operatorName]);
-
   return (
     <>
       <SessionWarningModal />
@@ -131,8 +121,7 @@ function AppShell({ authToken, tepHeaders, operatorName }: AppShellProps) {
           onTabChange={setActiveTab}
           tabs={[
             { label: 'Overview', content: <StatsTab onViewTransactions={handleViewTransactions} onCheckoutComplete={handleCheckoutComplete} authToken={authToken} tepHeaders={tepHeaders} /> },
-            { label: 'Transactions', content: <TransactionsTab activeCheckout={activeCheckout} onCheckin={handleCheckinWithSave} onRelease={handleRelease} onRequestUndo={handleRequestUndo} editFromRules={editFromRules} onClearEditFromRules={() => setEditFromRules(null)} /> },
-            { label: 'Tag Rules', content: <TagRulesTab onEditInTransactions={handleEditInTransactions} /> },
+            { label: 'Transactions', content: <TransactionsTab activeCheckout={activeCheckout} onCheckin={handleCheckinWithSave} onRelease={handleRelease} onRequestUndo={handleRequestUndo} /> },
             { label: 'Tags Hierarchy', content: <TagsHierarchyTab /> },
           ]}
         />

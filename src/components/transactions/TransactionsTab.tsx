@@ -26,8 +26,6 @@ interface TransactionsTabProps {
   onCheckin?: (bank: string, side: string) => void;
   onRelease?: (bank: string, side: string) => void;
   onRequestUndo?: (bank: string, side: string) => void;
-  editFromRules?: { definition: TagSpecDefinition; parentLib: TagSpecLibrary } | null;
-  onClearEditFromRules?: () => void;
 }
 
 function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinition | null {
@@ -99,7 +97,7 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
 
 const BATCH_SIZE = 50;
 
-export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onRequestUndo, editFromRules, onClearEditFromRules }: TransactionsTabProps) {
+export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onRequestUndo }: TransactionsTabProps) {
   const { libraries, tagDefinitions, originalDefinitionIds, dispatch } = useTagSpecs();
   const { userId, usersMap } = useAuth();
   const { hasChanges, saveBaseline, updateCurrent } = useLocalChanges(activeCheckout?.bank, activeCheckout?.side);
@@ -267,18 +265,6 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onReques
   const [wizardInitialStep, setWizardInitialStep] = useState<1 | 2 | 3 | 4 | undefined>(undefined);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [wizardFromCheckout, setWizardFromCheckout] = useState(false);
-
-  // Handle edit-from-rules: load definition into builder
-  useEffect(() => {
-    if (!editFromRules) return;
-    const { definition, parentLib } = editFromRules;
-    const formState = fromExistingDefinition(definition, parentLib);
-    builder.setFormState(formState);
-    setEditingDef(definition);
-    setEditingParentLib(parentLib);
-    setBuilderOpen(true);
-    onClearEditFromRules?.();
-  }, [editFromRules]);
 
   // Build the temporary definition from the builder's form state
   const tempDefinition = useMemo(
