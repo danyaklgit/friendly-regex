@@ -16,17 +16,18 @@ export function CheckoutBanner({ bank, side, hasChanges, onRelease, onCheckin, o
         <span className="font-semibold">You're working on</span> Bank {bank}, Side {side}
       </span>
       <div className='flex gap-3'>
+        {onRequestUndo && hasChanges && (
+          <Button variant="secondary" size="xs" onClick={() => onRequestUndo(bank, side)}>
+            Review Changes
+          </Button>
+        )}
         <Button variant="primary" size="xs" onClick={() => onRelease(bank, side)}>
           {hasChanges ? 'Save and Release' : 'Release'}
         </Button>
-        {onRequestUndo && hasChanges && (
-          <Button variant="danger_ghost" size="xs" onClick={() => onRequestUndo(bank, side)}>
-            Undo Changes
-          </Button>
-        )}
         <Button variant="primary" size="xs" onClick={() => onCheckin(bank, side)}>
           {hasChanges ? 'Save and Check In' : 'Check In'}
         </Button>
+
       </div>
     </div>
   );

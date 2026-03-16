@@ -50,7 +50,7 @@ export function UndoChangesDialog({ open, bank, side, changeSummary, onClose, on
     <Modal
       open={open}
       onClose={onClose}
-      title="Undo Changes"
+      title="Review your changes"
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
@@ -69,13 +69,13 @@ export function UndoChangesDialog({ open, bank, side, changeSummary, onClose, on
       }
     >
       <p className="text-sm text-body-secondary mb-3">
-        Are you sure you want to undo all changes for <span className="font-semibold text-heading">{bank}</span> / <span className="font-semibold text-heading">{side}</span>?
+        Find below your current changes for <span className="font-semibold text-heading">{bank}</span> / <span className="font-semibold text-heading">{side}</span>:
       </p>
 
       {sortedChanges.length > 0 ? (
         <div className="space-y-2">
           <p className="text-xs font-semibold text-muted uppercase tracking-wider">
-            {sortedChanges.length} change{sortedChanges.length !== 1 ? 's' : ''} will be reverted
+            {sortedChanges.length} change{sortedChanges.length !== 1 ? 's' : ''} 
           </p>
           {sortedChanges.map((change, i) => (
             <ChangeItem key={`${change.tag}-${change.type}-${i}`} change={change} />
