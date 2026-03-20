@@ -18,6 +18,7 @@ import { useLocalChanges } from '../../hooks/useLocalChanges';
 
 interface StatsTabProps {
   onViewTransactions: (bank: string, side: string) => void;
+  onViewAllTransactions: () => void;
   onCheckoutComplete: (bank: string, side: string) => void;
   authToken: string | null;
   tepHeaders: TepHeaders | null;
@@ -41,7 +42,7 @@ interface DisplayRow {
   inProgressLib: TagSpecLibrary | undefined;
 }
 
-export function StatsTab({ onViewTransactions, onCheckoutComplete, authToken, tepHeaders }: StatsTabProps) {
+export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckoutComplete, authToken, tepHeaders }: StatsTabProps) {
   const { libraries, tagDefinitions, loading, refetchTagSpecs, dispatch } = useTagSpecs();
   const { usersMap, useDummyData, userId } = useAuth();
   const { clearChanges } = useLocalChanges(undefined, undefined);
@@ -180,12 +181,6 @@ export function StatsTab({ onViewTransactions, onCheckoutComplete, authToken, te
 
   // --- Tag rule CRUD ---
 
-  const handleCreateTag = useCallback(() => {
-    setEditingDef(undefined);
-    setEditingParentLib(undefined);
-    setWizardOpen(true);
-  }, []);
-
   const handleEditTag = useCallback((def: TagSpecDefinition, parentLib?: TagSpecLibrary) => {
     setEditingDef(def);
     setEditingParentLib(parentLib);
@@ -301,8 +296,8 @@ export function StatsTab({ onViewTransactions, onCheckoutComplete, authToken, te
           >
             Export All
           </Button>
-          <Button variant="primary" size="xs" onClick={handleCreateTag}>
-            + New Tag
+          <Button variant="primary" size="xs" onClick={onViewAllTransactions}>
+            View All Transactions
           </Button>
         </div>
       </div>

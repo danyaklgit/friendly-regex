@@ -48,6 +48,11 @@ function AppShell({ authToken, tepHeaders, operatorName }: AppShellProps) {
     setActiveTab(1);
   }, []);
 
+  const handleViewAllTransactions = useCallback(() => {
+    setActiveCheckout(null);
+    setActiveTab(1);
+  }, []);
+
   const handleCheckoutComplete = useCallback((bank: string, side: string) => {
     setActiveCheckout({ bank, side, operatorName });
     setActiveTab(1);
@@ -120,7 +125,7 @@ function AppShell({ authToken, tepHeaders, operatorName }: AppShellProps) {
           activeIndex={activeTab}
           onTabChange={setActiveTab}
           tabs={[
-            { label: 'Backlog', content: <StatsTab onViewTransactions={handleViewTransactions} onCheckoutComplete={handleCheckoutComplete} authToken={authToken} tepHeaders={tepHeaders} /> },
+            { label: 'Backlog', content: <StatsTab onViewTransactions={handleViewTransactions} onViewAllTransactions={handleViewAllTransactions} onCheckoutComplete={handleCheckoutComplete} authToken={authToken} tepHeaders={tepHeaders} /> },
             { label: 'Transactions', content: <TransactionsTab activeCheckout={activeCheckout} onCheckin={handleCheckinWithSave} onRelease={handleRelease} onRequestUndo={handleRequestUndo} /> },
             { label: 'Tags Hierarchy', content: <TagsHierarchyTab /> },
           ]}
