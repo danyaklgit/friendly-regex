@@ -16,7 +16,8 @@ import type { FilterProperty } from '../api/transactions';
 export function translateFilters(
   filters: Record<string, Set<string>>,
 ): FilterProperty[][] {
-  const group: FilterProperty[] = [];
+  const baseFilters: FilterProperty[] = [];
+  const searchColumnFilters: FilterProperty[] = [];
 
   for (const [key, values] of Object.entries(filters)) {
     if (values.size === 0) continue;
@@ -26,32 +27,44 @@ export function translateFilters(
 
     if (key.startsWith('__bool:')) {
       const column = key.slice('__bool:'.length);
-      group.push({ ColumnName: column, Value: 'true', Operand: 'EQ' });
+      baseFilters.push({ ColumnName: column, Value: 'true', Operand: 'EQ' });
     } else if (key.startsWith('__search:')) {
       const columns = key.slice('__search:'.length);
-      // Search across potentially multiple columns (pipe-separated in definition)
       for (const col of columns.split('|')) {
-        group.push({ ColumnName: col, Value: val, Operand: 'IN' });
+        searchColumnFilters.push({ ColumnName: col, Value: val, Operand: 'IN' });
       }
     } else if (key.startsWith('__decimal_gte:')) {
       const column = key.slice('__decimal_gte:'.length);
-      group.push({ ColumnName: column, Value: val, Operand: 'GTE' });
+      baseFilters.push({ ColumnName: column, Value: val, Operand: 'GTE' });
     } else if (key.startsWith('__decimal_lte:')) {
       const column = key.slice('__decimal_lte:'.length);
-      group.push({ ColumnName: column, Value: val, Operand: 'LTE' });
+      baseFilters.push({ ColumnName: column, Value: val, Operand: 'LTE' });
     } else if (key.startsWith('__date_gte:')) {
       const column = key.slice('__date_gte:'.length);
-      group.push({ ColumnName: column, Value: val, Operand: 'GTE' });
+      baseFilters.push({ ColumnName: column, Value: val, Operand: 'GTE' });
     } else if (key.startsWith('__date_lte:')) {
       const column = key.slice('__date_lte:'.length);
-      group.push({ ColumnName: column, Value: val, Operand: 'LTE' });
+      baseFilters.push({ ColumnName: column, Value: val, Operand: 'LTE' });
     } else if (key.startsWith('__string:')) {
       const column = key.slice('__string:'.length);
-      group.push({ ColumnName: column, Value: val, Operand: 'IN' });
+      baseFilters.push({ ColumnName: column, Value: val, Operand: 'IN' });
     } else {
-      // Standard IN filter (STRING-FROM-LIST or data-derived)
-      group.push({ ColumnName: key, Value: val, Operand: 'IN' });
+      // Standard EQ filter (STRING-FROM-LIST or data-derived)
+      baseFilters.push({ ColumnName: key, Value: val, Operand: 'EQ' });
     }
+  }
+
+  // For each search column, prepend the EQ base filters before it
+  const eqFilters = baseFilters.filter((f) => f.Operand === 'EQ');
+  const nonEqFilters = baseFilters.filter((f) => f.Operand !== 'EQ');
+  const group: FilterProperty[] = [...nonEqFilters];
+
+  if (searchColumnFilters.length > 1) {
+    for (const searchFilter of searchColumnFilters) {
+      group.push(...eqFilters, searchFilter);
+    }
+  } else {
+    group.push(...eqFilters, ...searchColumnFilters);
   }
 
   return group.length > 0 ? [group] : [];
