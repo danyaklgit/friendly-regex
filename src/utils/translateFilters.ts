@@ -31,7 +31,7 @@ export function translateFilters(
       const columns = key.slice('__search:'.length);
       // Search across potentially multiple columns (pipe-separated in definition)
       for (const col of columns.split('|')) {
-        group.push({ ColumnName: col, Value: val, Operand: 'LIKE' });
+        group.push({ ColumnName: col, Value: val, Operand: 'IN' });
       }
     } else if (key.startsWith('__decimal_gte:')) {
       const column = key.slice('__decimal_gte:'.length);
@@ -47,7 +47,7 @@ export function translateFilters(
       group.push({ ColumnName: column, Value: val, Operand: 'LTE' });
     } else if (key.startsWith('__string:')) {
       const column = key.slice('__string:'.length);
-      group.push({ ColumnName: column, Value: val, Operand: 'LIKE' });
+      group.push({ ColumnName: column, Value: val, Operand: 'IN' });
     } else {
       // Standard IN filter (STRING-FROM-LIST or data-derived)
       group.push({ ColumnName: key, Value: val, Operand: 'IN' });
