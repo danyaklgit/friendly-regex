@@ -214,7 +214,7 @@ export function LoginPage() {
 
             <button
               type="submit"
-              disabled={loading || !username || !password}
+              disabled={loading}
               className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-light hover:shadow-[0_8px_24px_-8px_rgba(18,189,206,0.4)] focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 cursor-pointer"
             >
               {loading ? (
