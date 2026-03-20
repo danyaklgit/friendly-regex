@@ -273,11 +273,23 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onReques
     [builderOpen, builder.formState]
   );
 
+  // When an INPROGRESS library exists, exclude its ACTIVE counterpart
+  // so that only the in-progress definitions are used for analysis.
+  const effectiveLibraries = useMemo(() => {
+    const activeIdsWithInProgress = new Set(
+      libraries.filter(l => l.StatusTag === 'INPROGRESS' && l.ActiveTagSpecLibId)
+        .map(l => l.ActiveTagSpecLibId!)
+    );
+    return activeIdsWithInProgress.size > 0
+      ? libraries.filter(l => !(l.StatusTag === 'ACTIVE' && l.Id && activeIdsWithInProgress.has(l.Id)))
+      : libraries;
+  }, [libraries]);
+
   // Combine real libraries + temp definition for analysis.
   // When editing an existing def, skip the preview — the original is already in libraries.
   // When creating a new def, append a synthetic preview library.
   const allLibraries: TagSpecLibrary[] = useMemo(() => {
-    if (!tempDefinition || editingDef) return libraries;
+    if (!tempDefinition || editingDef) return effectiveLibraries;
 
     const previewLib: TagSpecLibrary = {
       Id: 'preview-lib',
@@ -291,8 +303,8 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onReques
       Context: [], // Empty context — matches all rows for preview
       TagSpecDefinitions: [tempDefinition],
     };
-    return [...libraries, previewLib];
-  }, [libraries, tempDefinition, editingDef]);
+    return [...effectiveLibraries, previewLib];
+  }, [effectiveLibraries, tempDefinition, editingDef]);
 
   // Flat definitions including preview (for table column ordering)
   const allDefinitions = useMemo(() => {
@@ -581,7 +593,7 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onReques
                   setBuilderOpen(true)
                 }}
               >
-                Create a Rule
+                Test a Rule
               </Button>
             )
           )}
