@@ -1041,7 +1041,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                               {amt != null ? (
                                 <div className="flex items-center justify-end gap-1">
                                   {isReturn && <span className="text-[9px] font-semibold text-amber-500 bg-amber-50 border border-amber-200 rounded px-1">RTN</span>}
-                                  <span><span className="icon-saudi_riyal">&#xea;</span> {Number(amt).toLocaleString()}</span>
+                                  <span><span className="icon-saudi_riyal">&#xea;</span> {(() => { const parts = Number(amt).toFixed(2).split('.'); return <>{Number(parts[0]).toLocaleString()}<sup className="text-[0.65em] relative -top-[0.55em]">.{parts[1]}</sup></>; })()}</span>
                                 </div>
                               ) : '-'}
                               {stickyEdgeShadow(colIdx)}
@@ -1058,7 +1058,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                               {amt != null ? (
                                 <div className="flex items-center justify-end gap-1">
                                   {isReturn && <span className="text-[9px] font-semibold text-amber-500 bg-amber-50 border border-amber-200 rounded px-1">RTN</span>}
-                                  <span><span className="icon-saudi_riyal">&#xea;</span> {Number(amt).toLocaleString()}</span>
+                                  <span><span className="icon-saudi_riyal">&#xea;</span> {(() => { const parts = Number(amt).toFixed(2).split('.'); return <>{Number(parts[0]).toLocaleString()}<sup className="text-[0.65em] relative -top-[0.55em]">.{parts[1]}</sup></>; })()}</span>
                                 </div>
                               ) : '-'}
                               {stickyEdgeShadow(colIdx)}
