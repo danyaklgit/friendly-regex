@@ -63,6 +63,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return new Map();
   });
 
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
+
   const isAuthenticated = session !== null;
   const username = session?.username ?? null;
   const displayName = session?.displayName ?? null;
@@ -162,10 +165,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [session]);
 
   const refreshSession = useCallback(async (): Promise<boolean> => {
-    if (!session) return false;
+    const s = sessionRef.current;
+    if (!s) return false;
 
     try {
-      const data = await refreshTokenApi(session.refreshToken);
+      const data = await refreshTokenApi(s.refreshToken);
 
       if (!data.accessToken) {
         logout();
@@ -176,10 +180,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         accessToken: data.accessToken,
         refreshToken: data.refreshToken,
         expiresAt: Date.now() + data.expiresIn * 1000,
-        username: session.username,
-        displayName: session.displayName,
-        userId: session.userId,
-        useDummyData: session.useDummyData,
+        username: s.username,
+        displayName: s.displayName,
+        userId: s.userId,
+        useDummyData: s.useDummyData,
       };
 
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newSession));
@@ -190,21 +194,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout();
       return false;
     }
-  }, [session, logout]);
+  }, [logout]);
 
   const dismissWarning = useCallback(() => {
     setShowSessionWarning(false);
   }, []);
 
   const getAuthHeaders = useCallback((): Record<string, string> => {
-    if (!session) return {};
-    return { Authorization: `Bearer ${session.accessToken}` };
-  }, [session]);
+    if (!sessionRef.current) return {};
+    return { Authorization: `Bearer ${sessionRef.current.accessToken}` };
+  }, []);
 
   const refreshingRef = useRef(false);
   const refreshIfNeeded = useCallback(async () => {
-    if (!session || refreshingRef.current) return;
-    const remaining = session.expiresAt - Date.now();
+    const s = sessionRef.current;
+    if (!s || refreshingRef.current) return;
+    const remaining = s.expiresAt - Date.now();
     if (remaining > AUTO_REFRESH_THRESHOLD_MS) return;
     refreshingRef.current = true;
     try {
@@ -212,7 +217,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       refreshingRef.current = false;
     }
-  }, [session, refreshSession]);
+  }, [refreshSession]);
 
   return (
     <AuthContext.Provider value={{
