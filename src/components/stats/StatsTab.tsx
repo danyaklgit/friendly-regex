@@ -10,7 +10,8 @@ import { Toast } from '../shared/Toast';
 import { ComparisonModal } from './ComparisonModal';
 import { TagRuleCard } from '../tagRules/TagRuleCard';
 import { TagWizardModal } from '../wizard/TagWizardModal';
-import type { TepHeaders } from '../../api/transactions';
+import type { TepHeaders, BacklogStatEntry } from '../../api/transactions';
+import { getBacklogStats } from '../../api/transactions';
 import type { TagSpecLibrary, TagSpecDefinition } from '../../types';
 import type { WizardFormResult } from '../../hooks/useWizardForm';
 import { useLocalChanges } from '../../hooks/useLocalChanges';
@@ -58,10 +59,27 @@ export function StatsTab({ onViewTransactions, onCheckoutComplete, authToken, te
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; tag: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Background refetch on mount (fires each time user navigates to Overview tab)
+  const [backlogStats, setBacklogStats] = useState<Map<string, BacklogStatEntry>>(new Map());
+  const [statsLoading, setStatsLoading] = useState(false);
+
+  // Background refetch on mount (fires each time user navigates to Backlog tab)
   useEffect(() => {
     if (useDummyData) return;
     refetchTagSpecs();
+
+    // Fetch backlog stats
+    if (authToken && tepHeaders) {
+      let cancelled = false;
+      setStatsLoading(true);
+      getBacklogStats('MT940', authToken, tepHeaders).then((stats) => {
+        if (cancelled) return;
+        const map = new Map<string, BacklogStatEntry>();
+        for (const s of stats) map.set(s.TagSpecLibraryId, s);
+        setBacklogStats(map);
+      }).catch((err) => console.error('Failed to fetch backlog stats:', err))
+        .finally(() => { if (!cancelled) setStatsLoading(false); });
+      return () => { cancelled = true; };
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -248,6 +266,11 @@ export function StatsTab({ onViewTransactions, onCheckoutComplete, authToken, te
     return changed;
   }, []);
 
+  const getStats = useCallback((row: DisplayRow): BacklogStatEntry | undefined => {
+    // Try matching on the ACTIVE library ID first, then INPROGRESS
+    return backlogStats.get(row.library.Id!) ?? (row.inProgressLib?.Id ? backlogStats.get(row.inProgressLib.Id) : undefined);
+  }, [backlogStats]);
+
   const canAct = !useDummyData && !!authToken && !!tepHeaders;
 
   // Show loading skeleton only on initial load (no data yet)
@@ -291,15 +314,16 @@ export function StatsTab({ onViewTransactions, onCheckoutComplete, authToken, te
       ) : (
         <div className="overflow-clip border border-border rounded-lg">
           <table className="min-w-full divide-y divide-divide">
-            <thead className="bg-surface-secondary">
+            <thead className="bg-surface-secondary sticky top-0 z-20">
               <tr className="flex items-center">
-                <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary w-10 shrink-0"></th>
-                <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary w-44 shrink-0">Bank</th>
-                <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary w-32 shrink-0">Side</th>
-                <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-body-secondary w-16 shrink-0">Rules</th>
-                <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary w-36 shrink-0">Operator</th>
-                <th className="px-4 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wider text-body-secondary w-24 shrink-0">Status</th>
-                <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-body-secondary flex-1">Action</th>
+                <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary w-10 shrink-0 whitespace-nowrap"></th>
+                <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary w-44 shrink-0 whitespace-nowrap">Bank</th>
+                <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary w-24 shrink-0 whitespace-nowrap">Side</th>
+                <th className="px-4 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wider text-body-secondary w-16 shrink-0 whitespace-nowrap">Rules</th>
+                <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary flex-1 min-w-72 whitespace-nowrap">Statistics</th>
+                <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary w-40 shrink-0 whitespace-nowrap">Operator</th>
+                <th className="px-4 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wider text-body-secondary w-24 shrink-0 whitespace-nowrap">Status</th>
+                <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-body-secondary flex-1 whitespace-nowrap">Action</th>
               </tr>
             </thead>
             <tbody className="bg-surface divide-y divide-divide">
@@ -309,11 +333,12 @@ export function StatsTab({ onViewTransactions, onCheckoutComplete, authToken, te
                 const isExpanded = expandedRows.has(rowKey);
                 const displayLib = getDisplayLib(row);
                 const definitions = displayLib.TagSpecDefinitions;
+                const stats = getStats(row);
                 return (
                   <tr key={row.library.Id} className="group">
-                    <td colSpan={7} className="p-0">
+                    <td colSpan={8} className="p-0">
                       {/* Main row — sticky when expanded */}
-                      <div className={`flex items-center transition-colors ${isExpanded ? 'sticky top-0 z-10 shadow-sm border-b border-border bg-white! dark:bg-black/80! ' : ''} ${row.isInProgress ? 'bg-primary/5' : isExpanded ? 'bg-surface' : 'hover:bg-surface-hover'}`}>
+                      <div className={`flex items-start transition-colors ${isExpanded ? 'sticky top-9 z-10 shadow-sm border-b border-border bg-white! dark:bg-black/80! ' : ''} ${row.isInProgress ? 'bg-primary/5' : isExpanded ? 'bg-surface' : 'hover:bg-surface-hover'}`}>
                         {/* Expand toggle */}
                         <div className="px-4 py-2.5 w-10 shrink-0">
                           <button
@@ -332,18 +357,72 @@ export function StatsTab({ onViewTransactions, onCheckoutComplete, authToken, te
                         {/* Bank */}
                         <div className="px-4 py-2.5 text-xs font-medium text-heading w-44 shrink-0 cursor-pointer select-none" onClick={() => toggleExpand(rowKey)}>{row.bank}</div>
                         {/* Side */}
-                        <div className="px-4 py-2.5 w-32 shrink-0">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold
+                        <div className="px-4 py-2.5 w-24 shrink-0">
+                          <span className={`inline-flex whitespace-nowrap items-center px-2 py-0.5 rounded text-[10px] font-semibold
                             ${row.side === 'CR' ? 'bg-emerald-50 text-emerald-700' : row.side === 'DR' ? 'bg-red-50 text-red-700' : 'bg-surface-tertiary text-body-secondary'}`}>
                             {row.side} {sideLabel[row.side] ? `- ${sideLabel[row.side]}` : ''}
                           </span>
                         </div>
                         {/* Rules count */}
-                        <div className="px-4 py-2.5 text-xs text-body-secondary text-right w-16 shrink-0">
+                        <div className="px-4 py-2.5 text-xs text-body-secondary text-center w-16 shrink-0">
                           {definitions.length}
                         </div>
+                        {/* Statistics */}
+                        <div className="px-4 py-2 flex-1 min-w-72">
+                          {statsLoading ? (
+                            <div className="space-y-1.5">
+                              <div className="h-2 w-full rounded-full bg-surface-tertiary animate-pulse" />
+                              <div className="flex gap-3">
+                                {Array.from({ length: 5 }).map((_, i) => (
+                                  <div key={i} className="h-3 w-12 rounded bg-surface-tertiary animate-pulse" />
+                                ))}
+                              </div>
+                            </div>
+                          ) : stats ? (() => {
+                            const rate = stats.TaggingRate;
+                            const issueCount = stats.TaggedWithMissingMandatoryAttrCount + stats.TaggedWithMissingOptionalAttrCount + stats.TaggedWithInvalidAttrCount;
+                            return (
+                              <div className="space-y-1.5 py-0.5">
+                                {/* Progress bar with label */}
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-body-secondary whitespace-nowrap min-w-25 font-semibold">{stats.TotalTransactionCount.toLocaleString()} txns</span>
+                                  <div className="flex-1 h-1.5 rounded-full overflow-hidden bg-surface-tertiary">
+                                    <div
+                                      className={`h-full rounded-full transition-all ${rate === 100 ? 'bg-emerald-500' : rate >= 90 ? 'bg-emerald-400' : rate >= 50 ? 'bg-amber-400' : 'bg-red-400'}`}
+                                      style={{ width: `${rate}%` }}
+                                    />
+                                  </div>
+                                  <span className={`text-xs font-semibold whitespace-nowrap ${rate === 100 ? 'text-emerald-600' : rate >= 90 ? 'text-emerald-500' : rate >= 50 ? 'text-amber-600' : 'text-red-500'}`}>
+                                    {rate.toFixed(1)}%
+                                  </span>
+                                </div>
+                                {/* Badges */}
+                                <div className="flex items-end justify-start pl-27 gap-2 flex-wrap">
+                                  
+                                  <div className='flex gap-2'>
+                                  <span className="inline-flex items-baseline gap-1 px-1.5 py-0.5 rounded bg-emerald-50  text-emerald-700"><span className="text-xs font-medium">{stats.FullyTaggedCount.toLocaleString()}</span> <span className="text-[10px]">Fully</span></span>
+                                  {issueCount > 0 && (
+                                    <span className="inline-flex items-baseline gap-1 px-1.5 py-0.5 rounded bg-amber-50  text-amber-700"><span className="text-xs font-medium">{issueCount.toLocaleString()}</span> <span className="text-[10px]">Issues</span></span>
+                                  )}
+                                  {stats.UntaggedCount > 0 && (
+                                    <span className="inline-flex items-baseline gap-1 px-1.5 py-0.5 rounded bg-red-50  text-red-700"><span className="text-xs font-medium">{stats.UntaggedCount.toLocaleString()}</span> <span className="text-[10px]">Untagged</span></span>
+                                  )}
+                                  {stats.MultiTaggedCount > 0 && (
+                                    <span className="inline-flex items-baseline gap-1 px-1.5 py-0.5 rounded bg-violet-50  text-violet-700"><span className="text-xs font-medium">{stats.MultiTaggedCount.toLocaleString()}</span> <span className="text-[10px]">Multi</span></span>
+                                  )}
+                                  {stats.DeadEndCount > 0 && (
+                                    <span className="inline-flex items-baseline gap-1 px-1.5 py-0.5 rounded bg-gray-100  text-gray-600"><span className="text-xs font-medium">{stats.DeadEndCount.toLocaleString()}</span> <span className="text-[10px]">Dead End</span></span>
+                                  )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })() : (
+                            <span className="text-[10px] text-faint">No stats</span>
+                          )}
+                        </div>
                         {/* Operator */}
-                        <div className="px-4 py-2.5 text-xs text-body-secondary w-36 shrink-0 truncate">
+                        <div className="px-4 py-2.5 text-xs text-body-secondary w-40 shrink-0 truncate">
                           {row.operatorName
                             ? <span className="text-primary-dark font-medium">{row.operatorName}</span>
                             : <span className="text-faint">-</span>}

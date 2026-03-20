@@ -65,6 +65,26 @@ export interface GetFiltersResponse {
   Filters: FilterDefinition[];
 }
 
+// --- Backlog stats (from GetBacklogStats API) ---
+
+export interface BacklogStatEntry {
+  TagSpecLibraryId: string;
+  TotalTransactionCount: number;
+  TotalTaggedCount: number;
+  TaggingRate: number;
+  FullyTaggedCount: number;
+  TaggedWithMissingMandatoryAttrCount: number;
+  TaggedWithMissingOptionalAttrCount: number;
+  TaggedWithInvalidAttrCount: number;
+  UntaggedCount: number;
+  MultiTaggedCount: number;
+  DeadEndCount: number;
+}
+
+export interface GetBacklogStatsResponse {
+  BacklogStats: BacklogStatEntry[];
+}
+
 const BASE = '/api/tep/api/v1/TEP';
 
 export async function getFilters(
@@ -122,4 +142,33 @@ export async function getTransactions(
 
   if (!res.ok) throw new Error('Failed to fetch transactions');
   return res.json();
+}
+
+export async function getBacklogStats(
+  dataSetType: string,
+  authToken: string,
+  tepHeaders: TepHeaders,
+  signal?: AbortSignal,
+): Promise<BacklogStatEntry[]> {
+  const res = await fetch(`${BASE}/GetBacklogStats`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      Authorization: `Bearer ${authToken}`,
+      'x-apikey': tepHeaders.apiKey,
+      ActivityTag: 'GetBacklogStats',
+      LanguageCode: tepHeaders.languageCode,
+      TTPUserId: tepHeaders.userId,
+      TTPTenantCode: tepHeaders.tenantCode,
+      TTPRequestId: tepHeaders.requestId,
+      TimeZone: tepHeaders.timeZone,
+    },
+    body: JSON.stringify({ DataSetType: dataSetType }),
+    signal,
+  });
+
+  if (!res.ok) throw new Error('Failed to fetch backlog stats');
+  const data: GetBacklogStatsResponse = await res.json();
+  return data.BacklogStats;
 }
