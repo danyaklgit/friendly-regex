@@ -44,7 +44,57 @@ export const DEFAULT_SORTING: SortProperty[] = [
   { ColumnName: 'Sequence', SortingLevel: 2, SortingOrder: 'ASC' },
 ];
 
+// --- Filter definitions (from GetFilters API) ---
+
+export type FilterType = 'BOOL' | 'STRING-FROM-LIST' | 'SEARCH' | 'API' | 'DECIMAL' | 'STRING' | 'DATE';
+
+export interface FilterValue {
+  Column: string;
+  Value: string | null;
+  Label: string;
+}
+
+export interface FilterDefinition {
+  Tag: string;
+  Label: string;
+  Type: FilterType;
+  Values: FilterValue[];
+}
+
+export interface GetFiltersResponse {
+  Filters: FilterDefinition[];
+}
+
 const BASE = '/api/tep/api/v1/TEP';
+
+export async function getFilters(
+  dataSetType: string,
+  authToken: string,
+  tepHeaders: TepHeaders,
+  signal?: AbortSignal,
+): Promise<FilterDefinition[]> {
+  const res = await fetch(`${BASE}/GetFilters`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      Authorization: `Bearer ${authToken}`,
+      'x-apikey': tepHeaders.apiKey,
+      ActivityTag: 'GetFilters',
+      LanguageCode: tepHeaders.languageCode,
+      TTPUserId: tepHeaders.userId,
+      TTPTenantCode: tepHeaders.tenantCode,
+      TTPRequestId: tepHeaders.requestId,
+      TimeZone: tepHeaders.timeZone,
+    },
+    body: JSON.stringify({ DataSetType: dataSetType }),
+    signal,
+  });
+
+  if (!res.ok) throw new Error('Failed to fetch filters');
+  const data: GetFiltersResponse = await res.json();
+  return data.Filters;
+}
 
 export async function getTransactions(
   request: GetTransactionsRequest,

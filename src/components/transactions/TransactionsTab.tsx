@@ -142,6 +142,7 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onReques
   const {
     transactions, fieldMeta, loadTransactions, resetToSample, isCustomData, flagDeadEnd,
     isLiveMode, loading, hasMore: liveHasMore, totalTransactionsCount, fetchPage,
+    filterDefinitions,
   } = useTransactionData();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -602,6 +603,7 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onReques
         onShowOnlyDeadEndChange={setShowOnlyDeadEnd}
         baseFilters={baseFilters}
         isLiveMode={isLiveMode}
+        filterDefinitions={filterDefinitions}
         endSlot={tableColumns.length > 0 ? (
           <ColumnPicker columns={tableColumns} hiddenColumns={hiddenColumns} onChange={setHiddenColumns} columnOrder={columnOrder} onColumnOrderChange={setColumnOrder} defaultHiddenColumns={defaultHiddenColumns} onReset={handleColumnReset} />
         ) : undefined}

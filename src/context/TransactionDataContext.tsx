@@ -2,7 +2,7 @@ import { createContext, useState, useMemo, useCallback, useRef, useEffect, type 
 import type { TransactionRow } from '../types';
 import { deriveFieldMeta, type FieldMeta } from '../utils/deriveFieldMeta';
 import { translateFilters } from '../utils/translateFilters';
-import { getTransactions, DEFAULT_SORTING, type TepHeaders } from '../api/transactions';
+import { getTransactions, getFilters, DEFAULT_SORTING, type TepHeaders, type FilterDefinition } from '../api/transactions';
 import { useAuth } from './AuthContext';
 import { useTepConfig } from './TepConfigContext';
 import sampleTransactionData from '../data/sampleData.json';
@@ -22,6 +22,8 @@ export interface TransactionDataContextValue {
   hasMore: boolean;
   totalTransactionsCount: number | null;
   fetchPage: (filters: Record<string, Set<string>>, append: boolean, pageIndex?: number) => Promise<void>;
+  filterDefinitions: FilterDefinition[];
+  filterDefinitionsLoading: boolean;
 }
 
 export const TransactionDataContext = createContext<TransactionDataContextValue | null>(null);
@@ -38,6 +40,8 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [totalTransactionsCount, setTotalTransactionsCount] = useState<number | null>(null);
+  const [filterDefinitions, setFilterDefinitions] = useState<FilterDefinition[]>([]);
+  const [filterDefinitionsLoading, setFilterDefinitionsLoading] = useState(false);
   const currentPageRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -63,6 +67,36 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
       )
     );
   }, [fieldMeta.identifierField]);
+
+  // Fetch filter definitions from API on mount (live mode only)
+  useEffect(() => {
+    if (!isLiveMode) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        await refreshIfNeeded();
+        const authHeaders = getAuthHeaders();
+        const token = authHeaders.Authorization?.replace('Bearer ', '') ?? '';
+        if (!token) return;
+        const tepHeaders: TepHeaders = {
+          apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
+          userId: userId ?? '',
+          tenantCode: tepConfig.ttpTenantCode,
+          languageCode: tepConfig.languageCode,
+          timeZone: tepConfig.timeZone,
+          requestId: tepConfig.ttpRequestId,
+        };
+        setFilterDefinitionsLoading(true);
+        const defs = await getFilters('MT940', token, tepHeaders);
+        if (!cancelled) setFilterDefinitions(defs);
+      } catch (err) {
+        console.error('Failed to fetch filter definitions:', err);
+      } finally {
+        if (!cancelled) setFilterDefinitionsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isLiveMode, getAuthHeaders, refreshIfNeeded, userId, tepConfig]);
 
   const fetchPage = useCallback(async (filters: Record<string, Set<string>>, append: boolean, explicitPage?: number) => {
     if (!isLiveMode) return;
@@ -138,6 +172,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
     <TransactionDataContext.Provider value={{
       transactions, fieldMeta, loadTransactions, resetToSample, isCustomData, flagDeadEnd,
       isLiveMode, loading, hasMore, totalTransactionsCount, fetchPage,
+      filterDefinitions, filterDefinitionsLoading,
     }}>
       {children}
     </TransactionDataContext.Provider>
