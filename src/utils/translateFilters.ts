@@ -54,18 +54,9 @@ export function translateFilters(
     }
   }
 
-  // For each search column, prepend the EQ base filters before it
-  const eqFilters = baseFilters.filter((f) => f.Operand === 'EQ');
-  const nonEqFilters = baseFilters.filter((f) => f.Operand !== 'EQ');
-  const group: FilterProperty[] = [...nonEqFilters];
-
-  if (searchColumnFilters.length > 1) {
-    for (const searchFilter of searchColumnFilters) {
-      group.push(...eqFilters, searchFilter);
-    }
-  } else {
-    group.push(...eqFilters, ...searchColumnFilters);
+  if (searchColumnFilters.length === 0) {
+    return baseFilters.length > 0 ? [baseFilters] : [];
   }
 
-  return group.length > 0 ? [group] : [];
+  return searchColumnFilters.map((searchFilter) => [...baseFilters, searchFilter]);
 }
