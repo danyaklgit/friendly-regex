@@ -368,7 +368,7 @@ export function StatsTab({ onViewTransactions, onCheckoutComplete, authToken, te
                           {definitions.length}
                         </div>
                         {/* Statistics */}
-                        <div className="px-4 py-2 flex-1 min-w-72">
+                        <div className="px-4 py-2 flex-1 min-w-72 min-h-16">
                           {statsLoading ? (
                             <div className="space-y-1.5">
                               <div className="h-2 w-full rounded-full bg-surface-tertiary animate-pulse" />
