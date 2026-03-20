@@ -579,7 +579,7 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onReques
                     size="xs"
                     disabled
                   >
-                    Test a Rule
+                    Create a Rule
                   </Button>
                 </span>
               </Tooltip>
@@ -593,7 +593,7 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onReques
                   setBuilderOpen(true)
                 }}
               >
-                Test a Rule
+                Create a Rule
               </Button>
             )
           )}
