@@ -581,7 +581,7 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onReques
                   setBuilderOpen(true)
                 }}
               >
-                Test a Rule
+                Create a Rule
               </Button>
             )
           )}
