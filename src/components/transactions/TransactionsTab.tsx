@@ -165,11 +165,11 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onReques
   const [relaxedMode, setRelaxedMode] = useState(() => {
     try { const v = localStorage.getItem('tep:relaxedMode'); return v === null ? true : v === 'true'; } catch { return true; }
   });
-  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => {
+  const [hiddenColumns, setHiddenColumns] = useState<Set<string> | null>(() => {
     try {
       const stored = localStorage.getItem('tep:hiddenColumns');
-      return stored ? new Set(JSON.parse(stored) as string[]) : new Set();
-    } catch { return new Set(); }
+      return stored ? new Set(JSON.parse(stored) as string[]) : null;
+    } catch { return null; }
   });
   const [columnOrder, setColumnOrder] = useState<string[]>(() => {
     try {
@@ -184,7 +184,7 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onReques
   useEffect(() => { try { localStorage.setItem('tep:showAttributes', String(showAttributes)); } catch { /* ignore */ } }, [showAttributes]);
   useEffect(() => { try { localStorage.setItem('tep:incrementalPagination', String(incrementalPagination)); } catch { /* ignore */ } }, [incrementalPagination]);
   useEffect(() => { try { localStorage.setItem('tep:relaxedMode', String(relaxedMode)); } catch { /* ignore */ } }, [relaxedMode]);
-  useEffect(() => { try { localStorage.setItem('tep:hiddenColumns', JSON.stringify([...hiddenColumns])); } catch { /* ignore */ } }, [hiddenColumns]);
+  useEffect(() => { if (hiddenColumns !== null) { try { localStorage.setItem('tep:hiddenColumns', JSON.stringify([...hiddenColumns])); } catch { /* ignore */ } } }, [hiddenColumns]);
   useEffect(() => { try { localStorage.setItem('tep:columnOrder', JSON.stringify(columnOrder)); } catch { /* ignore */ } }, [columnOrder]);
 
   // Track builder panel height so the table can adjust its maxHeight
@@ -196,24 +196,8 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onReques
     return () => ro.disconnect();
   }, [builderOpen]);
 
-  // Default visible columns: only Tags + 4 data fields; apply only on first load with no stored preference
+  // Default visible columns: only Tags + 4 data fields
   const DEFAULT_VISIBLE_DATA = useMemo(() => new Set(['AdditionalInformation', 'Description1', 'Description2', 'BankReference']), []);
-  const defaultsApplied = useRef(false);
-  useEffect(() => {
-    if (tableColumns.length > 0 && !defaultsApplied.current) {
-      defaultsApplied.current = true;
-      // Skip if user already has a stored preference
-      if (localStorage.getItem('tep:hiddenColumns')) return;
-      const defaultHidden = new Set<string>();
-      for (const col of tableColumns) {
-        if (col.type === 'tags') continue;
-        if (col.type === 'attribute') continue; // attributes follow their source field via showAttributes
-        if (col.type === 'data' && DEFAULT_VISIBLE_DATA.has(col.field)) continue;
-        defaultHidden.add(col.key);
-      }
-      setHiddenColumns(defaultHidden);
-    }
-  }, [tableColumns, DEFAULT_VISIBLE_DATA]);
 
   const defaultHiddenColumns = useMemo(() => {
     const s = new Set<string>();
@@ -225,6 +209,9 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onReques
     }
     return s;
   }, [tableColumns, DEFAULT_VISIBLE_DATA]);
+
+  // When hiddenColumns is null (no stored preference), use defaults
+  const effectiveHiddenColumns = useMemo(() => hiddenColumns ?? defaultHiddenColumns, [hiddenColumns, defaultHiddenColumns]);
 
   const handleColumnReset = useCallback(() => {
     setHiddenColumns(defaultHiddenColumns);
@@ -617,7 +604,7 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onReques
         isLiveMode={isLiveMode}
         filterDefinitions={filterDefinitions}
         endSlot={tableColumns.length > 0 ? (
-          <ColumnPicker columns={tableColumns} hiddenColumns={hiddenColumns} onChange={setHiddenColumns} columnOrder={columnOrder} onColumnOrderChange={setColumnOrder} defaultHiddenColumns={defaultHiddenColumns} onReset={handleColumnReset} />
+          <ColumnPicker columns={tableColumns} hiddenColumns={effectiveHiddenColumns} onChange={setHiddenColumns} columnOrder={columnOrder} onColumnOrderChange={setColumnOrder} defaultHiddenColumns={defaultHiddenColumns} onReset={handleColumnReset} />
         ) : undefined}
       />
       {/* )} */}
@@ -699,7 +686,7 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onReques
         onFlagDeadEnd={flagDeadEnd}
         showAttributes={showAttributes}
         relaxedMode={relaxedMode}
-        hiddenColumns={hiddenColumns}
+        hiddenColumns={effectiveHiddenColumns}
         columnOrder={columnOrder}
         onColumnsReady={setTableColumns}
         builderHeight={builderHeight}
