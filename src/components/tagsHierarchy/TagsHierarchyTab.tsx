@@ -411,7 +411,7 @@ export function TagsHierarchyTab() {
                         <button
                           type="button"
                           onClick={() => handleEdit(group.groupNode!)}
-                          className="p-1.5 rounded hover:bg-surface-active text-muted hover:text-heading transition-colors"
+                          className="p-1.5 rounded hover:bg-surface-active text-muted hover:text-heading transition-colors cursor-pointer"
                           title="Edit group"
                         >
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -423,7 +423,7 @@ export function TagsHierarchyTab() {
                           <button
                             type="button"
                             onClick={() => handleArchive(group.groupNode!)}
-                            className="p-1.5 rounded hover:bg-yellow-100 dark:hover:bg-yellow-900/20 text-muted hover:text-yellow-600 transition-colors"
+                            className="p-1.5 rounded hover:bg-yellow-100 dark:hover:bg-yellow-900/20 text-muted hover:text-yellow-600 transition-colors cursor-pointer"
                             title="Archive"
                           >
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -436,7 +436,7 @@ export function TagsHierarchyTab() {
                           <button
                             type="button"
                             onClick={() => handleActivate(group.groupNode!)}
-                            className="p-1.5 rounded hover:bg-green-100 dark:hover:bg-green-900/20 text-muted hover:text-green-600 transition-colors"
+                            className="p-1.5 rounded hover:bg-green-100 dark:hover:bg-green-900/20 text-muted hover:text-green-600 transition-colors cursor-pointer"
                             title="Activate"
                           >
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -449,7 +449,7 @@ export function TagsHierarchyTab() {
                           <button
                             type="button"
                             onClick={() => setDeleteTarget(group.groupNode!)}
-                            className="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/20 text-muted hover:text-red-600 transition-colors"
+                            className="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/20 text-muted hover:text-red-600 transition-colors cursor-pointer"
                             title="Delete"
                           >
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -473,7 +473,7 @@ export function TagsHierarchyTab() {
                       return (
                         <div
                           key={`${group.groupTag}-${leaf.Tag}`}
-                          className={`flex items-center px-4 py-2 pl-10 border-t border-border/50 hover:bg-surface-hover transition-colors text-sm
+                          className={`flex items-center px-4 py-2 pl-10 border-t border-border/50 hover:bg-surface-hover transition-colors text-xs
                             ${isInactive ? 'opacity-50' : ''}
                             ${getLeafBgClass(leaf.Tag)}`}
                         >
@@ -491,7 +491,7 @@ export function TagsHierarchyTab() {
                               <button
                                 type="button"
                                 onClick={() => handleEdit(leaf)}
-                                className="p-1.5 rounded hover:bg-surface-active text-muted hover:text-heading transition-colors"
+                                className="p-1.5 rounded hover:bg-surface-active text-muted hover:text-heading transition-colors cursor-pointer"
                                 title="Edit"
                               >
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -503,7 +503,7 @@ export function TagsHierarchyTab() {
                                 <button
                                   type="button"
                                   onClick={() => handleArchive(leaf)}
-                                  className="p-1.5 rounded hover:bg-yellow-100 dark:hover:bg-yellow-900/20 text-muted hover:text-yellow-600 transition-colors"
+                                  className="p-1.5 rounded hover:bg-yellow-100 dark:hover:bg-yellow-900/20 text-muted hover:text-yellow-600 transition-colors cursor-pointer"
                                   title="Archive"
                                 >
                                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -516,7 +516,7 @@ export function TagsHierarchyTab() {
                                 <button
                                   type="button"
                                   onClick={() => handleActivate(leaf)}
-                                  className="p-1.5 rounded hover:bg-green-100 dark:hover:bg-green-900/20 text-muted hover:text-green-600 transition-colors"
+                                  className="p-1.5 rounded hover:bg-green-100 dark:hover:bg-green-900/20 text-muted hover:text-green-600 transition-colors cursor-pointer"
                                   title="Activate"
                                 >
                                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -529,7 +529,7 @@ export function TagsHierarchyTab() {
                                 <button
                                   type="button"
                                   onClick={() => setDeleteTarget(leaf)}
-                                  className="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/20 text-muted hover:text-red-600 transition-colors"
+                                  className="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/20 text-muted hover:text-red-600 transition-colors cursor-pointer"
                                   title="Delete"
                                 >
                                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
