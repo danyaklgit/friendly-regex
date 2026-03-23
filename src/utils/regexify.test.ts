@@ -1,0 +1,228 @@
+import { describe, it, expect } from 'vitest';
+import { regexify, regexifyExtraction, generateExpressionPrompt, generateExtractionPrompt } from './regexify';
+
+describe('regexify', () => {
+  it('begins_with: anchors at start', () => {
+    expect(regexify('begins_with', 'TNXT')).toBe('^TNXT');
+  });
+
+  it('ends_with: anchors at end', () => {
+    expect(regexify('ends_with', 'USD')).toBe('USD$');
+  });
+
+  it('contains: returns escaped value', () => {
+    expect(regexify('contains', 'PAYMENT')).toBe('PAYMENT');
+  });
+
+  it('does_not_contain: negative lookahead', () => {
+    expect(regexify('does_not_contain', 'VOID')).toBe('^(?!.*VOID)');
+  });
+
+  it('equals: anchored both ends', () => {
+    expect(regexify('equals', 'EXACT')).toBe('^EXACT$');
+  });
+
+  it('does_not_equal: negative lookahead anchored', () => {
+    expect(regexify('does_not_equal', 'BAD')).toBe('^(?!BAD$)');
+  });
+
+  it('matches_pattern: joins values with pipe', () => {
+    expect(regexify('matches_pattern', '', ['USD', 'EUR', 'SAR'])).toBe('USD|EUR|SAR');
+  });
+
+  it('matches_pattern: falls back to single value', () => {
+    expect(regexify('matches_pattern', 'USD')).toBe('USD');
+  });
+
+  it('match_regex: passes through raw regex', () => {
+    expect(regexify('match_regex', '\\d{3}')).toBe('\\d{3}');
+  });
+
+  it('extract_and_compare: wraps with non-capturing groups', () => {
+    expect(regexify('extract_and_compare', '100', undefined, { prefix: '/ORDP/', suffix: '/' }))
+      .toBe('(?:/ORDP/)100(?:/)');
+  });
+
+  it('greater_than: numeric prefix', () => {
+    expect(regexify('greater_than', '500')).toBe('__NUMERIC_GT:500');
+  });
+
+  it('less_than: numeric prefix', () => {
+    expect(regexify('less_than', '100')).toBe('__NUMERIC_LT:100');
+  });
+
+  it('greater_than_or_equal: numeric prefix', () => {
+    expect(regexify('greater_than_or_equal', '0')).toBe('__NUMERIC_GTE:0');
+  });
+
+  it('less_than_or_equal: numeric prefix', () => {
+    expect(regexify('less_than_or_equal', '999')).toBe('__NUMERIC_LTE:999');
+  });
+
+  it('does not escape forward slash (not a regex metachar)', () => {
+    expect(regexify('contains', 'USD/SAR')).toBe('USD/SAR');
+  });
+
+  it('escapes special characters in begins_with', () => {
+    expect(regexify('begins_with', 'A.B')).toBe('^A\\.B');
+  });
+
+  it('default case returns escaped value', () => {
+    // Force an unknown operation through the default branch
+    expect(regexify('unknown_op' as any, 'test')).toBe('test');
+  });
+});
+
+describe('regexifyExtraction', () => {
+  it('extract_between: prefix(.*?)suffix', () => {
+    expect(regexifyExtraction('extract_between', { prefix: '/ORDP/', suffix: '/' }))
+      .toBe('/ORDP/(.*?)/');
+  });
+
+  it('extract_after: prefix(.*)', () => {
+    expect(regexifyExtraction('extract_after', { prefix: 'REF:' }))
+      .toBe('REF:(.*)');
+  });
+
+  it('extract_before: (.*?)suffix', () => {
+    expect(regexifyExtraction('extract_before', { suffix: '/END' }))
+      .toBe('(.*?)/END');
+  });
+
+  it('extract_matching: wraps pattern in group', () => {
+    expect(regexifyExtraction('extract_matching', { pattern: '\\d+' }))
+      .toBe('(\\d+)');
+  });
+
+  it('extract_matching: defaults to (.*) when no pattern', () => {
+    expect(regexifyExtraction('extract_matching', {}))
+      .toBe('(.*)');
+  });
+
+  it('extract_between_and_verify: same as extract_between', () => {
+    expect(regexifyExtraction('extract_between_and_verify', { prefix: 'A', suffix: 'B' }))
+      .toBe('A(.*?)B');
+  });
+
+  it('predefined pattern: returns regex from PREDEFINED_PATTERNS', () => {
+    expect(regexifyExtraction('predefined:ksa_iban', {}))
+      .toBe('(SA\\d{22})');
+  });
+
+  it('unknown predefined pattern: falls back to (.*)', () => {
+    expect(regexifyExtraction('predefined:nonexistent' as any, {}))
+      .toBe('(.*)');
+  });
+
+  it('default case returns (.*)', () => {
+    expect(regexifyExtraction('unknown' as any, {}))
+      .toBe('(.*)');
+  });
+});
+
+describe('generateExpressionPrompt', () => {
+  it('begins_with', () => {
+    expect(generateExpressionPrompt('begins_with', 'ABC')).toBe("Start with 'ABC'");
+  });
+
+  it('ends_with', () => {
+    expect(generateExpressionPrompt('ends_with', 'XYZ')).toBe("End with 'XYZ'");
+  });
+
+  it('contains', () => {
+    expect(generateExpressionPrompt('contains', 'PAY')).toBe("Contain 'PAY'");
+  });
+
+  it('does_not_contain', () => {
+    expect(generateExpressionPrompt('does_not_contain', 'X')).toBe("Not contain 'X'");
+  });
+
+  it('equals', () => {
+    expect(generateExpressionPrompt('equals', 'EXACT')).toBe("Equal 'EXACT'");
+  });
+
+  it('does_not_equal', () => {
+    expect(generateExpressionPrompt('does_not_equal', 'BAD')).toBe("Not equal 'BAD'");
+  });
+
+  it('matches_pattern with values', () => {
+    expect(generateExpressionPrompt('matches_pattern', '', ['A', 'B']))
+      .toBe("Match one of: 'A', 'B'");
+  });
+
+  it('matches_pattern falls back to value', () => {
+    expect(generateExpressionPrompt('matches_pattern', 'A'))
+      .toBe("Match one of: 'A'");
+  });
+
+  it('match_regex', () => {
+    expect(generateExpressionPrompt('match_regex', '\\d+')).toBe("Match pattern '\\d+'");
+  });
+
+  it('extract_and_compare', () => {
+    expect(generateExpressionPrompt('extract_and_compare', '100', undefined, { prefix: 'P', suffix: 'S' }))
+      .toBe("Extract between 'P' and 'S' equals '100'");
+  });
+
+  it('greater_than', () => {
+    expect(generateExpressionPrompt('greater_than', '500')).toBe("Greater than '500'");
+  });
+
+  it('less_than', () => {
+    expect(generateExpressionPrompt('less_than', '100')).toBe("Less than '100'");
+  });
+
+  it('greater_than_or_equal', () => {
+    expect(generateExpressionPrompt('greater_than_or_equal', '0')).toBe("Greater than or equal to '0'");
+  });
+
+  it('less_than_or_equal', () => {
+    expect(generateExpressionPrompt('less_than_or_equal', '999')).toBe("Less than or equal to '999'");
+  });
+
+  it('default returns value', () => {
+    expect(generateExpressionPrompt('unknown' as any, 'fallback')).toBe('fallback');
+  });
+});
+
+describe('generateExtractionPrompt', () => {
+  it('extract_between', () => {
+    expect(generateExtractionPrompt('extract_between', { prefix: 'A', suffix: 'B' }))
+      .toBe("Extract between 'A' and 'B'");
+  });
+
+  it('extract_after', () => {
+    expect(generateExtractionPrompt('extract_after', { prefix: 'REF:' }))
+      .toBe("Extract after 'REF:'");
+  });
+
+  it('extract_before', () => {
+    expect(generateExtractionPrompt('extract_before', { suffix: '/END' }))
+      .toBe("Extract before '/END'");
+  });
+
+  it('extract_matching', () => {
+    expect(generateExtractionPrompt('extract_matching', { pattern: '\\d+' }))
+      .toBe("Extract matching '\\d+'");
+  });
+
+  it('extract_between_and_verify', () => {
+    expect(generateExtractionPrompt('extract_between_and_verify', { prefix: 'A', suffix: 'B', verifyValue: 'V' }))
+      .toBe("Extract between 'A' and 'B', verify = 'V'");
+  });
+
+  it('predefined pattern', () => {
+    expect(generateExtractionPrompt('predefined:ksa_iban', {}))
+      .toBe('Match Verify KSA IBAN');
+  });
+
+  it('unknown predefined returns Extract value', () => {
+    expect(generateExtractionPrompt('predefined:nonexistent' as any, {}))
+      .toBe('Extract value');
+  });
+
+  it('default returns Extract value', () => {
+    expect(generateExtractionPrompt('unknown' as any, {}))
+      .toBe('Extract value');
+  });
+});
