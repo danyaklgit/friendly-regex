@@ -148,11 +148,9 @@ function AppContent() {
   const { isAuthenticated, displayName, username, userId, useDummyData, getAuthHeaders } = useAuth();
   const tepConfig = useTepConfig();
 
-  const authToken = useMemo(() => {
-    const headers = getAuthHeaders();
-    const auth = headers['Authorization'];
-    return auth?.startsWith('Bearer ') ? auth.slice(7) : null;
-  }, [getAuthHeaders]);
+  const headers = getAuthHeaders();
+  const authRaw = headers['Authorization'];
+  const authToken = authRaw?.startsWith('Bearer ') ? authRaw.slice(7) : null;
 
   const tepHeaders = useMemo((): TepHeaders | null => {
     if (!userId) return null;
