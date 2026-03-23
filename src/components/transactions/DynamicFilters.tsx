@@ -151,6 +151,19 @@ function BoolFilterDropdown({
   ).map((v) => v.Label);
   const hasActive = activeLabels.length > 0;
 
+  const isUntaggedChecked = definition.Values.some(
+    (v) => v.Label === 'Untagged' && filters[`__bool:${v.Column}`]?.has('true')
+  );
+  const hasNonExemptChecked = definition.Values.some(
+    (v) => v.Label !== 'Untagged' && v.Label !== 'Dead End' && filters[`__bool:${v.Column}`]?.has('true')
+  );
+
+  const isDisabled = (v: { Label: string }) => {
+    if (v.Label === 'Dead End') return false;
+    if (v.Label === 'Untagged') return hasNonExemptChecked;
+    return isUntaggedChecked;
+  };
+
   const handleToggle = (column: string) => {
     const key = `__bool:${column}`;
     const next = { ...filters };
@@ -184,10 +197,15 @@ function BoolFilterDropdown({
             {definition.Values.map((v) => (
               <label
                 key={v.Column}
-                className="flex items-center gap-2 px-2 py-1 text-xs hover:bg-surface-hover rounded cursor-pointer text-black dark:text-white"
+                className={`flex items-center gap-2 px-2 py-1 text-xs rounded text-black dark:text-white ${
+                  isDisabled(v)
+                    ? 'opacity-50 cursor-not-allowed'
+                    : 'hover:bg-surface-hover cursor-pointer'
+                }`}
               >
                 <input
                   type="checkbox"
+                  disabled={isDisabled(v)}
                   checked={filters[`__bool:${v.Column}`]?.has('true') ?? false}
                   onChange={() => handleToggle(v.Column)}
                   className="rounded border-border-strong"
