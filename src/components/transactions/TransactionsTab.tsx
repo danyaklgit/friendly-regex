@@ -520,15 +520,17 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onReques
         <div className='flex flex-col md:flex-row items-start justify-end md:items-center gap-2'>
           <h2 className="text-base font-semibold text-heading">Transactions</h2>
           <span className='text-sm mr-5 min-w-10 text-primary-dark'>({isLiveMode && totalTransactionsCount != null ? totalTransactionsCount.toLocaleString() : filteredData.length})</span>
-          <Toggle label="Compact mode" checked={relaxedMode} onChange={setRelaxedMode} />
-          <Toggle label="Incremental pagination" checked={incrementalPagination} onChange={(v) => {
-            setIncrementalPagination(v);
-            setCurrentPage(0);
-            setPageInputValue('1');
-            setVisibleCount(BATCH_SIZE);
-            if (!v && isLiveMode) fetchPage(filters, false, 0);
-          }} />
-          <Toggle label="Show attributes" checked={showAttributes} onChange={setShowAttributes} />
+          <div className="flex items-center gap-4">
+            <Toggle label="Compact mode" checked={relaxedMode} onChange={setRelaxedMode} />
+            <Toggle label="Incremental pagination" checked={incrementalPagination} onChange={(v) => {
+              setIncrementalPagination(v);
+              setCurrentPage(0);
+              setPageInputValue('1');
+              setVisibleCount(BATCH_SIZE);
+              if (!v && isLiveMode) fetchPage(filters, false, 0);
+            }} />
+            <Toggle label="Show attributes" checked={showAttributes} onChange={setShowAttributes} />
+          </div>
 
           <div className="hidden md:flex items-center gap-5 ml-4 text-[11px] text-muted">
             <span className="flex items-center gap-1">
