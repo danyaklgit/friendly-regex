@@ -210,16 +210,16 @@ export function TagEditModal({ open, onClose, editingNode, allNodes, onSave }: T
                   </button>
                 )}
                 {parentDropdownOpen && (
-                  <div className="absolute z-50 top-full left-0 right-0 mt-1 max-h-48 overflow-y-auto rounded-lg border border-input-border bg-surface-primary shadow-lg">
+                  <div className="absolute z-50 top-full left-0 right-0 mt-1 max-h-48 overflow-y-auto custom-scrollbar rounded-lg border border-input-border bg-surface-primary shadow-lg">
                     <button
                       type="button"
                       onClick={() => handleSelectParent('')}
-                      className={`w-full text-left px-3 py-2 text-sm hover:bg-surface-hover transition-colors cursor-pointer ${!parentTag ? 'text-primary font-medium' : 'text-muted'}`}
+                      className={`w-full text-left px-3 py-1.5 text-xs hover:bg-surface-hover transition-colors cursor-pointer ${!parentTag ? 'text-primary font-medium' : 'text-muted'}`}
                     >
                       — None —
                     </button>
                     {filteredParents.length === 0 && (
-                      <div className="px-3 py-2 text-xs text-muted">No matching tags</div>
+                      <div className="px-3 py-1.5 text-[10px] text-muted">No matching tags</div>
                     )}
                     {filteredParents.map((n) => {
                       const nm = n.Details?.find((d) => d.LanguageCode === 'en')?.Name;
@@ -228,11 +228,11 @@ export function TagEditModal({ open, onClose, editingNode, allNodes, onSave }: T
                           key={n.Tag}
                           type="button"
                           onClick={() => handleSelectParent(n.Tag)}
-                          className={`w-full text-left px-3 py-2 text-sm hover:bg-surface-hover transition-colors cursor-pointer ${n.Tag === parentTag ? 'bg-primary/10 text-primary font-medium' : 'text-heading'}`}
+                          className={`w-full text-left px-3 py-1.5 text-xs hover:bg-surface-hover transition-colors cursor-pointer ${n.Tag === parentTag ? 'bg-primary/10 text-primary font-medium' : 'text-heading'}`}
                         >
                           {n.Tag}
                           {nm && nm !== n.Tag && (
-                            <span className="ml-2 text-xs text-muted">— {nm}</span>
+                            <span className="ml-2 text-[10px] text-muted">— {nm}</span>
                           )}
                         </button>
                       );
@@ -270,7 +270,7 @@ export function TagEditModal({ open, onClose, editingNode, allNodes, onSave }: T
                     )}
                   </div>
                 )}
-                <div className="max-h-60 overflow-y-auto p-2 flex flex-wrap gap-1.5">
+                <div className="max-h-60 overflow-y-auto custom-scrollbar p-2 flex flex-wrap gap-1.5">
                   {groups.length === 0 && (
                     <span className="text-xs text-muted">No groups available</span>
                   )}
@@ -284,7 +284,7 @@ export function TagEditModal({ open, onClose, editingNode, allNodes, onSave }: T
                         key={g.Tag}
                         type="button"
                         onClick={() => toggleGroup(g.Tag)}
-                        className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors cursor-pointer
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors cursor-pointer
                           ${checked
                             ? 'bg-primary/15 text-primary border border-primary/30'
                             : 'bg-surface-tertiary text-body border border-transparent hover:bg-surface-hover'
