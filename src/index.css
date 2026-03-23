@@ -92,6 +92,51 @@
   --th-input-border: #475569;
 }
 
+/* ========== CUSTOM SCROLLBARS ========== */
+
+/* Webkit (Chrome, Edge, Safari) */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #cffafe;
+  border-radius: 5px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--color-primary);
+  border-radius: 5px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary-dark);
+}
+
+.custom-scrollbar::-webkit-scrollbar-corner {
+  background: #cffafe;
+}
+
+/* Firefox */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-primary) #cffafe;
+}
+
+/* Dark mode overrides */
+.dark .custom-scrollbar::-webkit-scrollbar-track {
+  background: #4b5563;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-corner {
+  background: #4b5563;
+}
+
+.dark .custom-scrollbar {
+  scrollbar-color: var(--color-primary) #4b5563;
+}
+
 .icon-saudi_riyal{
   display: none;
 }
