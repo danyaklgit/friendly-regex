@@ -935,7 +935,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
       )}
 
       {/* Scrollable table */}
-      <div ref={scrollContainerRef} className="overflow-auto flex-1 min-h-0">
+      <div ref={scrollContainerRef} className="overflow-auto flex-1 min-h-0 custom-scrollbar">
         <table className="min-w-full divide-y divide-divide">
           <thead ref={theadRef} className="bg-surface-secondary">
             <tr>
