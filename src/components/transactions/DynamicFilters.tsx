@@ -1014,7 +1014,7 @@ export function DynamicFilters({
           {/* Live mode: skeleton while loading, then render from API filter definitions */}
           {isLiveMode && filterDefinitionsLoading && (
             <>
-              {Array.from({ length: 4 }).map((_, i) => (
+              {Array.from({ length: 10 }).map((_, i) => (
                 <div key={i} className="h-8 w-28 rounded-lg bg-surface-tertiary animate-pulse" />
               ))}
             </>
