@@ -275,9 +275,12 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <p className="text-sm mt-0.5 text-primary-dark">
+        <span className="inline-flex items-center gap-1.5 text-xs text-muted">
+          <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
           Check out a Tag Spec Library to start.
-        </p>
+        </span>
         <div className="flex items-center gap-2">
           <input
             ref={fileInputRef}
@@ -334,7 +337,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                   <tr key={row.library.Id} className="group">
                     <td colSpan={8} className="p-0">
                       {/* Main row — sticky when expanded */}
-                      <div className={`flex items-start transition-colors ${isExpanded ? 'sticky top-9 z-10 shadow-sm border-b border-border bg-white! dark:bg-black/80! ' : ''} ${row.isInProgress ? 'bg-primary/5' : isExpanded ? 'bg-surface' : 'hover:bg-surface-hover'}`}>
+                      <div className={`flex items-start transition-colors ${isExpanded ? 'sticky top-9 z-10 shadow-sm border-b border-border bg-primary/5 dark:bg-primary/10 ' : ''} ${row.isInProgress ? 'bg-primary/5' : isExpanded ? 'bg-surface' : 'hover:bg-surface-hover'}`}>
                         {/* Expand toggle */}
                         <div className="px-4 py-2.5 w-10 shrink-0">
                           <button
@@ -453,8 +456,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                             )}
                             <Button variant="outline" size="xs" onClick={() => onViewTransactions(row.bank, row.side)} disabled={isLoading}>
                               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
-                                <path fillRule="evenodd" d="M4.25 5.5a.75.75 0 00-.75.75v8.5c0 .414.336.75.75.75h8.5a.75.75 0 00.75-.75v-4a.75.75 0 011.5 0v4A2.25 2.25 0 0112.75 17h-8.5A2.25 2.25 0 012 14.75v-8.5A2.25 2.25 0 014.25 4h5a.75.75 0 010 1.5h-5z" clipRule="evenodd" />
-                                <path fillRule="evenodd" d="M6.194 12.753a.75.75 0 001.06.053L16.5 4.44v2.81a.75.75 0 001.5 0v-4.5a.75.75 0 00-.75-.75h-4.5a.75.75 0 000 1.5h2.553l-9.056 8.194a.75.75 0 00-.053 1.06z" clipRule="evenodd" />
+                                <path fillRule="evenodd" d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zm0 5A.75.75 0 012.75 9h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 9.75zm0 5a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75a.75.75 0 01-.75-.75z" clipRule="evenodd" />
                               </svg>
                               Transactions
                             </Button>

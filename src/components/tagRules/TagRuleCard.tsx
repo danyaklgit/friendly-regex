@@ -24,8 +24,8 @@ export function TagRuleCard({ definition, parentLib, onEdit, onDelete, onExport,
         className="w-full px-4 py-3 flex items-center justify-between hover:bg-surface-hover transition-colors cursor-pointer"
       >
         <div className="flex items-center gap-3">
-          <span className="text-base font-semibold text-heading">{definition.Tag}</span>
-          <TagMetaBadges definition={definition} parentContext={parentLib?.Context} />
+          <span className="text-sm font-semibold text-heading">{definition.Tag}</span>
+          <TagMetaBadges definition={definition} parentContext={parentLib?.Context} size="xs" />
         </div>
         <svg
           className={`w-5 h-5 text-faint transition-transform ${expanded ? 'rotate-180' : ''}`}
@@ -64,7 +64,7 @@ export function TagRuleCard({ definition, parentLib, onEdit, onDelete, onExport,
             {/* Actions */}
             <div className="flex items-center gap-2 pt-2 border-t border-border-subtle">
               {!readOnly && <Button size="xs" onClick={() => onEdit(definition, parentLib)}>Edit</Button>}
-              <Button size="xs" variant="ghost" onClick={() => onExport(definition, parentLib)}>Export</Button>
+              <Button size="xs" onClick={() => onExport(definition, parentLib)}>Export</Button>
               {!readOnly && (
                 <Button size="xs" variant="danger_ghost" onClick={() => onDelete(definition.Id)}>
                   Delete
