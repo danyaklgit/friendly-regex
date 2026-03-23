@@ -7,10 +7,14 @@ import { extractAttributes } from './extractAttributes';
  * Checks all tag rules against a transaction row using two-level context matching.
  * First checks the library's parent context, then each definition's child context.
  * Returns matched tags and their extracted attributes.
+ *
+ * When isPreview is true, definitions with no rules match unconditionally
+ * (used for rule builder preview). Otherwise, definitions with no rules are skipped.
  */
 export function analyzeRow(
   row: TransactionRow,
-  libraries: TagSpecLibrary[]
+  libraries: TagSpecLibrary[],
+  isPreview = false
 ): RowAnalysisResult {
   const tags: string[] = [];
   const attributes: Record<string, Record<string, string | null>> = {};
@@ -31,8 +35,11 @@ export function analyzeRow(
       // Level 2: Check child context (e.g. TransactionTypeCode)
       if (def.Context.length > 0 && !contextMatchesRow(def.Context, row)) continue;
 
+      // Skip definitions with no rules unless in preview mode
+      if (def.TagRuleExpressions.length === 0 && !isPreview) continue;
+
       // OR logic: any AND group matching is sufficient
-      // Empty rule expressions = unconditional match (for attribute-only testing)
+      // Empty rule expressions = unconditional match (only in preview mode)
       const matches = def.TagRuleExpressions.length === 0 ||
         def.TagRuleExpressions.some((andGroup) =>
           evaluateRuleSet(andGroup, row)

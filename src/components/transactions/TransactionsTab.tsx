@@ -317,9 +317,9 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onReques
     () =>
       transactions.map((row) => ({
         row,
-        analysis: analyzeRow(row, allLibraries),
+        analysis: analyzeRow(row, allLibraries, !!tempDefinition && !editingDef),
       })).filter(item => (builderOpen && builderHasContent) ? Object.keys(item.analysis.attributes ?? {}).includes('Preview') : true),
-    [transactions, allLibraries]
+    [transactions, allLibraries, tempDefinition, editingDef]
   );
 
   // Apply all filters
