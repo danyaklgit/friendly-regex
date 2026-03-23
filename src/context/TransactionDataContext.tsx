@@ -24,6 +24,7 @@ export interface TransactionDataContextValue {
   fetchPage: (filters: Record<string, Set<string>>, append: boolean, pageIndex?: number) => Promise<void>;
   filterDefinitions: FilterDefinition[];
   filterDefinitionsLoading: boolean;
+  fetchFilterDefinitions: () => Promise<void>;
 }
 
 export const TransactionDataContext = createContext<TransactionDataContextValue | null>(null);
@@ -68,34 +69,32 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
     );
   }, [fieldMeta.identifierField]);
 
-  // Fetch filter definitions from API on mount (live mode only)
-  useEffect(() => {
-    if (!isLiveMode) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        await refreshIfNeeded();
-        const authHeaders = getAuthHeaders();
-        const token = authHeaders.Authorization?.replace('Bearer ', '') ?? '';
-        if (!token) return;
-        const tepHeaders: TepHeaders = {
-          apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
-          userId: userId ?? '',
-          tenantCode: tepConfig.ttpTenantCode,
-          languageCode: tepConfig.languageCode,
-          timeZone: tepConfig.timeZone,
-          requestId: tepConfig.ttpRequestId,
-        };
-        setFilterDefinitionsLoading(true);
-        const defs = await getFilters('MT940', token, tepHeaders);
-        if (!cancelled) setFilterDefinitions(defs);
-      } catch (err) {
-        console.error('Failed to fetch filter definitions:', err);
-      } finally {
-        if (!cancelled) setFilterDefinitionsLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
+  const filterFetchingRef = useRef(false);
+  const fetchFilterDefinitions = useCallback(async () => {
+    if (!isLiveMode || filterFetchingRef.current) return;
+    filterFetchingRef.current = true;
+    try {
+      await refreshIfNeeded();
+      const authHeaders = getAuthHeaders();
+      const token = authHeaders.Authorization?.replace('Bearer ', '') ?? '';
+      if (!token) return;
+      const tepHeaders: TepHeaders = {
+        apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
+        userId: userId ?? '',
+        tenantCode: tepConfig.ttpTenantCode,
+        languageCode: tepConfig.languageCode,
+        timeZone: tepConfig.timeZone,
+        requestId: tepConfig.ttpRequestId,
+      };
+      setFilterDefinitionsLoading(true);
+      const defs = await getFilters('MT940', token, tepHeaders);
+      setFilterDefinitions(defs);
+    } catch (err) {
+      console.error('Failed to fetch filter definitions:', err);
+    } finally {
+      setFilterDefinitionsLoading(false);
+      filterFetchingRef.current = false;
+    }
   }, [isLiveMode, getAuthHeaders, refreshIfNeeded, userId, tepConfig]);
 
   const fetchPage = useCallback(async (filters: Record<string, Set<string>>, append: boolean, explicitPage?: number) => {
@@ -172,7 +171,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
     <TransactionDataContext.Provider value={{
       transactions, fieldMeta, loadTransactions, resetToSample, isCustomData, flagDeadEnd,
       isLiveMode, loading, hasMore, totalTransactionsCount, fetchPage,
-      filterDefinitions, filterDefinitionsLoading,
+      filterDefinitions, filterDefinitionsLoading, fetchFilterDefinitions,
     }}>
       {children}
     </TransactionDataContext.Provider>

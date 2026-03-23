@@ -31,6 +31,7 @@ interface DynamicFiltersProps {
   endSlot?: ReactNode;
   isLiveMode?: boolean;
   filterDefinitions?: FilterDefinition[];
+  filterDefinitionsLoading?: boolean;
 }
 
 // ─── Shared dropdown hook ─────────────────────────────────────────────────────
@@ -901,6 +902,7 @@ export function DynamicFilters({
   endSlot,
   isLiveMode,
   filterDefinitions,
+  filterDefinitionsLoading,
 }: DynamicFiltersProps) {
   const [expanded] = useState(true);
 
@@ -1009,8 +1011,15 @@ export function DynamicFilters({
             </div>
           )} */}
 
-          {/* Live mode: render from API filter definitions */}
-          {isLiveMode && filterDefinitions && filterDefinitions.map((def) => (
+          {/* Live mode: skeleton while loading, then render from API filter definitions */}
+          {isLiveMode && filterDefinitionsLoading && (
+            <>
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-8 w-28 rounded-lg bg-surface-tertiary animate-pulse" />
+              ))}
+            </>
+          )}
+          {isLiveMode && !filterDefinitionsLoading && filterDefinitions && filterDefinitions.map((def) => (
             <ApiFilterRenderer
               key={def.Tag}
               definition={def}

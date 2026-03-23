@@ -142,8 +142,15 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onReques
   const {
     transactions, fieldMeta, loadTransactions, resetToSample, isCustomData, flagDeadEnd,
     isLiveMode, loading, hasMore: liveHasMore, totalTransactionsCount, fetchPage,
-    filterDefinitions,
+    filterDefinitions, filterDefinitionsLoading, fetchFilterDefinitions,
   } = useTransactionData();
+  // Fetch filter definitions when the Transactions tab mounts
+  useEffect(() => {
+    if (isLiveMode && filterDefinitions.length === 0) {
+      fetchFilterDefinitions();
+    }
+  }, [isLiveMode, fetchFilterDefinitions, filterDefinitions.length]);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Rule builder state (reuses the wizard form hook)
@@ -603,6 +610,7 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onReques
         baseFilters={baseFilters}
         isLiveMode={isLiveMode}
         filterDefinitions={filterDefinitions}
+        filterDefinitionsLoading={filterDefinitionsLoading}
         endSlot={tableColumns.length > 0 ? (
           <ColumnPicker columns={tableColumns} hiddenColumns={effectiveHiddenColumns} onChange={setHiddenColumns} columnOrder={columnOrder} onColumnOrderChange={setColumnOrder} defaultHiddenColumns={defaultHiddenColumns} onReset={handleColumnReset} />
         ) : undefined}
