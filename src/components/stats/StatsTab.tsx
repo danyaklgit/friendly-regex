@@ -432,11 +432,6 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                         {/* Actions */}
                         <div className="px-4 py-2.5 text-end flex-1">
                           <div className="flex items-center justify-end gap-2">
-                            {row.isInProgress && (
-                              <Button variant="ghost" size="xs" onClick={() => setCompareTarget(row)} disabled={isLoading}>
-                                Compare
-                              </Button>
-                            )}
                             {row.isOwnedByMe && (
                               <Button variant="danger_ghost" size="xs" onClick={() => setRollbackTarget(row)} disabled={isLoading}>
                                 Rollback
@@ -452,7 +447,12 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                                 Checkout
                               </Button>
                             )}
-                            <Button variant="ghost" size="xs" onClick={() => onViewTransactions(row.bank, row.side)} disabled={isLoading}>
+                            {row.isInProgress && (
+                              <Button variant="outline" size="xs" onClick={() => setCompareTarget(row)} disabled={isLoading}>
+                                Compare
+                              </Button>
+                            )}
+                            <Button variant="outline" size="xs" onClick={() => onViewTransactions(row.bank, row.side)} disabled={isLoading}>
                               View Transactions
                             </Button>
                           </div>
