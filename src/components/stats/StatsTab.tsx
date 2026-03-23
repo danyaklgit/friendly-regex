@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { getContextValue } from '../../types/tagSpec';
 import { tagSpecLibraryCheckOut, tagSpecLibraryCheckIn, tagSpecLibraryRollback } from '../../api/checkout';
 import { exportTagLibraries, exportSingleDefinition, importTagLibraries } from '../../utils/persistence';
+import { Badge } from '../shared/Badge';
 import { Button } from '../shared/Button';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { Toast } from '../shared/Toast';
@@ -353,10 +354,9 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                         <div className="px-4 py-2.5 text-xs font-medium text-heading w-44 shrink-0 cursor-pointer select-none" onClick={() => toggleExpand(rowKey)}>{row.bank}</div>
                         {/* Side */}
                         <div className="px-4 py-2.5 w-24 shrink-0">
-                          <span className={`inline-flex whitespace-nowrap items-center px-2 py-0.5 rounded text-[10px] font-semibold
-                            ${row.side === 'CR' ? 'bg-emerald-50 text-emerald-700' : row.side === 'DR' ? 'bg-red-50 text-red-700' : 'bg-surface-tertiary text-body-secondary'}`}>
+                          <Badge variant={row.side === 'CR' ? 'emerald' : row.side === 'DR' ? 'red' : 'default'} size="xs">
                             {row.side} {sideLabel[row.side] ? `- ${sideLabel[row.side]}` : ''}
-                          </span>
+                          </Badge>
                         </div>
                         {/* Rules count */}
                         <div className="px-4 py-2.5 text-xs text-body-secondary text-center w-16 shrink-0">
@@ -395,18 +395,18 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                                 <div className="flex items-end justify-start pl-27 gap-2 flex-wrap">
                                   
                                   <div className='flex gap-2'>
-                                  <span className="inline-flex items-baseline gap-1 px-1.5 py-0.5 rounded bg-emerald-50  text-emerald-700"><span className="text-xs font-medium">{stats.FullyTaggedCount.toLocaleString()}</span> <span className="text-[10px]">Fully</span></span>
+                                  <Badge variant="emerald" size="xs"><span className="text-xs font-medium">{stats.FullyTaggedCount.toLocaleString()}</span> Fully</Badge>
                                   {issueCount > 0 && (
-                                    <span className="inline-flex items-baseline gap-1 px-1.5 py-0.5 rounded bg-amber-50  text-amber-700"><span className="text-xs font-medium">{issueCount.toLocaleString()}</span> <span className="text-[10px]">Issues</span></span>
+                                    <Badge variant="amber" size="xs"><span className="text-xs font-medium">{issueCount.toLocaleString()}</span> Issues</Badge>
                                   )}
                                   {stats.UntaggedCount > 0 && (
-                                    <span className="inline-flex items-baseline gap-1 px-1.5 py-0.5 rounded bg-red-50  text-red-700"><span className="text-xs font-medium">{stats.UntaggedCount.toLocaleString()}</span> <span className="text-[10px]">Untagged</span></span>
+                                    <Badge variant="red" size="xs"><span className="text-xs font-medium">{stats.UntaggedCount.toLocaleString()}</span> Untagged</Badge>
                                   )}
                                   {stats.MultiTaggedCount > 0 && (
-                                    <span className="inline-flex items-baseline gap-1 px-1.5 py-0.5 rounded bg-violet-50  text-violet-700"><span className="text-xs font-medium">{stats.MultiTaggedCount.toLocaleString()}</span> <span className="text-[10px]">Multi</span></span>
+                                    <Badge variant="violet" size="xs"><span className="text-xs font-medium">{stats.MultiTaggedCount.toLocaleString()}</span> Multi</Badge>
                                   )}
                                   {stats.DeadEndCount > 0 && (
-                                    <span className="inline-flex items-baseline gap-1 px-1.5 py-0.5 rounded bg-gray-100  text-gray-600"><span className="text-xs font-medium">{stats.DeadEndCount.toLocaleString()}</span> <span className="text-[10px]">Dead End</span></span>
+                                    <Badge variant="gray" size="xs"><span className="text-xs font-medium">{stats.DeadEndCount.toLocaleString()}</span> Dead End</Badge>
                                   )}
                                   </div>
                                 </div>
@@ -424,10 +424,9 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                         </div>
                         {/* Status */}
                         <div className="px-4 py-2.5 text-center w-24 shrink-0">
-                          <span className={`inline-flex items-center px-2 py-0.5 whitespace-nowrap rounded text-[10px] font-semibold
-                            ${row.isInProgress ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-50 dark:text-emerald-700' : 'bg-primary text-white dark:bg-primary/50 dark:text-cyan-50'}`}>
+                          <Badge variant={row.isInProgress ? 'emerald' : 'primary'} size="xs">
                             {row.isInProgress ? 'In Progress' : 'Active'}
-                          </span>
+                          </Badge>
                         </div>
                         {/* Actions */}
                         <div className="px-4 py-2.5 text-end flex-1">
