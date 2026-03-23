@@ -424,8 +424,8 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                         </div>
                         {/* Status */}
                         <div className="px-4 py-2.5 text-center w-24 shrink-0">
-                          <span className={`inline-flex items-center px-2 py-0.5 whitespace-nowrap rounded-full text-[10px] font-medium
-                            ${row.isInProgress ? 'bg-primary/15 text-primary-dark' : 'bg-surface-tertiary text-muted'}`}>
+                          <span className={`inline-flex items-center px-2 py-0.5 whitespace-nowrap rounded text-[10px] font-semibold
+                            ${row.isInProgress ? 'bg-emerald-50 text-emerald-700' : 'bg-primary/50 text-cyan-50'}`}>
                             {row.isInProgress ? 'In Progress' : 'Active'}
                           </span>
                         </div>
