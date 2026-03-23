@@ -3,6 +3,7 @@ import type { AnalyzedTransaction, TagSpecDefinition, RuleExpression } from '../
 import { useTransactionData } from '../../hooks/useTransactionData';
 import { PREDEFINED_PATTERNS } from '../../constants/operations';
 import { TagBadge } from './TagBadge';
+import { Badge } from '../shared/Badge';
 import { Tooltip } from '../shared/Tooltip';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
 import { decomposeExtractionRegex } from '../../utils/engregxify';
@@ -1040,7 +1041,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                             <td key={col.key} className={`px-3 ${cellPy} text-xs text-right font-medium whitespace-nowrap ${amt != null ? 'text-red-600' : 'text-faint'} ${stickyBg} `} style={getCellStyle(colIdx, false)}>
                               {amt != null ? (
                                 <div className="flex items-center justify-end gap-1">
-                                  {isReturn && <span className="text-[9px] font-semibold text-amber-500 bg-amber-50 border border-amber-200 rounded px-1">RTN</span>}
+                                  {isReturn && <Badge variant="amber" size="xs" className="border border-amber-200">RTN</Badge>}
                                   <span><span className="icon-saudi_riyal">&#xea;</span> {(() => { const parts = Number(amt).toFixed(2).split('.'); return <>{Number(parts[0]).toLocaleString()}<sup className="text-[0.65em] relative -top-[0.55em]">.{parts[1]}</sup></>; })()}</span>
                                 </div>
                               ) : '-'}
@@ -1057,7 +1058,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                             <td key={col.key} className={`px-3 ${cellPy} text-xs text-right font-medium whitespace-nowrap ${amt != null ? 'text-emerald-500' : 'text-faint'} ${stickyBg}`} style={getCellStyle(colIdx, false)}>
                               {amt != null ? (
                                 <div className="flex items-center justify-end gap-1">
-                                  {isReturn && <span className="text-[9px] font-semibold text-amber-500 bg-amber-50 border border-amber-200 rounded px-1">RTN</span>}
+                                  {isReturn && <Badge variant="amber" size="xs" className="border border-amber-200">RTN</Badge>}
                                   <span><span className="icon-saudi_riyal">&#xea;</span> {(() => { const parts = Number(amt).toFixed(2).split('.'); return <>{Number(parts[0]).toLocaleString()}<sup className="text-[0.65em] relative -top-[0.55em]">.{parts[1]}</sup></>; })()}</span>
                                 </div>
                               ) : '-'}

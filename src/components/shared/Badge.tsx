@@ -1,11 +1,13 @@
 interface BadgeProps {
   children: React.ReactNode;
-  variant?: 'default' | 'success' | 'warning' | 'danger' | 'info' | 'primary' | 'emerald' | 'red' | 'amber' | 'violet' | 'gray';
+  variant?: 'none' | 'default' | 'success' | 'warning' | 'danger' | 'info' | 'primary' | 'emerald' | 'red' | 'amber' | 'violet' | 'gray';
   size?: 'xs' | 'sm';
   className?: string;
+  onClick?: () => void;
 }
 
 const variantClasses: Record<string, string> = {
+  none: '',
   default: 'bg-surface-tertiary text-body-secondary',
   success: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
   warning: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
@@ -24,10 +26,11 @@ const sizeClasses: Record<string, string> = {
   sm: 'px-2 py-0.5 text-xs',
 };
 
-export function Badge({ children, variant = 'default', size = 'sm', className = '' }: BadgeProps) {
+export function Badge({ children, variant = 'default', size = 'sm', className = '', onClick }: BadgeProps) {
   return (
     <span
       className={`inline-flex items-center gap-1 rounded font-semibold whitespace-nowrap ${sizeClasses[size]} ${variantClasses[variant]} ${className}`}
+      onClick={onClick}
     >
       {children}
     </span>

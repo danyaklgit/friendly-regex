@@ -1,4 +1,5 @@
 import type { CertaintyLevelTag } from '../../types';
+import { Badge } from '../shared/Badge';
 
 interface TagBadgeProps {
   tag: string;
@@ -22,12 +23,13 @@ const userCreatedColors: Record<CertaintyLevelTag, string> = {
 export function TagBadge({ tag, certainty = 'HIGH', isUserCreated = false, onClick }: TagBadgeProps) {
   const colors = isUserCreated ? userCreatedColors[certainty] : certaintyColors[certainty];
   return (
-    <span
-      className={`inline-flex items-center text-center px-2.5 py-0.5 rounded-full text-xs font-semibold border
-        ${colors} ${onClick ? 'cursor-pointer hover:ring-2 hover:ring-primary/30 transition-shadow' : ''}`}
+    <Badge
+      variant="none"
+      size="sm"
+      className={`border text-center px-2.5 ${colors} ${onClick ? 'cursor-pointer hover:ring-2 hover:ring-primary/30 transition-shadow' : ''}`}
       onClick={onClick}
     >
       {tag}
-    </span>
+    </Badge>
   );
 }
