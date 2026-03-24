@@ -732,6 +732,7 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onReques
               <div className="h-5 w-10 rounded bg-gray-200 dark:bg-gray-700" />
               <div className="h-5 w-10 rounded bg-gray-200 dark:bg-gray-700" />
               <div className="h-5 w-10 rounded bg-gray-200 dark:bg-gray-700" />
+              <div className="h-5 w-10 rounded bg-gray-200 dark:bg-gray-700" />
             </div>
           ) : incrementalPagination ? (
             <>
@@ -745,7 +746,7 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onReques
                 const loaded = isLiveMode ? filteredData.length : visibleCount;
                 const total = isLiveMode ? (totalTransactionsCount ?? filteredData.length) : filteredLen;
                 const remaining = Math.max(0, total - loaded);
-                const batches = [50, 200, 500].filter((b) => b <= remaining);
+                const batches = [25, 50, 200, 500].filter((b) => b <= remaining);
                 if (batches.length === 0 && remaining > 0) batches.push(remaining);
                 if (batches.length === 0) return null;
                 return (
