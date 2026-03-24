@@ -995,13 +995,9 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                   {visibleColumns.map((col, colIdx) => (
                     <td key={col.key} className="px-3" style={{ ...getCellStyle(colIdx, false), verticalAlign: 'middle' }}>
                       <div className="flex items-center gap-2">
-                        <div className={`h-3.5 rounded ${col.type === 'select' ? 'w-4 mx-auto' : 'flex-1'} bg-gray-200 dark:bg-gray-700`} />
-                        {col.type !== 'select' && (
-                          <div className="h-3.5 flex-2 rounded bg-gray-200/60 dark:bg-gray-700/60" />
-                        )}
-                        {col.type !== 'select' && (
-                          <div className="h-3.5 flex-3 rounded bg-gray-200/40 dark:bg-gray-700/40" />
-                        )}
+                        <div className="h-3.5 flex-1 rounded bg-gray-200 dark:bg-gray-700" />
+                        <div className="h-3.5 flex-2 rounded bg-gray-200/60 dark:bg-gray-700/60" />
+                        <div className="h-3.5 flex-3 rounded bg-gray-200/40 dark:bg-gray-700/40" />
                       </div>
                     </td>
                   ))}
