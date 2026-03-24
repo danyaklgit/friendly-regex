@@ -909,14 +909,16 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
       )}
 
       {/* Column Minimap */}
-      {hasOverflow && (
+      {(hasOverflow || (loading && data.length === 0)) && (
         <div
           ref={minimapBarRef}
           className="sticky top-0 z-20 h-5 bg-surface border-b border-border-subtle cursor-pointer select-none flex shrink-0"
           onPointerDown={handleMinimapPointerDown}
           onPointerMove={handleMinimapPointerMove}
         >
-          {minimapBlocks.map((block) => (
+          {loading && data.length === 0 && minimapBlocks.length === 0 ? (
+            <div className="w-full h-full animate-pulse bg-gray-200/30 dark:bg-gray-700/30" />
+          ) : minimapBlocks.map((block) => (
             <Tooltip key={block.col.key} content={getColumnLabel(block.col)} placement="bottom">
               <div
                 className="h-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors overflow-hidden flex items-center px-px"
@@ -939,6 +941,18 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
       <div ref={scrollContainerRef} className="overflow-auto flex-1 min-h-0 custom-scrollbar">
         <table className="min-w-full divide-y divide-divide">
           <thead ref={theadRef} className="bg-surface-secondary">
+            {loading && data.length === 0 && visibleColumns.length <= 1 ? (
+              <tr className="animate-pulse">
+                <th className={`px-3 ${cellPy} text-left bg-surface-secondary`} style={{ paddingBottom: 8 }}>
+                  <div className="h-3 w-12 rounded bg-gray-200 dark:bg-gray-700" />
+                </th>
+                {Array.from({ length: 5 }, (_, i) => (
+                  <th key={i} className={`px-3 ${cellPy} text-left bg-surface-secondary`} style={{ paddingBottom: 8 }}>
+                    <div className={`h-3 rounded bg-gray-200 dark:bg-gray-700`} style={{ width: `${60 + i * 15}px` }} />
+                  </th>
+                ))}
+              </tr>
+            ) : (
             <tr>
               {visibleColumns.map((col, idx) => {
                 const isAttr = col.type === 'attribute';
@@ -972,20 +986,21 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                 );
               })}
             </tr>
+            )}
           </thead>
           <tbody className="bg-surface divide-y divide-divide">
             {loading && data.length === 0 ? (
               Array.from({ length: 50 }, (_, rowIdx) => (
-                <tr key={`skel-${rowIdx}`} className="animate-pulse">
+                <tr key={`skel-${rowIdx}`} className="animate-pulse" style={{ height: '30.4px' }}>
                   {visibleColumns.map((col, colIdx) => (
-                    <td key={col.key} className={`px-3 ${cellPy}`} style={getCellStyle(colIdx, false)}>
+                    <td key={col.key} className="px-3" style={{ ...getCellStyle(colIdx, false), verticalAlign: 'middle' }}>
                       <div className="flex items-center gap-2">
-                        <div className={`h-4 rounded ${col.type === 'select' ? 'w-4 mx-auto' : 'flex-1'} bg-gray-200 dark:bg-gray-700`} />
+                        <div className={`h-3.5 rounded ${col.type === 'select' ? 'w-4 mx-auto' : 'flex-1'} bg-gray-200 dark:bg-gray-700`} />
                         {col.type !== 'select' && (
-                          <div className="h-4 flex-2 rounded bg-gray-200/60 dark:bg-gray-700/60" />
+                          <div className="h-3.5 flex-2 rounded bg-gray-200/60 dark:bg-gray-700/60" />
                         )}
                         {col.type !== 'select' && (
-                          <div className="h-4 flex-3 rounded bg-gray-200/40 dark:bg-gray-700/40" />
+                          <div className="h-3.5 flex-3 rounded bg-gray-200/40 dark:bg-gray-700/40" />
                         )}
                       </div>
                     </td>
