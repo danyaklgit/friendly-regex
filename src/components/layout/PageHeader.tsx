@@ -2,14 +2,25 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useTimeRemaining } from '../../hooks/useTimeRemaining';
 import { Tooltip } from '../shared/Tooltip';
+import { Button } from '../shared/Button';
+
+interface CheckoutInfo {
+  bank: string;
+  side: string;
+  hasChanges: boolean;
+  onRelease: (bank: string, side: string) => void;
+  onCheckin: (bank: string, side: string) => void;
+  onRequestUndo?: (bank: string, side: string) => void;
+}
 
 interface PageHeaderProps {
   tabs: { label: string }[];
   activeIndex: number;
   onTabChange: (index: number) => void;
+  checkout?: CheckoutInfo;
 }
 
-export function PageHeader({ tabs, activeIndex, onTabChange }: PageHeaderProps) {
+export function PageHeader({ tabs, activeIndex, onTabChange, checkout }: PageHeaderProps) {
   const { logout, username, displayName, expiresAt } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const timeRemaining = useTimeRemaining(expiresAt);
@@ -34,7 +45,20 @@ export function PageHeader({ tabs, activeIndex, onTabChange }: PageHeaderProps) 
             </button>
           ))}
         </nav>
-        <div className="ml-auto flex items-center gap-3">
+        {checkout && (
+          <div className="flex items-center gap-3 ml-auto">
+            <span className="text-sm text-primary-dark">
+              <span className="font-semibold">You're working on</span> Bank {checkout.bank}, Side {checkout.side}
+            </span>
+            <Button variant="primary" size="xs" onClick={() => checkout.onRelease(checkout.bank, checkout.side)}>
+              Release
+            </Button>
+            <Button variant="primary" size="xs" onClick={() => checkout.onCheckin(checkout.bank, checkout.side)}>
+              Check In
+            </Button>
+          </div>
+        )}
+        <div className={`${checkout ? '' : 'ml-auto '}flex items-center gap-3`}>
           <Tooltip content={timeRemaining} placement="bottom">
             <span className="text-xs text-body">{displayName ?? username}</span>
           </Tooltip>

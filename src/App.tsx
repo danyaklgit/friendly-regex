@@ -32,7 +32,7 @@ function AppShell({ authToken, tepHeaders, operatorName }: AppShellProps) {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const { libraries, refetchTagSpecs } = useTagSpecs();
-  const { clearChanges, getLocalLib, getChangeSummary } = useLocalChanges(activeCheckout?.bank, activeCheckout?.side);
+  const { clearChanges, getLocalLib, getChangeSummary, hasChanges } = useLocalChanges(activeCheckout?.bank, activeCheckout?.side);
 
   const findInProgressLib = useCallback((bank: string, side: string) => {
     return libraries.find(
@@ -129,6 +129,14 @@ function AppShell({ authToken, tepHeaders, operatorName }: AppShellProps) {
             { label: 'Transactions', content: <TransactionsTab activeCheckout={activeCheckout} onCheckin={handleCheckinWithSave} onRelease={handleRelease} onRequestUndo={handleRequestUndo} /> },
             { label: 'Tags Hierarchy', content: <TagsHierarchyTab /> },
           ]}
+          checkout={activeCheckout ? {
+            bank: activeCheckout.bank,
+            side: activeCheckout.side,
+            hasChanges: hasChanges ?? false,
+            onRelease: handleRelease,
+            onCheckin: handleCheckinWithSave,
+            onRequestUndo: handleRequestUndo,
+          } : undefined}
         />
       </div>
       <UndoChangesDialog

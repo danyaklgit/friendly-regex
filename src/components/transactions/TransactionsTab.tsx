@@ -504,9 +504,6 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onReques
 
   return (
     <div>
-      {activeCheckout && !isReadOnly && onCheckin && onRelease && (
-        <CheckoutBanner bank={activeCheckout.bank} side={activeCheckout.side} hasChanges={hasChanges ?? false} onRelease={onRelease} onCheckin={onCheckin} onRequestUndo={onRequestUndo} />
-      )}
       {activeCheckout && isReadOnly && ownerName && (
         <div className="flex items-center px-4 py-2 mb-3 rounded-lg bg-amber-50 border border-amber-200 dark:bg-amber-900/20 dark:border-amber-700">
           <svg className="w-4 h-4 text-amber-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
