@@ -321,7 +321,7 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
       })).filter(item => {
         if (!builderOpen || !builderHasContent) return true;
         if (editingDef) return item.analysis.matchedDefinitions.some(d => d.Id === editingDef.Id);
-        return Object.keys(item.analysis.attributes ?? {}).includes('Preview');
+        return item.analysis.tags.includes('Preview');
       }),
     [transactions, allLibraries, tempDefinition, editingDef]
   );
@@ -521,7 +521,7 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
       <div className="flex items-center justify-between mb-1 min-h-10">
         <div className='flex flex-col md:flex-row items-start justify-end md:items-center gap-2'>
           <h2 className="text-base font-semibold text-heading">Transactions</h2>
-          <span className='text-sm mr-5 min-w-10 text-primary-dark'>({builderOpen ? filteredData.length.toLocaleString() : isLiveMode && totalTransactionsCount != null ? totalTransactionsCount.toLocaleString() : filteredData.length})</span>
+          <span className='text-sm mr-5 min-w-10 text-primary-dark'>({builderOpen && builderHasContent ? filteredData.length.toLocaleString() : isLiveMode && totalTransactionsCount != null ? totalTransactionsCount.toLocaleString() : filteredData.length})</span>
           <div className="flex items-center gap-4">
             <Toggle label="Compact mode" checked={relaxedMode} onChange={setRelaxedMode} />
             <Toggle label="Incremental pagination" checked={incrementalPagination} onChange={(v) => {
