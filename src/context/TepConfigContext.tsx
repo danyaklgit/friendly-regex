@@ -9,7 +9,7 @@ export interface TepConfig {
 
 const defaults: TepConfig = {
   ttpTenantCode: 'dolor',
-  languageCode: 'cu',
+  languageCode: 'en',
   timeZone: 'dolor',
   ttpRequestId: 'dolor',
 };

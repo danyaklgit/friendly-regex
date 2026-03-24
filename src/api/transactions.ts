@@ -58,6 +58,7 @@ export interface FilterDefinition {
   Tag: string;
   Label: string;
   Type: FilterType;
+  IsFilterSearchable?: boolean;
   Values: FilterValue[];
 }
 

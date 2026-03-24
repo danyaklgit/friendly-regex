@@ -137,6 +137,48 @@
   scrollbar-color: var(--color-primary) #4b5563;
 }
 
+/* ========== CUSTOM CHECKBOXES ========== */
+
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid var(--color-border-strong, #94a3b8);
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+  transition: background-color 0.15s, border-color 0.15s;
+  flex-shrink: 0;
+}
+
+input[type="checkbox"]:checked {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 3.5px;
+  top: 1px;
+  width: 4px;
+  height: 7.5px;
+  border: solid white;
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+}
+
+input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+input[type="checkbox"]:hover:not(:checked) {
+  border-color: var(--color-primary-light);
+}
+
 .icon-saudi_riyal{
   display: none;
 }

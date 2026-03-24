@@ -236,9 +236,28 @@ function StringFromListDropdown({
   locked?: boolean;
 }) {
   const { open, setOpen, ref } = useDropdown();
+  const [search, setSearch] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const column = definition.Values[0]?.Column ?? definition.Tag;
   const selected = filters[column] ?? new Set<string>();
   const hasActive = selected.size > 0;
+  const isSearchable = definition.IsFilterSearchable === true;
+
+  useEffect(() => {
+    if (open && isSearchable) {
+      setTimeout(() => searchInputRef.current?.focus(), 0);
+    }
+    if (!open) setSearch('');
+  }, [open, isSearchable]);
+
+  const filteredValues = useMemo(() => {
+    if (!search.trim()) return definition.Values;
+    const term = search.toLowerCase();
+    return definition.Values.filter(
+      (v) => (v.Label ?? v.Value ?? '').toLowerCase().includes(term) ||
+             (v.Value ?? '').toLowerCase().includes(term)
+    );
+  }, [definition.Values, search]);
 
   const handleToggle = (value: string) => {
     const next = new Set(selected);
@@ -279,21 +298,45 @@ function StringFromListDropdown({
       </button>
       {open && (
         <div className="absolute top-full mt-1 left-0 z-50 bg-surface border border-border rounded-lg shadow-lg min-w-40">
-          <div className="p-2 max-h-48 overflow-y-auto">
-            {definition.Values.map((v) => (
-              <label
-                key={v.Value}
-                className="flex items-center gap-2 px-2 py-1 text-xs hover:bg-surface-hover rounded cursor-pointer text-black dark:text-white"
-              >
+          {isSearchable && (
+            <div className="p-2 border-b border-border-subtle">
+              <div className="relative">
+                <svg
+                  className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted"
+                  fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
                 <input
-                  type="checkbox"
-                  checked={selected.has(v.Value ?? '')}
-                  onChange={() => handleToggle(v.Value ?? '')}
-                  className="rounded border-border-strong"
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder={`Search ${definition.Label.toLowerCase()}...`}
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full pl-7 pr-2 py-1.5 text-xs rounded border border-input-border bg-input-bg text-heading placeholder:text-placeholder focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors"
                 />
-                <span>{v.Label}</span>
-              </label>
-            ))}
+              </div>
+            </div>
+          )}
+          <div className="p-1.5 max-h-60 overflow-y-auto custom-scrollbar">
+            {filteredValues.length === 0 ? (
+              <div className="px-2 py-3 text-xs text-faint text-center">No matches</div>
+            ) : (
+              filteredValues.map((v) => (
+                <label
+                  key={v.Value}
+                  className="flex items-center gap-2 px-2 py-1 text-xs hover:bg-surface-hover rounded cursor-pointer text-black dark:text-white whitespace-nowrap"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected.has(v.Value ?? '')}
+                    onChange={() => handleToggle(v.Value ?? '')}
+                    className="rounded border-border-strong shrink-0"
+                  />
+                  <span className="truncate">{v.Label ?? v.Value}</span>
+                </label>
+              ))
+            )}
           </div>
         </div>
       )}
