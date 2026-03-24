@@ -46,6 +46,6 @@ describe('Toggle', () => {
   it('applies inactive styling when unchecked', () => {
     render(<Toggle label="Inactive" checked={false} onChange={() => {}} />);
     const sw = screen.getByRole('switch');
-    expect(sw.className).toContain('bg-border-strong');
+    expect(sw.className).toContain('bg-surface');
   });
 });
