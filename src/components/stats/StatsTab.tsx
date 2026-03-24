@@ -451,6 +451,10 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                             )}
                             {row.isInProgress && (
                               <Button variant="outline" size="xs" onClick={() => setCompareTarget(row)} disabled={isLoading}>
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+                                  <path d="M2 10a8 8 0 018-8v16a8 8 0 01-8-8z" opacity="0.4" />
+                                  <path d="M10 2a8 8 0 018 8 8 8 0 01-8 8V2z" />
+                                </svg>
                                 Compare
                               </Button>
                             )}
