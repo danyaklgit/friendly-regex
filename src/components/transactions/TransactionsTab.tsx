@@ -20,6 +20,7 @@ import { DynamicFilters } from './DynamicFilters';
 import { CheckoutBanner } from '../stats/CheckoutBanner';
 import { Toggle } from '../shared/Toggle';
 import { useLocalChanges } from '../../hooks/useLocalChanges';
+import { EmptyState } from '../shared/EmptyState';
 
 interface TransactionsTabProps {
   activeCheckout?: CheckoutState | null;
@@ -686,6 +687,17 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onReques
         </div>
       )}
 
+      {!loading && visibleData.length === 0 ? (
+        <EmptyState
+          title="No transactions found"
+          description="No transactions match the current filters. Try adjusting your filter criteria or clearing some filters."
+          icon={
+            <svg className="w-7 h-7 text-faint" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+            </svg>
+          }
+        />
+      ) : (
       <TransactionTable
         data={visibleData}
         tagDefinitions={allDefinitions}
@@ -709,31 +721,50 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onReques
 // 30 — orange
 // 140 — green
       />
+      )}
 
       {(hasMore || loading || (!incrementalPagination && (isLiveMode ? (totalTransactionsCount ?? 0) > BATCH_SIZE : filteredLen > BATCH_SIZE))) && (
         <div className="flex items-center justify-center gap-3 py-2 mt-1 border border-border bg-surface-secondary rounded-lg">
           {loading ? (
-            <span className="text-xs text-muted">Loading…</span>
+            <div className="flex items-center gap-3 animate-pulse">
+              <div className="h-4 w-28 rounded bg-gray-200 dark:bg-gray-700" />
+              <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
+              <div className="h-5 w-10 rounded bg-gray-200 dark:bg-gray-700" />
+              <div className="h-5 w-10 rounded bg-gray-200 dark:bg-gray-700" />
+              <div className="h-5 w-10 rounded bg-gray-200 dark:bg-gray-700" />
+            </div>
           ) : incrementalPagination ? (
             <>
               <span className="text-xs text-muted">
-                {isLiveMode
-                  ? totalTransactionsCount != null
-                    ? `${filteredData.length.toLocaleString()} out of ${totalTransactionsCount.toLocaleString()}`
-                    : ''
-                  : `Showing ${visibleCount.toLocaleString()} of ${filteredLen.toLocaleString()}`}
+                <span className="font-medium text-heading">{(isLiveMode ? filteredData.length : visibleCount).toLocaleString()}</span>
+                {' loaded · '}
+                <span className="font-medium text-heading">{(isLiveMode ? (totalTransactionsCount ?? filteredData.length) : filteredLen).toLocaleString()}</span>
+                {' total'}
               </span>
-              {hasMore && (
-                <Button variant="secondary" size="xs" onClick={() => {
-                  if (isLiveMode) {
-                    fetchPage(filters, true);
-                  } else {
-                    setVisibleCount((c) => c + BATCH_SIZE);
-                  }
-                }}>
-                  Show more
-                </Button>
-              )}
+              {hasMore && (() => {
+                const loaded = isLiveMode ? filteredData.length : visibleCount;
+                const total = isLiveMode ? (totalTransactionsCount ?? filteredData.length) : filteredLen;
+                const remaining = Math.max(0, total - loaded);
+                const batches = [50, 200, 500].filter((b) => b <= remaining);
+                if (batches.length === 0 && remaining > 0) batches.push(remaining);
+                if (batches.length === 0) return null;
+                return (
+                  <>
+                    <span className="text-border">|</span>
+                    {batches.map((size) => (
+                      <Button key={size} variant="outline" size="xs" onClick={() => {
+                        if (isLiveMode) {
+                          fetchPage(filters, true, undefined, size);
+                        } else {
+                          setVisibleCount((c) => c + size);
+                        }
+                      }}>
+                        +{size.toLocaleString()}
+                      </Button>
+                    ))}
+                  </>
+                );
+              })()}
             </>
           ) : (
             <>

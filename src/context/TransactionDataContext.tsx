@@ -21,7 +21,7 @@ export interface TransactionDataContextValue {
   loading: boolean;
   hasMore: boolean;
   totalTransactionsCount: number | null;
-  fetchPage: (filters: Record<string, Set<string>>, append: boolean, pageIndex?: number) => Promise<void>;
+  fetchPage: (filters: Record<string, Set<string>>, append: boolean, pageIndex?: number, pageSize?: number) => Promise<void>;
   filterDefinitions: FilterDefinition[];
   filterDefinitionsLoading: boolean;
   fetchFilterDefinitions: () => Promise<void>;
@@ -44,6 +44,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
   const [filterDefinitions, setFilterDefinitions] = useState<FilterDefinition[]>([]);
   const [filterDefinitionsLoading, setFilterDefinitionsLoading] = useState(false);
   const currentPageRef = useRef(0);
+  const loadedCountRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
 
   const fieldMeta = useMemo(() => deriveFieldMeta(transactions), [transactions]);
@@ -97,7 +98,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
     }
   }, [isLiveMode, getAuthHeaders, refreshIfNeeded, userId, tepConfig]);
 
-  const fetchPage = useCallback(async (filters: Record<string, Set<string>>, append: boolean, explicitPage?: number) => {
+  const fetchPage = useCallback(async (filters: Record<string, Set<string>>, append: boolean, explicitPage?: number, pageSize?: number) => {
     if (!isLiveMode) return;
 
     // Auto-refresh session if <5 min remaining
@@ -116,7 +117,14 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
       requestId: tepConfig.ttpRequestId,
     };
 
-    const pageIndex = explicitPage != null ? explicitPage : append ? currentPageRef.current + 1 : 0;
+    const effectivePageSize = pageSize ?? PAGE_SIZE;
+    // When appending with a custom page size, calculate page index from current row count
+    // so we don't skip or re-fetch rows due to page size mismatch
+    const pageIndex = explicitPage != null
+      ? explicitPage
+      : append
+        ? Math.floor(loadedCountRef.current / effectivePageSize)
+        : 0;
 
     // Abort any in-flight request before starting a new one
     abortRef.current?.abort();
@@ -132,7 +140,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
         {
           FilteringProperties: translateFilters(filters),
           SortingProperties: DEFAULT_SORTING,
-          Pagination: { PageIndex: pageIndex, PageSize: PAGE_SIZE },
+          Pagination: { PageIndex: pageIndex, PageSize: effectivePageSize },
         },
         token,
         tepHeaders,
@@ -141,16 +149,21 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
 
       const rows = data.Transactions ?? [];
       currentPageRef.current = pageIndex;
-      setHasMore(rows.length >= PAGE_SIZE);
+      setHasMore(rows.length >= effectivePageSize);
 
       if (!append && data.TransactionsCount != null) {
         setTotalTransactionsCount(data.TransactionsCount);
       }
 
       if (append) {
-        setTransactions((prev) => [...prev, ...rows]);
+        setTransactions((prev) => {
+          const next = [...prev, ...rows];
+          loadedCountRef.current = next.length;
+          return next;
+        });
       } else {
         setTransactions(rows);
+        loadedCountRef.current = rows.length;
       }
     } catch (err) {
       if ((err as Error).name === 'AbortError') return;

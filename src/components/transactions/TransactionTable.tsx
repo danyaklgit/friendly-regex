@@ -974,23 +974,31 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
             </tr>
           </thead>
           <tbody className="bg-surface divide-y divide-divide">
-            {data.length === 0 ? (
+            {loading && data.length === 0 ? (
+              Array.from({ length: 50 }, (_, rowIdx) => (
+                <tr key={`skel-${rowIdx}`} className="animate-pulse">
+                  {visibleColumns.map((col, colIdx) => (
+                    <td key={col.key} className={`px-3 ${cellPy}`} style={getCellStyle(colIdx, false)}>
+                      <div className="flex items-center gap-2">
+                        <div className={`h-4 rounded ${col.type === 'select' ? 'w-4 mx-auto' : 'flex-1'} bg-gray-200 dark:bg-gray-700`} />
+                        {col.type !== 'select' && (
+                          <div className="h-4 flex-2 rounded bg-gray-200/60 dark:bg-gray-700/60" />
+                        )}
+                        {col.type !== 'select' && (
+                          <div className="h-4 flex-3 rounded bg-gray-200/40 dark:bg-gray-700/40" />
+                        )}
+                      </div>
+                    </td>
+                  ))}
+                </tr>
+              ))
+            ) : data.length === 0 ? (
               <tr>
                 <td
                   colSpan={visibleColumns.length}
                   className="px-3 py-6 text-center text-xs text-faint"
                 >
-                  {loading ? (
-                    <div className="flex items-center justify-center gap-2">
-                      <svg className="animate-spin h-4 w-4 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                      </svg>
-                      <span>Loading transactions…</span>
-                    </div>
-                  ) : (
-                    'No transactions match the current filter.'
-                  )}
+                  No transactions match the current filter.
                 </td>
               </tr>
             ) : (
