@@ -337,7 +337,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                   <tr key={row.library.Id} className="group">
                     <td colSpan={8} className="p-0">
                       {/* Main row — sticky when expanded */}
-                      <div className={`flex items-start transition-colors ${isExpanded ? 'sticky top-9 z-10 shadow-sm border-b border-border bg-primary/5 dark:bg-primary/10 ' : ''} ${row.isInProgress ? 'bg-primary/5' : isExpanded ? 'bg-surface' : 'hover:bg-surface-hover'}`}>
+                      <div className={`flex items-start transition-colors ${isExpanded ? 'sticky top-8.5 z-10 shadow-sm border-b border-border bg-cyan-50 dark:bg-slate-800 ' : ''} ${row.isInProgress && !isExpanded ? 'bg-primary/5' : isExpanded ? '' : 'hover:bg-surface-hover'}`}>
                         {/* Expand toggle */}
                         <div className="px-4 py-2.5 w-10 shrink-0">
                           <button
