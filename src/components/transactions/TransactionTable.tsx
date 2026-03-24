@@ -992,15 +992,13 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
             {loading && data.length === 0 ? (
               Array.from({ length: 50 }, (_, rowIdx) => (
                 <tr key={`skel-${rowIdx}`} className="animate-pulse" style={{ height: '30.4px' }}>
-                  {visibleColumns.map((col, colIdx) => (
-                    <td key={col.key} className="px-3" style={{ ...getCellStyle(colIdx, false), verticalAlign: 'middle' }}>
-                      <div className="flex items-center gap-2">
-                        <div className="h-3.5 flex-1 rounded bg-gray-200 dark:bg-gray-700" />
-                        <div className="h-3.5 flex-2 rounded bg-gray-200/60 dark:bg-gray-700/60" />
-                        <div className="h-3.5 flex-3 rounded bg-gray-200/40 dark:bg-gray-700/40" />
-                      </div>
-                    </td>
-                  ))}
+                  <td colSpan={visibleColumns.length <= 1 ? 6 : visibleColumns.length} className="px-3" style={{ verticalAlign: 'middle' }}>
+                    <div className="flex items-center gap-4">
+                      <div className="h-3.5 flex-1 rounded bg-gray-200 dark:bg-gray-700" />
+                      <div className="h-3.5 flex-2 rounded bg-gray-200/60 dark:bg-gray-700/60" />
+                      <div className="h-3.5 flex-3 rounded bg-gray-200/40 dark:bg-gray-700/40" />
+                    </div>
+                  </td>
                 </tr>
               ))
             ) : data.length === 0 ? (
