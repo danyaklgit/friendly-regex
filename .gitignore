@@ -3,3 +3,7 @@ dist/
 .vercel
 .env
 .env.local
+.claude-flow/
+.claude/
+.mcp.json
+CLAUDE.md

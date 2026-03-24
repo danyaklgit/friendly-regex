@@ -880,7 +880,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
   const hasSelection = selectedIds.size > 0;
 
   return (
-    <div className="rounded-lg border border-border flex flex-col" style={{ maxHeight: `calc(100vh - 10rem${builderHeight > 0 ? ` - ${builderHeight + 25}px` : ''})`, minHeight: '300px' }}>
+    <div className="rounded-lg border border-border flex flex-col" style={{ maxHeight: `calc(100vh - 15rem${builderHeight > 0 ? ` - ${builderHeight + 25}px` : ''})`, minHeight: '300px' }}>
       {/* Selection action bar */}
       {hasSelection && onFlagDeadEnd && (
         <div className="flex items-center gap-3 px-4 py-2 bg-primary/10 border-b border-primary/20 shrink-0">
