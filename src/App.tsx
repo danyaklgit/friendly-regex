@@ -126,7 +126,7 @@ function AppShell({ authToken, tepHeaders, operatorName }: AppShellProps) {
           onTabChange={setActiveTab}
           tabs={[
             { label: 'Backlog', content: <StatsTab onViewTransactions={handleViewTransactions} onViewAllTransactions={handleViewAllTransactions} onCheckoutComplete={handleCheckoutComplete} authToken={authToken} tepHeaders={tepHeaders} /> },
-            { label: 'Transactions', content: <TransactionsTab activeCheckout={activeCheckout} onCheckin={handleCheckinWithSave} onRelease={handleRelease} onRequestUndo={handleRequestUndo} /> },
+            { label: 'Transactions', content: <TransactionsTab activeCheckout={activeCheckout} /> },
             { label: 'Tags Hierarchy', content: <TagsHierarchyTab /> },
           ]}
           checkout={activeCheckout ? {

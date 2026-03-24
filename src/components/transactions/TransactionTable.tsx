@@ -123,7 +123,7 @@ function highlightText(text: string, regexes: RegExp[]): ReactNode {
   for (const [start, end] of merged) {
     if (pos < start) parts.push(text.slice(pos, start));
     parts.push(
-      <mark key={start} className="bg-orange-400 rounded-sm text-slate-900 font-medium p-0.5">
+      <mark key={start} className="bg-primary/20 dark:bg-primary/40 rounded-sm text-heading dark:text-primary-light font-medium p-0.5 ring-1 ring-primary/40 dark:ring-primary/70 dark:shadow-[0_0_6px_var(--color-primary)]">
         {text.slice(start, end)}
       </mark>
     );
@@ -932,7 +932,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
           ))}
           <div
             ref={viewportIndicatorRef}
-            className="absolute top-0 bottom-0 bg-primary/20 border-x-2 border-orange-500 rounded-sm pointer-events-none"
+            className="absolute top-0 bottom-0 bg-primary/20 border-x-2 border-primary rounded-sm pointer-events-none"
           />
         </div>
       )}
@@ -1025,7 +1025,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                         case 'data': {
                           const isHighlighted = highlightSource?.rowIdx === i && highlightSource.field === col.field;
                           return (
-                            <td key={col.key} className={`px-3 ${cellPy} text-xs text-body-secondary ${relaxedMode ? 'whitespace-nowrap' : 'max-w-200'} ${stickyBg} ${isHighlighted ? 'ring-2 ring-gray-400/60 ring-inset bg-gray-100 dark:bg-gray-700/40' : ''}`} style={getCellStyle(colIdx, false)}>
+                            <td key={col.key} className={`px-3 ${cellPy} text-xs text-body-secondary ${relaxedMode ? 'whitespace-nowrap' : 'max-w-200'} ${stickyBg} ${isHighlighted ? 'ring-1 ring-primary/30 ring-inset bg-primary/5 dark:bg-primary/10' : ''}`} style={getCellStyle(colIdx, false)}>
                               {renderCellContent(col.field, item.row[col.field])}
                               {stickyEdgeShadow(colIdx)}
                             </td>

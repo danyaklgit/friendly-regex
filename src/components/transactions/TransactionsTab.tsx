@@ -17,7 +17,6 @@ import { Button } from '../shared/Button';
 import { Toast } from '../shared/Toast';
 import { Tooltip } from '../shared/Tooltip';
 import { DynamicFilters } from './DynamicFilters';
-import { CheckoutBanner } from '../stats/CheckoutBanner';
 import { Toggle } from '../shared/Toggle';
 import { useLocalChanges } from '../../hooks/useLocalChanges';
 import { EmptyState } from '../shared/EmptyState';
@@ -98,10 +97,10 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
 
 const BATCH_SIZE = 50;
 
-export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onRequestUndo }: TransactionsTabProps) {
+export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
   const { libraries, tagDefinitions, originalDefinitionIds, dispatch } = useTagSpecs();
   const { userId, usersMap } = useAuth();
-  const { hasChanges, saveBaseline, updateCurrent } = useLocalChanges(activeCheckout?.bank, activeCheckout?.side);
+  const { saveBaseline, updateCurrent } = useLocalChanges(activeCheckout?.bank, activeCheckout?.side);
 
   // Determine if the current user is NOT the checkout owner (read-only mode)
   const { isReadOnly, ownerName } = useMemo(() => {
@@ -319,7 +318,11 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onReques
       transactions.map((row) => ({
         row,
         analysis: analyzeRow(row, allLibraries, !!tempDefinition && !editingDef),
-      })).filter(item => (builderOpen && builderHasContent) ? Object.keys(item.analysis.attributes ?? {}).includes('Preview') : true),
+      })).filter(item => {
+        if (!builderOpen || !builderHasContent) return true;
+        if (editingDef) return item.analysis.matchedDefinitions.some(d => d.Id === editingDef.Id);
+        return Object.keys(item.analysis.attributes ?? {}).includes('Preview');
+      }),
     [transactions, allLibraries, tempDefinition, editingDef]
   );
 
@@ -370,11 +373,12 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onReques
   const classicTotalPages = Math.max(1, Math.ceil((isLiveMode ? (totalTransactionsCount ?? filteredLen) : filteredLen) / BATCH_SIZE));
 
   const visibleData = useMemo(() => {
+    if (builderOpen) return filteredData;
     if (isLiveMode) return filteredData;
     if (incrementalPagination) return filteredData.slice(0, visibleCount);
     const start = currentPage * BATCH_SIZE;
     return filteredData.slice(start, start + BATCH_SIZE);
-  }, [filteredData, visibleCount, isLiveMode, incrementalPagination, currentPage]);
+  }, [filteredData, visibleCount, isLiveMode, incrementalPagination, currentPage, builderOpen]);
 
   const hasMore = isLiveMode ? liveHasMore : incrementalPagination ? visibleCount < filteredLen : false;
 
@@ -517,7 +521,7 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onReques
       <div className="flex items-center justify-between mb-1 min-h-10">
         <div className='flex flex-col md:flex-row items-start justify-end md:items-center gap-2'>
           <h2 className="text-base font-semibold text-heading">Transactions</h2>
-          <span className='text-sm mr-5 min-w-10 text-primary-dark'>({isLiveMode && totalTransactionsCount != null ? totalTransactionsCount.toLocaleString() : filteredData.length})</span>
+          <span className='text-sm mr-5 min-w-10 text-primary-dark'>({builderOpen ? filteredData.length.toLocaleString() : isLiveMode && totalTransactionsCount != null ? totalTransactionsCount.toLocaleString() : filteredData.length})</span>
           <div className="flex items-center gap-4">
             <Toggle label="Compact mode" checked={relaxedMode} onChange={setRelaxedMode} />
             <Toggle label="Incremental pagination" checked={incrementalPagination} onChange={(v) => {
@@ -720,7 +724,7 @@ export function TransactionsTab({ activeCheckout, onCheckin, onRelease, onReques
       />
       )}
 
-      {(hasMore || loading || (!incrementalPagination && (isLiveMode ? (totalTransactionsCount ?? 0) > BATCH_SIZE : filteredLen > BATCH_SIZE))) && (
+      {!builderOpen && (hasMore || loading || (!incrementalPagination && (isLiveMode ? (totalTransactionsCount ?? 0) > BATCH_SIZE : filteredLen > BATCH_SIZE))) && (
         <div className="flex items-center justify-center gap-3 py-2 mt-1 border border-border bg-surface-secondary rounded-lg">
           {loading ? (
             <div className="flex items-center gap-3 animate-pulse">
