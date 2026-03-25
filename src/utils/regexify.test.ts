@@ -43,6 +43,11 @@ describe('regexify', () => {
       .toBe('(?:/ORDP/)100(?:/)');
   });
 
+  it('extract_and_compare: defaults prefix/suffix to empty when no params', () => {
+    expect(regexify('extract_and_compare', '100'))
+      .toBe('(?:)100(?:)');
+  });
+
   it('greater_than: numeric prefix', () => {
     expect(regexify('greater_than', '500')).toBe('__NUMERIC_GT:500');
   });
@@ -118,6 +123,26 @@ describe('regexifyExtraction', () => {
     expect(regexifyExtraction('unknown' as any, {}))
       .toBe('(.*)');
   });
+
+  it('extract_between with missing prefix/suffix defaults to empty', () => {
+    expect(regexifyExtraction('extract_between', {}))
+      .toBe('(.*?)');
+  });
+
+  it('extract_after with missing prefix defaults to empty', () => {
+    expect(regexifyExtraction('extract_after', {}))
+      .toBe('(.*)');
+  });
+
+  it('extract_before with missing suffix defaults to empty', () => {
+    expect(regexifyExtraction('extract_before', {}))
+      .toBe('(.*?)');
+  });
+
+  it('extract_between_and_verify with missing prefix/suffix defaults to empty', () => {
+    expect(regexifyExtraction('extract_between_and_verify', {}))
+      .toBe('(.*?)');
+  });
 });
 
 describe('generateExpressionPrompt', () => {
@@ -183,6 +208,11 @@ describe('generateExpressionPrompt', () => {
   it('default returns value', () => {
     expect(generateExpressionPrompt('unknown' as any, 'fallback')).toBe('fallback');
   });
+
+  it('extract_and_compare with missing params defaults to empty', () => {
+    expect(generateExpressionPrompt('extract_and_compare', '100'))
+      .toBe("Extract between '' and '' equals '100'");
+  });
 });
 
 describe('generateExtractionPrompt', () => {
@@ -224,5 +254,30 @@ describe('generateExtractionPrompt', () => {
   it('default returns Extract value', () => {
     expect(generateExtractionPrompt('unknown' as any, {}))
       .toBe('Extract value');
+  });
+
+  it('extract_between with missing prefix/suffix defaults to empty strings', () => {
+    expect(generateExtractionPrompt('extract_between', {}))
+      .toBe("Extract between '' and ''");
+  });
+
+  it('extract_after with missing prefix defaults to empty string', () => {
+    expect(generateExtractionPrompt('extract_after', {}))
+      .toBe("Extract after ''");
+  });
+
+  it('extract_before with missing suffix defaults to empty string', () => {
+    expect(generateExtractionPrompt('extract_before', {}))
+      .toBe("Extract before ''");
+  });
+
+  it('extract_matching with missing pattern defaults to empty string', () => {
+    expect(generateExtractionPrompt('extract_matching', {}))
+      .toBe("Extract matching ''");
+  });
+
+  it('extract_between_and_verify with missing params defaults to empty strings', () => {
+    expect(generateExtractionPrompt('extract_between_and_verify', {}))
+      .toBe("Extract between '' and '', verify = ''");
   });
 });

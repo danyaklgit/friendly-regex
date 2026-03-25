@@ -105,6 +105,16 @@ describe('engregxify', () => {
   it('double backslash is treated as complex', () => {
     expect(engregxify('foo\\\\bar')).toBe("Matches pattern 'foo\\\\bar'");
   });
+
+  // Escaped pipe values (no active syntax after stripping escapes) → matches one of
+  it('matches one of with escaped pipe-separated values', () => {
+    expect(engregxify('USD\\|EUR')).toBe("Matches one of: 'USD\\', 'EUR'");
+  });
+
+  // Complex ends_with falls through to matches pattern
+  it('complex ends_with falls to matches pattern', () => {
+    expect(engregxify('\\d+$')).toBe("Matches pattern '\\d+$'");
+  });
 });
 
 describe('decomposeRegex', () => {
@@ -180,6 +190,13 @@ describe('decomposeRegex', () => {
   // Escaped values get unescaped
   it('unescapes values in equals', () => {
     expect(decomposeRegex('^A\\.B$')).toEqual({ operation: 'equals', value: 'A.B' });
+  });
+
+  // Escaped pipe: matches_pattern branch
+  it('matches_pattern with escaped pipe values', () => {
+    const result = decomposeRegex('USD\\|EUR');
+    expect(result.operation).toBe('matches_pattern');
+    expect(result.values).toEqual(['USD\\', 'EUR']);
   });
 });
 

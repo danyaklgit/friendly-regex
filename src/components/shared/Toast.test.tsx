@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, act } from '@testing-library/react';
 import { Toast } from './Toast';
 
 describe('Toast', () => {
@@ -45,5 +45,22 @@ describe('Toast', () => {
     vi.advanceTimersByTime(1200); // duration + exit animation
     expect(onClose).toHaveBeenCalled();
     vi.useRealTimers();
+  });
+
+  it('starts hidden then becomes visible via requestAnimationFrame', async () => {
+    let rafCallback: FrameRequestCallback | null = null;
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      rafCallback = cb;
+      return 1;
+    });
+    const { container } = render(<Toast message="Animate" onClose={() => {}} />);
+    const toast = container.firstElementChild as HTMLElement;
+    // Initially hidden
+    expect(toast.className).toContain('opacity-0');
+    // Trigger requestAnimationFrame callback inside act to flush state update
+    act(() => { rafCallback!(0); });
+    // Now visible
+    expect(toast.className).toContain('opacity-100');
+    vi.restoreAllMocks();
   });
 });

@@ -1,5 +1,18 @@
 import { describe, it, expect } from 'vitest';
-import { generateExpressionId } from './uuid';
+import { generateId, generateExpressionId } from './uuid';
+
+describe('generateId', () => {
+  it('returns a valid UUID string', () => {
+    const id = generateId();
+    expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+  });
+
+  it('returns unique values on each call', () => {
+    const a = generateId();
+    const b = generateId();
+    expect(a).not.toBe(b);
+  });
+});
 
 describe('generateExpressionId', () => {
   it('formats as tagId-prefix-index', () => {
