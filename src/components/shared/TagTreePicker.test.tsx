@@ -9,6 +9,7 @@ const leafNode = (tag: string, name: string): TagTreeNode => ({
   name,
   description: `${name} description`,
   level: 'T',
+  statusTag: '',
   children: [],
 });
 
@@ -17,6 +18,7 @@ const groupNode = (tag: string, children: TagTreeNode[]): TagTreeNode => ({
   name: tag,
   description: '',
   level: 'G',
+  statusTag: '',
   children,
 });
 
@@ -166,7 +168,7 @@ describe('TagTreePicker', () => {
 
   it('applies selected styling to expanded leaf', async () => {
     const user = userEvent.setup();
-    const { container } = render(
+    render(
       <TagTreePicker label="Tag" nodes={nodes} value="SALARY" onChange={vi.fn()} />
     );
     await user.click(screen.getByText('Expenses'));
