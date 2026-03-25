@@ -19,9 +19,12 @@ describe('translateFilters', () => {
     expect(result).toEqual([[{ ColumnName: 'Side', Value: 'CR', Operand: 'EQ' }]]);
   });
 
-  it('standard EQ filter with multiple values joined by pipe', () => {
+  it('standard EQ filter with multiple values creates separate groups', () => {
     const result = translateFilters({ Side: new Set(['CR', 'DR']) });
-    expect(result).toEqual([[{ ColumnName: 'Side', Value: 'CR|DR', Operand: 'EQ' }]]);
+    expect(result).toEqual([
+      [{ ColumnName: 'Side', Value: 'CR', Operand: 'EQ' }],
+      [{ ColumnName: 'Side', Value: 'DR', Operand: 'EQ' }],
+    ]);
   });
 
   it('bool filter', () => {
@@ -64,16 +67,31 @@ describe('translateFilters', () => {
     ]);
   });
 
-  it('search + base filters combine correctly', () => {
+  it('search + EQ filters combine correctly', () => {
     const result = translateFilters({
       Side: new Set(['CR']),
       '__search:Description1|Description2': new Set(['ACME']),
     });
-    // Each search column gets its own filter array with base filters prepended
-    expect(result).toHaveLength(2);
+    // EQ group + search groups, no base filters to prepend
+    expect(result).toHaveLength(3);
+    expect(result[0]).toEqual([{ ColumnName: 'Side', Value: 'CR', Operand: 'EQ' }]);
+    expect(result[1]).toEqual([{ ColumnName: 'Description1', Value: 'ACME', Operand: 'IN' }]);
+    expect(result[2]).toEqual([{ ColumnName: 'Description2', Value: 'ACME', Operand: 'IN' }]);
+  });
+
+  it('base filters are included in each multi-value and search group', () => {
+    const result = translateFilters({
+      '__bool:IsDeadEnd': new Set(['true']),
+      Side: new Set(['CR', 'DR']),
+      '__search:Description1': new Set(['ACME']),
+    });
+    // 2 EQ groups + 1 search group, each with the bool base filter
+    expect(result).toHaveLength(3);
+    for (const group of result) {
+      expect(group).toContainEqual({ ColumnName: 'IsDeadEnd', Value: 'true', Operand: 'EQ' });
+    }
     expect(result[0]).toContainEqual({ ColumnName: 'Side', Value: 'CR', Operand: 'EQ' });
-    expect(result[0]).toContainEqual({ ColumnName: 'Description1', Value: 'ACME', Operand: 'IN' });
-    expect(result[1]).toContainEqual({ ColumnName: 'Side', Value: 'CR', Operand: 'EQ' });
-    expect(result[1]).toContainEqual({ ColumnName: 'Description2', Value: 'ACME', Operand: 'IN' });
+    expect(result[1]).toContainEqual({ ColumnName: 'Side', Value: 'DR', Operand: 'EQ' });
+    expect(result[2]).toContainEqual({ ColumnName: 'Description1', Value: 'ACME', Operand: 'IN' });
   });
 });

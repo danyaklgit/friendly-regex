@@ -18,6 +18,7 @@ export function translateFilters(
 ): FilterProperty[][] {
   const baseFilters: FilterProperty[] = [];
   const searchColumnFilters: FilterProperty[] = [];
+  const multiValueGroups: FilterProperty[][] = [];
 
   for (const [key, values] of Object.entries(filters)) {
     if (values.size === 0) continue;
@@ -49,14 +50,22 @@ export function translateFilters(
       const column = key.slice('__string:'.length);
       baseFilters.push({ ColumnName: column, Value: val, Operand: 'IN' });
     } else {
-      // Standard EQ filter (STRING-FROM-LIST or data-derived)
-      baseFilters.push({ ColumnName: key, Value: val, Operand: 'EQ' });
+      // Standard EQ filter — each value gets its own group
+      for (const v of values) {
+        multiValueGroups.push([{ ColumnName: key, Value: v, Operand: 'EQ' }]);
+      }
     }
   }
 
-  if (searchColumnFilters.length === 0) {
+  // If there are no multi-value or search filters, return base filters as a single group
+  if (multiValueGroups.length === 0 && searchColumnFilters.length === 0) {
     return baseFilters.length > 0 ? [baseFilters] : [];
   }
 
-  return searchColumnFilters.map((searchFilter) => [...baseFilters, searchFilter]);
+  // Combine: each multi-value entry and each search filter gets base filters appended
+  const groups = multiValueGroups.length > 0 ? multiValueGroups : [];
+  const searchGroups = searchColumnFilters.map((sf) => [sf]);
+  const allGroups = [...groups, ...searchGroups];
+
+  return allGroups.map((group) => [...baseFilters, ...group]);
 }
