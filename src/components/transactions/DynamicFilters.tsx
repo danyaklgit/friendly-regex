@@ -163,8 +163,18 @@ function ListEqDropdown({
 
   const handleToggle = (column: string) => {
     const next = new Set(selected);
-    if (next.has(column)) next.delete(column);
-    else next.add(column);
+    if (next.has(column)) {
+      next.delete(column);
+    } else {
+      next.add(column);
+      // Remove any selected values that become disabled by this new selection
+      for (const v of definition.Values) {
+        if (v.Column === column) continue;
+        if (!v.DisabledBy) continue;
+        const match = v.DisabledBy.match(/^Column:(.+)$/);
+        if (match && match[1] === column) next.delete(v.Column);
+      }
+    }
 
     const updated = { ...filters };
     if (next.size === 0) delete updated[key];
