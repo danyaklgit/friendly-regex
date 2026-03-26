@@ -226,13 +226,24 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
   }, [defaultHiddenColumns]);
 
   // Base filters from checkout — "clear filters" resets to these instead of empty
+  // In live mode, keys must match filter definition Tags (e.g. "BANKS", "SIDE")
+  // rather than column names, so translateFilters can find the matching definition.
   const baseFilters = useMemo(() => {
     if (!activeCheckout) return undefined;
+    if (isLiveMode && filterDefinitions.length > 0) {
+      const tagForColumn = (col: string) =>
+        filterDefinitions.find((d) => d.Values.some((v) => v.Column === col))?.Tag ?? col;
+      return {
+        [tagForColumn('BankSwiftCode')]: new Set([activeCheckout.bank]),
+        [tagForColumn('Side')]: new Set([activeCheckout.side]),
+      };
+    }
+    // Sample mode: use column names directly (client-side filtering)
     return {
       BankSwiftCode: new Set([activeCheckout.bank]),
       Side: new Set([activeCheckout.side]),
     };
-  }, [activeCheckout]);
+  }, [activeCheckout, isLiveMode, filterDefinitions]);
 
   // Apply checkout filters when checkout state changes
   useEffect(() => {

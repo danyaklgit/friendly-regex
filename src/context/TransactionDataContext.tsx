@@ -138,7 +138,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
     try {
       const data = await getTransactions(
         {
-          FilteringProperties: translateFilters(filters),
+          FilteringProperties: translateFilters(filters, filterDefinitions),
           SortingProperties: DEFAULT_SORTING,
           Pagination: { PageIndex: pageIndex, PageSize: effectivePageSize },
         },
@@ -175,7 +175,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
         setLoading(false);
       }
     }
-  }, [isLiveMode, getAuthHeaders, refreshIfNeeded, userId, tepConfig]);
+  }, [isLiveMode, getAuthHeaders, refreshIfNeeded, userId, tepConfig, filterDefinitions]);
 
   // Abort pending requests on unmount
   useEffect(() => () => { abortRef.current?.abort(); }, []);

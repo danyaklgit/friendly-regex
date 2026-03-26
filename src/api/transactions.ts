@@ -20,7 +20,7 @@ export interface PaginationParams {
 }
 
 export interface GetTransactionsRequest {
-  FilteringProperties: FilterProperty[][];
+  FilteringProperties: FilterProperty[];
   SortingProperties: SortProperty[];
   Pagination: PaginationParams;
 }
@@ -46,18 +46,21 @@ export const DEFAULT_SORTING: SortProperty[] = [
 
 // --- Filter definitions (from GetFilters API) ---
 
-export type FilterType = 'BOOL' | 'STRING-FROM-LIST' | 'SEARCH' | 'API' | 'DECIMAL' | 'STRING' | 'DATE';
+export type FilterType = 'LIST' | 'SEARCH' | 'DECIMAL' | 'DATE';
 
 export interface FilterValue {
   Column: string;
   Value: string | null;
   Label: string;
+  Operand: string | null;
+  DisabledBy: string | null;
 }
 
 export interface FilterDefinition {
   Tag: string;
   Label: string;
   Type: FilterType;
+  Operand: string | null;
   IsFilterSearchable?: boolean;
   Values: FilterValue[];
 }

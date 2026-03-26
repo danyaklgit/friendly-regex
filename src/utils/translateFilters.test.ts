@@ -1,97 +1,273 @@
 import { describe, it, expect } from 'vitest';
 import { translateFilters } from './translateFilters';
+import type { FilterDefinition } from '../api/transactions';
+
+// --- Helpers to build filter definitions ---
+
+const listDef = (tag: string, operand: string, columns: string[]): FilterDefinition => ({
+  Tag: tag,
+  Label: tag,
+  Type: 'LIST',
+  Operand: operand,
+  Values: columns.map((col) => ({ Column: col, Value: null, Label: col, Operand: null, DisabledBy: null })),
+});
+
+const listEqDef = (tag: string, values: { col: string; val: string; label: string }[]): FilterDefinition => ({
+  Tag: tag,
+  Label: tag,
+  Type: 'LIST',
+  Operand: 'EQ',
+  Values: values.map((v) => ({ Column: v.col, Value: v.val, Label: v.label, Operand: null, DisabledBy: null })),
+});
+
+const searchDef = (tag: string, columns: string[]): FilterDefinition => ({
+  Tag: tag,
+  Label: tag,
+  Type: 'SEARCH',
+  Operand: 'CONTAINS',
+  Values: columns.map((col) => ({ Column: col, Value: null, Label: col, Operand: null, DisabledBy: null })),
+});
+
+const rangeDef = (tag: string, type: 'DECIMAL' | 'DATE', column: string): FilterDefinition => ({
+  Tag: tag,
+  Label: tag,
+  Type: type,
+  Operand: null,
+  Values: [
+    { Column: column, Value: null, Label: 'From', Operand: 'GTE', DisabledBy: null },
+    { Column: column, Value: null, Label: 'To', Operand: 'LTE', DisabledBy: null },
+  ],
+});
+
+// --- Tests ---
 
 describe('translateFilters', () => {
   it('returns empty array for no filters', () => {
-    expect(translateFilters({})).toEqual([]);
+    expect(translateFilters({}, [])).toEqual([]);
   });
 
   it('returns empty array for empty value sets', () => {
-    expect(translateFilters({ Side: new Set() })).toEqual([]);
+    const defs = [listDef('SIDE', 'IN', ['Side'])];
+    expect(translateFilters({ SIDE: new Set() }, defs)).toEqual([]);
   });
 
-  it('skips __tags filter', () => {
-    expect(translateFilters({ __tags: new Set(['A']) })).toEqual([]);
+  it('ignores keys with no matching definition', () => {
+    expect(translateFilters({ UNKNOWN: new Set(['X']) }, [])).toEqual([]);
   });
 
-  it('standard EQ filter', () => {
-    const result = translateFilters({ Side: new Set(['CR']) });
-    expect(result).toEqual([[{ ColumnName: 'Side', Value: 'CR', Operand: 'EQ' }]]);
+  it('LIST + IN filter with single value', () => {
+    const defs = [listDef('SIDE', 'IN', ['Side'])];
+    const result = translateFilters({ SIDE: new Set(['CR']) }, defs);
+    expect(result).toEqual([{ ColumnName: 'Side', Value: 'CR', Operand: 'IN' }]);
   });
 
-  it('standard EQ filter with multiple values creates separate groups', () => {
-    const result = translateFilters({ Side: new Set(['CR', 'DR']) });
+  it('LIST + IN filter with multiple values produces pipe-separated value', () => {
+    const defs = [listDef('SIDE', 'IN', ['Side'])];
+    const result = translateFilters({ SIDE: new Set(['CR', 'DR']) }, defs);
+    expect(result).toEqual([{ ColumnName: 'Side', Value: 'CR|DR', Operand: 'IN' }]);
+  });
+
+  it('LIST + EQ filter (SHOW ONLY style) creates one entry per selected column', () => {
+    const defs = [
+      listEqDef('SHOW ONLY', [
+        { col: 'OpsIsUntagged', val: 'True', label: 'Untagged' },
+        { col: 'OpsIsDeadEnd', val: 'True', label: 'Dead End' },
+      ]),
+    ];
+    const result = translateFilters(
+      { 'SHOW ONLY': new Set(['OpsIsUntagged', 'OpsIsDeadEnd']) },
+      defs,
+    );
     expect(result).toEqual([
-      [{ ColumnName: 'Side', Value: 'CR', Operand: 'EQ' }],
-      [{ ColumnName: 'Side', Value: 'DR', Operand: 'EQ' }],
+      { ColumnName: 'OpsIsUntagged', Value: 'True', Operand: 'EQ' },
+      { ColumnName: 'OpsIsDeadEnd', Value: 'True', Operand: 'EQ' },
     ]);
   });
 
-  it('bool filter', () => {
-    const result = translateFilters({ '__bool:IsDeadEnd': new Set(['true']) });
-    expect(result).toEqual([[{ ColumnName: 'IsDeadEnd', Value: 'true', Operand: 'EQ' }]]);
+  it('LIST + EQ with single selection', () => {
+    const defs = [
+      listEqDef('SHOW ONLY', [
+        { col: 'OpsIsUntagged', val: 'True', label: 'Untagged' },
+      ]),
+    ];
+    const result = translateFilters({ 'SHOW ONLY': new Set(['OpsIsUntagged']) }, defs);
+    expect(result).toEqual([{ ColumnName: 'OpsIsUntagged', Value: 'True', Operand: 'EQ' }]);
   });
 
-  it('decimal_gte filter', () => {
-    const result = translateFilters({ '__decimal_gte:Amount': new Set(['100']) });
-    expect(result).toEqual([[{ ColumnName: 'Amount', Value: '100', Operand: 'GTE' }]]);
-  });
-
-  it('decimal_lte filter', () => {
-    const result = translateFilters({ '__decimal_lte:Amount': new Set(['500']) });
-    expect(result).toEqual([[{ ColumnName: 'Amount', Value: '500', Operand: 'LTE' }]]);
-  });
-
-  it('date_gte filter', () => {
-    const result = translateFilters({ '__date_gte:EntryDate': new Set(['2024-01-01']) });
-    expect(result).toEqual([[{ ColumnName: 'EntryDate', Value: '2024-01-01', Operand: 'GTE' }]]);
-  });
-
-  it('date_lte filter', () => {
-    const result = translateFilters({ '__date_lte:EntryDate': new Set(['2024-12-31']) });
-    expect(result).toEqual([[{ ColumnName: 'EntryDate', Value: '2024-12-31', Operand: 'LTE' }]]);
-  });
-
-  it('string filter', () => {
-    const result = translateFilters({ '__string:Description1': new Set(['ACME']) });
-    expect(result).toEqual([[{ ColumnName: 'Description1', Value: 'ACME', Operand: 'IN' }]]);
-  });
-
-  it('search filter creates per-column combinations', () => {
-    const result = translateFilters({
-      '__search:Description1|Description2': new Set(['ACME']),
-    });
+  it('LIST + EQ uses Value and Operand from definition, not hardcoded', () => {
+    const defs = [
+      listEqDef('CUSTOM_EQ', [
+        { col: 'ColA', val: 'Yes', label: 'Option A' },
+        { col: 'ColB', val: 'Active', label: 'Option B' },
+      ]),
+    ];
+    const result = translateFilters({ CUSTOM_EQ: new Set(['ColA', 'ColB']) }, defs);
     expect(result).toEqual([
-      [{ ColumnName: 'Description1', Value: 'ACME', Operand: 'IN' }],
-      [{ ColumnName: 'Description2', Value: 'ACME', Operand: 'IN' }],
+      { ColumnName: 'ColA', Value: 'Yes', Operand: 'EQ' },
+      { ColumnName: 'ColB', Value: 'Active', Operand: 'EQ' },
     ]);
   });
 
-  it('search + EQ filters combine correctly', () => {
-    const result = translateFilters({
-      Side: new Set(['CR']),
-      '__search:Description1|Description2': new Set(['ACME']),
-    });
-    // EQ group + search groups, no base filters to prepend
-    expect(result).toHaveLength(3);
-    expect(result[0]).toEqual([{ ColumnName: 'Side', Value: 'CR', Operand: 'EQ' }]);
-    expect(result[1]).toEqual([{ ColumnName: 'Description1', Value: 'ACME', Operand: 'IN' }]);
-    expect(result[2]).toEqual([{ ColumnName: 'Description2', Value: 'ACME', Operand: 'IN' }]);
+  it('SEARCH filter', () => {
+    const defs = [searchDef('IBAN', ['Iban'])];
+    const result = translateFilters({ IBAN: new Set(['CH123']) }, defs);
+    expect(result).toEqual([{ ColumnName: 'Iban', Value: 'CH123', Operand: 'CONTAINS' }]);
   });
 
-  it('base filters are included in each multi-value and search group', () => {
-    const result = translateFilters({
-      '__bool:IsDeadEnd': new Set(['true']),
-      Side: new Set(['CR', 'DR']),
-      '__search:Description1': new Set(['ACME']),
-    });
-    // 2 EQ groups + 1 search group, each with the bool base filter
-    expect(result).toHaveLength(3);
-    for (const group of result) {
-      expect(group).toContainEqual({ ColumnName: 'IsDeadEnd', Value: 'true', Operand: 'EQ' });
-    }
-    expect(result[0]).toContainEqual({ ColumnName: 'Side', Value: 'CR', Operand: 'EQ' });
-    expect(result[1]).toContainEqual({ ColumnName: 'Side', Value: 'DR', Operand: 'EQ' });
-    expect(result[2]).toContainEqual({ ColumnName: 'Description1', Value: 'ACME', Operand: 'IN' });
+  it('DECIMAL range filter (GTE + LTE)', () => {
+    const defs = [rangeDef('AMOUNT', 'DECIMAL', 'Amount')];
+    const result = translateFilters(
+      { AMOUNT_GTE: new Set(['100']), AMOUNT_LTE: new Set(['500']) },
+      defs,
+    );
+    expect(result).toEqual([
+      { ColumnName: 'Amount', Value: '100', Operand: 'GTE' },
+      { ColumnName: 'Amount', Value: '500', Operand: 'LTE' },
+    ]);
+  });
+
+  it('DECIMAL range filter with only GTE', () => {
+    const defs = [rangeDef('AMOUNT', 'DECIMAL', 'Amount')];
+    const result = translateFilters({ AMOUNT_GTE: new Set(['100']) }, defs);
+    expect(result).toEqual([{ ColumnName: 'Amount', Value: '100', Operand: 'GTE' }]);
+  });
+
+  it('DATE range filter', () => {
+    const defs = [rangeDef('STATEMENTDATE', 'DATE', 'StatementDate')];
+    const result = translateFilters(
+      {
+        STATEMENTDATE_GTE: new Set(['2024-01-01']),
+        STATEMENTDATE_LTE: new Set(['2024-12-31']),
+      },
+      defs,
+    );
+    expect(result).toEqual([
+      { ColumnName: 'StatementDate', Value: '2024-01-01', Operand: 'GTE' },
+      { ColumnName: 'StatementDate', Value: '2024-12-31', Operand: 'LTE' },
+    ]);
+  });
+
+  it('ignores range key (_GTE) when tag has no matching definition', () => {
+    const result = translateFilters({ UNKNOWN_GTE: new Set(['100']) }, []);
+    expect(result).toEqual([]);
+  });
+
+  it('ignores range key (_LTE) when tag has no matching definition', () => {
+    const result = translateFilters({ UNKNOWN_LTE: new Set(['100']) }, []);
+    expect(result).toEqual([]);
+  });
+
+  it('ignores range key when definition has no matching operand in Values', () => {
+    // Definition exists but Values don't contain a matching GTE operand
+    const def: FilterDefinition = {
+      Tag: 'AMOUNT',
+      Label: 'Amount',
+      Type: 'DECIMAL',
+      Operand: null,
+      Values: [{ Column: 'Amount', Value: null, Label: 'To', Operand: 'LTE', DisabledBy: null }],
+    };
+    const result = translateFilters({ AMOUNT_GTE: new Set(['100']) }, [def]);
+    expect(result).toEqual([]);
+  });
+
+  it('LIST + EQ skips selected columns not found in definition', () => {
+    const defs = [
+      listEqDef('SHOW ONLY', [
+        { col: 'OpsIsUntagged', val: 'True', label: 'Untagged' },
+      ]),
+    ];
+    const result = translateFilters(
+      { 'SHOW ONLY': new Set(['OpsIsUntagged', 'NonExistentCol']) },
+      defs,
+    );
+    expect(result).toEqual([{ ColumnName: 'OpsIsUntagged', Value: 'True', Operand: 'EQ' }]);
+  });
+
+  it('LIST + EQ uses empty string when Value is null', () => {
+    const def: FilterDefinition = {
+      Tag: 'FLAGS',
+      Label: 'Flags',
+      Type: 'LIST',
+      Operand: 'EQ',
+      Values: [{ Column: 'FlagA', Value: null, Label: 'Flag A', Operand: null, DisabledBy: null }],
+    };
+    const result = translateFilters({ FLAGS: new Set(['FlagA']) }, [def]);
+    expect(result).toEqual([{ ColumnName: 'FlagA', Value: '', Operand: 'EQ' }]);
+  });
+
+  it('LIST + IN skips when Values array is empty', () => {
+    const def: FilterDefinition = {
+      Tag: 'EMPTY',
+      Label: 'Empty',
+      Type: 'LIST',
+      Operand: 'IN',
+      Values: [],
+    };
+    const result = translateFilters({ EMPTY: new Set(['val']) }, [def]);
+    expect(result).toEqual([]);
+  });
+
+  it('LIST + IN falls back to "IN" when Operand is null', () => {
+    const def: FilterDefinition = {
+      Tag: 'SIDE',
+      Label: 'Side',
+      Type: 'LIST',
+      Operand: null,
+      Values: [{ Column: 'Side', Value: null, Label: 'Side', Operand: null, DisabledBy: null }],
+    };
+    const result = translateFilters({ SIDE: new Set(['CR']) }, [def]);
+    expect(result).toEqual([{ ColumnName: 'Side', Value: 'CR', Operand: 'IN' }]);
+  });
+
+  it('SEARCH skips when Values array is empty', () => {
+    const def: FilterDefinition = {
+      Tag: 'SEARCH_EMPTY',
+      Label: 'Search',
+      Type: 'SEARCH',
+      Operand: 'CONTAINS',
+      Values: [],
+    };
+    const result = translateFilters({ SEARCH_EMPTY: new Set(['query']) }, [def]);
+    expect(result).toEqual([]);
+  });
+
+  it('SEARCH falls back to "CONTAINS" when Operand is null', () => {
+    const def: FilterDefinition = {
+      Tag: 'IBAN',
+      Label: 'IBAN',
+      Type: 'SEARCH',
+      Operand: null,
+      Values: [{ Column: 'Iban', Value: null, Label: 'Iban', Operand: null, DisabledBy: null }],
+    };
+    const result = translateFilters({ IBAN: new Set(['CH123']) }, [def]);
+    expect(result).toEqual([{ ColumnName: 'Iban', Value: 'CH123', Operand: 'CONTAINS' }]);
+  });
+
+  it('combined filters produce flat array', () => {
+    const defs = [
+      listDef('SIDE', 'IN', ['Side']),
+      listDef('TAGS', 'IN', ['OpsTagSpecLibraryName']),
+      listEqDef('SHOW ONLY', [
+        { col: 'OpsIsUntagged', val: 'True', label: 'Untagged' },
+      ]),
+      searchDef('IBAN', ['Iban']),
+      rangeDef('AMOUNT', 'DECIMAL', 'Amount'),
+    ];
+    const result = translateFilters(
+      {
+        SIDE: new Set(['CR']),
+        TAGS: new Set(['A2AOut', 'TransferOut']),
+        'SHOW ONLY': new Set(['OpsIsUntagged']),
+        IBAN: new Set(['CH123']),
+        AMOUNT_GTE: new Set(['100']),
+      },
+      defs,
+    );
+    expect(result).toHaveLength(5);
+    expect(result).toContainEqual({ ColumnName: 'Side', Value: 'CR', Operand: 'IN' });
+    expect(result).toContainEqual({ ColumnName: 'OpsTagSpecLibraryName', Value: 'A2AOut|TransferOut', Operand: 'IN' });
+    expect(result).toContainEqual({ ColumnName: 'OpsIsUntagged', Value: 'True', Operand: 'EQ' });
+    expect(result).toContainEqual({ ColumnName: 'Iban', Value: 'CH123', Operand: 'CONTAINS' });
+    expect(result).toContainEqual({ ColumnName: 'Amount', Value: '100', Operand: 'GTE' });
   });
 });
