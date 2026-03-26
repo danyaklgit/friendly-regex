@@ -186,6 +186,7 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
   });
   const [tableColumns, setTableColumns] = useState<ColumnDef[]>([]);
   const [filters, setFilters] = useState<Record<string, Set<string>>>({});
+  const [preTagClickFilters, setPreTagClickFilters] = useState<Record<string, Set<string>> | null>(null);
 
   // Persist settings to localStorage
   useEffect(() => { try { localStorage.setItem('tep:showAttributes', String(showAttributes)); } catch { /* ignore */ } }, [showAttributes]);
@@ -331,10 +332,13 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
         analysis: analyzeRow(row, allLibraries, !!tempDefinition && !editingDef),
       })).filter(item => {
         if (!builderOpen || !builderHasContent) return true;
+        // When tag click applied a server-side tag filter, skip client-side
+        // definition matching — the server already scoped results to this tag.
+        if (preTagClickFilters !== null) return true;
         if (editingDef) return item.analysis.matchedDefinitions.some(d => d.Id === editingDef.Id);
         return item.analysis.tags.includes('Preview');
       }),
-    [transactions, allLibraries, tempDefinition, editingDef]
+    [transactions, allLibraries, tempDefinition, editingDef, preTagClickFilters, builderOpen, builderHasContent]
   );
 
   // Apply all filters
@@ -439,7 +443,12 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
     setEditingDef(undefined);
     setEditingParentLib(undefined);
     builder.resetForm();
-  }, [builder]);
+    // Restore filters from before tag click
+    if (preTagClickFilters !== null) {
+      setFilters(preTagClickFilters);
+      setPreTagClickFilters(null);
+    }
+  }, [builder, preTagClickFilters]);
 
   const handleWizardSave = useCallback((result: WizardFormResult) => {
     if (editingDef) {
@@ -457,7 +466,11 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
     setWizardFromCheckout(false);
     setBuilderOpen(false);
     builder.resetForm();
-  }, [dispatch, builder, editingDef]);
+    if (preTagClickFilters !== null) {
+      setFilters(preTagClickFilters);
+      setPreTagClickFilters(null);
+    }
+  }, [dispatch, builder, editingDef, preTagClickFilters]);
 
   const handleWizardClose = useCallback(() => {
     setWizardOpen(false);
@@ -468,9 +481,15 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
     setWizardFromCheckout(false);
     setBuilderOpen(false);
     builder.resetForm();
-  }, [builder]);
+    if (preTagClickFilters !== null) {
+      setFilters(preTagClickFilters);
+      setPreTagClickFilters(null);
+    }
+  }, [builder, preTagClickFilters]);
 
   // Click a tag badge in the table → load into rule builder for live editing
+  // In live mode, keep all user-selected filters but override the tag filter
+  // to only the clicked tag, so paginated results are scoped to that tag.
   const handleTagClick = useCallback((tagName: string, definitionId?: string) => {
     // Find the specific matched definition, preferring INPROGRESS libraries
     // (ACTIVE and INPROGRESS share definition IDs during checkout)
@@ -493,8 +512,20 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
       setEditingDef(foundDef);
       setEditingParentLib(foundLib);
       setBuilderOpen(true);
+
+      // In live mode, override only the tag filter while keeping all other filters
+      if (isLiveMode && filterDefinitions.length > 0) {
+        setPreTagClickFilters({ ...filters });
+        // Find the tag filter definition (the one whose Values contain the clicked tag)
+        const tagFilterDef = filterDefinitions.find((d) =>
+          d.Type === 'LIST' && d.Values.some((v) => v.Value === tagName)
+        );
+        if (tagFilterDef) {
+          setFilters({ ...filters, [tagFilterDef.Tag]: new Set([tagName]) });
+        }
+      }
     }
-  }, [libraries, builder]);
+  }, [libraries, builder, isLiveMode, filterDefinitions, filters]);
 
   const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -735,7 +766,7 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
       />
       )}
 
-      {!builderOpen && (hasMore || loading || (!incrementalPagination && (isLiveMode ? (totalTransactionsCount ?? 0) > BATCH_SIZE : filteredLen > BATCH_SIZE))) && (
+      {(!builderOpen || preTagClickFilters !== null) && (hasMore || loading || (!incrementalPagination && (isLiveMode ? (totalTransactionsCount ?? 0) > BATCH_SIZE : filteredLen > BATCH_SIZE))) && (
         <div className="flex items-center justify-center gap-3 py-2 mt-1 border border-border bg-surface-secondary rounded-lg">
           {loading ? (
             <div className="flex items-center gap-3 animate-pulse">

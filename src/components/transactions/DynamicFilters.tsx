@@ -324,24 +324,51 @@ function StringFromListDropdown({
               </div>
             </div>
           )}
-          <div className="p-1.5 max-h-60 overflow-y-auto custom-scrollbar">
+          <div className="max-h-60 overflow-y-auto custom-scrollbar">
             {filteredValues.length === 0 ? (
               <div className="px-2 py-3 text-xs text-faint text-center">No matches</div>
             ) : (
-              filteredValues.map((v) => (
-                <label
-                  key={v.Value}
-                  className="flex items-center gap-2 px-2 py-1 text-xs hover:bg-surface-hover rounded cursor-pointer text-black dark:text-white whitespace-nowrap"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selected.has(v.Value ?? '')}
-                    onChange={() => handleToggle(v.Value ?? '')}
-                    className="rounded border-border-strong shrink-0"
-                  />
-                  <span className="truncate">{v.Label ?? v.Value}</span>
-                </label>
-              ))
+              <>
+                {/* Selected items sticky at top */}
+                {filteredValues.some((v) => selected.has(v.Value ?? '')) && (
+                  <div className="sticky top-0 z-10 bg-surface p-1.5 pb-0">
+                    {filteredValues.filter((v) => selected.has(v.Value ?? '')).map((v) => (
+                      <label
+                        key={v.Value}
+                        className="flex items-center gap-2 px-2 py-1 text-xs hover:bg-surface-hover rounded cursor-pointer text-black dark:text-white whitespace-nowrap bg-primary/5"
+                      >
+                        <input
+                          type="checkbox"
+                          checked
+                          onChange={() => handleToggle(v.Value ?? '')}
+                          className="rounded border-border-strong shrink-0"
+                        />
+                        <span className="truncate">{v.Label ?? v.Value}</span>
+                      </label>
+                    ))}
+                    {filteredValues.some((v) => !selected.has(v.Value ?? '')) && (
+                      <div className="border-t border-border-subtle mt-1" />
+                    )}
+                  </div>
+                )}
+                {/* Unselected items */}
+                <div className="p-1.5 pt-0">
+                  {filteredValues.filter((v) => !selected.has(v.Value ?? '')).map((v) => (
+                    <label
+                      key={v.Value}
+                      className="flex items-center gap-2 px-2 py-1 text-xs hover:bg-surface-hover rounded cursor-pointer text-black dark:text-white whitespace-nowrap"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={false}
+                        onChange={() => handleToggle(v.Value ?? '')}
+                        className="rounded border-border-strong shrink-0"
+                      />
+                      <span className="truncate">{v.Label ?? v.Value}</span>
+                    </label>
+                  ))}
+                </div>
+              </>
             )}
           </div>
         </div>
