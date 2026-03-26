@@ -113,9 +113,9 @@ function RangeSlider({
   );
 }
 
-// ─── BOOL filter (Show Only) ──────────────────────────────────────────────────
+// ─── LIST + EQ filter (Show Only) ─────────────────────────────────────────────
 
-function BoolFilterDropdown({
+function ListEqDropdown({
   definition,
   filters,
   onFiltersChange,
@@ -147,33 +147,29 @@ function BoolFilterDropdown({
     }
   }, [open]);
 
-  const activeLabels = definition.Values.filter(
-    (v) => filters[`__bool:${v.Column}`]?.has('true')
-  ).map((v) => v.Label);
+  const key = definition.Tag;
+  const selected = filters[key] ?? new Set<string>();
+  const activeLabels = definition.Values.filter((v) => selected.has(v.Column)).map((v) => v.Label);
   const hasActive = activeLabels.length > 0;
 
-  const isUntaggedChecked = definition.Values.some(
-    (v) => v.Label === 'Untagged' && filters[`__bool:${v.Column}`]?.has('true')
-  );
-  const hasNonExemptChecked = definition.Values.some(
-    (v) => v.Label !== 'Untagged' && v.Label !== 'Dead End' && filters[`__bool:${v.Column}`]?.has('true')
-  );
-
-  const isDisabled = (v: { Label: string }) => {
-    if (v.Label === 'Dead End') return false;
-    if (v.Label === 'Untagged') return hasNonExemptChecked;
-    return isUntaggedChecked;
+  // DisabledBy logic from API: format "Column:<columnName>"
+  const isDisabled = (v: typeof definition.Values[number]) => {
+    if (!v.DisabledBy) return false;
+    const match = v.DisabledBy.match(/^Column:(.+)$/);
+    if (!match) return false;
+    const disablingColumn = match[1];
+    return selected.has(disablingColumn);
   };
 
   const handleToggle = (column: string) => {
-    const key = `__bool:${column}`;
-    const next = { ...filters };
-    if (next[key]?.has('true')) {
-      delete next[key];
-    } else {
-      next[key] = new Set(['true']);
-    }
-    onFiltersChange(next);
+    const next = new Set(selected);
+    if (next.has(column)) next.delete(column);
+    else next.add(column);
+
+    const updated = { ...filters };
+    if (next.size === 0) delete updated[key];
+    else updated[key] = next;
+    onFiltersChange(updated);
   };
 
   return (
@@ -207,7 +203,7 @@ function BoolFilterDropdown({
                 <input
                   type="checkbox"
                   disabled={isDisabled(v)}
-                  checked={filters[`__bool:${v.Column}`]?.has('true') ?? false}
+                  checked={selected.has(v.Column)}
                   onChange={() => handleToggle(v.Column)}
                   className="rounded border-border-strong"
                 />
@@ -238,8 +234,8 @@ function StringFromListDropdown({
   const { open, setOpen, ref } = useDropdown();
   const [search, setSearch] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const column = definition.Values[0]?.Column ?? definition.Tag;
-  const selected = filters[column] ?? new Set<string>();
+  const key = definition.Tag;
+  const selected = filters[key] ?? new Set<string>();
   const hasActive = selected.size > 0;
   const isSearchable = definition.IsFilterSearchable === true;
 
@@ -265,8 +261,8 @@ function StringFromListDropdown({
     else next.add(value);
 
     const updated = { ...filters };
-    if (next.size === 0) delete updated[column];
-    else updated[column] = next;
+    if (next.size === 0) delete updated[key];
+    else updated[key] = next;
     onFiltersChange(updated);
   };
 
@@ -355,8 +351,7 @@ function SearchFilter({
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
 }) {
-  const column = definition.Values[0]?.Column ?? '';
-  const key = `__search:${column}`;
+  const key = definition.Tag;
   const currentValue = [...(filters[key] ?? [])][0] ?? '';
   const [inputValue, setInputValue] = useState(currentValue);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -416,9 +411,8 @@ function DecimalFilter({
   onFiltersChange: (filters: FilterState) => void;
 }) {
   const { open, setOpen, ref } = useDropdown();
-  const column = definition.Values[0]?.Column ?? '';
-  const gteKey = `__decimal_gte:${column}`;
-  const lteKey = `__decimal_lte:${column}`;
+  const gteKey = `${definition.Tag}_GTE`;
+  const lteKey = `${definition.Tag}_LTE`;
   const currentMin = [...(filters[gteKey] ?? [])][0] ?? '';
   const currentMax = [...(filters[lteKey] ?? [])][0] ?? '';
   const hasActive = !!currentMin || !!currentMax;
@@ -433,14 +427,40 @@ function DecimalFilter({
   const applyRange = useCallback((min: string, max: string) => {
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
+      // Enforce max >= min when both are set
+      let effectiveMax = max;
+      if (min.trim() && max.trim() && Number(max) < Number(min)) {
+        effectiveMax = min;
+      }
       const next = { ...filters };
       if (min.trim()) next[gteKey] = new Set([min.trim()]);
       else delete next[gteKey];
-      if (max.trim()) next[lteKey] = new Set([max.trim()]);
+      if (effectiveMax.trim()) next[lteKey] = new Set([effectiveMax.trim()]);
       else delete next[lteKey];
       onFiltersChange(next);
     }, 400);
   }, [filters, gteKey, lteKey, onFiltersChange]);
+
+  const handleMinChange = (val: string) => {
+    setMinVal(val);
+    // If max is set and now less than new min, bump max up to match
+    if (maxVal && val && Number(maxVal) < Number(val)) {
+      setMaxVal(val);
+      applyRange(val, val);
+    } else {
+      applyRange(val, maxVal);
+    }
+  };
+
+  const handleMaxChange = (val: string) => {
+    // Clamp max to be at least the min value
+    let effective = val;
+    if (minVal && val && Number(val) < Number(minVal)) {
+      effective = minVal;
+    }
+    setMaxVal(effective);
+    applyRange(minVal, effective);
+  };
 
   return (
     <div ref={ref} className="relative">
@@ -463,7 +483,7 @@ function DecimalFilter({
               <input
                 type="number"
                 value={minVal}
-                onChange={(e) => { setMinVal(e.target.value); applyRange(e.target.value, maxVal); }}
+                onChange={(e) => handleMinChange(e.target.value)}
                 placeholder="0"
                 className="w-full text-xs px-2 py-1 rounded border border-border-strong bg-surface text-body outline-none"
               />
@@ -474,7 +494,8 @@ function DecimalFilter({
               <input
                 type="number"
                 value={maxVal}
-                onChange={(e) => { setMaxVal(e.target.value); applyRange(minVal, e.target.value); }}
+                onChange={(e) => handleMaxChange(e.target.value)}
+                min={minVal || undefined}
                 placeholder="..."
                 className="w-full text-xs px-2 py-1 rounded border border-border-strong bg-surface text-body outline-none"
               />
@@ -498,9 +519,8 @@ function DateFilter({
   onFiltersChange: (filters: FilterState) => void;
 }) {
   const { open, setOpen, ref } = useDropdown();
-  const column = definition.Values[0]?.Column ?? '';
-  const gteKey = `__date_gte:${column}`;
-  const lteKey = `__date_lte:${column}`;
+  const gteKey = `${definition.Tag}_GTE`;
+  const lteKey = `${definition.Tag}_LTE`;
   const currentFrom = [...(filters[gteKey] ?? [])][0] ?? '';
   const currentTo = [...(filters[lteKey] ?? [])][0] ?? '';
   const hasActive = !!currentFrom || !!currentTo;
@@ -555,66 +575,6 @@ function DateFilter({
             </div>
           </div>
         </div>
-      )}
-    </div>
-  );
-}
-
-// ─── STRING filter (free text) ───────────────────────────────────────────────
-
-function StringFilter({
-  definition,
-  filters,
-  onFiltersChange,
-}: {
-  definition: FilterDefinition;
-  filters: FilterState;
-  onFiltersChange: (filters: FilterState) => void;
-}) {
-  const column = definition.Values[0]?.Column ?? '';
-  const key = `__string:${column}`;
-  const currentValue = [...(filters[key] ?? [])][0] ?? '';
-  const [inputValue, setInputValue] = useState(currentValue);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-
-  useEffect(() => {
-    setInputValue(currentValue);
-  }, [currentValue]);
-
-  const handleChange = (text: string) => {
-    setInputValue(text);
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      const next = { ...filters };
-      if (text.trim()) {
-        next[key] = new Set([text.trim()]);
-      } else {
-        delete next[key];
-      }
-      onFiltersChange(next);
-    }, 400);
-  };
-
-  return (
-    <div className="relative">
-      <input
-        type="text"
-        value={inputValue}
-        onChange={(e) => handleChange(e.target.value)}
-        placeholder={definition.Label}
-        className={`text-xs px-3 py-1.5 rounded-lg border transition-colors w-40 outline-none ${
-          currentValue
-            ? 'bg-primary/10 border-primary/30 text-primary-dark placeholder:text-primary-dark/50'
-            : 'bg-surface border-border-strong text-body placeholder:text-muted hover:bg-surface-hover'
-        }`}
-      />
-      {currentValue && (
-        <button
-          onClick={() => handleChange('')}
-          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-body text-xs"
-        >
-          &times;
-        </button>
       )}
     </div>
   );
@@ -870,56 +830,23 @@ function ApiFilterRenderer({
   definition,
   filters,
   onFiltersChange,
-  tagDefinitions,
-  data,
   lockedColumns,
 }: {
   definition: FilterDefinition;
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
-  tagDefinitions: TagSpecDefinition[];
-  data: AnalyzedTransaction[];
   lockedColumns?: Set<string>;
 }) {
-  // Compute tag values unconditionally (hooks must not be conditional)
-  const tagValues = useMemo(() => {
-    const tags = new Set<string>();
-    for (const item of data) {
-      for (const tag of item.analysis.tags) tags.add(tag);
-    }
-    return Array.from(tags).sort();
-  }, [data]);
-
   switch (definition.Type) {
-    case 'BOOL':
-      return <BoolFilterDropdown definition={definition} filters={filters} onFiltersChange={onFiltersChange} />;
-    case 'STRING-FROM-LIST': {
-      const col = definition.Values[0]?.Column ?? definition.Tag;
-      return <StringFromListDropdown definition={definition} filters={filters} onFiltersChange={onFiltersChange} locked={lockedColumns?.has(col)} />;
-    }
+    case 'LIST':
+      if (definition.Operand === 'EQ') {
+        return <ListEqDropdown definition={definition} filters={filters} onFiltersChange={onFiltersChange} />;
+      }
+      return <StringFromListDropdown definition={definition} filters={filters} onFiltersChange={onFiltersChange} locked={lockedColumns?.has(definition.Tag)} />;
     case 'SEARCH':
       return <SearchFilter definition={definition} filters={filters} onFiltersChange={onFiltersChange} />;
-    case 'API': {
-      if (tagValues.length === 0 && tagDefinitions.length === 0) return null;
-
-      return (
-        <FilterDropdown
-          label={definition.Label}
-          values={tagValues.length > 0 ? tagValues : tagDefinitions.map((d) => d.Tag)}
-          selected={filters['__tags'] ?? new Set()}
-          onChange={(selected) => {
-            const next = { ...filters };
-            if (selected.size === 0) delete next['__tags'];
-            else next['__tags'] = selected;
-            onFiltersChange(next);
-          }}
-        />
-      );
-    }
     case 'DECIMAL':
       return <DecimalFilter definition={definition} filters={filters} onFiltersChange={onFiltersChange} />;
-    case 'STRING':
-      return <StringFilter definition={definition} filters={filters} onFiltersChange={onFiltersChange} />;
     case 'DATE':
       return <DateFilter definition={definition} filters={filters} onFiltersChange={onFiltersChange} />;
     default:
@@ -1068,8 +995,6 @@ export function DynamicFilters({
               definition={def}
               filters={filters}
               onFiltersChange={onFiltersChange}
-              tagDefinitions={tagDefinitions}
-              data={data}
               lockedColumns={lockedColumns}
             />
           ))}
