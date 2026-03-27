@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import type { FilterDefinition } from '../../api/transactions';
 import { TXN_TYPE_OPTIONS } from '../../constants/fields';
+import { DropdownBackdrop } from './DropdownBackdrop';
 
 interface TransactionTypePickerProps {
   value: string;
@@ -73,6 +74,8 @@ export function TransactionTypePicker({ value, onChange, filterDefinitions, disa
         </svg>
       </button>
       {open && !disabled && (
+        <>
+        <DropdownBackdrop onClick={() => setOpen(false)} />
         <div className="absolute z-50 top-full mt-1 left-0 min-w-64 bg-surface border border-border rounded-lg shadow-lg">
           {/* Search */}
           <div className="p-2 border-b border-border-subtle">
@@ -112,6 +115,7 @@ export function TransactionTypePicker({ value, onChange, filterDefinitions, disa
             )}
           </div>
         </div>
+        </>
       )}
     </div>
   );

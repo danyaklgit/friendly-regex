@@ -7,6 +7,7 @@ import { Badge } from '../shared/Badge';
 import { Tooltip } from '../shared/Tooltip';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
 import { decomposeExtractionRegex } from '../../utils/engregxify';
+import { DropdownBackdrop } from '../shared/DropdownBackdrop';
 
 interface TransactionTableProps {
   data: AnalyzedTransaction[];
@@ -220,86 +221,89 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
         </span>
       </button>
       {open && (
-        <div className="absolute top-full mt-1 right-0 z-50 bg-surface border border-border rounded-lg shadow-lg min-w-[220px] max-h-64 overflow-y-auto px-2 pb-2">
-          <div className="sticky top-0 bg-surface z-10 flex items-center justify-between border-b border-border-subtle mb-1 pt-2 pb-1.5">
-            <label className="flex items-center gap-2 px-2 py-1 text-xs font-semibold text-body hover:bg-surface-hover rounded cursor-pointer">
-              <input
-                type="checkbox"
-                checked={visibleCount === totalCount}
-                ref={(el) => { if (el) el.indeterminate = visibleCount > 0 && visibleCount < totalCount; }}
-                onChange={() => {
-                  if (visibleCount === totalCount) {
-                    onChange(new Set(toggleable.map((c) => c.key)));
-                  } else {
-                    onChange(new Set());
-                  }
-                }}
-                className="rounded border-border-strong"
-              />
-              {visibleCount === totalCount ? 'Hide All' : 'Show All'}
-            </label>
-            {onReset && !isDefault && (
-              <button
-                onClick={onReset}
-                className="text-[11px] text-primary hover:text-primary-dark px-2 py-0.5 hover:underline"
-              >
-                Reset
-              </button>
-            )}
+        <>
+          <DropdownBackdrop onClick={() => setOpen(false)} />
+          <div className="absolute top-full mt-1 right-0 z-50 bg-surface border border-border rounded-lg shadow-lg min-w-55 max-h-64 overflow-y-auto px-2 pb-2">
+            <div className="sticky top-0 bg-surface z-10 flex items-center justify-between border-b border-border-subtle mb-1 pt-2 pb-1.5">
+              <label className="flex items-center gap-2 px-2 py-1 text-xs font-semibold text-body hover:bg-surface-hover rounded cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={visibleCount === totalCount}
+                  ref={(el) => { if (el) el.indeterminate = visibleCount > 0 && visibleCount < totalCount; }}
+                  onChange={() => {
+                    if (visibleCount === totalCount) {
+                      onChange(new Set(toggleable.map((c) => c.key)));
+                    } else {
+                      onChange(new Set());
+                    }
+                  }}
+                  className="rounded border-border-strong"
+                />
+                {visibleCount === totalCount ? 'Hide All' : 'Show All'}
+              </label>
+              {onReset && !isDefault && (
+                <button
+                  onClick={onReset}
+                  className="text-[11px] text-primary hover:text-primary-dark px-2 py-0.5 hover:underline"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+            {ordered.map((col, i) => {
+              const label = getColumnLabel(col);
+              const isHidden = hiddenColumns.has(col.key);
+              const isDragOver = overIdx === i && dragIdx !== null && dragIdx !== i;
+              return (
+                <div
+                  key={col.key}
+                  draggable
+                  onDragStart={(e) => {
+                    setDragIdx(i);
+                    e.dataTransfer.effectAllowed = 'move';
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    setOverIdx(i);
+                  }}
+                  onDragLeave={() => { if (overIdx === i) setOverIdx(null); }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (dragIdx !== null) handleDrop(dragIdx, i);
+                    setDragIdx(null);
+                    setOverIdx(null);
+                  }}
+                  onDragEnd={() => { setDragIdx(null); setOverIdx(null); }}
+                  className={`flex items-center gap-2 px-2 py-1 text-xs hover:bg-surface-hover rounded cursor-grab active:cursor-grabbing select-none transition-colors ${isDragOver ? 'border-t-2 border-primary' : 'border-t-2 border-transparent'
+                    } ${dragIdx === i ? 'opacity-40' : ''}`}
+                >
+                  <svg className="w-3 h-3 text-faint shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M7 2a2 2 0 10.001 4.001A2 2 0 007 2zm0 6a2 2 0 10.001 4.001A2 2 0 007 8zm0 6a2 2 0 10.001 4.001A2 2 0 007 14zm6-8a2 2 0 10-.001-4.001A2 2 0 0013 6zm0 2a2 2 0 10.001 4.001A2 2 0 0013 8zm0 6a2 2 0 10.001 4.001A2 2 0 0013 14z" />
+                  </svg>
+                  <label className="flex items-center gap-2 flex-1 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={!isHidden}
+                      onChange={() => {
+                        const next = new Set(hiddenColumns);
+                        if (isHidden) next.delete(col.key);
+                        else next.add(col.key);
+                        onChange(next);
+                      }}
+                      className="rounded border-border-strong"
+                    />
+                    <span className={
+                      `truncate ${col.type === 'attribute' ? 'text-primary-dark' : 'text-black dark:text-white'}
+                      ${isHidden ? 'font-normal' : 'font-medium'}
+                      `
+                    }>{label}</span>
+                  </label>
+                </div>
+              );
+            })}
           </div>
-          {ordered.map((col, i) => {
-            const label = getColumnLabel(col);
-            const isHidden = hiddenColumns.has(col.key);
-            const isDragOver = overIdx === i && dragIdx !== null && dragIdx !== i;
-            return (
-              <div
-                key={col.key}
-                draggable
-                onDragStart={(e) => {
-                  setDragIdx(i);
-                  e.dataTransfer.effectAllowed = 'move';
-                }}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  e.dataTransfer.dropEffect = 'move';
-                  setOverIdx(i);
-                }}
-                onDragLeave={() => { if (overIdx === i) setOverIdx(null); }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  if (dragIdx !== null) handleDrop(dragIdx, i);
-                  setDragIdx(null);
-                  setOverIdx(null);
-                }}
-                onDragEnd={() => { setDragIdx(null); setOverIdx(null); }}
-                className={`flex items-center gap-2 px-2 py-1 text-xs hover:bg-surface-hover rounded cursor-grab active:cursor-grabbing select-none transition-colors ${isDragOver ? 'border-t-2 border-primary' : 'border-t-2 border-transparent'
-                  } ${dragIdx === i ? 'opacity-40' : ''}`}
-              >
-                <svg className="w-3 h-3 text-faint shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M7 2a2 2 0 10.001 4.001A2 2 0 007 2zm0 6a2 2 0 10.001 4.001A2 2 0 007 8zm0 6a2 2 0 10.001 4.001A2 2 0 007 14zm6-8a2 2 0 10-.001-4.001A2 2 0 0013 6zm0 2a2 2 0 10.001 4.001A2 2 0 0013 8zm0 6a2 2 0 10.001 4.001A2 2 0 0013 14z" />
-                </svg>
-                <label className="flex items-center gap-2 flex-1 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={!isHidden}
-                    onChange={() => {
-                      const next = new Set(hiddenColumns);
-                      if (isHidden) next.delete(col.key);
-                      else next.add(col.key);
-                      onChange(next);
-                    }}
-                    className="rounded border-border-strong"
-                  />
-                  <span className={
-                    `truncate ${col.type === 'attribute' ? 'text-primary-dark' : 'text-black dark:text-white'} 
-                    ${isHidden ? 'font-normal' : 'font-medium'}
-                    `
-                  }>{label}</span>
-                </label>
-              </div>
-            );
-          })}
-        </div>
+        </>
       )}
     </div>
   );
