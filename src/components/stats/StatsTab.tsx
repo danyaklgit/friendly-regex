@@ -16,6 +16,7 @@ import { getBacklogStats } from '../../api/transactions';
 import type { TagSpecLibrary, TagSpecDefinition } from '../../types';
 import type { WizardFormResult } from '../../hooks/useWizardForm';
 import { useLocalChanges } from '../../hooks/useLocalChanges';
+import { useTransactionData } from '../../hooks/useTransactionData';
 
 interface StatsTabProps {
   onViewTransactions: (bank: string, side: string) => void;
@@ -47,6 +48,26 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
   const { libraries, tagDefinitions, loading, refetchTagSpecs, dispatch } = useTagSpecs();
   const { usersMap, useDummyData, userId } = useAuth();
   const { clearChanges } = useLocalChanges(undefined, undefined);
+  const { filterDefinitions, filterDefinitionsLoading, fetchFilterDefinitions, isLiveMode } = useTransactionData();
+
+  // Fetch filter definitions on mount so bank names are available even when starting on Backlog
+  useEffect(() => {
+    if (isLiveMode && filterDefinitions.length === 0 && !filterDefinitionsLoading) {
+      fetchFilterDefinitions();
+    }
+  }, [isLiveMode, filterDefinitions.length, filterDefinitionsLoading, fetchFilterDefinitions]);
+
+  // Build bank code → display name map from filter definitions
+  const bankNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    const bankDef = filterDefinitions.find((d) => d.Values.some((v) => v.Column === 'BankSwiftCode'));
+    if (bankDef) {
+      for (const v of bankDef.Values) {
+        if (v.Value && v.Label) map.set(v.Value, v.Label);
+      }
+    }
+    return map;
+  }, [filterDefinitions]);
 
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [rollbackTarget, setRollbackTarget] = useState<DisplayRow | null>(null);
@@ -354,7 +375,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                           </button>
                         </div>
                         {/* Bank */}
-                        <div className="px-4 py-2.5 text-xs font-medium text-heading w-44 shrink-0 cursor-pointer select-none" onClick={() => toggleExpand(rowKey)}>{row.bank}</div>
+                        <div className="px-4 py-2.5 text-xs font-medium text-heading w-44 shrink-0 cursor-pointer select-none" onClick={() => toggleExpand(rowKey)}>{bankNameMap.get(row.bank) ?? row.bank}</div>
                         {/* Side */}
                         <div className="px-4 py-2.5 w-24 shrink-0">
                           <Badge variant={row.side === 'CR' ? 'emerald' : row.side === 'DR' ? 'red' : 'default'} size="xs">

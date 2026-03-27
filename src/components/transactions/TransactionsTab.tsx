@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useTagSpecs } from '../../hooks/useTagSpecs';
 import { useAuth } from '../../context/AuthContext';
 import { useTransactionData } from '../../hooks/useTransactionData';
+import type { FilterProperty } from '../../api/transactions';
 import { useWizardForm, fromExistingDefinition } from '../../hooks/useWizardForm';
 import type { TagSpecDefinition, TagSpecLibrary, AnalyzedTransaction, WizardFormState, RuleExpression, CheckoutState } from '../../types';
 import type { WizardFormResult } from '../../hooks/useWizardForm';
@@ -141,7 +142,7 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
 
   const {
     transactions, fieldMeta, loadTransactions, resetToSample, isCustomData, flagDeadEnd,
-    isLiveMode, loading, hasMore: liveHasMore, totalTransactionsCount, fetchPage,
+    isLiveMode, loading, hasMore: liveHasMore, totalTransactionsCount, fetchPage, fetchCount,
     filterDefinitions, filterDefinitionsLoading, fetchFilterDefinitions,
   } = useTransactionData();
   // Fetch filter definitions when the Transactions tab mounts
@@ -186,7 +187,25 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
   });
   const [tableColumns, setTableColumns] = useState<ColumnDef[]>([]);
   const [filters, setFilters] = useState<Record<string, Set<string>>>({});
-  const [preTagClickFilters, setPreTagClickFilters] = useState<Record<string, Set<string>> | null>(null);
+  // State for tag-click drill-down: tracks both definition-ID and tag-name queries
+  const [tagClickState, setTagClickState] = useState<{
+    preFilters: Record<string, Set<string>>;  // filters before tag click (restored on close)
+    tagName: string;
+    definitionId: string;
+    tagNameCount: number | null;              // total count by tag name (null = loading)
+    showingAll: boolean;                      // user clicked "show all" → switched to tag-name filter
+    tagFilterKey: string;                     // the filter definition Tag key for the tag filter
+  } | null>(null);
+
+  // Extra filters injected into API calls (definition-ID scoping for tag click)
+  const activeExtraFilters: FilterProperty[] = useMemo(() => {
+    if (!tagClickState || tagClickState.showingAll) return [];
+    return [{
+      ColumnName: 'OpsTagSpecDefinitionId|OpsMultiTags.TagSpecDefinitionId',
+      Value: tagClickState.definitionId,
+      Operand: 'IN',
+    }];
+  }, [tagClickState]);
 
   // Persist settings to localStorage
   useEffect(() => { try { localStorage.setItem('tep:showAttributes', String(showAttributes)); } catch { /* ignore */ } }, [showAttributes]);
@@ -255,15 +274,15 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
     }
   }, [baseFilters]);
 
-  // Live mode: fetch from API when filters change (debounced to avoid multiple calls during filter transitions)
+  // Live mode: fetch from API when filters or extraFilters change
   useEffect(() => {
     if (!isLiveMode) return;
     const timer = setTimeout(() => {
-      fetchPage(filters, false, incrementalPagination ? undefined : 0);
+      fetchPage(filters, false, incrementalPagination ? undefined : 0, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined);
       if (!incrementalPagination) { setCurrentPage(0); setPageInputValue('1'); }
     }, 50);
     return () => clearTimeout(timer);
-  }, [isLiveMode, filters, fetchPage, incrementalPagination]);
+  }, [isLiveMode, filters, fetchPage, incrementalPagination, activeExtraFilters]);
   const [visibleCount, setVisibleCount] = useState(BATCH_SIZE);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardInitialState, setWizardInitialState] = useState<WizardFormState | undefined>(undefined);
@@ -334,11 +353,11 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
         if (!builderOpen || !builderHasContent) return true;
         // When tag click applied a server-side tag filter, skip client-side
         // definition matching — the server already scoped results to this tag.
-        if (preTagClickFilters !== null) return true;
+        if (tagClickState !== null) return true;
         if (editingDef) return item.analysis.matchedDefinitions.some(d => d.Id === editingDef.Id);
         return item.analysis.tags.includes('Preview');
       }),
-    [transactions, allLibraries, tempDefinition, editingDef, preTagClickFilters, builderOpen, builderHasContent]
+    [transactions, allLibraries, tempDefinition, editingDef, tagClickState, builderOpen, builderHasContent]
   );
 
   // Apply all filters
@@ -444,11 +463,11 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
     setEditingParentLib(undefined);
     builder.resetForm();
     // Restore filters from before tag click
-    if (preTagClickFilters !== null) {
-      setFilters(preTagClickFilters);
-      setPreTagClickFilters(null);
+    if (tagClickState !== null) {
+      setFilters(tagClickState.preFilters);
+      setTagClickState(null);
     }
-  }, [builder, preTagClickFilters]);
+  }, [builder, tagClickState]);
 
   const handleWizardSave = useCallback((result: WizardFormResult) => {
     if (editingDef) {
@@ -466,11 +485,11 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
     setWizardFromCheckout(false);
     setBuilderOpen(false);
     builder.resetForm();
-    if (preTagClickFilters !== null) {
-      setFilters(preTagClickFilters);
-      setPreTagClickFilters(null);
+    if (tagClickState !== null) {
+      setFilters(tagClickState.preFilters);
+      setTagClickState(null);
     }
-  }, [dispatch, builder, editingDef, preTagClickFilters]);
+  }, [dispatch, builder, editingDef, tagClickState]);
 
   const handleWizardClose = useCallback(() => {
     setWizardOpen(false);
@@ -481,18 +500,17 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
     setWizardFromCheckout(false);
     setBuilderOpen(false);
     builder.resetForm();
-    if (preTagClickFilters !== null) {
-      setFilters(preTagClickFilters);
-      setPreTagClickFilters(null);
+    if (tagClickState !== null) {
+      setFilters(tagClickState.preFilters);
+      setTagClickState(null);
     }
-  }, [builder, preTagClickFilters]);
+  }, [builder, tagClickState]);
 
   // Click a tag badge in the table → load into rule builder for live editing
-  // In live mode, keep all user-selected filters but override the tag filter
-  // to only the clicked tag, so paginated results are scoped to that tag.
+  // Primary call: filter by TagSpecDefinitionId (shows only transactions matched by this rule)
+  // Background call: filter by tag name (to detect if other rules also produce this tag)
   const handleTagClick = useCallback((tagName: string, definitionId?: string) => {
     // Find the specific matched definition, preferring INPROGRESS libraries
-    // (ACTIVE and INPROGRESS share definition IDs during checkout)
     let foundDef: TagSpecDefinition | undefined;
     let foundLib: TagSpecLibrary | undefined;
 
@@ -513,19 +531,42 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
       setEditingParentLib(foundLib);
       setBuilderOpen(true);
 
-      // In live mode, override only the tag filter while keeping all other filters
-      if (isLiveMode && filterDefinitions.length > 0) {
-        setPreTagClickFilters({ ...filters });
-        // Find the tag filter definition (the one whose Values contain the clicked tag)
+      if (isLiveMode && filterDefinitions.length > 0 && foundDef.Id) {
         const tagFilterDef = filterDefinitions.find((d) =>
           d.Type === 'LIST' && d.Values.some((v) => v.Value === tagName)
         );
-        if (tagFilterDef) {
-          setFilters({ ...filters, [tagFilterDef.Tag]: new Set([tagName]) });
-        }
+        const tagFilterKey = tagFilterDef?.Tag ?? '';
+
+        // Save pre-click filters and set tag click state (don't modify filters — extraFilters handles the definition ID scoping)
+        setTagClickState({
+          preFilters: { ...filters },
+          tagName,
+          definitionId: foundDef.Id,
+          tagNameCount: null, // loading
+          showingAll: false,
+          tagFilterKey,
+        });
+
+        // Primary: immediately fetch by definition ID (don't wait for the useEffect cycle)
+        const defIdFilter: FilterProperty[] = [{
+          ColumnName: 'OpsTagSpecDefinitionId|OpsMultiTags.TagSpecDefinitionId',
+          Value: foundDef.Id,
+          Operand: 'IN',
+        }];
+        fetchPage(filters, false, 0, undefined, defIdFilter);
+
+        // Background: fetch count by tag name to detect other rules producing this tag
+        const tagNameFilter: FilterProperty[] = [{
+          ColumnName: 'OpsTag|OpsMultiTags.Tag',
+          Value: tagName,
+          Operand: 'IN',
+        }];
+        fetchCount(filters, tagNameFilter).then((count) => {
+          setTagClickState((prev) => prev ? { ...prev, tagNameCount: count } : prev);
+        });
       }
     }
-  }, [libraries, builder, isLiveMode, filterDefinitions, filters]);
+  }, [libraries, builder, isLiveMode, filterDefinitions, filters, fetchPage, fetchCount]);
 
   const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -571,7 +612,7 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
               setCurrentPage(0);
               setPageInputValue('1');
               setVisibleCount(BATCH_SIZE);
-              if (!v && isLiveMode) fetchPage(filters, false, 0);
+              if (!v && isLiveMode) fetchPage(filters, false, 0, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined);
             }} />
             <Toggle label="Show attributes" checked={showAttributes} onChange={setShowAttributes} />
           </div>
@@ -657,6 +698,7 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
         isLiveMode={isLiveMode}
         filterDefinitions={filterDefinitions}
         filterDefinitionsLoading={filterDefinitionsLoading}
+        disabledFilterTags={tagClickState?.showingAll && tagClickState.tagFilterKey ? new Set([tagClickState.tagFilterKey]) : undefined}
         endSlot={tableColumns.length > 0 ? (
           <ColumnPicker columns={tableColumns} hiddenColumns={effectiveHiddenColumns} onChange={setHiddenColumns} columnOrder={columnOrder} onColumnOrderChange={setColumnOrder} defaultHiddenColumns={defaultHiddenColumns} onReset={handleColumnReset} />
         ) : undefined}
@@ -723,8 +765,25 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
             </div>
           </div>
 
-          <span className='flex justify-center items-baseline w-full text-slate-500 text-xs pb-2'>
-            Records: <span className='text-primary pl-1 text-base'>{filteredData.length}</span>
+          <span className='flex flex-col items-center w-full text-slate-500 text-xs pb-2 gap-1'>
+            <span className='flex items-baseline'>
+              Records: <span className='text-primary pl-1 text-base'>{filteredData.length}</span>
+            </span>
+            {tagClickState && !tagClickState.showingAll && tagClickState.tagNameCount !== null &&
+              tagClickState.tagNameCount > (totalTransactionsCount ?? filteredData.length) && (
+              <button
+                className='text-[11px] text-amber-600 dark:text-amber-400 hover:underline cursor-pointer'
+                onClick={() => {
+                  if (!tagClickState) return;
+                  // Switch to "show all" mode: set tag filter active in filters, clear extra filters
+                  const tagNameFilter = new Set([tagClickState.tagName]);
+                  setFilters({ ...tagClickState.preFilters, [tagClickState.tagFilterKey]: tagNameFilter });
+                  setTagClickState((prev) => prev ? { ...prev, showingAll: true } : prev);
+                }}
+              >
+                {(tagClickState.tagNameCount - (totalTransactionsCount ?? filteredData.length)).toLocaleString()} other transaction{tagClickState.tagNameCount - (totalTransactionsCount ?? filteredData.length) !== 1 ? 's' : ''} have this tag with different rules — click to show all
+              </button>
+            )}
           </span>
 
         </div>
@@ -766,7 +825,7 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
       />
       )}
 
-      {(!builderOpen || preTagClickFilters !== null) && (hasMore || loading || (!incrementalPagination && (isLiveMode ? (totalTransactionsCount ?? 0) > BATCH_SIZE : filteredLen > BATCH_SIZE))) && (
+      {(!builderOpen || tagClickState !== null) && (hasMore || loading || (!incrementalPagination && (isLiveMode ? (totalTransactionsCount ?? 0) > BATCH_SIZE : filteredLen > BATCH_SIZE))) && (
         <div className="flex items-center justify-center gap-3 py-2 mt-1 border border-border bg-surface-secondary rounded-lg">
           {loading ? (
             <div className="flex items-center gap-3 animate-pulse">
@@ -798,7 +857,7 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
                     {batches.map((size) => (
                       <Button key={size} variant="outline" size="xs" onClick={() => {
                         if (isLiveMode) {
-                          fetchPage(filters, true, undefined, size);
+                          fetchPage(filters, true, undefined, size, activeExtraFilters.length > 0 ? activeExtraFilters : undefined);
                         } else {
                           setVisibleCount((c) => c + size);
                         }
@@ -816,7 +875,7 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
                 const newPage = currentPage - 1;
                 setCurrentPage(newPage);
                 setPageInputValue(String(newPage + 1));
-                if (isLiveMode) fetchPage(filters, false, newPage);
+                if (isLiveMode) fetchPage(filters, false, newPage, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined);
               }}>
                 &larr; Previous
               </Button>
@@ -832,7 +891,7 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
                     const num = parseInt(pageInputValue, 10);
                     if (!isNaN(num) && num >= 1 && num <= classicTotalPages) {
                       setCurrentPage(num - 1);
-                      if (isLiveMode) fetchPage(filters, false, num - 1);
+                      if (isLiveMode) fetchPage(filters, false, num - 1, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined);
                     }
                     setPageInputValue(String(currentPage + 1));
                   }}
@@ -842,7 +901,7 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
                       if (!isNaN(num) && num >= 1 && num <= classicTotalPages) {
                         setCurrentPage(num - 1);
                         setPageInputValue(String(num));
-                        if (isLiveMode) fetchPage(filters, false, num - 1);
+                        if (isLiveMode) fetchPage(filters, false, num - 1, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined);
                       } else {
                         setPageInputValue(String(currentPage + 1));
                       }
@@ -855,7 +914,7 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
                 const newPage = currentPage + 1;
                 setCurrentPage(newPage);
                 setPageInputValue(String(newPage + 1));
-                if (isLiveMode) fetchPage(filters, false, newPage);
+                if (isLiveMode) fetchPage(filters, false, newPage, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined);
               }}>
                 Next &rarr;
               </Button>
