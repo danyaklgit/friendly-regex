@@ -16,9 +16,6 @@ export function StepBasicInfo({ formState, onUpdate, fromCheckoutContext }: Step
   const [touched, setTouched] = useState<Set<string>>(new Set());
   const markTouched = (field: string) => setTouched((prev) => new Set(prev).add(field));
 
-  const isError = (field: string, value: string) =>
-    fromCheckoutContext && touched.has(field) && value.trim().length === 0;
-
   // Tag name is always required
   const isTagError = touched.has('tag') && formState.tag.trim().length === 0;
 
