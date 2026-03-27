@@ -82,7 +82,7 @@ export function useWizardForm(
   function createEmptyCondition(): ConditionFormValue {
     return {
       id: crypto.randomUUID(),
-      sourceField: defaultSourceField,
+      sourceField: '',
       operation: 'begins_with',
       value: '',
     };
@@ -101,7 +101,7 @@ export function useWizardForm(
       attributeTag: '',
       isMandatory: false,
       validationRuleTag: 'STRING',
-      sourceField: defaultSourceField,
+      sourceField: '',
       extractionOperation: 'predefined:ksa_iban',
       prefix: '',
       suffix: '',

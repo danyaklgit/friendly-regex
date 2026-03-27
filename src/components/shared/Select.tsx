@@ -4,9 +4,10 @@ interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   label?: string;
   options: { value: string; label: string }[];
   error?: boolean;
+  placeholder?: string;
 }
 
-export function Select({ label, options, className = '', id, error, ...props }: SelectProps) {
+export function Select({ label, options, className = '', id, error, placeholder, ...props }: SelectProps) {
   const selectId = id ?? label?.toLowerCase().replace(/\s+/g, '-');
   const borderClass = error
     ? 'border-red-400 focus:border-red-500 focus:ring-red-500'
@@ -25,6 +26,11 @@ export function Select({ label, options, className = '', id, error, ...props }: 
           focus:ring-1 outline-none transition-colors ${className}`}
         {...props}
       >
+        {placeholder && (
+          <option value="" disabled>
+            {placeholder}
+          </option>
+        )}
         {options.map((opt) => (
           <option key={opt.value} value={opt.value}>
             {opt.label}
