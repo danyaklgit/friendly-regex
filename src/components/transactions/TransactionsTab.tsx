@@ -21,7 +21,7 @@ import { DynamicFilters } from './DynamicFilters';
 import { Toggle } from '../shared/Toggle';
 import { useLocalChanges } from '../../hooks/useLocalChanges';
 import { EmptyState } from '../shared/EmptyState';
-import { TXN_TYPE_OPTIONS } from '../../constants/fields';
+import { TransactionTypePicker } from '../shared/TransactionTypePicker';
 
 interface TransactionsTabProps {
   activeCheckout?: CheckoutState | null;
@@ -194,8 +194,6 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
   const [builderOpen, setBuilderOpen] = useState(false);
   const builderRef = useRef<HTMLDivElement>(null);
   const [builderHeight, setBuilderHeight] = useState(0);
-  const [txnTypeDropdownOpen, setTxnTypeDropdownOpen] = useState(false);
-  const txnTypeDropdownRef = useRef<HTMLDivElement>(null);
   const [showOnlyUntagged, setShowOnlyUntagged] = useState(false);
   const [showOnlyMultiTagged, setShowOnlyMultiTagged] = useState(false);
   const [showOnlyDeadEnd, setShowOnlyDeadEnd] = useState(false);
@@ -272,17 +270,6 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
     return () => ro.disconnect();
   }, [builderOpen]);
 
-  // Close txn type dropdown on outside click
-  useEffect(() => {
-    if (!txnTypeDropdownOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (txnTypeDropdownRef.current && !txnTypeDropdownRef.current.contains(e.target as Node)) {
-        setTxnTypeDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [txnTypeDropdownOpen]);
 
   // Default visible columns: only Tags + 4 data fields
   const DEFAULT_VISIBLE_DATA = useMemo(() => new Set(['AdditionalInformation', 'Description1', 'Description2', 'BankReference']), []);
@@ -811,34 +798,13 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
                 Build rules and see their effect on the table in real time.
               </p>
             </div>
-            <div className="flex items-center gap-2" ref={txnTypeDropdownRef}>
+            <div className="flex items-center gap-2">
               <label className="text-xs font-medium text-primary-dark whitespace-nowrap">Transaction Type</label>
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setTxnTypeDropdownOpen((o) => !o)}
-                  className="flex items-center justify-between gap-1.5 w-28 rounded-lg border border-input-border bg-input-bg px-3 py-1 text-xs text-heading focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
-                >
-                  <span>{builder.formState.transactionTypeCode || 'All types'}</span>
-                  <svg className="w-3 h-3 text-muted shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
-                {txnTypeDropdownOpen && (
-                  <div className="absolute z-50 top-full mt-1 right-0 min-w-28 max-h-40 overflow-y-auto custom-scrollbar rounded-lg border border-border bg-surface shadow-lg py-1">
-                    {[{ value: '', label: 'All types' }, ...TXN_TYPE_OPTIONS.map((t) => ({ value: t, label: t }))].map((opt) => (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => { builder.updateBasicInfo({ transactionTypeCode: opt.value }); setTxnTypeDropdownOpen(false); }}
-                        className={`w-full text-left px-3 py-0.5 text-[11px] hover:bg-surface-hover transition-colors ${builder.formState.transactionTypeCode === opt.value ? 'text-primary font-medium' : 'text-heading'}`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <TransactionTypePicker
+                value={builder.formState.transactionTypeCode}
+                onChange={(val) => builder.updateBasicInfo({ transactionTypeCode: val })}
+                filterDefinitions={filterDefinitions}
+              />
             </div>
             <div className="flex flex-col md:flex-row items-center gap-2">
               <Button variant="ghost" size="xs" onClick={handleDiscard}>
