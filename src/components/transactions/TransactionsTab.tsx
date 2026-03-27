@@ -98,6 +98,40 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
 
 const BATCH_SIZE = 50;
 
+/**
+ * Translate builder rule conditions to API FilterProperty[] for server-side counting.
+ * Returns null if any condition uses an operation the API doesn't support (regex, multi-group OR, etc.)
+ */
+function builderToApiFilters(formState: WizardFormState): FilterProperty[] | null {
+  const activeGroups = formState.ruleGroups.filter((g) =>
+    g.conditions.some((c) => c.value.trim().length > 0)
+  );
+  // Only handle single AND-group rules (no OR logic)
+  if (activeGroups.length !== 1) return null;
+
+  const conditions = activeGroups[0].conditions.filter((c) => c.value.trim().length > 0);
+  if (conditions.length === 0) return null;
+
+  const operandMap: Record<string, string> = {
+    contains: 'CONTAINS',
+    equals: 'EQ',
+    begins_with: 'STARTSWITH',
+    ends_with: 'ENDSWITH',
+    greater_than: 'GT',
+    less_than: 'LT',
+    greater_than_or_equal: 'GTE',
+    less_than_or_equal: 'LTE',
+  };
+
+  const result: FilterProperty[] = [];
+  for (const c of conditions) {
+    const operand = operandMap[c.operation];
+    if (!operand) return null; // unsupported operation (regex, extract_and_compare, etc.)
+    result.push({ ColumnName: c.sourceField, Value: c.value, Operand: operand });
+  }
+  return result;
+}
+
 export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
   const { libraries, tagDefinitions, originalDefinitionIds, dispatch } = useTagSpecs();
   const { userId, usersMap } = useAuth();
@@ -197,15 +231,23 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
     tagFilterKey: string;                     // the filter definition Tag key for the tag filter
   } | null>(null);
 
-  // Extra filters injected into API calls (definition-ID scoping for tag click)
+  // Debounced API filters derived from the builder's rule conditions
+  const [builderApiFilters, setBuilderApiFilters] = useState<FilterProperty[] | null>(null);
+
+  // Extra filters injected into API calls (definition-ID scoping for tag click, or builder rule matching)
   const activeExtraFilters: FilterProperty[] = useMemo(() => {
-    if (!tagClickState || tagClickState.showingAll) return [];
-    return [{
-      ColumnName: 'OpsTagSpecDefinitionId|OpsMultiTags.TagSpecDefinitionId',
-      Value: tagClickState.definitionId,
-      Operand: 'IN',
-    }];
-  }, [tagClickState]);
+    if (tagClickState && !tagClickState.showingAll) {
+      return [{
+        ColumnName: 'OpsTagSpecDefinitionId|OpsMultiTags.TagSpecDefinitionId',
+        Value: tagClickState.definitionId,
+        Operand: 'IN',
+      }];
+    }
+    if (builderOpen && builderApiFilters && builderApiFilters.length > 0) {
+      return builderApiFilters;
+    }
+    return [];
+  }, [tagClickState, builderOpen, builderApiFilters]);
 
   // Persist settings to localStorage
   useEffect(() => { try { localStorage.setItem('tep:showAttributes', String(showAttributes)); } catch { /* ignore */ } }, [showAttributes]);
@@ -341,6 +383,18 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
   const builderHasContent = builder.formState.ruleGroups.some((g) =>
     g.conditions.some((c) => c.value.trim().length > 0)
   ) || builder.formState.attributes.some((a) => a.attributeTag.trim().length > 0);
+
+  // Debounce builder rule conditions → API filters for server-side count
+  useEffect(() => {
+    if (!isLiveMode || !builderOpen || !builderHasContent || tagClickState !== null) {
+      setBuilderApiFilters(null);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setBuilderApiFilters(builderToApiFilters(builder.formState));
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [isLiveMode, builderOpen, builderHasContent, builder.formState, tagClickState]);
 
   // Analyze all rows
 
@@ -825,7 +879,7 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
       />
       )}
 
-      {(!builderOpen || tagClickState !== null) && (hasMore || loading || (!incrementalPagination && (isLiveMode ? (totalTransactionsCount ?? 0) > BATCH_SIZE : filteredLen > BATCH_SIZE))) && (
+      {(hasMore || loading || (!incrementalPagination && (isLiveMode ? (totalTransactionsCount ?? 0) > BATCH_SIZE : filteredLen > BATCH_SIZE))) && (
         <div className="flex items-center justify-center gap-3 py-2 mt-1 border border-border bg-surface-secondary rounded-lg">
           {loading ? (
             <div className="flex items-center gap-3 animate-pulse">
@@ -839,14 +893,14 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
           ) : incrementalPagination ? (
             <>
               <span className="text-xs text-muted">
-                <span className="font-medium text-heading">{(isLiveMode ? filteredData.length : visibleCount).toLocaleString()}</span>
+                <span className="font-medium text-heading">{(isLiveMode ? transactions.length : visibleCount).toLocaleString()}</span>
                 {' loaded · '}
-                <span className="font-medium text-heading">{(isLiveMode ? (totalTransactionsCount ?? filteredData.length) : filteredLen).toLocaleString()}</span>
+                <span className="font-medium text-heading">{(isLiveMode ? (totalTransactionsCount ?? transactions.length) : filteredLen).toLocaleString()}</span>
                 {' total'}
               </span>
               {hasMore && (() => {
-                const loaded = isLiveMode ? filteredData.length : visibleCount;
-                const total = isLiveMode ? (totalTransactionsCount ?? filteredData.length) : filteredLen;
+                const loaded = isLiveMode ? transactions.length : visibleCount;
+                const total = isLiveMode ? (totalTransactionsCount ?? transactions.length) : filteredLen;
                 const remaining = Math.max(0, total - loaded);
                 const batches = [25, 50, 200, 500].filter((b) => b <= remaining);
                 if (batches.length === 0 && remaining > 0) batches.push(remaining);
