@@ -15,12 +15,14 @@ import { StepRuleExpressions } from '../wizard/StepRuleExpressions';
 import { StepAttributes } from '../wizard/StepAttributes';
 import { TagWizardModal } from '../wizard/TagWizardModal';
 import { Button } from '../shared/Button';
+import { Select } from '../shared/Select';
 import { Toast } from '../shared/Toast';
 import { Tooltip } from '../shared/Tooltip';
 import { DynamicFilters } from './DynamicFilters';
 import { Toggle } from '../shared/Toggle';
 import { useLocalChanges } from '../../hooks/useLocalChanges';
 import { EmptyState } from '../shared/EmptyState';
+import { TXN_TYPE_OPTIONS } from '../../constants/fields';
 
 interface TransactionsTabProps {
   activeCheckout?: CheckoutState | null;
@@ -243,11 +245,15 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
         Operand: 'IN',
       }];
     }
-    if (builderOpen && builderApiFilters && builderApiFilters.length > 0) {
-      return builderApiFilters;
+    const extra: FilterProperty[] = [];
+    if (builderOpen && builder.formState.transactionTypeCode) {
+      extra.push({ ColumnName: 'TransactionTypeCode', Value: builder.formState.transactionTypeCode, Operand: 'EQ' });
     }
-    return [];
-  }, [tagClickState, builderOpen, builderApiFilters]);
+    if (builderOpen && builderApiFilters && builderApiFilters.length > 0) {
+      extra.push(...builderApiFilters);
+    }
+    return extra;
+  }, [tagClickState, builderOpen, builder.formState.transactionTypeCode, builderApiFilters]);
 
   // Persist settings to localStorage
   useEffect(() => { try { localStorage.setItem('tep:showAttributes', String(showAttributes)); } catch { /* ignore */ } }, [showAttributes]);
@@ -445,8 +451,13 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
       }
     }
 
+    // In sample mode, filter by transaction type when builder is open (live mode uses API extra filter)
+    if (builderOpen && builder.formState.transactionTypeCode && !isLiveMode) {
+      result = result.filter((item) => item.row['TransactionTypeCode'] === builder.formState.transactionTypeCode);
+    }
+
     return result;
-  }, [analyzedData, showOnlyUntagged, showOnlyMultiTagged, showOnlyDeadEnd, filters, isLiveMode]);
+  }, [analyzedData, showOnlyUntagged, showOnlyMultiTagged, showOnlyDeadEnd, filters, isLiveMode, builderOpen, builder.formState.transactionTypeCode]);
 
   // Reset visible count / page when filtered data length changes
   // In live + classic pagination mode, data replaces on every page nav — don't reset page from here
@@ -475,6 +486,24 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
     if (!tempDefinition) return undefined;
     return tempDefinition.TagRuleExpressions.flat();
   }, [tempDefinition]);
+
+  // Build search-filter highlight map: column → search string for active SEARCH filters
+  const searchHighlights = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const [key, values] of Object.entries(filters)) {
+      if (values.size === 0) continue;
+      const def = filterDefinitions.find((d) => d.Tag === key);
+      if (!def || def.Type !== 'SEARCH') continue;
+      const term = [...values][0];
+      for (const v of def.Values) {
+        if (!v.Column) continue;
+        for (const col of v.Column.split('|')) {
+          if (col) map.set(col, term);
+        }
+      }
+    }
+    return map.size > 0 ? map : undefined;
+  }, [filters, filterDefinitions]);
 
   // Compute sticky fields from builder ruleset conditions only
   const stickyFields = useMemo(() => {
@@ -647,7 +676,7 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
     <div>
       {activeCheckout && isReadOnly && ownerName && (
         <div className="flex items-center px-4 py-2 mb-3 rounded-lg bg-amber-50 border border-amber-200 dark:bg-amber-900/20 dark:border-amber-700">
-          <svg className="w-4 h-4 text-amber-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+          <svg className="w-4 h-4 text-amber-500 mr-2 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
           </svg>
           <span className="text-sm text-amber-800 dark:text-amber-300">
@@ -762,12 +791,21 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
       {/* Rule builder panel */}
       {builderOpen && (
         <div ref={builderRef} className="flex flex-col mb-6 border border-primary/20 rounded-xl bg-primary/5 overflow-hidden">
-          <div className="px-5 py-3 bg-primary/15 border-b border-primary/20 flex items-center justify-between">
+          <div className="px-5 py-3 bg-primary/15 border-b border-primary/20 flex items-center justify-between gap-4">
             <div>
               <h3 className="text-sm font-semibold text-primary-dark">Rule Builder</h3>
               <p className="text-xs text-primary-dark">
                 Build rules and see their effect on the table in real time.
               </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-medium text-primary-dark whitespace-nowrap">Transaction Type</label>
+              <Select
+                value={builder.formState.transactionTypeCode}
+                onChange={(e) => builder.updateBasicInfo({ transactionTypeCode: e.target.value })}
+                options={[{ value: '', label: 'All types' }, ...TXN_TYPE_OPTIONS.map((t) => ({ value: t, label: t }))]}
+                className="py-1 text-xs"
+              />
             </div>
             <div className="flex flex-col md:flex-row items-center gap-2">
               <Button variant="ghost" size="xs" onClick={handleDiscard}>
@@ -859,6 +897,7 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
         tagDefinitions={allDefinitions}
         originalDefinitionIds={originalDefinitionIds}
         highlightExpressions={highlightExpressions}
+        searchHighlights={searchHighlights}
         stickyFields={stickyFields}
         onTagClick={handleTagClick}
         onFlagDeadEnd={flagDeadEnd}
