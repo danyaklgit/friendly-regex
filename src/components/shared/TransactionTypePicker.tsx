@@ -73,7 +73,7 @@ export function TransactionTypePicker({ value, onChange, filterDefinitions, disa
         </svg>
       </button>
       {open && !disabled && (
-        <div className="absolute z-50 top-full mt-1 right-0 min-w-64 bg-surface border border-border rounded-lg shadow-lg">
+        <div className="absolute z-50 top-full mt-1 left-0 min-w-64 bg-surface border border-border rounded-lg shadow-lg">
           {/* Search */}
           <div className="p-2 border-b border-border-subtle">
             <div className="relative">
@@ -94,16 +94,6 @@ export function TransactionTypePicker({ value, onChange, filterDefinitions, disa
             </div>
           </div>
           <div className="max-h-60 overflow-y-auto custom-scrollbar p-1.5">
-            {/* "All types" option */}
-            <button
-              type="button"
-              onClick={() => handleSelect('')}
-              className={`w-full text-left flex items-center gap-2 px-2 py-1.5 text-xs rounded transition-colors ${
-                !value ? 'text-primary font-medium bg-primary/5' : 'text-heading hover:bg-surface-hover'
-              }`}
-            >
-              All types
-            </button>
             {filtered.length === 0 ? (
               <div className="px-2 py-3 text-xs text-faint text-center">No matches</div>
             ) : (
