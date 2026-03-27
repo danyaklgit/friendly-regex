@@ -54,13 +54,8 @@ export function StepBasicInfo({ formState, onUpdate, fromCheckoutContext }: Step
           value={formState.transactionTypeCode}
           onChange={(e) => { onUpdate({ transactionTypeCode: e.target.value }); markTouched('transactionTypeCode'); }}
           onBlur={() => markTouched('transactionTypeCode')}
-          options={
-            fromCheckoutContext
-              ? [{ value: '', label: 'Select...' }, ...TXN_TYPE_OPTIONS.map((s) => ({ value: s, label: s }))]
-              : TXN_TYPE_OPTIONS.map((s) => ({ value: s, label: s }))
-          }
-          required={fromCheckoutContext}
-          error={isError('transactionTypeCode', formState.transactionTypeCode)}
+          options={TXN_TYPE_OPTIONS.map((s) => ({ value: s, label: s }))}
+          disabled={fromCheckoutContext}
         />
       </div>
 
