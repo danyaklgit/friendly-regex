@@ -2,7 +2,7 @@ import { createContext, useState, useMemo, useCallback, useRef, useEffect, type 
 import type { TransactionRow } from '../types';
 import { deriveFieldMeta, type FieldMeta } from '../utils/deriveFieldMeta';
 import { translateFilters } from '../utils/translateFilters';
-import { getTransactions, getFilters, DEFAULT_SORTING, type TepHeaders, type FilterDefinition } from '../api/transactions';
+import { getTransactions, getFilters, DEFAULT_SORTING, type TepHeaders, type FilterDefinition, type FilterProperty } from '../api/transactions';
 import { useAuth } from './AuthContext';
 import { useTepConfig } from './TepConfigContext';
 import sampleTransactionData from '../data/sampleData.json';
@@ -21,7 +21,8 @@ export interface TransactionDataContextValue {
   loading: boolean;
   hasMore: boolean;
   totalTransactionsCount: number | null;
-  fetchPage: (filters: Record<string, Set<string>>, append: boolean, pageIndex?: number, pageSize?: number) => Promise<void>;
+  fetchPage: (filters: Record<string, Set<string>>, append: boolean, pageIndex?: number, pageSize?: number, extraFilters?: FilterProperty[]) => Promise<void>;
+  fetchCount: (filters: Record<string, Set<string>>, extraFilters?: FilterProperty[]) => Promise<number | null>;
   filterDefinitions: FilterDefinition[];
   filterDefinitionsLoading: boolean;
   fetchFilterDefinitions: () => Promise<void>;
@@ -98,7 +99,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
     }
   }, [isLiveMode, getAuthHeaders, refreshIfNeeded, userId, tepConfig]);
 
-  const fetchPage = useCallback(async (filters: Record<string, Set<string>>, append: boolean, explicitPage?: number, pageSize?: number) => {
+  const fetchPage = useCallback(async (filters: Record<string, Set<string>>, append: boolean, explicitPage?: number, pageSize?: number, extraFilters?: FilterProperty[]) => {
     if (!isLiveMode) return;
 
     // Auto-refresh session if <5 min remaining
@@ -138,7 +139,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
     try {
       const data = await getTransactions(
         {
-          FilteringProperties: translateFilters(filters, filterDefinitions),
+          FilteringProperties: [...translateFilters(filters, filterDefinitions), ...(extraFilters ?? [])],
           SortingProperties: DEFAULT_SORTING,
           Pagination: { PageIndex: pageIndex, PageSize: effectivePageSize },
         },
@@ -177,13 +178,43 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
     }
   }, [isLiveMode, getAuthHeaders, refreshIfNeeded, userId, tepConfig, filterDefinitions]);
 
+  const fetchCount = useCallback(async (filters: Record<string, Set<string>>, extraFilters?: FilterProperty[]): Promise<number | null> => {
+    if (!isLiveMode) return null;
+    await refreshIfNeeded();
+    const authHeaders = getAuthHeaders();
+    const token = authHeaders.Authorization?.replace('Bearer ', '') ?? '';
+    if (!token) return null;
+    const tepHeaders: TepHeaders = {
+      apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
+      userId: userId ?? '',
+      tenantCode: tepConfig.ttpTenantCode,
+      languageCode: tepConfig.languageCode,
+      timeZone: tepConfig.timeZone,
+      requestId: tepConfig.ttpRequestId,
+    };
+    try {
+      const data = await getTransactions(
+        {
+          FilteringProperties: [...translateFilters(filters, filterDefinitions), ...(extraFilters ?? [])],
+          SortingProperties: DEFAULT_SORTING,
+          Pagination: { PageIndex: 0, PageSize: 1 },
+        },
+        token,
+        tepHeaders,
+      );
+      return data.TransactionsCount ?? null;
+    } catch {
+      return null;
+    }
+  }, [isLiveMode, getAuthHeaders, refreshIfNeeded, userId, tepConfig, filterDefinitions]);
+
   // Abort pending requests on unmount
   useEffect(() => () => { abortRef.current?.abort(); }, []);
 
   return (
     <TransactionDataContext.Provider value={{
       transactions, fieldMeta, loadTransactions, resetToSample, isCustomData, flagDeadEnd,
-      isLiveMode, loading, hasMore, totalTransactionsCount, fetchPage,
+      isLiveMode, loading, hasMore, totalTransactionsCount, fetchPage, fetchCount,
       filterDefinitions, filterDefinitionsLoading, fetchFilterDefinitions,
     }}>
       {children}

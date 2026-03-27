@@ -16,9 +16,6 @@ export function StepBasicInfo({ formState, onUpdate, fromCheckoutContext }: Step
   const [touched, setTouched] = useState<Set<string>>(new Set());
   const markTouched = (field: string) => setTouched((prev) => new Set(prev).add(field));
 
-  const isError = (field: string, value: string) =>
-    fromCheckoutContext && touched.has(field) && value.trim().length === 0;
-
   // Tag name is always required
   const isTagError = touched.has('tag') && formState.tag.trim().length === 0;
 
@@ -54,13 +51,8 @@ export function StepBasicInfo({ formState, onUpdate, fromCheckoutContext }: Step
           value={formState.transactionTypeCode}
           onChange={(e) => { onUpdate({ transactionTypeCode: e.target.value }); markTouched('transactionTypeCode'); }}
           onBlur={() => markTouched('transactionTypeCode')}
-          options={
-            fromCheckoutContext
-              ? [{ value: '', label: 'Select...' }, ...TXN_TYPE_OPTIONS.map((s) => ({ value: s, label: s }))]
-              : TXN_TYPE_OPTIONS.map((s) => ({ value: s, label: s }))
-          }
-          required={fromCheckoutContext}
-          error={isError('transactionTypeCode', formState.transactionTypeCode)}
+          options={TXN_TYPE_OPTIONS.map((s) => ({ value: s, label: s }))}
+          disabled={fromCheckoutContext}
         />
       </div>
 

@@ -137,6 +137,34 @@
   scrollbar-color: var(--color-primary) #4b5563;
 }
 
+/* Smaller option text for compact selects */
+select.custom-scrollbar option {
+  font-size: 0.7rem;
+}
+
+/* Native <select> dropdown scrollbar (Webkit) */
+select.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+select.custom-scrollbar::-webkit-scrollbar-track {
+  background: #cffafe;
+  border-radius: 5px;
+}
+
+select.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--color-primary);
+  border-radius: 5px;
+}
+
+select.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary-dark);
+}
+
+.dark select.custom-scrollbar::-webkit-scrollbar-track {
+  background: #4b5563;
+}
+
 /* ========== CUSTOM CHECKBOXES ========== */
 
 input[type="checkbox"] {

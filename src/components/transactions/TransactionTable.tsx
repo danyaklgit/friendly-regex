@@ -13,6 +13,7 @@ interface TransactionTableProps {
   tagDefinitions: TagSpecDefinition[];
   originalDefinitionIds?: Set<string>;
   highlightExpressions?: RuleExpression[];
+  searchHighlights?: Map<string, string>;
   stickyFields?: Set<string>;
   onTagClick?: (tagName: string, definitionId?: string) => void;
   onFlagDeadEnd?: (ids: string[], value: boolean) => void;
@@ -97,7 +98,8 @@ function highlightText(text: string, regexes: RegExp[]): ReactNode {
 
   const ranges: [number, number][] = [];
   for (const regex of regexes) {
-    const globalRegex = new RegExp(regex.source, 'g');
+    const flags = 'g' + (regex.flags.includes('i') ? 'i' : '');
+    const globalRegex = new RegExp(regex.source, flags);
     let match;
     while ((match = globalRegex.exec(text)) !== null) {
       if (match[0].length === 0) break;
@@ -305,7 +307,7 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
 
 export type { ColumnDef };
 
-export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, highlightExpressions, stickyFields, onTagClick, onFlagDeadEnd, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady, builderHeight = 0, loading = false, accentHue = 190 }: TransactionTableProps) {
+export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, highlightExpressions, searchHighlights, stickyFields, onTagClick, onFlagDeadEnd, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady, builderHeight = 0, loading = false, accentHue = 190 }: TransactionTableProps) {
   const { fieldMeta } = useTransactionData();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -374,6 +376,21 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     }
     return map.size > 0 ? map : null;
   }, [highlightExpressions]);
+
+  const searchHighlightMap = useMemo(() => {
+    if (!searchHighlights || searchHighlights.size === 0) return null;
+    const map = new Map<string, RegExp[]>();
+    for (const [field, term] of searchHighlights) {
+      if (!term) continue;
+      try {
+        const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        map.set(field, [new RegExp(escaped, 'i')]);
+      } catch {
+        // skip
+      }
+    }
+    return map.size > 0 ? map : null;
+  }, [searchHighlights]);
 
   // Collect all distinct attribute names across all analyzed rows
   const attributeColumns = useMemo(() => {
@@ -818,10 +835,11 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
   const renderCellContent = (field: string, value: string | number | boolean | null) => {
     if (value == null) return <span className="text-faint">-</span>;
     const text = String(value);
-    if (highlightMap) {
-      const regexes = highlightMap.get(field);
-      if (regexes) return highlightText(text, regexes);
-    }
+    const regexes = [
+      ...(highlightMap?.get(field) ?? []),
+      ...(searchHighlightMap?.get(field) ?? []),
+    ];
+    if (regexes.length > 0) return highlightText(text, regexes);
     return text;
   };
 
