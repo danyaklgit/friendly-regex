@@ -1027,7 +1027,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
               />
               <kbd className="text-[10px] text-faint bg-surface border border-border-strong rounded px-1.5 py-0.5 font-mono">/</kbd>
             </div>
-            <div ref={columnSearchListRef} className="max-h-48 overflow-y-auto">
+            <div ref={columnSearchListRef} className="max-h-48 overflow-y-auto custom-scrollbar">
               {columnSearchResults.length === 0 ? (
                 <div className="px-4 py-3 text-xs text-faint text-center">No matching columns</div>
               ) : (
