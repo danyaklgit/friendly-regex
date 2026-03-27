@@ -48,7 +48,18 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
   const loadedCountRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
 
-  const fieldMeta = useMemo(() => deriveFieldMeta(transactions), [transactions]);
+  const fieldMetaRef = useRef<FieldMeta | null>(null);
+  const fieldMeta = useMemo(() => {
+    // When transactions are temporarily empty during a refetch, preserve the
+    // previous fieldMeta so that dropdowns (e.g. Source Field in the rule
+    // builder) don't lose their displayed value.
+    if (transactions.length === 0 && fieldMetaRef.current) {
+      return fieldMetaRef.current;
+    }
+    const next = deriveFieldMeta(transactions);
+    fieldMetaRef.current = next;
+    return next;
+  }, [transactions]);
 
   const loadTransactions = useCallback((rows: TransactionRow[]) => {
     setTransactions(rows);

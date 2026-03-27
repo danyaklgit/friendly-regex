@@ -99,39 +99,6 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
 
 const BATCH_SIZE = 50;
 
-/**
- * Translate builder rule conditions to API FilterProperty[] for server-side counting.
- * Returns null if any condition uses an operation the API doesn't support (regex, multi-group OR, etc.)
- */
-function builderToApiFilters(formState: WizardFormState): FilterProperty[] | null {
-  const activeGroups = formState.ruleGroups.filter((g) =>
-    g.conditions.some((c) => c.value.trim().length > 0)
-  );
-  // Only handle single AND-group rules (no OR logic)
-  if (activeGroups.length !== 1) return null;
-
-  const conditions = activeGroups[0].conditions.filter((c) => c.value.trim().length > 0);
-  if (conditions.length === 0) return null;
-
-  const operandMap: Record<string, string> = {
-    contains: 'CONTAINS',
-    equals: 'EQ',
-    begins_with: 'STARTSWITH',
-    ends_with: 'ENDSWITH',
-    greater_than: 'GT',
-    less_than: 'LT',
-    greater_than_or_equal: 'GTE',
-    less_than_or_equal: 'LTE',
-  };
-
-  const result: FilterProperty[] = [];
-  for (const c of conditions) {
-    const operand = operandMap[c.operation];
-    if (!operand) return null; // unsupported operation (regex, extract_and_compare, etc.)
-    result.push({ ColumnName: c.sourceField, Value: c.value, Operand: operand });
-  }
-  return result;
-}
 
 export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
   const { libraries, tagDefinitions, originalDefinitionIds, dispatch } = useTagSpecs();
@@ -232,10 +199,8 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
     tagFilterKey: string;                     // the filter definition Tag key for the tag filter
   } | null>(null);
 
-  // Debounced API filters derived from the builder's rule conditions
-  const [builderApiFilters, setBuilderApiFilters] = useState<FilterProperty[] | null>(null);
-
-  // Extra filters injected into API calls (definition-ID scoping for tag click, or builder rule matching)
+  // Extra filters injected into API calls (definition-ID scoping for tag click, or transaction type from builder)
+  // NOTE: builder rule conditions are NOT sent to the API — rule preview is frontend-only on loaded data.
   const activeExtraFilters: FilterProperty[] = useMemo(() => {
     if (tagClickState && !tagClickState.showingAll) {
       return [{
@@ -248,11 +213,8 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
     if (builderOpen && builder.formState.transactionTypeCode) {
       extra.push({ ColumnName: 'TransactionTypeCode', Value: builder.formState.transactionTypeCode, Operand: 'EQ' });
     }
-    if (builderOpen && builderApiFilters && builderApiFilters.length > 0) {
-      extra.push(...builderApiFilters);
-    }
     return extra;
-  }, [tagClickState, builderOpen, builder.formState.transactionTypeCode, builderApiFilters]);
+  }, [tagClickState, builderOpen, builder.formState.transactionTypeCode]);
 
   // Persist settings to localStorage
   useEffect(() => { try { localStorage.setItem('tep:showAttributes', String(showAttributes)); } catch { /* ignore */ } }, [showAttributes]);
@@ -390,17 +352,7 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
     g.conditions.some((c) => c.value.trim().length > 0)
   ) || builder.formState.attributes.some((a) => a.attributeTag.trim().length > 0);
 
-  // Debounce builder rule conditions → API filters for server-side count
-  useEffect(() => {
-    if (!isLiveMode || !builderOpen || !builderHasContent || tagClickState !== null) {
-      setBuilderApiFilters(null);
-      return;
-    }
-    const timer = setTimeout(() => {
-      setBuilderApiFilters(builderToApiFilters(builder.formState));
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [isLiveMode, builderOpen, builderHasContent, builder.formState, tagClickState]);
+
 
   // Analyze all rows
 
