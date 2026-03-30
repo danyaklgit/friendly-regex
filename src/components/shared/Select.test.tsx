@@ -69,4 +69,12 @@ describe('Select', () => {
     render(<Select label="Disabled" options={options} disabled />);
     expect((screen.getByLabelText('Disabled') as HTMLSelectElement).disabled).toBe(true);
   });
+
+  it('renders a disabled placeholder option when provided', () => {
+    render(<Select options={options} placeholder="Pick one" />);
+    const opts = screen.getAllByRole('option');
+    expect(opts[0].textContent).toBe('Pick one');
+    expect((opts[0] as HTMLOptionElement).disabled).toBe(true);
+    expect((opts[0] as HTMLOptionElement).value).toBe('');
+  });
 });
