@@ -25,7 +25,7 @@ export function StepRuleExpressions({
 }: StepRuleExpressionsProps) {
   return (
     <div className="space-y-0 flex flex-col">
-      <p className="text-xs text-muted mb-2">
+      <p data-tour="ruleset-logic-info" className="text-xs text-muted mb-2">
         Each rule set uses AND logic (all conditions must match).
         Multiple rule sets use OR logic (any set can match).
       </p>
@@ -62,7 +62,7 @@ export function StepRuleExpressions({
       )}
 
       <div className="mt-4 ">
-        <Button variant="secondary" size="xs" onClick={onAddGroup}>
+        <Button data-tour="add-rule-group" variant="secondary" size="xs" onClick={onAddGroup}>
           {/* {ruleGroups.length === 0 ? 'Add first Rule set' : 'Add Rule set'} */}
           Add Rule set
         </Button>

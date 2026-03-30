@@ -701,7 +701,7 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
           </span>
         </div>
       )}
-      <div className="flex items-center justify-between mb-1 min-h-10">
+      <div data-tour="transactions-header" className="flex items-center justify-between mb-1 min-h-10">
         <div className='flex flex-col md:flex-row items-start justify-end md:items-center gap-2'>
           <h2 className="text-base font-semibold text-heading">Transactions</h2>
           <span className='text-sm mr-5 min-w-10 text-primary-dark'>({builderOpen && builderHasContent ? filteredData.length.toLocaleString() : isLiveMode && totalTransactionsCount != null ? totalTransactionsCount.toLocaleString() : filteredData.length})</span>
@@ -752,20 +752,9 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
             </Button>
           )}
           {!builderOpen && (
-            !activeCheckout ? (
-              <Tooltip content="You need to check out a bank/side combination from the Stats page first" placement="bottom">
-                <span>
-                  <Button
-                    variant="secondary"
-                    size="xs"
-                    disabled
-                  >
-                    Create a Rule
-                  </Button>
-                </span>
-              </Tooltip>
-            ) : (
+            activeCheckout ? (
               <Button
+                data-tour="open-rule-builder"
                 variant="secondary"
                 size="xs"
                 onClick={() => {
@@ -776,6 +765,19 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
               >
                 Create a Rule
               </Button>
+            ) : (
+              <Tooltip content="You need to check out a bank/side combination from the Stats page first" placement="bottom">
+                <span>
+                  <Button
+                    data-tour="open-rule-builder"
+                    variant="secondary"
+                    size="xs"
+                    disabled
+                  >
+                    Create a Rule
+                  </Button>
+                </span>
+              </Tooltip>
             )
           )}
         </div>
@@ -807,7 +809,7 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
 
       {/* Rule builder panel */}
       {builderOpen && (
-        <div ref={builderRef} className="flex flex-col mb-6 border border-primary/20 rounded-xl bg-primary/5 overflow-hidden">
+        <div data-tour="rule-builder-panel" ref={builderRef} className="flex flex-col mb-6 border border-primary/20 rounded-xl bg-primary/5 overflow-hidden">
           <div className="px-5 py-3 bg-primary/15 border-b border-primary/20 flex items-center justify-between gap-4">
             <div>
               <h3 className="text-sm font-semibold text-primary-dark">Rule Builder</h3>
@@ -838,6 +840,7 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
                 </Button>
               )}
               <Button
+                data-tour="create-tag-button"
                 variant="primary"
                 size="xs"
                 onClick={handleCreateFromBuilder}

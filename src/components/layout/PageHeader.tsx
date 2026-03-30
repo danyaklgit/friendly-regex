@@ -18,9 +18,10 @@ interface PageHeaderProps {
   activeIndex: number;
   onTabChange: (index: number) => void;
   checkout?: CheckoutInfo;
+  onOpenOnboarding?: () => void;
 }
 
-export function PageHeader({ tabs, activeIndex, onTabChange, checkout }: PageHeaderProps) {
+export function PageHeader({ tabs, activeIndex, onTabChange, checkout, onOpenOnboarding }: PageHeaderProps) {
   const { logout, username, displayName, expiresAt } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const timeRemaining = useTimeRemaining(expiresAt);
@@ -46,7 +47,7 @@ export function PageHeader({ tabs, activeIndex, onTabChange, checkout }: PageHea
           ))}
         </nav>
         {checkout && (
-          <div className="flex items-center gap-3 ml-auto">
+          <div data-tour="checkout-active-indicator" className="flex items-center gap-3 ml-auto">
             <span className="text-sm text-primary-dark">
               <span className="font-semibold">You're working on</span> Bank {checkout.bank}, Side {checkout.side}
             </span>
@@ -55,18 +56,32 @@ export function PageHeader({ tabs, activeIndex, onTabChange, checkout }: PageHea
                 Review Changes
               </Button>
             )}
-            <Button variant="primary" size="xs" onClick={() => checkout.onRelease(checkout.bank, checkout.side)}>
-              {checkout.hasChanges ? 'Save and Release' : 'Release'}
-            </Button>
-            <Button variant="primary" size="xs" onClick={() => checkout.onCheckin(checkout.bank, checkout.side)}>
-              {checkout.hasChanges ? 'Save and Check In' : 'Check In'}
-            </Button>
+            <span data-tour="checkout-actions" className="flex items-center gap-2">
+              <Button variant="primary" size="xs" onClick={() => checkout.onRelease(checkout.bank, checkout.side)}>
+                {checkout.hasChanges ? 'Save and Release' : 'Release'}
+              </Button>
+              <Button variant="primary" size="xs" onClick={() => checkout.onCheckin(checkout.bank, checkout.side)}>
+                {checkout.hasChanges ? 'Save and Check In' : 'Check In'}
+              </Button>
+            </span>
           </div>
         )}
         <div className={`${checkout ? '' : 'ml-auto '}flex items-center gap-3`}>
           <Tooltip content={timeRemaining} placement="bottom">
             <span className="text-xs text-body">{displayName ?? username}</span>
           </Tooltip>
+          {onOpenOnboarding && (
+            <button
+              onClick={onOpenOnboarding}
+              className="text-muted hover:text-heading transition-colors cursor-pointer p-1"
+              title="Open guided tour"
+              aria-label="Help & onboarding"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008z" />
+              </svg>
+            </button>
+          )}
           <button
             onClick={toggleTheme}
             className="text-muted hover:text-heading transition-colors cursor-pointer p-1"

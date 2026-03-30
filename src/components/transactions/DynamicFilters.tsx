@@ -1039,7 +1039,7 @@ export function DynamicFilters({
   return (
     <div className="mb-3">
       {expanded && (
-        <div className="flex flex-wrap items-center gap-2 mt-2 p-3 bg-surface-secondary rounded-lg border border-border">
+        <div data-tour="filters-bar" className="flex flex-wrap items-center gap-2 mt-2 p-3 bg-surface-secondary rounded-lg border border-border">
           {/* Live mode: locked BankSwiftCode pill (not in API filter definitions) */}
           {/* {isLiveMode && lockedColumns?.has('BankSwiftCode') && filters['BankSwiftCode'] && (
             <div className="text-xs px-3 py-1.5 rounded-lg border border-border bg-surface-tertiary text-muted cursor-not-allowed flex items-center gap-1.5">
@@ -1101,11 +1101,15 @@ export function DynamicFilters({
             />
           ))}
 
-          {activeFilterCount > 0 && (
-            <Button variant="danger_ghost" size="xs" onClick={clearAll}>
-              Clear filters
-            </Button>
-          )}
+          <Button
+            data-tour="clear-filters"
+            variant="danger_ghost"
+            size="xs"
+            onClick={clearAll}
+            className={activeFilterCount === 0 ? 'invisible pointer-events-none' : ''}
+          >
+            Clear filters
+          </Button>
 
           {endSlot && (
             <div className="ml-auto">
