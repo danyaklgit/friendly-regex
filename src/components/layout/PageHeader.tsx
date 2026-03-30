@@ -50,11 +50,16 @@ export function PageHeader({ tabs, activeIndex, onTabChange, checkout }: PageHea
             <span className="text-sm text-primary-dark">
               <span className="font-semibold">You're working on</span> Bank {checkout.bank}, Side {checkout.side}
             </span>
+            {checkout.onRequestUndo && checkout.hasChanges && (
+              <Button variant="secondary" size="xs" onClick={() => checkout.onRequestUndo!(checkout.bank, checkout.side)}>
+                Review Changes
+              </Button>
+            )}
             <Button variant="primary" size="xs" onClick={() => checkout.onRelease(checkout.bank, checkout.side)}>
-              Release
+              {checkout.hasChanges ? 'Save and Release' : 'Release'}
             </Button>
             <Button variant="primary" size="xs" onClick={() => checkout.onCheckin(checkout.bank, checkout.side)}>
-              Check In
+              {checkout.hasChanges ? 'Save and Check In' : 'Check In'}
             </Button>
           </div>
         )}

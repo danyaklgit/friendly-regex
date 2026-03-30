@@ -75,14 +75,14 @@ export interface WizardFormResult {
 export function useWizardForm(
   existingDef?: TagSpecDefinition,
   initialFormState?: WizardFormState,
-  defaultSourceField: string = 'Field86',
+  _defaultSourceField?: string,
   parentLib?: TagSpecLibrary,
   initialStep?: WizardStep,
 ) {
   function createEmptyCondition(): ConditionFormValue {
     return {
       id: crypto.randomUUID(),
-      sourceField: defaultSourceField,
+      sourceField: '',
       operation: 'begins_with',
       value: '',
     };
@@ -101,7 +101,7 @@ export function useWizardForm(
       attributeTag: '',
       isMandatory: false,
       validationRuleTag: 'STRING',
-      sourceField: defaultSourceField,
+      sourceField: '',
       extractionOperation: 'predefined:ksa_iban',
       prefix: '',
       suffix: '',

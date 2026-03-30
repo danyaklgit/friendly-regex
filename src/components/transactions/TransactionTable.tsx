@@ -7,6 +7,7 @@ import { Badge } from '../shared/Badge';
 import { Tooltip } from '../shared/Tooltip';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
 import { decomposeExtractionRegex } from '../../utils/engregxify';
+import { DropdownBackdrop } from '../shared/DropdownBackdrop';
 
 interface TransactionTableProps {
   data: AnalyzedTransaction[];
@@ -14,7 +15,6 @@ interface TransactionTableProps {
   originalDefinitionIds?: Set<string>;
   highlightExpressions?: RuleExpression[];
   searchHighlights?: Map<string, string>;
-  stickyFields?: Set<string>;
   onTagClick?: (tagName: string, definitionId?: string) => void;
   onFlagDeadEnd?: (ids: string[], value: boolean) => void;
   showAttributes?: boolean;
@@ -146,13 +146,15 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
   onReset?: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [overIdx, setOverIdx] = useState<number | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node)) { setOpen(false); setSearch(''); }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -176,6 +178,12 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
       return ai - bi;
     });
   }, [toggleable, columnOrder]);
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return ordered;
+    const q = search.toLowerCase();
+    return ordered.filter((col) => getColumnLabel(col).toLowerCase().includes(q));
+  }, [ordered, search]);
 
   const visibleCount = toggleable.filter((col) => !hiddenColumns.has(col.key)).length;
   const totalCount = toggleable.length;
@@ -220,86 +228,103 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
         </span>
       </button>
       {open && (
-        <div className="absolute top-full mt-1 right-0 z-50 bg-surface border border-border rounded-lg shadow-lg min-w-[220px] max-h-64 overflow-y-auto px-2 pb-2">
-          <div className="sticky top-0 bg-surface z-10 flex items-center justify-between border-b border-border-subtle mb-1 pt-2 pb-1.5">
-            <label className="flex items-center gap-2 px-2 py-1 text-xs font-semibold text-body hover:bg-surface-hover rounded cursor-pointer">
-              <input
-                type="checkbox"
-                checked={visibleCount === totalCount}
-                ref={(el) => { if (el) el.indeterminate = visibleCount > 0 && visibleCount < totalCount; }}
-                onChange={() => {
-                  if (visibleCount === totalCount) {
-                    onChange(new Set(toggleable.map((c) => c.key)));
-                  } else {
-                    onChange(new Set());
-                  }
-                }}
-                className="rounded border-border-strong"
-              />
-              {visibleCount === totalCount ? 'Hide All' : 'Show All'}
-            </label>
-            {onReset && !isDefault && (
-              <button
-                onClick={onReset}
-                className="text-[11px] text-primary hover:text-primary-dark px-2 py-0.5 hover:underline"
-              >
-                Reset
-              </button>
-            )}
-          </div>
-          {ordered.map((col, i) => {
-            const label = getColumnLabel(col);
-            const isHidden = hiddenColumns.has(col.key);
-            const isDragOver = overIdx === i && dragIdx !== null && dragIdx !== i;
-            return (
-              <div
-                key={col.key}
-                draggable
-                onDragStart={(e) => {
-                  setDragIdx(i);
-                  e.dataTransfer.effectAllowed = 'move';
-                }}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  e.dataTransfer.dropEffect = 'move';
-                  setOverIdx(i);
-                }}
-                onDragLeave={() => { if (overIdx === i) setOverIdx(null); }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  if (dragIdx !== null) handleDrop(dragIdx, i);
-                  setDragIdx(null);
-                  setOverIdx(null);
-                }}
-                onDragEnd={() => { setDragIdx(null); setOverIdx(null); }}
-                className={`flex items-center gap-2 px-2 py-1 text-xs hover:bg-surface-hover rounded cursor-grab active:cursor-grabbing select-none transition-colors ${isDragOver ? 'border-t-2 border-primary' : 'border-t-2 border-transparent'
-                  } ${dragIdx === i ? 'opacity-40' : ''}`}
-              >
-                <svg className="w-3 h-3 text-faint shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M7 2a2 2 0 10.001 4.001A2 2 0 007 2zm0 6a2 2 0 10.001 4.001A2 2 0 007 8zm0 6a2 2 0 10.001 4.001A2 2 0 007 14zm6-8a2 2 0 10-.001-4.001A2 2 0 0013 6zm0 2a2 2 0 10.001 4.001A2 2 0 0013 8zm0 6a2 2 0 10.001 4.001A2 2 0 0013 14z" />
-                </svg>
-                <label className="flex items-center gap-2 flex-1 cursor-pointer">
+        <>
+          <DropdownBackdrop onClick={() => { setOpen(false); setSearch(''); }} />
+          <div className="absolute top-full mt-1 right-0 z-50 bg-surface border border-border rounded-lg shadow-lg min-w-55 max-h-72 overflow-y-auto px-2 pb-2">
+            <div className="sticky top-0 bg-surface z-10 border-b border-border-subtle mb-1 pt-2 pb-1.5">
+              <div className="px-2 pb-1.5">
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder="Search columns..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full text-xs px-2 py-1 rounded border border-border-strong bg-input-bg text-heading placeholder:text-faint outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  autoFocus
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2 px-2 py-1 text-xs font-semibold text-body hover:bg-surface-hover rounded cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={!isHidden}
+                    checked={visibleCount === totalCount}
+                    ref={(el) => { if (el) el.indeterminate = visibleCount > 0 && visibleCount < totalCount; }}
                     onChange={() => {
-                      const next = new Set(hiddenColumns);
-                      if (isHidden) next.delete(col.key);
-                      else next.add(col.key);
-                      onChange(next);
+                      if (visibleCount === totalCount) {
+                        onChange(new Set(toggleable.map((c) => c.key)));
+                      } else {
+                        onChange(new Set());
+                      }
                     }}
                     className="rounded border-border-strong"
                   />
-                  <span className={
-                    `truncate ${col.type === 'attribute' ? 'text-primary-dark' : 'text-black dark:text-white'} 
-                    ${isHidden ? 'font-normal' : 'font-medium'}
-                    `
-                  }>{label}</span>
+                  {visibleCount === totalCount ? 'Hide All' : 'Show All'}
                 </label>
+                {onReset && !isDefault && (
+                  <button
+                    onClick={onReset}
+                    className="text-[11px] text-primary hover:text-primary-dark px-2 py-0.5 hover:underline"
+                  >
+                    Reset
+                  </button>
+                )}
               </div>
-            );
-          })}
-        </div>
+            </div>
+            {filtered.map((col, i) => {
+              const label = getColumnLabel(col);
+              const isHidden = hiddenColumns.has(col.key);
+              const isSearching = search.trim().length > 0;
+              const isDragOver = !isSearching && overIdx === i && dragIdx !== null && dragIdx !== i;
+              return (
+                <div
+                  key={col.key}
+                  draggable={!isSearching}
+                  onDragStart={(e) => {
+                    setDragIdx(i);
+                    e.dataTransfer.effectAllowed = 'move';
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    setOverIdx(i);
+                  }}
+                  onDragLeave={() => { if (overIdx === i) setOverIdx(null); }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (dragIdx !== null) handleDrop(dragIdx, i);
+                    setDragIdx(null);
+                    setOverIdx(null);
+                  }}
+                  onDragEnd={() => { setDragIdx(null); setOverIdx(null); }}
+                  className={`flex items-center gap-2 px-2 py-1 text-xs hover:bg-surface-hover rounded cursor-grab active:cursor-grabbing select-none transition-colors ${isDragOver ? 'border-t-2 border-primary' : 'border-t-2 border-transparent'
+                    } ${dragIdx === i ? 'opacity-40' : ''}`}
+                >
+                  <svg className="w-3 h-3 text-faint shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M7 2a2 2 0 10.001 4.001A2 2 0 007 2zm0 6a2 2 0 10.001 4.001A2 2 0 007 8zm0 6a2 2 0 10.001 4.001A2 2 0 007 14zm6-8a2 2 0 10-.001-4.001A2 2 0 0013 6zm0 2a2 2 0 10.001 4.001A2 2 0 0013 8zm0 6a2 2 0 10.001 4.001A2 2 0 0013 14z" />
+                  </svg>
+                  <label className="flex items-center gap-2 flex-1 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={!isHidden}
+                      onChange={() => {
+                        const next = new Set(hiddenColumns);
+                        if (isHidden) next.delete(col.key);
+                        else next.add(col.key);
+                        onChange(next);
+                      }}
+                      className="rounded border-border-strong"
+                    />
+                    <span className={
+                      `truncate ${col.type === 'attribute' ? 'text-primary-dark' : 'text-black dark:text-white'}
+                      ${isHidden ? 'font-normal' : 'font-medium'}
+                      `
+                    }>{label}</span>
+                  </label>
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
     </div>
   );
@@ -307,7 +332,7 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
 
 export type { ColumnDef };
 
-export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, highlightExpressions, searchHighlights, stickyFields, onTagClick, onFlagDeadEnd, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady, builderHeight = 0, loading = false, accentHue = 190 }: TransactionTableProps) {
+export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady, builderHeight = 0, loading = false, accentHue = 190 }: TransactionTableProps) {
   const { fieldMeta } = useTransactionData();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -577,18 +602,8 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     const tagsIdx = visibleColumns.findIndex((col) => col.type === 'tags');
     if (tagsIdx !== -1) left.add(tagsIdx);
 
-    if (stickyFields && stickyFields.size > 0) {
-      const midpoint = visibleColumns.length / 2;
-      visibleColumns.forEach((col, idx) => {
-        if (col.type === 'data' && stickyFields.has(col.field)) {
-          if (idx < midpoint) left.add(idx);
-          else right.add(idx);
-        }
-      });
-    }
-
     return { leftIndices: left, rightIndices: right };
-  }, [visibleColumns, stickyFields]);
+  }, [visibleColumns]);
 
   // Boundary columns: last left-sticky gets right shadow, first right-sticky gets left shadow
   const { lastLeftIdx, firstRightIdx } = useMemo(() => {
@@ -897,8 +912,136 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
 
   const hasSelection = selectedIds.size > 0;
 
+  // --- Column Search spotlight (press "/") ---
+  const [columnSearchOpen, setColumnSearchOpen] = useState(false);
+  const [columnSearchQuery, setColumnSearchQuery] = useState('');
+  const columnSearchRef = useRef<HTMLInputElement>(null);
+
+  const columnSearchResults = useMemo(() => {
+    if (!columnSearchQuery.trim()) return visibleColumns.map((col, i) => ({ col, idx: i }));
+    const q = columnSearchQuery.toLowerCase();
+    return visibleColumns
+      .map((col, i) => ({ col, idx: i }))
+      .filter(({ col }) => getColumnLabel(col).toLowerCase().includes(q));
+  }, [columnSearchQuery, visibleColumns]);
+
+  const [columnSearchSelected, setColumnSearchSelected] = useState(0);
+
+  const scrollToColumn = useCallback((colIdx: number) => {
+    if (!theadRef.current || !scrollContainerRef.current) return;
+    const th = theadRef.current.querySelectorAll('th')[colIdx] as HTMLElement | undefined;
+    if (!th) return;
+    const container = scrollContainerRef.current;
+    const thLeft = th.offsetLeft;
+    const thWidth = th.offsetWidth;
+    const containerWidth = container.clientWidth;
+    const target = thLeft - containerWidth / 2 + thWidth / 2;
+    container.scrollTo({ left: Math.max(0, target), behavior: 'smooth' });
+    flashColumnHeader(colIdx);
+  }, [flashColumnHeader]);
+
+  const handleColumnSearchSubmit = useCallback(() => {
+    if (columnSearchResults.length === 0) return;
+    const selected = columnSearchResults[Math.min(columnSearchSelected, columnSearchResults.length - 1)];
+    scrollToColumn(selected.idx);
+    setColumnSearchOpen(false);
+    setColumnSearchQuery('');
+    setColumnSearchSelected(0);
+  }, [columnSearchResults, columnSearchSelected, scrollToColumn]);
+
+  const columnSearchListRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // Esc closes spotlight from anywhere
+      if (e.key === 'Escape' && columnSearchOpen) {
+        setColumnSearchOpen(false);
+        setColumnSearchQuery('');
+        return;
+      }
+      // Don't trigger "/" if user is typing in an input/textarea/select
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (e.key === '/') {
+        e.preventDefault();
+        setColumnSearchOpen(true);
+        setColumnSearchQuery('');
+        setColumnSearchSelected(0);
+        setTimeout(() => columnSearchRef.current?.focus(), 0);
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [columnSearchOpen]);
+
   return (
-    <div className="rounded-lg border border-border flex flex-col" style={{ maxHeight: `calc(100vh - 17.3rem${builderHeight > 0 ? ` - ${builderHeight + 25}px` : ''})`, minHeight: '300px' }}>
+    <div className="rounded-lg border border-border flex flex-col relative" style={{ maxHeight: `calc(100vh - 17.3rem${builderHeight > 0 ? ` - ${builderHeight + 25}px` : ''})`, minHeight: '300px' }}>
+      {/* Column Search spotlight */}
+      {columnSearchOpen && (
+        <div className="absolute inset-0 z-50 flex items-start justify-center pt-4" onClick={() => { setColumnSearchOpen(false); setColumnSearchQuery(''); }}>
+          <div className="absolute inset-0 bg-black/10 dark:bg-black/30 rounded-lg" />
+          <div className="relative bg-surface-elevated rounded-xl shadow-2xl w-full max-w-md border border-border overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+              <svg className="w-4 h-4 text-muted shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                ref={columnSearchRef}
+                type="text"
+                placeholder="Column Search"
+                value={columnSearchQuery}
+                onChange={(e) => { setColumnSearchQuery(e.target.value); setColumnSearchSelected(0); }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') { setColumnSearchOpen(false); setColumnSearchQuery(''); }
+                  else if (e.key === 'Enter') { e.preventDefault(); handleColumnSearchSubmit(); }
+                  else if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setColumnSearchSelected((p) => {
+                      const next = Math.min(p + 1, columnSearchResults.length - 1);
+                      setTimeout(() => columnSearchListRef.current?.children[next]?.scrollIntoView({ block: 'nearest' }), 0);
+                      return next;
+                    });
+                  }
+                  else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setColumnSearchSelected((p) => {
+                      const next = Math.max(p - 1, 0);
+                      setTimeout(() => columnSearchListRef.current?.children[next]?.scrollIntoView({ block: 'nearest' }), 0);
+                      return next;
+                    });
+                  }
+                }}
+                className="flex-1 text-sm bg-transparent text-heading placeholder:text-faint outline-none"
+                autoFocus
+              />
+              <kbd className="text-[10px] text-faint bg-surface border border-border-strong rounded px-1.5 py-0.5 font-mono">/</kbd>
+            </div>
+            <div ref={columnSearchListRef} className="max-h-48 overflow-y-auto custom-scrollbar">
+              {columnSearchResults.length === 0 ? (
+                <div className="px-4 py-3 text-xs text-faint text-center">No matching columns</div>
+              ) : (
+                columnSearchResults.map(({ col, idx }, i) => (
+                  <button
+                    key={col.key}
+                    className={`w-full text-left px-4 py-2 text-xs flex items-center gap-2 transition-colors ${i === columnSearchSelected ? 'bg-primary/10 text-primary-dark' : 'text-body hover:bg-surface-hover'}`}
+                    onMouseEnter={() => setColumnSearchSelected(i)}
+                    onClick={() => { scrollToColumn(idx); setColumnSearchOpen(false); setColumnSearchQuery(''); setColumnSearchSelected(0); }}
+                  >
+                    <span className="w-5 h-5 rounded flex items-center justify-center text-[9px] font-bold shrink-0" style={{ backgroundColor: columnAccentColors.get(col.key), color: 'white' }}>
+                      {getColumnInitials(col).slice(0, 2)}
+                    </span>
+                    <span className="truncate">{getColumnLabel(col)}</span>
+                    {i === columnSearchSelected && (
+                      <span className="ml-auto text-[10px] text-faint">Enter to jump</span>
+                    )}
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Selection action bar */}
       {hasSelection && onFlagDeadEnd && (
         <div className="flex items-center gap-3 px-4 py-2 bg-primary/10 border-b border-primary/20 shrink-0">

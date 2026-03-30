@@ -64,6 +64,7 @@ export function ConditionEditor({
           <div className={`flex-1 grid gap-2 grid-cols-3`} id='edit_mode_fields'>
             <Select
               label='Source Field'
+              placeholder='Select source field'
               value={condition.sourceField}
               onChange={(e) => {
                 const newField = e.target.value;

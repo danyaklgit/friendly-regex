@@ -160,6 +160,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
           <div className="grid grid-cols-2 gap-2" id="attribute_edit_1">
             <Select
               label="Source Field"
+              placeholder="Select source field"
               value={attribute.sourceField}
               onChange={(e) => onUpdate({ sourceField: e.target.value })}
               options={fieldMeta.sourceFields.map((f) => ({ value: f, label: humanizeFieldName(f) }))}

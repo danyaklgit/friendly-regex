@@ -4,6 +4,7 @@ import type { AnalyzedTransaction, TagSpecDefinition } from '../../types';
 import type { FieldMeta } from '../../utils/deriveFieldMeta';
 import type { FilterDefinition } from '../../api/transactions';
 import { Button } from '../shared/Button';
+import { DropdownBackdrop } from '../shared/DropdownBackdrop';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
 
 type FilterState = Record<string, Set<string>>;
@@ -195,35 +196,40 @@ function ListEqDropdown({
       >
         {hasActive ? `Show: ${activeLabels.join(' & ')}` : definition.Label}
       </button>
-      {open && panelPos && createPortal(
-        <div
-          ref={panelRef}
-          className="fixed z-50 bg-surface border border-border rounded-lg shadow-lg min-w-40"
-          style={{ top: panelPos.top, left: panelPos.left }}
-        >
-          <div className="p-2">
-            {definition.Values.map((v) => (
-              <label
-                key={v.Column}
-                className={`flex items-center gap-2 px-2 py-1 text-xs rounded text-black dark:text-white ${
-                  isDisabled(v)
-                    ? 'opacity-50 cursor-not-allowed'
-                    : 'hover:bg-surface-hover cursor-pointer'
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  disabled={isDisabled(v)}
-                  checked={selected.has(v.Column)}
-                  onChange={() => handleToggle(v.Column)}
-                  className="rounded border-border-strong"
-                />
-                <span>{v.Label}</span>
-              </label>
-            ))}
-          </div>
-        </div>,
-        document.body
+      {open && panelPos && (
+        <>
+          <DropdownBackdrop onClick={() => setOpen(false)} />
+          {createPortal(
+            <div
+              ref={panelRef}
+              className="fixed z-50 bg-surface border border-border rounded-lg shadow-lg min-w-40"
+              style={{ top: panelPos.top, left: panelPos.left }}
+            >
+              <div className="p-2">
+                {definition.Values.map((v) => (
+                  <label
+                    key={v.Column}
+                    className={`flex items-center gap-2 px-2 py-1 text-xs rounded text-black dark:text-white ${
+                      isDisabled(v)
+                        ? 'opacity-50 cursor-not-allowed'
+                        : 'hover:bg-surface-hover cursor-pointer'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      disabled={isDisabled(v)}
+                      checked={selected.has(v.Column)}
+                      onChange={() => handleToggle(v.Column)}
+                      className="rounded border-border-strong"
+                    />
+                    <span>{v.Label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>,
+            document.body
+          )}
+        </>
       )}
     </div>
   );
@@ -309,75 +315,78 @@ function StringFromListDropdown({
         {definition.Label}
       </button>
       {open && !disabled && (
-        <div className="absolute top-full mt-1 left-0 z-50 bg-surface border border-border rounded-lg shadow-lg min-w-40">
-          {isSearchable && (
-            <div className="p-2 border-b border-border-subtle">
-              <div className="relative">
-                <svg
-                  className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted"
-                  fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  placeholder={`Search ${definition.Label.toLowerCase()}...`}
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="w-full pl-7 pr-2 py-1.5 text-xs rounded border border-input-border bg-input-bg text-heading placeholder:text-placeholder focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors"
-                />
+        <>
+          <DropdownBackdrop onClick={() => setOpen(false)} />
+          <div className="absolute top-full mt-1 left-0 z-50 bg-surface border border-border rounded-lg shadow-lg min-w-40">
+            {isSearchable && (
+              <div className="p-2 border-b border-border-subtle">
+                <div className="relative">
+                  <svg
+                    className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted"
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    placeholder={`Search ${definition.Label.toLowerCase()}...`}
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="w-full pl-7 pr-2 py-1.5 text-xs rounded border border-input-border bg-input-bg text-heading placeholder:text-placeholder focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors"
+                  />
+                </div>
               </div>
-            </div>
-          )}
-          <div className="max-h-60 overflow-y-auto custom-scrollbar">
-            {filteredValues.length === 0 ? (
-              <div className="px-2 py-3 text-xs text-faint text-center">No matches</div>
-            ) : (
-              <>
-                {/* Selected items sticky at top */}
-                {filteredValues.some((v) => selected.has(v.Value ?? '')) && (
-                  <div className="sticky top-0 z-10 bg-surface p-1.5 pb-0">
-                    {filteredValues.filter((v) => selected.has(v.Value ?? '')).map((v) => (
+            )}
+            <div className="max-h-60 overflow-y-auto custom-scrollbar">
+              {filteredValues.length === 0 ? (
+                <div className="px-2 py-3 text-xs text-faint text-center">No matches</div>
+              ) : (
+                <>
+                  {/* Selected items sticky at top */}
+                  {filteredValues.some((v) => selected.has(v.Value ?? '')) && (
+                    <div className="sticky top-0 z-10 bg-surface p-1.5 pb-0">
+                      {filteredValues.filter((v) => selected.has(v.Value ?? '')).map((v) => (
+                        <label
+                          key={v.Value}
+                          className="flex items-center gap-2 px-2 py-1 text-xs hover:bg-surface-hover rounded cursor-pointer text-black dark:text-white whitespace-nowrap bg-primary/5"
+                        >
+                          <input
+                            type="checkbox"
+                            checked
+                            onChange={() => handleToggle(v.Value ?? '')}
+                            className="rounded border-border-strong shrink-0"
+                          />
+                          <span className="truncate">{v.Label ?? v.Value}</span>
+                        </label>
+                      ))}
+                      {filteredValues.some((v) => !selected.has(v.Value ?? '')) && (
+                        <div className="border-t border-border-subtle mt-1" />
+                      )}
+                    </div>
+                  )}
+                  {/* Unselected items */}
+                  <div className="p-1.5 pt-0">
+                    {filteredValues.filter((v) => !selected.has(v.Value ?? '')).map((v) => (
                       <label
                         key={v.Value}
-                        className="flex items-center gap-2 px-2 py-1 text-xs hover:bg-surface-hover rounded cursor-pointer text-black dark:text-white whitespace-nowrap bg-primary/5"
+                        className="flex items-center gap-2 px-2 py-1 text-xs hover:bg-surface-hover rounded cursor-pointer text-black dark:text-white whitespace-nowrap"
                       >
                         <input
                           type="checkbox"
-                          checked
+                          checked={false}
                           onChange={() => handleToggle(v.Value ?? '')}
                           className="rounded border-border-strong shrink-0"
                         />
                         <span className="truncate">{v.Label ?? v.Value}</span>
                       </label>
                     ))}
-                    {filteredValues.some((v) => !selected.has(v.Value ?? '')) && (
-                      <div className="border-t border-border-subtle mt-1" />
-                    )}
                   </div>
-                )}
-                {/* Unselected items */}
-                <div className="p-1.5 pt-0">
-                  {filteredValues.filter((v) => !selected.has(v.Value ?? '')).map((v) => (
-                    <label
-                      key={v.Value}
-                      className="flex items-center gap-2 px-2 py-1 text-xs hover:bg-surface-hover rounded cursor-pointer text-black dark:text-white whitespace-nowrap"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={false}
-                        onChange={() => handleToggle(v.Value ?? '')}
-                        className="rounded border-border-strong shrink-0"
-                      />
-                      <span className="truncate">{v.Label ?? v.Value}</span>
-                    </label>
-                  ))}
-                </div>
-              </>
-            )}
+                </>
+              )}
+            </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );
@@ -519,32 +528,35 @@ function DecimalFilter({
         {hasActive && <span className="ml-1 opacity-70">({currentMin || '*'} - {currentMax || '*'})</span>}
       </button>
       {open && (
-        <div className="absolute top-full mt-1 left-0 z-50 bg-surface border border-border rounded-lg shadow-lg p-3 min-w-52">
-          <div className="flex items-center gap-2">
-            <div className="flex-1">
-              <label className="text-[10px] text-muted block mb-0.5">Min</label>
-              <input
-                type="number"
-                value={minVal}
-                onChange={(e) => handleMinChange(e.target.value)}
-                placeholder="0"
-                className="w-full text-xs px-2 py-1 rounded border border-border-strong bg-surface text-body outline-none"
-              />
-            </div>
-            <span className="text-muted text-xs mt-3">&ndash;</span>
-            <div className="flex-1">
-              <label className="text-[10px] text-muted block mb-0.5">Max</label>
-              <input
-                type="number"
-                value={maxVal}
-                onChange={(e) => handleMaxChange(e.target.value)}
-                min={minVal || undefined}
-                placeholder="..."
-                className="w-full text-xs px-2 py-1 rounded border border-border-strong bg-surface text-body outline-none"
-              />
+        <>
+          <DropdownBackdrop onClick={() => setOpen(false)} />
+          <div className="absolute top-full mt-1 left-0 z-50 bg-surface border border-border rounded-lg shadow-lg p-3 min-w-52">
+            <div className="flex items-center gap-2">
+              <div className="flex-1">
+                <label className="text-[10px] text-muted block mb-0.5">Min</label>
+                <input
+                  type="number"
+                  value={minVal}
+                  onChange={(e) => handleMinChange(e.target.value)}
+                  placeholder="0"
+                  className="w-full text-xs px-2 py-1 rounded border border-border-strong bg-surface text-body outline-none"
+                />
+              </div>
+              <span className="text-muted text-xs mt-3">&ndash;</span>
+              <div className="flex-1">
+                <label className="text-[10px] text-muted block mb-0.5">Max</label>
+                <input
+                  type="number"
+                  value={maxVal}
+                  onChange={(e) => handleMaxChange(e.target.value)}
+                  min={minVal || undefined}
+                  placeholder="..."
+                  className="w-full text-xs px-2 py-1 rounded border border-border-strong bg-surface text-body outline-none"
+                />
+              </div>
             </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );
@@ -595,29 +607,32 @@ function DateFilter({
         )}
       </button>
       {open && (
-        <div className="absolute top-full mt-1 left-0 z-50 bg-surface border border-border rounded-lg shadow-lg p-3 min-w-52">
-          <div className="flex items-center gap-2">
-            <div className="flex-1">
-              <label className="text-[10px] text-muted block mb-0.5">From</label>
-              <input
-                type="date"
-                value={currentFrom}
-                onChange={(e) => handleChange(e.target.value, currentTo)}
-                className="w-full text-xs px-2 py-1 rounded border border-border-strong bg-surface text-body outline-none"
-              />
-            </div>
-            <span className="text-muted text-xs mt-3">&ndash;</span>
-            <div className="flex-1">
-              <label className="text-[10px] text-muted block mb-0.5">To</label>
-              <input
-                type="date"
-                value={currentTo}
-                onChange={(e) => handleChange(currentFrom, e.target.value)}
-                className="w-full text-xs px-2 py-1 rounded border border-border-strong bg-surface text-body outline-none"
-              />
+        <>
+          <DropdownBackdrop onClick={() => setOpen(false)} />
+          <div className="absolute top-full mt-1 left-0 z-50 bg-surface border border-border rounded-lg shadow-lg p-3 min-w-52">
+            <div className="flex items-center gap-2">
+              <div className="flex-1">
+                <label className="text-[10px] text-muted block mb-0.5">From</label>
+                <input
+                  type="date"
+                  value={currentFrom}
+                  onChange={(e) => handleChange(e.target.value, currentTo)}
+                  className="w-full text-xs px-2 py-1 rounded border border-border-strong bg-surface text-body outline-none"
+                />
+              </div>
+              <span className="text-muted text-xs mt-3">&ndash;</span>
+              <div className="flex-1">
+                <label className="text-[10px] text-muted block mb-0.5">To</label>
+                <input
+                  type="date"
+                  value={currentTo}
+                  onChange={(e) => handleChange(currentFrom, e.target.value)}
+                  className="w-full text-xs px-2 py-1 rounded border border-border-strong bg-surface text-body outline-none"
+                />
+              </div>
             </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );
@@ -708,30 +723,35 @@ function ShowOnlyDropdown({
       >
         {hasActive ? `Show: ${activeLabels.join(' & ')}` : 'Show Only'}
       </button>
-      {open && panelPos && createPortal(
-        <div
-          ref={panelRef}
-          className="fixed z-50 bg-surface border border-border rounded-lg shadow-lg min-w-40"
-          style={{ top: panelPos.top, left: panelPos.left }}
-        >
-          <div className="p-2">
-            {SHOW_ONLY_OPTIONS.map((option) => (
-              <label
-                key={option}
-                className="flex items-center gap-2 px-2 py-1 text-xs hover:bg-surface-hover rounded cursor-pointer text-black dark:text-white"
-              >
-                <input
-                  type="checkbox"
-                  checked={isChecked(option)}
-                  onChange={() => handleToggle(option)}
-                  className="rounded border-border-strong"
-                />
-                <span>{option}</span>
-              </label>
-            ))}
-          </div>
-        </div>,
-        document.body
+      {open && panelPos && (
+        <>
+          <DropdownBackdrop onClick={() => setOpen(false)} />
+          {createPortal(
+            <div
+              ref={panelRef}
+              className="fixed z-50 bg-surface border border-border rounded-lg shadow-lg min-w-40"
+              style={{ top: panelPos.top, left: panelPos.left }}
+            >
+              <div className="p-2">
+                {SHOW_ONLY_OPTIONS.map((option) => (
+                  <label
+                    key={option}
+                    className="flex items-center gap-2 px-2 py-1 text-xs hover:bg-surface-hover rounded cursor-pointer text-black dark:text-white"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked(option)}
+                      onChange={() => handleToggle(option)}
+                      className="rounded border-border-strong"
+                    />
+                    <span>{option}</span>
+                  </label>
+                ))}
+              </div>
+            </div>,
+            document.body
+          )}
+        </>
       )}
     </div>
   );
@@ -815,53 +835,56 @@ function FilterDropdown({
         {label}
       </button>
       {open && (
-        <div className="absolute top-full mt-1 left-0 z-50 bg-surface border border-border rounded-lg shadow-lg min-w-55">
-          {numericInfo && (
-            <div className={values.length <= 50 ? 'border-b border-border-subtle' : ''}>
-              <RangeSlider
-                min={numericInfo.min}
-                max={numericInfo.max}
-                low={rangelow}
-                high={rangeHigh}
-                onLowChange={handleLowChange}
-                onHighChange={handleHighChange}
-              />
-            </div>
-          )}
-          {values.length <= 50 && (
-            <div className="p-2 max-h-48 overflow-y-auto">
-              {values.map((val) => (
-                <label
-                  key={val}
-                  className="flex items-center gap-2 px-2 py-1 text-xs hover:bg-surface-hover rounded cursor-pointer text-black dark:text-white"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selected.has(val)}
-                    onChange={() => {
-                      const next = new Set(selected);
-                      if (next.has(val)) next.delete(val);
-                      else next.add(val);
-                      onChange(next);
-                      if (numericInfo) {
-                        const selectedNums = Array.from(next).map(Number);
-                        if (selectedNums.length > 0) {
-                          setRangeLow(Math.min(...selectedNums));
-                          setRangeHigh(Math.max(...selectedNums));
-                        } else {
-                          setRangeLow(numericInfo.min);
-                          setRangeHigh(numericInfo.max);
+        <>
+          <DropdownBackdrop onClick={() => setOpen(false)} />
+          <div className="absolute top-full mt-1 left-0 z-50 bg-surface border border-border rounded-lg shadow-lg min-w-55">
+            {numericInfo && (
+              <div className={values.length <= 50 ? 'border-b border-border-subtle' : ''}>
+                <RangeSlider
+                  min={numericInfo.min}
+                  max={numericInfo.max}
+                  low={rangelow}
+                  high={rangeHigh}
+                  onLowChange={handleLowChange}
+                  onHighChange={handleHighChange}
+                />
+              </div>
+            )}
+            {values.length <= 50 && (
+              <div className="p-2 max-h-48 overflow-y-auto">
+                {values.map((val) => (
+                  <label
+                    key={val}
+                    className="flex items-center gap-2 px-2 py-1 text-xs hover:bg-surface-hover rounded cursor-pointer text-black dark:text-white"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected.has(val)}
+                      onChange={() => {
+                        const next = new Set(selected);
+                        if (next.has(val)) next.delete(val);
+                        else next.add(val);
+                        onChange(next);
+                        if (numericInfo) {
+                          const selectedNums = Array.from(next).map(Number);
+                          if (selectedNums.length > 0) {
+                            setRangeLow(Math.min(...selectedNums));
+                            setRangeHigh(Math.max(...selectedNums));
+                          } else {
+                            setRangeLow(numericInfo.min);
+                            setRangeHigh(numericInfo.max);
+                          }
                         }
-                      }
-                    }}
-                    className="rounded border-border-strong"
-                  />
-                  <span className="truncate">{isNumeric ? Number(val).toLocaleString() : val}</span>
-                </label>
-              ))}
-            </div>
-          )}
-        </div>
+                      }}
+                      className="rounded border-border-strong"
+                    />
+                    <span className="truncate">{isNumeric ? Number(val).toLocaleString() : val}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
       )}
     </div>
   );
