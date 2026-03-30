@@ -12,6 +12,7 @@ import { TransactionsTab } from './components/transactions/TransactionsTab';
 import { TagsHierarchyTab } from './components/tagsHierarchy/TagsHierarchyTab';
 import { SessionWarningModal } from './components/shared/SessionWarningModal';
 import { UndoChangesDialog } from './components/shared/UndoChangesDialog';
+import { OnboardingHub } from './components/onboarding/OnboardingHub';
 import { Toast } from './components/shared/Toast';
 import { tagSpecLibraryRelease, tagSpecLibraryCheckIn } from './api/checkout';
 import { tagSpecLibrarySave } from './api/tagSpecSave';
@@ -27,6 +28,7 @@ interface AppShellProps {
 
 function AppShell({ authToken, tepHeaders, operatorName }: AppShellProps) {
   const [activeTab, setActiveTab] = useState(0);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [activeCheckout, setActiveCheckout] = useState<CheckoutState | null>(null);
   const [undoTarget, setUndoTarget] = useState<{ bank: string; side: string } | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -137,6 +139,7 @@ function AppShell({ authToken, tepHeaders, operatorName }: AppShellProps) {
             onCheckin: handleCheckinWithSave,
             onRequestUndo: handleRequestUndo,
           } : undefined}
+          onOpenOnboarding={() => setOnboardingOpen(true)}
         />
       </div>
       <UndoChangesDialog
@@ -146,6 +149,11 @@ function AppShell({ authToken, tepHeaders, operatorName }: AppShellProps) {
         changeSummary={undoTarget ? getChangeSummary(undoTarget.bank, undoTarget.side) : null}
         onClose={() => setUndoTarget(null)}
         onConfirm={handleUndoConfirm}
+      />
+      <OnboardingHub
+        open={onboardingOpen}
+        onClose={() => setOnboardingOpen(false)}
+        onTabChange={setActiveTab}
       />
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </>

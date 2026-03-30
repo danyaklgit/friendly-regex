@@ -31,7 +31,7 @@ export function RuleGroupEditor({
   const [isExpanded, setIsExpanded] = useState(!startCollapsed);
 
   return (
-    <div className="border border-border rounded-lg p-3 bg-surface flex flex-col items-start">
+    <div data-tour="rule-group-editor" className="border border-border rounded-lg p-3 bg-surface flex flex-col items-start">
       <div
         className="flex items-center justify-between w-full cursor-pointer select-none"
         onClick={() => setIsExpanded((prev) => !prev)}
@@ -89,7 +89,7 @@ export function RuleGroupEditor({
             </div>
           </div>
           <div className='flex justify-between w-full gap-1'>
-            <Button variant="ghost" size="xs" onClick={onAddCondition} className="mt-1 ">
+            <Button data-tour="add-condition" variant="ghost" size="xs" onClick={onAddCondition} className="mt-1 ">
               + Add condition
             </Button>
             {canRemoveGroup && (

@@ -337,7 +337,7 @@ export function TagsHierarchyTab() {
   return (
     <div className="flex flex-col gap-4">
       {/* Header bar */}
-      <div className="flex items-center gap-3">
+      <div data-tour="tags-hierarchy-header" className="flex items-center gap-3">
         <div className="relative flex-1 max-w-sm">
           <svg
             className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted"
@@ -346,6 +346,7 @@ export function TagsHierarchyTab() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input
+            data-tour="tags-search"
             type="text"
             placeholder="Search tags..."
             value={search}
@@ -360,11 +361,11 @@ export function TagsHierarchyTab() {
             </svg>
             {refreshing ? 'Refreshing...' : 'Refresh'}
           </Button>
-          <Button variant="primary" size="sm" onClick={handleCreate}>
+          <Button data-tour="new-tag-button" variant="primary" size="sm" onClick={handleCreate}>
             + New Tag
           </Button>
           {hasChanges && (
-            <Button variant="secondary" size="sm" onClick={() => setSyncModalOpen(true)}>
+            <Button data-tour="sync-tags-button" variant="secondary" size="sm" onClick={() => setSyncModalOpen(true)}>
               Sync Tags
             </Button>
           )}
@@ -372,7 +373,7 @@ export function TagsHierarchyTab() {
       </div>
 
       {/* Tree view */}
-      <div className="rounded-xl border border-border bg-surface-elevated shadow-sm overflow-hidden">
+      <div data-tour="tags-tree" className="rounded-xl border border-border bg-surface-elevated shadow-sm overflow-hidden">
         {filteredView.length === 0 ? (
           <div className="text-sm text-muted text-center py-10">No tags match your search</div>
         ) : (
@@ -407,7 +408,7 @@ export function TagsHierarchyTab() {
                       )}
                       {isGroupNew && <Badge variant="info">NEW</Badge>}
                       {isGroupModified && !isGroupNew && <Badge variant="warning">EDITED</Badge>}
-                      <span className="ml-1 flex gap-1" onClick={(e) => e.stopPropagation()}>
+                      <span className="ml-1 flex gap-1" data-tour="tag-row-actions" onClick={(e) => e.stopPropagation()}>
                         <button
                           type="button"
                           onClick={() => handleEdit(group.groupNode!)}

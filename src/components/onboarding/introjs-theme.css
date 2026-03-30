@@ -1,0 +1,235 @@
+@import 'intro.js/minified/introjs.min.css';
+
+.introjs-overlay {
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.introjs-helperLayer {
+  border-radius: 8px;
+  box-shadow: rgba(33, 33, 33, 0.8) 0px 0px 1px 2px, rgba(33, 33, 33, 0.5) 0px 0px 0px 5000px !important;
+}
+
+.introjs-tooltip {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.14);
+  color: var(--color-body);
+  font-family: var(--font-sans, 'Rubik', sans-serif);
+  min-width: 260px;
+  max-width: 340px;
+}
+
+.introjs-tooltip-title {
+  color: var(--color-heading);
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.introjs-tooltiptext {
+  color: var(--color-body);
+  font-size: 13px;
+  line-height: 1.6;
+  padding: 0;
+}
+
+.introjs-tooltiptext b {
+  color: var(--color-primary-dark);
+  font-weight: 600;
+}
+
+.introjs-tooltiptext i {
+  color: var(--color-muted);
+}
+
+/* Buttons */
+.introjs-tooltipbuttons {
+  border-top: 1px solid var(--color-border);
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.introjs-button {
+  background: var(--color-primary);
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 14px;
+  text-shadow: none;
+  transition: background 0.15s ease;
+}
+
+.introjs-button:hover {
+  background: var(--color-primary-dark);
+  color: #fff;
+}
+
+.introjs-button:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.introjs-prevbutton {
+  background: var(--color-surface-secondary);
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-body);
+}
+
+.introjs-prevbutton:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-heading);
+}
+
+.introjs-prevbutton::before {
+  content: '';
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  margin-right: 5px;
+  vertical-align: middle;
+  background-color: currentColor;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 12H5M11 18l-6-6 6-6'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 12H5M11 18l-6-6 6-6'/%3E%3C/svg%3E");
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+}
+
+.introjs-nextbutton::after,
+.introjs-donebutton::after {
+  content: '';
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  margin-left: 5px;
+  vertical-align: middle;
+  background-color: currentColor;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h14M13 6l6 6-6 6'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h14M13 6l6 6-6 6'/%3E%3C/svg%3E");
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+}
+
+.introjs-skipbutton {
+  color: var(--color-muted);
+  font-size: 11px;
+  margin-right: auto;
+  padding: 5px 6px;
+  background: none;
+  border: none;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 0.15s ease;
+}
+
+.introjs-skipbutton:hover {
+  color: var(--color-body);
+  background: none;
+}
+
+/* Progress bar */
+.introjs-progress {
+  background: var(--color-border);
+  border-radius: 4px;
+  height: 3px;
+  margin: 8px 12px 0;
+}
+
+.introjs-progressbar {
+  background: var(--color-primary);
+  border-radius: 4px;
+}
+
+/* Bullets */
+.introjs-bullets ul li a {
+  background: var(--color-border-strong);
+}
+
+.introjs-bullets ul li a.active,
+.introjs-bullets ul li a:hover {
+  background: var(--color-primary);
+}
+
+/* Arrow */
+.introjs-arrow {
+  border: 5px solid transparent;
+}
+
+.introjs-arrow.top {
+  border-bottom-color: var(--color-surface);
+}
+
+.introjs-arrow.bottom {
+  border-top-color: var(--color-surface);
+}
+
+.introjs-arrow.left {
+  border-right-color: var(--color-surface);
+}
+
+.introjs-arrow.right {
+  border-left-color: var(--color-surface);
+}
+
+/* Interactive step: pulse the highlight layer to signal "click me" */
+@keyframes introjs-pulse {
+  0%, 100% { box-shadow: rgba(33, 33, 33, 0.8) 0px 0px 1px 2px, rgba(33, 33, 33, 0.5) 0px 0px 0px 5000px; }
+  50% { box-shadow: var(--color-primary, #3b82f6) 0px 0px 0px 3px, rgba(33, 33, 33, 0.5) 0px 0px 0px 5000px; }
+}
+
+body[data-introjs-interactive] .introjs-helperLayer {
+  animation: introjs-pulse 1.4s ease-in-out infinite;
+}
+
+/* "Click to continue" hint shown below buttons on interactive steps */
+body[data-introjs-interactive] .introjs-tooltipbuttons::after {
+  content: 'Click the highlighted element to continue';
+  display: block;
+  width: 100%;
+  text-align: center;
+  font-size: 10px;
+  color: var(--color-muted);
+  padding-top: 4px;
+  margin-top: 2px;
+  border-top: 1px solid var(--color-border);
+}
+
+/* "Select a filter value to continue" hint on advanceOnVisible steps */
+body[data-introjs-watch] .introjs-tooltipbuttons::after {
+  content: 'Select a filter value to continue';
+  display: block;
+  width: 100%;
+  text-align: center;
+  font-size: 10px;
+  color: var(--color-muted);
+  padding-top: 4px;
+  margin-top: 2px;
+  border-top: 1px solid var(--color-border);
+}
+
+/* Tooltip header/content padding */
+.introjs-tooltip-header {
+  padding: 14px 16px 6px;
+}
+
+.introjs-tooltiptext {
+  padding: 0 16px 10px;
+}
+
+.introjs-tooltipbuttons {
+  padding: 8px 12px;
+}

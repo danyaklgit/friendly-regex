@@ -294,7 +294,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
   const showSkeleton = loading && libraries.length === 0;
 
   return (
-    <div>
+    <div data-tour="backlog-view">
       <div className="flex items-center justify-between mb-4">
         <span className="inline-flex items-center gap-1.5 text-xs text-muted">
           <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -332,7 +332,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
       ) : rows.length === 0 ? (
         <div className="text-center py-12 text-body-secondary text-sm">No active libraries found.</div>
       ) : (
-        <div className="overflow-clip border border-border rounded-lg">
+        <div data-tour="backlog-table" className="overflow-clip border border-border rounded-lg">
           <table className="min-w-full divide-y divide-divide">
             <thead className="bg-surface-secondary sticky top-0 z-20">
               <tr className="flex items-center">
@@ -363,6 +363,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                         <div className="px-4 py-2.5 w-10 shrink-0">
                           <button
                             type="button"
+                            data-tour="expand-first-row"
                             onClick={() => toggleExpand(rowKey)}
                             className="text-faint hover:text-body-secondary cursor-pointer"
                           >
@@ -466,7 +467,13 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                               </Button>
                             )}
                             {(!row.isInProgress || (row.isInProgress && !row.hasOperator)) && (
-                              <Button variant="primary" size="xs" onClick={() => handleCheckout(row)} disabled={!canAct || isLoading}>
+                              <Button
+                                data-tour="checkout-button"
+                                variant="primary"
+                                size="xs"
+                                onClick={() => handleCheckout(row)}
+                                disabled={!canAct || isLoading}
+                              >
                                 Checkout
                               </Button>
                             )}

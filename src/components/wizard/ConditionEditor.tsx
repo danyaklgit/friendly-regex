@@ -63,74 +63,80 @@ export function ConditionEditor({
       )}
       <div className="flex items-end gap-2 p-1 bg-surface-secondary rounded-lg border border-border">
         {editing ? (
-          <div className={`flex-1 grid gap-2 grid-cols-3`} id='edit_mode_fields'>
-            <Select
-              label='Source Field'
-              placeholder='Select source field'
-              value={condition.sourceField}
-              onChange={(e) => {
-                const newField = e.target.value;
-                const updates: Partial<ConditionFormValue> = { sourceField: newField };
-                const currentOp = MATCH_OPERATIONS.find((op) => op.key === condition.operation);
-                if (currentOp?.isNumeric) {
-                  const newFieldNumeric = transactions.every((row) => {
-                    const val = row[newField];
-                    if (val === null || val === undefined || val === '') return true;
-                    return !isNaN(Number(val));
-                  });
-                  if (!newFieldNumeric) {
-                    updates.operation = 'begins_with';
-                  }
-                }
-                onUpdate(updates);
-              }}
-              options={fieldMeta.sourceFields.map((f) => ({ value: f, label: humanizeFieldName(f) }))}
-            />
-            <Select
-              label='Operation'
-              value={condition.operation}
-              onChange={(e) => onUpdate({ operation: e.target.value as ConditionFormValue['operation'] })}
-              options={availableOperations.map((op) => ({ value: op.key, label: op.label }))}
-            />
-            {selectedOp?.requiresMultipleValues ? (
-              <Input
-                label='Value'
-                placeholder="Value1, Value2, ..."
-                value={(condition.values ?? []).join(', ')}
+          <div data-tour="condition-fields" className={`flex-1 grid gap-2 grid-cols-3`} id='edit_mode_fields'>
+            <div data-tour="condition-source-field">
+              <Select
+                label='Source Field'
+                placeholder='Select source field'
+                value={condition.sourceField}
                 onChange={(e) => {
-                  const values = e.target.value.split(',').map((v) => v.trim()).filter(Boolean);
-                  onUpdate({ values, value: values[0] ?? '' });
+                  const newField = e.target.value;
+                  const updates: Partial<ConditionFormValue> = { sourceField: newField };
+                  const currentOp = MATCH_OPERATIONS.find((op) => op.key === condition.operation);
+                  if (currentOp?.isNumeric) {
+                    const newFieldNumeric = transactions.every((row) => {
+                      const val = row[newField];
+                      if (val === null || val === undefined || val === '') return true;
+                      return !isNaN(Number(val));
+                    });
+                    if (!newFieldNumeric) {
+                      updates.operation = 'begins_with';
+                    }
+                  }
+                  onUpdate(updates);
                 }}
+                options={fieldMeta.sourceFields.map((f) => ({ value: f, label: humanizeFieldName(f) }))}
               />
-            ) : selectedOp?.requiresExtraction ? (
-              <div className='flex flex-col gap-1'>
+            </div>
+            <div data-tour="condition-operation">
+              <Select
+                label='Operation'
+                value={condition.operation}
+                onChange={(e) => onUpdate({ operation: e.target.value as ConditionFormValue['operation'] })}
+                options={availableOperations.map((op) => ({ value: op.key, label: op.label }))}
+              />
+            </div>
+            <div data-tour="condition-value">
+              {selectedOp?.requiresMultipleValues ? (
                 <Input
-                  label='Starting Character'
-                  placeholder="Prefix..."
-                  value={condition.prefix ?? ''}
-                  onChange={(e) => onUpdate({ prefix: e.target.value })}
+                  label='Value'
+                  placeholder="Value1, Value2, ..."
+                  value={(condition.values ?? []).join(', ')}
+                  onChange={(e) => {
+                    const values = e.target.value.split(',').map((v) => v.trim()).filter(Boolean);
+                    onUpdate({ values, value: values[0] ?? '' });
+                  }}
                 />
+              ) : selectedOp?.requiresExtraction ? (
+                <div className='flex flex-col gap-1'>
+                  <Input
+                    label='Starting Character'
+                    placeholder="Prefix..."
+                    value={condition.prefix ?? ''}
+                    onChange={(e) => onUpdate({ prefix: e.target.value })}
+                  />
+                  <Input
+                    label='End Character'
+                    placeholder="Suffix..."
+                    value={condition.suffix ?? ''}
+                    onChange={(e) => onUpdate({ suffix: e.target.value })}
+                  />
+                  <Input
+                    label='Compare value to'
+                    placeholder="Equals value..."
+                    value={condition.value}
+                    onChange={(e) => onUpdate({ value: e.target.value })}
+                  />
+                </div>
+              ) : (
                 <Input
-                  label='End Character'
-                  placeholder="Suffix..."
-                  value={condition.suffix ?? ''}
-                  onChange={(e) => onUpdate({ suffix: e.target.value })}
-                />
-                <Input
-                  label='Compare value to'
-                  placeholder="Equals value..."
+                  label='Value'
+                  placeholder="Enter value..."
                   value={condition.value}
                   onChange={(e) => onUpdate({ value: e.target.value })}
                 />
-              </div>
-            ) : (
-              <Input
-                label='Value'
-                placeholder="Enter value..."
-                value={condition.value}
-                onChange={(e) => onUpdate({ value: e.target.value })}
-              />
-            )}
+              )}
+            </div>
           </div>
         ) : (
           <div
