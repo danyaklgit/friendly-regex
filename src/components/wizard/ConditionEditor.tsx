@@ -12,6 +12,7 @@ interface ConditionEditorProps {
   condition: ConditionFormValue;
   onUpdate: (updates: Partial<ConditionFormValue>) => void;
   onRemove: () => void;
+  onSave?: () => void;
   canRemove: boolean;
   showAnd?: boolean;
   startCollapsed?: boolean;
@@ -21,6 +22,7 @@ export function ConditionEditor({
   condition,
   onUpdate,
   onRemove,
+  onSave,
   canRemove,
   showAnd,
   startCollapsed,
@@ -151,7 +153,7 @@ export function ConditionEditor({
           <p className="text-xs text-primary italic text-left border-dashed border w-fit px-2 py-1">
             {humanizeFieldName(condition.sourceField)} &rarr; <span className='text-orange-500'>{preview}</span>
           </p>
-          <Button variant="primary" size="xs" onClick={() => setEditing(false)}>
+          <Button variant="primary" size="xs" onClick={() => { setEditing(false); onSave?.(); }}>
             Save
           </Button>
         </div>

@@ -2,11 +2,24 @@ import type { TransactionRow } from '../types';
 
 // --- Request types ---
 
-export interface FilterProperty {
+export interface RegexCondition {
+  ColumnName: string;
+  Value: string;
+  Options: string;
+}
+
+export interface StandardFilterProperty {
   ColumnName: string;
   Value: string;
   Operand: string;
 }
+
+export interface RegexFilterProperty {
+  Operand: 'REGEX';
+  Regex: RegexCondition[][];
+}
+
+export type FilterProperty = StandardFilterProperty | RegexFilterProperty;
 
 export interface SortProperty {
   ColumnName: string;
