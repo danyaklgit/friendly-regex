@@ -9,6 +9,7 @@ interface StepRuleExpressionsProps {
   onAddCondition: (groupId: string) => void;
   onRemoveCondition: (groupId: string, conditionId: string) => void;
   onUpdateCondition: (groupId: string, conditionId: string, updates: Partial<ConditionFormValue>) => void;
+  onConditionSave?: () => void;
   startCollapsed?: boolean;
 }
 
@@ -19,6 +20,7 @@ export function StepRuleExpressions({
   onAddCondition,
   onRemoveCondition,
   onUpdateCondition,
+  onConditionSave,
   startCollapsed,
 }: StepRuleExpressionsProps) {
   return (
@@ -47,6 +49,7 @@ export function StepRuleExpressions({
               onRemoveCondition={(condId) => onRemoveCondition(group.id, condId)}
               onUpdateCondition={(condId, updates) => onUpdateCondition(group.id, condId, updates)}
               onRemoveGroup={() => onRemoveGroup(group.id)}
+              onConditionSave={onConditionSave}
               canRemoveGroup
               startCollapsed={startCollapsed}
             />

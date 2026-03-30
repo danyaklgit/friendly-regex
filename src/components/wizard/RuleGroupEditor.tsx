@@ -12,6 +12,7 @@ interface RuleGroupEditorProps {
   onRemoveCondition: (conditionId: string) => void;
   onUpdateCondition: (conditionId: string, updates: Partial<ConditionFormValue>) => void;
   onRemoveGroup: () => void;
+  onConditionSave?: () => void;
   canRemoveGroup: boolean;
   startCollapsed?: boolean;
 }
@@ -23,6 +24,7 @@ export function RuleGroupEditor({
   onRemoveCondition,
   onUpdateCondition,
   onRemoveGroup,
+  onConditionSave,
   canRemoveGroup,
   startCollapsed,
 }: RuleGroupEditorProps) {
@@ -78,6 +80,7 @@ export function RuleGroupEditor({
                   condition={condition}
                   onUpdate={(updates) => onUpdateCondition(condition.id, updates)}
                   onRemove={() => onRemoveCondition(condition.id)}
+                  onSave={onConditionSave}
                   canRemove={group.conditions.length > 1}
                   showAnd={i > 0}
                   startCollapsed={startCollapsed && condition.value.trim().length > 0}

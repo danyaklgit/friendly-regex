@@ -99,6 +99,28 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
 
 const BATCH_SIZE = 50;
 
+/** Build the FilterProperty[] payload for Call 3 (Apply Rules) from the builder form state. */
+function buildRulesetFilters(formState: WizardFormState): FilterProperty[] {
+  const filters: FilterProperty[] = [
+    { ColumnName: 'BankSwiftCode', Value: formState.bankSwiftCode, Operand: 'IN' },
+    { ColumnName: 'Side', Value: formState.side, Operand: 'IN' },
+    { ColumnName: 'TransactionTypeCode', Value: formState.transactionTypeCode, Operand: 'EQ' },
+  ];
+
+  const regexGroups = formState.ruleGroups
+    .map(group =>
+      group.conditions
+        .filter(c => c.value.trim().length > 0)
+        .map(c => ({ ColumnName: c.sourceField, Value: c.value, Options: '' }))
+    )
+    .filter(group => group.length > 0);
+
+  if (regexGroups.length > 0) {
+    filters.push({ Operand: 'REGEX', Regex: regexGroups });
+  }
+
+  return filters;
+}
 
 export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
   const { libraries, tagDefinitions, originalDefinitionIds, dispatch } = useTagSpecs();
@@ -197,17 +219,33 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
     tagNameCount: number | null;              // total count by tag name (null = loading)
     showingAll: boolean;                      // user clicked "show all" → switched to tag-name filter
     tagFilterKey: string;                     // the filter definition Tag key for the tag filter
+    definitionTotalCount: number | null;      // Call 2 total count (stored before Call 3 overwrites)
+    rulesetApplied: boolean;                  // whether user clicked "Apply Rules"
+    rulesetFilters: FilterProperty[];         // REGEX-based filters for Call 3
+    rulesetMatchCount: number | null;         // last confirmed REGEX match count (persists during re-loads)
+    originalFormState: WizardFormState;       // builder state at tag-click time (for discard)
   } | null>(null);
 
-  // Extra filters injected into API calls (definition-ID scoping for tag click, or transaction type from builder)
-  // NOTE: builder rule conditions are NOT sent to the API — rule preview is frontend-only on loaded data.
+  // Extra filters injected into API calls (definition-ID scoping, REGEX ruleset, or transaction type from builder)
   const activeExtraFilters: FilterProperty[] = useMemo(() => {
-    if (tagClickState && !tagClickState.showingAll) {
-      return [{
-        ColumnName: 'OpsTagSpecDefinitionId|OpsMultiTags.TagSpecDefinitionId',
-        Value: tagClickState.definitionId,
-        Operand: 'IN',
-      }];
+    if (tagClickState) {
+      // After "Apply Rules": use REGEX-based filters (Call 3)
+      if (tagClickState.rulesetApplied) {
+        return tagClickState.rulesetFilters;
+      }
+      // Default tag-click mode: scope by definition ID (Call 2)
+      if (!tagClickState.showingAll) {
+        return [{
+          ColumnName: 'OpsTagSpecDefinitionId|OpsMultiTags.TagSpecDefinitionId',
+          Value: tagClickState.definitionId,
+          Operand: 'IN',
+        }];
+      }
+      // "Show all" mode: keep TransactionTypeCode so the scope stays correct
+      if (tagClickState.originalFormState.transactionTypeCode) {
+        return [{ ColumnName: 'TransactionTypeCode', Value: tagClickState.originalFormState.transactionTypeCode, Operand: 'EQ' }];
+      }
+      return [];
     }
     const extra: FilterProperty[] = [];
     if (builderOpen && builder.formState.transactionTypeCode) {
@@ -293,6 +331,26 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
     }, 50);
     return () => clearTimeout(timer);
   }, [isLiveMode, filters, fetchPage, incrementalPagination, activeExtraFilters]);
+
+  // Capture Call 2 total count (definition-based) before Call 3 can overwrite it
+  useEffect(() => {
+    if (tagClickState && !tagClickState.showingAll && !tagClickState.rulesetApplied
+        && tagClickState.definitionTotalCount === null && totalTransactionsCount != null) {
+      setTagClickState(prev => prev ? { ...prev, definitionTotalCount: totalTransactionsCount } : prev);
+    }
+  }, [tagClickState, totalTransactionsCount]);
+
+  // Capture confirmed REGEX match count after each Call 3 completes
+  useEffect(() => {
+    if (tagClickState?.rulesetApplied && !loading && totalTransactionsCount != null) {
+      setTagClickState(prev =>
+        prev?.rulesetApplied && prev.rulesetMatchCount !== totalTransactionsCount
+          ? { ...prev, rulesetMatchCount: totalTransactionsCount }
+          : prev
+      );
+    }
+  }, [tagClickState?.rulesetApplied, loading, totalTransactionsCount]);
+
   const [visibleCount, setVisibleCount] = useState(BATCH_SIZE);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardInitialState, setWizardInitialState] = useState<WizardFormState | undefined>(undefined);
@@ -478,6 +536,23 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
     setWizardOpen(true);
   }, [builder.formState, activeCheckout, editingDef]);
 
+  const handleApplyRules = useCallback((formStateOverride?: WizardFormState) => {
+    if (!tagClickState) return;
+    const rulesetFilters = buildRulesetFilters(formStateOverride ?? builder.formState);
+    // If we were in "show all" mode, restore preFilters so the tag name filter doesn't bleed into the REGEX call
+    if (tagClickState.showingAll) {
+      setFilters(tagClickState.preFilters);
+    }
+    setTagClickState(prev => prev ? {
+      ...prev,
+      definitionTotalCount: prev.definitionTotalCount ?? totalTransactionsCount,
+      rulesetApplied: true,
+      rulesetFilters,
+      rulesetMatchCount: null,
+      showingAll: false,
+    } : prev);
+  }, [tagClickState, builder.formState, totalTransactionsCount]);
+
   const handleDiscard = useCallback(() => {
     setBuilderOpen(false);
     setEditingDef(undefined);
@@ -566,6 +641,11 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
           tagNameCount: null, // loading
           showingAll: false,
           tagFilterKey,
+          definitionTotalCount: null,
+          rulesetApplied: false,
+          rulesetFilters: [],
+          rulesetMatchCount: null,
+          originalFormState: formState,
         });
 
         // Primary: immediately fetch by definition ID (don't wait for the useEffect cycle)
@@ -576,12 +656,11 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
         }];
         fetchPage(filters, false, 0, undefined, defIdFilter);
 
-        // Background: fetch count by tag name to detect other rules producing this tag
-        const tagNameFilter: FilterProperty[] = [{
-          ColumnName: 'OpsTag|OpsMultiTags.Tag',
-          Value: tagName,
-          Operand: 'IN',
-        }];
+        // Background: fetch count by tag name + transaction type to detect other rules producing this tag
+        const tagNameFilter: FilterProperty[] = [
+          { ColumnName: 'OpsTag|OpsMultiTags.Tag', Value: tagName, Operand: 'IN' },
+          { ColumnName: 'TransactionTypeCode', Value: formState.transactionTypeCode, Operand: 'EQ' },
+        ];
         fetchCount(filters, tagNameFilter).then((count) => {
           setTagClickState((prev) => prev ? { ...prev, tagNameCount: count } : prev);
         });
@@ -748,6 +827,16 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
               <Button variant="ghost" size="xs" onClick={handleDiscard}>
                 Discard
               </Button>
+              {tagClickState && (
+                <Button
+                  variant="outline"
+                  size="xs"
+                  onClick={() => handleApplyRules()}
+                  disabled={!builderHasContent}
+                >
+                  Apply Rules
+                </Button>
+              )}
               <Button
                 variant="primary"
                 size="xs"
@@ -768,11 +857,39 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
               </h4>
               <StepRuleExpressions
                 ruleGroups={builder.formState.ruleGroups}
-                onAddGroup={builder.addRuleGroup}
-                onRemoveGroup={builder.removeRuleGroup}
+                onAddGroup={tagClickState
+                  ? () => {
+                      builder.addRuleGroup();
+                      handleApplyRules();
+                    }
+                  : builder.addRuleGroup}
+                onRemoveGroup={tagClickState
+                  ? (groupId) => {
+                      builder.removeRuleGroup(groupId);
+                      const newFormState = {
+                        ...builder.formState,
+                        ruleGroups: builder.formState.ruleGroups.filter((g) => g.id !== groupId),
+                      };
+                      handleApplyRules(newFormState);
+                    }
+                  : builder.removeRuleGroup}
                 onAddCondition={builder.addCondition}
-                onRemoveCondition={builder.removeCondition}
+                onRemoveCondition={tagClickState
+                  ? (groupId, condId) => {
+                      builder.removeCondition(groupId, condId);
+                      const newFormState = {
+                        ...builder.formState,
+                        ruleGroups: builder.formState.ruleGroups.map((g) =>
+                          g.id === groupId
+                            ? { ...g, conditions: g.conditions.filter((c) => c.id !== condId) }
+                            : g
+                        ),
+                      };
+                      handleApplyRules(newFormState);
+                    }
+                  : builder.removeCondition}
                 onUpdateCondition={builder.updateCondition}
+                onConditionSave={tagClickState ? () => handleApplyRules() : undefined}
                 startCollapsed={!!editingDef}
               />
             </div>
@@ -795,22 +912,48 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
           </div>
 
           <span className='flex flex-col items-center w-full text-slate-500 text-xs pb-2 gap-1'>
+            {/* Records count — always shown */}
             <span className='flex items-baseline'>
               Records: <span className='text-primary pl-1 text-base'>{filteredData.length}</span>
             </span>
-            {tagClickState && !tagClickState.showingAll && tagClickState.tagNameCount !== null &&
-              tagClickState.tagNameCount > (totalTransactionsCount ?? filteredData.length) && (
+            {/* Ruleset match count — only shown after API confirms AND counts differ */}
+            {tagClickState?.rulesetApplied &&
+              tagClickState.rulesetMatchCount != null &&
+              tagClickState.rulesetMatchCount !== filteredData.length && (
+              <span className='text-[11px] text-emerald-600 dark:text-emerald-400'>
+                {tagClickState.rulesetMatchCount.toLocaleString()} transaction{tagClickState.rulesetMatchCount !== 1 ? 's' : ''} match this ruleset
+              </span>
+            )}
+
+            {/* After Apply Rules: discard changes + show all */}
+            {tagClickState?.rulesetApplied && !tagClickState.showingAll && (
               <button
                 className='text-[11px] text-amber-600 dark:text-amber-400 hover:underline cursor-pointer'
                 onClick={() => {
                   if (!tagClickState) return;
-                  // Switch to "show all" mode: set tag filter active in filters, clear extra filters
+                  builder.setFormState(tagClickState.originalFormState);
+                  const tagNameFilter = new Set([tagClickState.tagName]);
+                  setFilters({ ...tagClickState.preFilters, [tagClickState.tagFilterKey]: tagNameFilter });
+                  setTagClickState((prev) => prev ? { ...prev, rulesetApplied: false, rulesetFilters: [], showingAll: true } : prev);
+                }}
+              >
+                Discard your unsaved changes and show all
+              </button>
+            )}
+
+            {/* Before Apply Rules: show "other transactions" link */}
+            {tagClickState && !tagClickState.showingAll && !tagClickState.rulesetApplied &&
+              tagClickState.tagNameCount !== null && (
+              <button
+                className='text-[11px] text-amber-600 dark:text-amber-400 hover:underline cursor-pointer'
+                onClick={() => {
+                  if (!tagClickState) return;
                   const tagNameFilter = new Set([tagClickState.tagName]);
                   setFilters({ ...tagClickState.preFilters, [tagClickState.tagFilterKey]: tagNameFilter });
                   setTagClickState((prev) => prev ? { ...prev, showingAll: true } : prev);
                 }}
               >
-                {(tagClickState.tagNameCount - (totalTransactionsCount ?? filteredData.length)).toLocaleString()} other transaction{tagClickState.tagNameCount - (totalTransactionsCount ?? filteredData.length) !== 1 ? 's' : ''} have this tag with different rules — click to show all
+                {tagClickState.tagNameCount.toLocaleString()} transaction{tagClickState.tagNameCount !== 1 ? 's' : ''} have this tag — click to show all
               </button>
             )}
           </span>
