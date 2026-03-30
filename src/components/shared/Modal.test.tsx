@@ -78,6 +78,16 @@ describe('Modal', () => {
     expect(document.body.style.overflow).toBe('hidden');
   });
 
+  it('applies fixed height class when fullHeight is true', () => {
+    const { container } = render(
+      <Modal open={true} onClose={() => {}} title="Full" fullHeight>
+        <p>Body</p>
+      </Modal>
+    );
+    const panel = container.querySelector('.h-\\[90vh\\]');
+    expect(panel).not.toBeNull();
+  });
+
   it('restores overflow on close', () => {
     const { rerender } = render(
       <Modal open={true} onClose={() => {}} title="Test">
