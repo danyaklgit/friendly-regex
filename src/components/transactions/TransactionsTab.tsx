@@ -457,20 +457,6 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
     return map.size > 0 ? map : undefined;
   }, [filters, filterDefinitions]);
 
-  // Compute sticky fields from builder ruleset conditions only
-  const stickyFields = useMemo(() => {
-    if (!builderOpen) return undefined;
-    const fields = new Set<string>();
-
-    for (const group of builder.formState.ruleGroups) {
-      for (const c of group.conditions) {
-        if (c.value.trim().length > 0) fields.add(c.sourceField);
-      }
-    }
-
-    return fields.size > 0 ? fields : undefined;
-  }, [builderOpen, builder.formState]);
-
   const handleCreateFromBuilder = useCallback(() => {
     const isFromCheckout = !!activeCheckout && !editingDef;
     const state: WizardFormState = {
@@ -849,7 +835,6 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
         originalDefinitionIds={originalDefinitionIds}
         highlightExpressions={highlightExpressions}
         searchHighlights={searchHighlights}
-        stickyFields={stickyFields}
         onTagClick={handleTagClick}
         onFlagDeadEnd={flagDeadEnd}
         showAttributes={showAttributes}

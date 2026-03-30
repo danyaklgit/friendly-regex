@@ -15,7 +15,6 @@ interface TransactionTableProps {
   originalDefinitionIds?: Set<string>;
   highlightExpressions?: RuleExpression[];
   searchHighlights?: Map<string, string>;
-  stickyFields?: Set<string>;
   onTagClick?: (tagName: string, definitionId?: string) => void;
   onFlagDeadEnd?: (ids: string[], value: boolean) => void;
   showAttributes?: boolean;
@@ -333,7 +332,7 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
 
 export type { ColumnDef };
 
-export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, highlightExpressions, searchHighlights, stickyFields, onTagClick, onFlagDeadEnd, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady, builderHeight = 0, loading = false, accentHue = 190 }: TransactionTableProps) {
+export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady, builderHeight = 0, loading = false, accentHue = 190 }: TransactionTableProps) {
   const { fieldMeta } = useTransactionData();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -603,18 +602,8 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     const tagsIdx = visibleColumns.findIndex((col) => col.type === 'tags');
     if (tagsIdx !== -1) left.add(tagsIdx);
 
-    if (stickyFields && stickyFields.size > 0) {
-      const midpoint = visibleColumns.length / 2;
-      visibleColumns.forEach((col, idx) => {
-        if (col.type === 'data' && stickyFields.has(col.field)) {
-          if (idx < midpoint) left.add(idx);
-          else right.add(idx);
-        }
-      });
-    }
-
     return { leftIndices: left, rightIndices: right };
-  }, [visibleColumns, stickyFields]);
+  }, [visibleColumns]);
 
   // Boundary columns: last left-sticky gets right shadow, first right-sticky gets left shadow
   const { lastLeftIdx, firstRightIdx } = useMemo(() => {
