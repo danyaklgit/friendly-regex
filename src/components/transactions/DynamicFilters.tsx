@@ -33,6 +33,7 @@ interface DynamicFiltersProps {
   isLiveMode?: boolean;
   filterDefinitions?: FilterDefinition[];
   filterDefinitionsLoading?: boolean;
+  decimalMaxValues?: Map<string, number>;
   disabledFilterTags?: Set<string>;
 }
 
@@ -60,26 +61,33 @@ function RangeSlider({
   max,
   low,
   high,
+  step,
   onLowChange,
   onHighChange,
+  hideLabels,
 }: {
   min: number;
   max: number;
   low: number;
   high: number;
+  step?: number;
   onLowChange: (v: number) => void;
   onHighChange: (v: number) => void;
+  hideLabels?: boolean;
 }) {
   const range = max - min || 1;
   const lowPct = ((low - min) / range) * 100;
   const highPct = ((high - min) / range) * 100;
+  const stepVal = step ?? 'any';
 
   return (
     <div className="px-2 pt-1 pb-2">
-      <div className="flex items-center justify-between text-[10px] text-muted mb-1">
-        <span>{low.toLocaleString()}</span>
-        <span>{high.toLocaleString()}</span>
-      </div>
+      {!hideLabels && (
+        <div className="flex items-center justify-between text-[10px] text-muted mb-1">
+          <span>{low.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          <span>{high.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>
+      )}
       <div className="relative h-4">
         <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-1 bg-surface-tertiary rounded" />
         <div
@@ -90,7 +98,7 @@ function RangeSlider({
           type="range"
           min={min}
           max={max}
-          step="any"
+          step={stepVal}
           value={low}
           onChange={(e) => {
             const v = Number(e.target.value);
@@ -102,7 +110,7 @@ function RangeSlider({
           type="range"
           min={min}
           max={max}
-          step="any"
+          step={stepVal}
           value={high}
           onChange={(e) => {
             const v = Number(e.target.value);
@@ -451,16 +459,27 @@ function SearchFilter({
   );
 }
 
-// ─── DECIMAL filter (range inputs) ───────────────────────────────────────────
+// Round n up to the nearest "nice" number (2 significant digits of rounding unit).
+// e.g. 214,630,287 → 215,000,000 | 30,082 → 30,100 | 351,739 → 352,000
+function ceilToNice(n: number): number {
+  if (n <= 0) return 0;
+  const magnitude = Math.floor(Math.log10(n));
+  const step = Math.pow(10, Math.max(0, magnitude - 2));
+  return Math.ceil(n / step) * step;
+}
+
+// ─── DECIMAL filter (range slider) ───────────────────────────────────────────
 
 function DecimalFilter({
   definition,
   filters,
   onFiltersChange,
+  dataMax,
 }: {
   definition: FilterDefinition;
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
+  dataMax?: number;
 }) {
   const { open, setOpen, ref } = useDropdown();
   const gteKey = `${definition.Tag}_GTE`;
@@ -469,92 +488,178 @@ function DecimalFilter({
   const currentMax = [...(filters[lteKey] ?? [])][0] ?? '';
   const hasActive = !!currentMin || !!currentMax;
 
-  const [minVal, setMinVal] = useState(currentMin);
-  const [maxVal, setMaxVal] = useState(currentMax);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const hasSlider = dataMax !== undefined && dataMax > 0;
+  const sliderMax = hasSlider ? ceilToNice(dataMax) : 0;
+  // Step proportional to max, capped at 500,000
+  const step = hasSlider
+    ? Math.min(500_000, Math.max(1, Math.pow(10, Math.max(0, Math.floor(Math.log10(sliderMax)) - 2))))
+    : 1;
 
-  useEffect(() => { setMinVal(currentMin); }, [currentMin]);
-  useEffect(() => { setMaxVal(currentMax); }, [currentMax]);
+  // Applied filter values (what's actually filtering the table)
+  const appliedLow = currentMin !== '' ? Number(currentMin) : 0;
+  const appliedHigh = currentMax !== '' ? Number(currentMax) : sliderMax;
 
-  const applyRange = useCallback((min: string, max: string) => {
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      // Enforce max >= min when both are set
-      let effectiveMax = max;
-      if (min.trim() && max.trim() && Number(max) < Number(min)) {
-        effectiveMax = min;
-      }
-      const next = { ...filters };
-      if (min.trim()) next[gteKey] = new Set([min.trim()]);
-      else delete next[gteKey];
-      if (effectiveMax.trim()) next[lteKey] = new Set([effectiveMax.trim()]);
-      else delete next[lteKey];
-      onFiltersChange(next);
-    }, 400);
-  }, [filters, gteKey, lteKey, onFiltersChange]);
+  // Pending (draft) slider state — not applied until user clicks Filter
+  const [pendingLow, setPendingLow] = useState(appliedLow);
+  const [pendingHigh, setPendingHigh] = useState(appliedHigh);
 
-  const handleMinChange = (val: string) => {
-    setMinVal(val);
-    // If max is set and now less than new min, bump max up to match
-    if (maxVal && val && Number(maxVal) < Number(val)) {
-      setMaxVal(val);
-      applyRange(val, val);
-    } else {
-      applyRange(val, maxVal);
-    }
+  // Edit-mode state for manual min/max inputs
+  const [editMode, setEditMode] = useState(false);
+  const [lowStr, setLowStr] = useState('');
+  const [highStr, setHighStr] = useState('');
+
+  // Sync pending state when the panel opens or applied values change externally
+  useEffect(() => {
+    setPendingLow(appliedLow);
+    setPendingHigh(appliedHigh);
+    setEditMode(false);
+  }, [open, appliedLow, appliedHigh]);
+
+  const isDirty = pendingLow !== appliedLow || pendingHigh !== appliedHigh;
+
+  const applyFilter = () => {
+    const next = { ...filters };
+    if (pendingLow <= 0) delete next[gteKey];
+    else next[gteKey] = new Set([String(pendingLow)]);
+    if (pendingHigh >= sliderMax) delete next[lteKey];
+    else next[lteKey] = new Set([String(pendingHigh)]);
+    onFiltersChange(next);
+    setOpen(false);
   };
 
-  const handleMaxChange = (val: string) => {
-    // Clamp max to be at least the min value
-    let effective = val;
-    if (minVal && val && Number(val) < Number(minVal)) {
-      effective = minVal;
-    }
-    setMaxVal(effective);
-    applyRange(minVal, effective);
+  const clearFilter = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setPendingLow(0);
+    setPendingHigh(sliderMax);
+    const next = { ...filters };
+    delete next[gteKey];
+    delete next[lteKey];
+    onFiltersChange(next);
   };
 
   return (
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+        className={`text-xs px-3 py-1.5 rounded-lg border transition-colors flex items-center gap-1 ${
           hasActive
             ? 'bg-primary/10 border-primary/30 text-primary-dark'
             : 'bg-surface border-border-strong text-body hover:bg-surface-hover'
         }`}
       >
         {definition.Label}
-        {hasActive && <span className="ml-1 opacity-70">({currentMin || '*'} - {currentMax || '*'})</span>}
+        {hasActive && (
+          <>
+            <span className="opacity-70">({Number(currentMin || 0).toLocaleString()} – {Number(currentMax || sliderMax).toLocaleString()})</span>
+            <span onClick={clearFilter} className="ml-0.5 opacity-60 hover:opacity-100">&times;</span>
+          </>
+        )}
       </button>
       {open && (
         <>
           <DropdownBackdrop onClick={() => setOpen(false)} />
-          <div className="absolute top-full mt-1 left-0 z-50 bg-surface border border-border rounded-lg shadow-lg p-3 min-w-52">
-            <div className="flex items-center gap-2">
-              <div className="flex-1">
-                <label className="text-[10px] text-muted block mb-0.5">Min</label>
-                <input
-                  type="number"
-                  value={minVal}
-                  onChange={(e) => handleMinChange(e.target.value)}
-                  placeholder="0"
-                  className="w-full text-xs px-2 py-1 rounded border border-border-strong bg-surface text-body outline-none"
-                />
-              </div>
-              <span className="text-muted text-xs mt-3">&ndash;</span>
-              <div className="flex-1">
-                <label className="text-[10px] text-muted block mb-0.5">Max</label>
-                <input
-                  type="number"
-                  value={maxVal}
-                  onChange={(e) => handleMaxChange(e.target.value)}
-                  min={minVal || undefined}
-                  placeholder="..."
-                  className="w-full text-xs px-2 py-1 rounded border border-border-strong bg-surface text-body outline-none"
-                />
+          <div className="absolute top-full mt-1 left-0 z-50 bg-surface border border-border rounded-lg shadow-lg min-w-80 overflow-hidden">
+            <div className="px-3 pt-2 pb-1 border-b border-border-subtle flex items-center justify-between">
+              <span className="text-[10px] text-muted font-medium uppercase tracking-wide">{definition.Label}</span>
+              <div className="flex items-center gap-2">
+                {hasSlider && (
+                  <button
+                    onClick={() => {
+                      if (editMode) {
+                        setEditMode(false);
+                      } else {
+                        setLowStr(String(pendingLow));
+                        setHighStr(String(pendingHigh));
+                        setEditMode(true);
+                      }
+                    }}
+                    className="flex items-center gap-1 text-[10px] text-muted hover:text-body transition-colors cursor-pointer"
+                  >
+                    {editMode ? (
+                      'Done'
+                    ) : (
+                      <>
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
+                        </svg>
+                        <span>Edit</span>
+                      </>
+                    )}
+                  </button>
+                )}
+                {hasActive && (
+                  <>
+                    <span className="text-border-strong">|</span>
+                    <button onClick={clearFilter} className="text-[10px] text-muted hover:text-body transition-colors cursor-pointer">
+                      Reset
+                    </button>
+                  </>
+                )}
               </div>
             </div>
+            {hasSlider ? (
+              <>
+                {editMode && (
+                  <div className="flex items-center gap-2 px-3 pt-2 pb-1">
+                    <input
+                      type="text"
+                      value={lowStr}
+                      onChange={(e) => {
+                        setLowStr(e.target.value);
+                        const v = parseFloat(e.target.value.replace(/,/g, ''));
+                        if (!isNaN(v) && v >= 0 && v <= pendingHigh) {
+                          setPendingLow(v);
+                        }
+                      }}
+                      className="w-full text-xs px-2 py-1 rounded border border-border-strong bg-surface text-body focus:outline-none focus:border-primary"
+                      placeholder="Min"
+                    />
+                    <span className="text-xs text-muted shrink-0">–</span>
+                    <input
+                      type="text"
+                      value={highStr}
+                      onChange={(e) => {
+                        setHighStr(e.target.value);
+                        const v = parseFloat(e.target.value.replace(/,/g, ''));
+                        if (!isNaN(v) && v >= pendingLow && v <= sliderMax) {
+                          setPendingHigh(v);
+                        }
+                      }}
+                      className="w-full text-xs px-2 py-1 rounded border border-border-strong bg-surface text-body focus:outline-none focus:border-primary"
+                      placeholder="Max"
+                    />
+                  </div>
+                )}
+                <RangeSlider
+                  min={0}
+                  max={sliderMax}
+                  low={pendingLow}
+                  high={pendingHigh}
+                  step={step}
+                  onLowChange={(v) => {
+                    setPendingLow(v);
+                    if (editMode) setLowStr(String(v));
+                  }}
+                  onHighChange={(v) => {
+                    setPendingHigh(v);
+                    if (editMode) setHighStr(String(v));
+                  }}
+                  hideLabels={editMode}
+                />
+                {isDirty && (
+                  <div className="px-2 pb-2">
+                    <button
+                      onClick={applyFilter}
+                      className="w-full text-xs py-1 rounded-md bg-primary text-white font-medium hover:bg-primary/90 transition-colors"
+                    >
+                      Apply filter
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="p-3 text-xs text-muted text-center">No data available</div>
+            )}
           </div>
         </>
       )}
@@ -898,12 +1003,14 @@ function ApiFilterRenderer({
   onFiltersChange,
   lockedColumns,
   disabled,
+  numericBounds,
 }: {
   definition: FilterDefinition;
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
   lockedColumns?: Set<string>;
   disabled?: boolean;
+  numericBounds?: Map<string, number>;
 }) {
   switch (definition.Type) {
     case 'LIST':
@@ -914,7 +1021,7 @@ function ApiFilterRenderer({
     case 'SEARCH':
       return <SearchFilter definition={definition} filters={filters} onFiltersChange={onFiltersChange} />;
     case 'DECIMAL':
-      return <DecimalFilter definition={definition} filters={filters} onFiltersChange={onFiltersChange} />;
+      return <DecimalFilter definition={definition} filters={filters} onFiltersChange={onFiltersChange} dataMax={numericBounds?.get(definition.Tag)} />;
     case 'DATE':
       return <DateFilter definition={definition} filters={filters} onFiltersChange={onFiltersChange} />;
     default:
@@ -941,6 +1048,7 @@ export function DynamicFilters({
   isLiveMode,
   filterDefinitions,
   filterDefinitionsLoading,
+  decimalMaxValues,
   disabledFilterTags,
 }: DynamicFiltersProps) {
   const [expanded] = useState(true);
@@ -991,6 +1099,56 @@ export function DynamicFilters({
 
     return result;
   }, [data, fieldMeta, isLiveMode]);
+
+  // Running max per field — never decreases, so the slider max reflects the
+  // highest value ever seen across all fetched pages regardless of active filters.
+  const runningFieldMaxRef = useRef(new Map<string, number>());
+
+  const numericBounds = useMemo(() => {
+    const bounds = new Map<string, number>();
+    if (!filterDefinitions) return bounds;
+
+    // Update the running max from the current batch of data
+    for (const item of data) {
+      for (const [field, v] of Object.entries(item.row)) {
+        const n = Number(v);
+        if (!isNaN(n) && n > 0) {
+          const prev = runningFieldMaxRef.current.get(field) ?? 0;
+          if (n > prev) runningFieldMaxRef.current.set(field, n);
+        }
+      }
+    }
+
+    // Map each DECIMAL filter tag to its max value
+    for (const def of filterDefinitions) {
+      if (def.Type !== 'DECIMAL') continue;
+      // Prefer the API-probed max (true max across all rows)
+      const probed = decimalMaxValues?.get(def.Tag);
+      if (probed !== undefined && probed > 0) {
+        bounds.set(def.Tag, probed);
+        continue;
+      }
+      // Fall back to running max from loaded rows
+      const candidates = [def.Tag, ...def.Values.map((v) => v.Column).filter(Boolean)];
+      let max: number | undefined;
+      for (const c of candidates) {
+        if (runningFieldMaxRef.current.has(c)) { max = runningFieldMaxRef.current.get(c); break; }
+      }
+      // Case-insensitive substring fallback
+      if (max === undefined) {
+        const tagLower = def.Tag.toLowerCase();
+        for (const [field, m] of runningFieldMaxRef.current) {
+          const fl = field.toLowerCase();
+          if (fl === tagLower || fl.includes(tagLower) || tagLower.includes(fl)) {
+            max = m; break;
+          }
+        }
+      }
+      if (max !== undefined && max > 0) bounds.set(def.Tag, max);
+    }
+    return bounds;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, filterDefinitions, decimalMaxValues]);
 
   const tagFilterValues = useMemo(() => {
     if (isLiveMode) return null; // handled by API filter definition
@@ -1066,6 +1224,7 @@ export function DynamicFilters({
               onFiltersChange={onFiltersChange}
               lockedColumns={lockedColumns}
               disabled={disabledFilterTags?.has(def.Tag)}
+              numericBounds={numericBounds}
             />
           ))}
 

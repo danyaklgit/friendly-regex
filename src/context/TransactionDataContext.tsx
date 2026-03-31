@@ -26,6 +26,8 @@ export interface TransactionDataContextValue {
   filterDefinitions: FilterDefinition[];
   filterDefinitionsLoading: boolean;
   fetchFilterDefinitions: () => Promise<void>;
+  decimalMaxValues: Map<string, number>;
+  fetchDecimalMaxValues: (filterDefs: FilterDefinition[]) => Promise<void>;
 }
 
 export const TransactionDataContext = createContext<TransactionDataContextValue | null>(null);
@@ -44,6 +46,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
   const [totalTransactionsCount, setTotalTransactionsCount] = useState<number | null>(null);
   const [filterDefinitions, setFilterDefinitions] = useState<FilterDefinition[]>([]);
   const [filterDefinitionsLoading, setFilterDefinitionsLoading] = useState(false);
+  const [decimalMaxValues, setDecimalMaxValues] = useState<Map<string, number>>(new Map());
   const currentPageRef = useRef(0);
   const loadedCountRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
@@ -108,6 +111,67 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
       setFilterDefinitionsLoading(false);
       filterFetchingRef.current = false;
     }
+  }, [isLiveMode, getAuthHeaders, refreshIfNeeded, userId, tepConfig]);
+
+  const fetchDecimalMaxValues = useCallback(async (filterDefs: FilterDefinition[]) => {
+    if (!isLiveMode) return;
+    const decimalDefs = filterDefs.filter((d) => d.Type === 'DECIMAL');
+    if (decimalDefs.length === 0) return;
+    await refreshIfNeeded();
+    const authHeaders = getAuthHeaders();
+    const token = authHeaders.Authorization?.replace('Bearer ', '') ?? '';
+    if (!token) return;
+    const tepHeaders: TepHeaders = {
+      apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
+      userId: userId ?? '',
+      tenantCode: tepConfig.ttpTenantCode,
+      languageCode: tepConfig.languageCode,
+      timeZone: tepConfig.timeZone,
+      requestId: tepConfig.ttpRequestId,
+    };
+    const results = new Map<string, number>();
+    await Promise.all(decimalDefs.map(async (def) => {
+      // Probe each column candidate as a sort key in parallel — the API may only
+      // honour certain column names for ORDER BY, so we try all candidates and
+      // keep the highest value found across all probes.
+      const sortCandidates = [...new Set(
+        [def.Tag, ...def.Values.map((v) => v.Column).filter(Boolean)] as string[]
+      )];
+      const probeValues = await Promise.all(sortCandidates.map(async (sortCol) => {
+        try {
+          const d = await getTransactions(
+            {
+              FilteringProperties: [],
+              SortingProperties: [{ ColumnName: sortCol, SortingLevel: 1, SortingOrder: 'DESC' }],
+              Pagination: { PageIndex: 0, PageSize: 1 },
+            },
+            token,
+            tepHeaders,
+          );
+          const row = d.Transactions?.[0];
+          if (!row) return 0;
+          // Read the value for this exact sort column first
+          const direct = row[sortCol];
+          if (direct != null) {
+            const n = Number(direct);
+            if (!isNaN(n) && n > 0) return n;
+          }
+          // Substring fallback for column name mismatches
+          const colLower = sortCol.toLowerCase();
+          for (const [field, v] of Object.entries(row)) {
+            const fl = field.toLowerCase();
+            if (fl === colLower || fl.includes(colLower) || colLower.includes(fl)) {
+              const n = Number(v);
+              if (!isNaN(n) && n > 0) return n;
+            }
+          }
+        } catch { /* silently skip */ }
+        return 0;
+      }));
+      const maxFound = Math.max(0, ...probeValues);
+      if (maxFound > 0) results.set(def.Tag, maxFound);
+    }));
+    if (results.size > 0) setDecimalMaxValues(results);
   }, [isLiveMode, getAuthHeaders, refreshIfNeeded, userId, tepConfig]);
 
   const fetchPage = useCallback(async (filters: Record<string, Set<string>>, append: boolean, explicitPage?: number, pageSize?: number, extraFilters?: FilterProperty[]) => {
@@ -227,6 +291,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
       transactions, fieldMeta, loadTransactions, resetToSample, isCustomData, flagDeadEnd,
       isLiveMode, loading, hasMore, totalTransactionsCount, fetchPage, fetchCount,
       filterDefinitions, filterDefinitionsLoading, fetchFilterDefinitions,
+      decimalMaxValues, fetchDecimalMaxValues,
     }}>
       {children}
     </TransactionDataContext.Provider>

@@ -168,6 +168,7 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
     transactions, fieldMeta, loadTransactions, resetToSample, isCustomData, flagDeadEnd,
     isLiveMode, loading, hasMore: liveHasMore, totalTransactionsCount, fetchPage, fetchCount,
     filterDefinitions, filterDefinitionsLoading, fetchFilterDefinitions,
+    decimalMaxValues, fetchDecimalMaxValues,
   } = useTransactionData();
   // Fetch filter definitions when the Transactions tab mounts
   useEffect(() => {
@@ -175,6 +176,13 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
       fetchFilterDefinitions();
     }
   }, [isLiveMode, fetchFilterDefinitions, filterDefinitions.length]);
+  // Probe the true max value for each DECIMAL filter once definitions are loaded
+  useEffect(() => {
+    if (isLiveMode && filterDefinitions.length > 0) {
+      fetchDecimalMaxValues(filterDefinitions);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLiveMode, filterDefinitions.length]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -800,6 +808,7 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
         isLiveMode={isLiveMode}
         filterDefinitions={filterDefinitions}
         filterDefinitionsLoading={filterDefinitionsLoading}
+        decimalMaxValues={decimalMaxValues}
         disabledFilterTags={tagClickState?.showingAll && tagClickState.tagFilterKey ? new Set([tagClickState.tagFilterKey]) : undefined}
         endSlot={tableColumns.length > 0 ? (
           <ColumnPicker columns={tableColumns} hiddenColumns={effectiveHiddenColumns} onChange={setHiddenColumns} columnOrder={columnOrder} onColumnOrderChange={setColumnOrder} defaultHiddenColumns={defaultHiddenColumns} onReset={handleColumnReset} />
