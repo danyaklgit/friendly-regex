@@ -195,6 +195,8 @@ function ListEqDropdown({
   return (
     <div ref={ref} className="relative shrink-0">
       <button
+        data-filter-tag={definition.Tag}
+        data-filter-label={definition.Label}
         onClick={() => setOpen(!open)}
         className={`text-xs px-3 py-1.5 rounded-lg border transition-colors whitespace-nowrap ${
           hasActive
@@ -310,6 +312,8 @@ function StringFromListDropdown({
   return (
     <div ref={ref} className="relative">
       <button
+        data-filter-tag={definition.Tag}
+        data-filter-label={definition.Label}
         onClick={() => !disabled && setOpen(!open)}
         disabled={disabled}
         className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${

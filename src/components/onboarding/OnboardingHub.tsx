@@ -22,6 +22,7 @@ export function OnboardingHub({ open, onClose, onTabChange }: OnboardingHubProps
     setTimeout(() => {
       const instance = introJs();
       let currentStepIdx = 0;
+      let prevStepIdx = 0;
       let cleanupInteractive: (() => void) | null = null;
 
       instance.setOptions({
@@ -43,16 +44,22 @@ export function OnboardingHub({ open, onClose, onTabChange }: OnboardingHubProps
 
       // Track current step and switch tabs mid-tour
       instance.onBeforeChange((_targetElement, stepIndex) => {
+        prevStepIdx = currentStepIdx;
         currentStepIdx = stepIndex;
         const stepDef = steps[stepIndex];
         if (stepDef?.tab !== undefined) {
           onTabChange(stepDef.tab);
         }
-        // Pre-resolve element if it wasn't in DOM when start() was called
-        const items = (instance as unknown as { _steps: Array<{ element: HTMLElement | undefined }> })._steps;
-        if (items && items[stepIndex] && stepDef?.element && !items[stepIndex].element) {
+        // Always re-query the element — intro.js sets element=floatingPlaceholder and
+        // position="floating" when an element isn't in the DOM at start() time.
+        // The !element guard was always false because the placeholder is truthy.
+        const items = (instance as unknown as { _steps: Array<{ element: HTMLElement | undefined; position: string }> })._steps;
+        if (items && items[stepIndex] && stepDef?.element) {
           const el = document.querySelector(stepDef.element) as HTMLElement | null;
-          if (el) items[stepIndex].element = el;
+          if (el) {
+            items[stepIndex].element = el;
+            items[stepIndex].position = stepDef.position ?? 'bottom';
+          }
         }
         return true;
       });
@@ -142,6 +149,76 @@ export function OnboardingHub({ open, onClose, onTabChange }: OnboardingHubProps
               cleanupInteractive = () => observer.disconnect();
             }
           }
+        } else if (stepDef?.simulateClick) {
+          document.body.setAttribute('data-introjs-simulating', 'true');
+          const t = setTimeout(() => {
+            (document.querySelector(stepDef.simulateClick!) as HTMLElement)?.click();
+            document.body.removeAttribute('data-introjs-simulating');
+            // Re-anchor the current step's element in case new DOM appeared after the click
+            setTimeout(() => instance.refresh(), 400);
+          }, 1000);
+          cleanupInteractive = () => {
+            clearTimeout(t);
+            document.body.removeAttribute('data-introjs-simulating');
+          };
+        } else if (stepDef?.simulateType) {
+          const { target, value, charDelay = 45 } = stepDef.simulateType;
+          document.body.setAttribute('data-introjs-simulating', 'true');
+          let i = 0;
+          let current = '';
+          const simTimers: ReturnType<typeof setTimeout>[] = [];
+          const nativeSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+          const typeNext = () => {
+            const input = document.querySelector(target) as HTMLInputElement | null;
+            if (!input || i >= value.length) {
+              document.body.removeAttribute('data-introjs-simulating');
+              return;
+            }
+            current += value[i++];
+            nativeSetter?.call(input, current);
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            simTimers.push(setTimeout(typeNext, charDelay));
+          };
+          simTimers.push(setTimeout(typeNext, 900));
+          cleanupInteractive = () => {
+            simTimers.forEach(clearTimeout);
+            document.body.removeAttribute('data-introjs-simulating');
+          };
+        } else if (stepDef?.simulateSequence) {
+          document.body.setAttribute('data-introjs-simulating', 'true');
+          const simTimers: ReturnType<typeof setTimeout>[] = [];
+          let lastAt = 0;
+          const nativeSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+          stepDef.simulateSequence.forEach((action) => {
+            if (action.at > lastAt) lastAt = action.at;
+            const t = setTimeout(() => {
+              const el = document.querySelector(action.target) as HTMLElement | null;
+              if (!el) return;
+              if (action.type === 'click') {
+                el.click();
+              } else if (action.type === 'type' && action.value) {
+                let ci = 0;
+                let cur = '';
+                const typeChar = () => {
+                  if (ci >= (action.value?.length ?? 0)) return;
+                  cur += action.value![ci++];
+                  nativeSetter?.call(el, cur);
+                  (el as HTMLInputElement).dispatchEvent(new Event('input', { bubbles: true }));
+                  if (ci < (action.value?.length ?? 0)) simTimers.push(setTimeout(typeChar, 45));
+                };
+                typeChar();
+              }
+            }, action.at);
+            simTimers.push(t);
+          });
+          const doneTimer = setTimeout(() => {
+            document.body.removeAttribute('data-introjs-simulating');
+          }, lastAt + 600);
+          simTimers.push(doneTimer);
+          cleanupInteractive = () => {
+            simTimers.forEach(clearTimeout);
+            document.body.removeAttribute('data-introjs-simulating');
+          };
         } else if (stepDef?.interactive && nextBtn) {
           nextBtn.style.display = 'none';
           document.body.setAttribute('data-introjs-interactive', 'true');
@@ -186,18 +263,55 @@ export function OnboardingHub({ open, onClose, onTabChange }: OnboardingHubProps
       // After each step renders: re-anchor element if it wasn't in the DOM at start()
       // (elements on other tabs resolve to null at start time, need to re-query after tab switch)
       instance.onAfterChange(() => {
+        const prevStep = steps[prevStepIdx];
+        // After a simulateClick step new DOM may still be animating in — wait longer
+        const delay = prevStep?.simulateClick ? 500 : 150;
+
         setTimeout(() => {
-          const items = (instance as unknown as { _steps: Array<{ element: HTMLElement | undefined }> })._steps;
+          const items = (instance as unknown as { _steps: Array<{ element: HTMLElement | undefined; position: string }> })._steps;
           const stepDef = steps[currentStepIdx];
-          if (items && stepDef?.element && !items[currentStepIdx]?.element) {
+
+          // Helper: query the DOM for the step's element and update both element + position.
+          // Must always re-query (not reuse items[i].element) because intro.js replaces a
+          // missing element with a floating placeholder — which is truthy — so the old guard
+          // `!items[i].element` never fired.
+          const reanchor = (): HTMLElement | null => {
+            if (!stepDef?.element || !items || !items[currentStepIdx]) return null;
             const el = document.querySelector(stepDef.element) as HTMLElement | null;
             if (el) {
               items[currentStepIdx].element = el;
-              instance.refresh();
+              items[currentStepIdx].position = stepDef.position ?? 'bottom';
+            }
+            return el;
+          };
+
+          if (prevStep?.simulateClick && stepDef?.element) {
+            // After a simulateClick the new DOM may still be animating — poll until found
+            const tryRefresh = (attemptsLeft: number) => {
+              const el = reanchor();
+              if (el) {
+                instance.refresh();
+              } else if (attemptsLeft > 0) {
+                setTimeout(() => tryRefresh(attemptsLeft - 1), 150);
+              }
+            };
+            tryRefresh(6); // up to ~900 ms of retries
+          } else {
+            reanchor();
+            if (stepDef?.element) instance.refresh();
+          }
+
+          // Clear the tags-search input after advancing past a simulateType step that typed into it
+          if (prevStep?.simulateType?.target === '[data-tour="tags-search"]') {
+            const searchInput = document.querySelector('[data-tour="tags-search"]') as HTMLInputElement | null;
+            if (searchInput) {
+              const nativeSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+              nativeSetter?.call(searchInput, '');
+              searchInput.dispatchEvent(new Event('input', { bubbles: true }));
             }
           }
           applyStepState();
-        }, 150);
+        }, delay);
       });
 
       const teardown = () => {
@@ -207,6 +321,7 @@ export function OnboardingHub({ open, onClose, onTabChange }: OnboardingHubProps
         }
         document.body.removeAttribute('data-introjs-interactive');
         document.body.removeAttribute('data-introjs-watch');
+        document.body.removeAttribute('data-introjs-simulating');
       };
 
       instance.oncomplete(teardown);
