@@ -472,6 +472,14 @@ function ceilToNice(n: number): number {
   return Math.ceil(n / step) * step;
 }
 
+// Format a numeric string with thousand separators, preserving trailing decimal point/digits.
+function formatThousands(raw: string): string {
+  if (!raw) return raw;
+  const [intPart, ...decParts] = raw.split('.');
+  const formatted = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return decParts.length > 0 ? `${formatted}.${decParts.join('.')}` : formatted;
+}
+
 // ─── DECIMAL filter (range slider) ───────────────────────────────────────────
 
 function DecimalFilter({
@@ -572,8 +580,8 @@ function DecimalFilter({
                       if (editMode) {
                         setEditMode(false);
                       } else {
-                        setLowStr(String(pendingLow));
-                        setHighStr(String(pendingHigh));
+                        setLowStr(formatThousands(String(pendingLow)));
+                        setHighStr(formatThousands(String(pendingHigh)));
                         setEditMode(true);
                       }
                     }}
@@ -609,8 +617,9 @@ function DecimalFilter({
                       type="text"
                       value={lowStr}
                       onChange={(e) => {
-                        setLowStr(e.target.value);
-                        const v = parseFloat(e.target.value.replace(/,/g, ''));
+                        const raw = e.target.value.replace(/,/g, '');
+                        setLowStr(formatThousands(raw));
+                        const v = parseFloat(raw);
                         if (!isNaN(v) && v >= 0 && v <= pendingHigh) {
                           setPendingLow(v);
                         }
@@ -623,8 +632,9 @@ function DecimalFilter({
                       type="text"
                       value={highStr}
                       onChange={(e) => {
-                        setHighStr(e.target.value);
-                        const v = parseFloat(e.target.value.replace(/,/g, ''));
+                        const raw = e.target.value.replace(/,/g, '');
+                        setHighStr(formatThousands(raw));
+                        const v = parseFloat(raw);
                         if (!isNaN(v) && v >= pendingLow && v <= sliderMax) {
                           setPendingHigh(v);
                         }
@@ -642,11 +652,11 @@ function DecimalFilter({
                   step={step}
                   onLowChange={(v) => {
                     setPendingLow(v);
-                    if (editMode) setLowStr(String(v));
+                    if (editMode) setLowStr(formatThousands(String(v)));
                   }}
                   onHighChange={(v) => {
                     setPendingHigh(v);
-                    if (editMode) setHighStr(String(v));
+                    if (editMode) setHighStr(formatThousands(String(v)));
                   }}
                   hideLabels={editMode}
                 />
