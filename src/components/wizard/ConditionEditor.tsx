@@ -159,7 +159,7 @@ export function ConditionEditor({
           <p className="text-xs text-primary italic text-left border-dashed border w-fit px-2 py-1">
             {humanizeFieldName(condition.sourceField)} &rarr; <span className='text-orange-500'>{preview}</span>
           </p>
-          <Button variant="primary" size="xs" onClick={() => { setEditing(false); onSave?.(); }}>
+          <Button data-tour="condition-save-button" variant="primary" size="xs" onClick={() => { setEditing(false); onSave?.(); }}>
             Save
           </Button>
         </div>

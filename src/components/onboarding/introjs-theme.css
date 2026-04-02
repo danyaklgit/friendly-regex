@@ -16,8 +16,9 @@
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.14);
   color: var(--color-body);
   font-family: var(--font-sans, 'Rubik', sans-serif);
-  min-width: 260px;
-  max-width: 340px;
+  width: 320px !important;
+  min-width: 320px;
+  max-width: 320px;
 }
 
 .introjs-tooltip-title {
@@ -256,4 +257,15 @@ body[data-introjs-simulating] .introjs-tooltipbuttons::after {
   padding-top: 4px;
   margin-top: 2px;
   border-top: 1px solid var(--color-border);
+}
+
+/* Wizard mode: keep the modal visible and interactive behind intro.js */
+body[data-introjs-in-wizard] .introjs-overlay {
+  background: transparent !important;
+  pointer-events: none !important;
+}
+
+body[data-introjs-in-wizard] .introjs-helperLayer {
+  box-shadow: 0 0 0 2px var(--color-primary, #3b82f6) !important;
+  pointer-events: none;
 }

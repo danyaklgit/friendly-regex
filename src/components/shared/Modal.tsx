@@ -7,9 +7,11 @@ interface ModalProps {
   children: ReactNode;
   footer?: ReactNode;
   fullHeight?: boolean;
+  /** Override the default z-index class (default: "z-50"). Use e.g. "z-[10000]" to appear above other overlays. */
+  zClass?: string;
 }
 
-export function Modal({ open, onClose, title, children, footer, fullHeight }: ModalProps) {
+export function Modal({ open, onClose, title, children, footer, fullHeight, zClass = 'z-50' }: ModalProps) {
   useEffect(() => {
     if (open) {
       document.body.style.overflow = 'hidden';
@@ -24,7 +26,7 @@ export function Modal({ open, onClose, title, children, footer, fullHeight }: Mo
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-8 px-4">
+    <div className={`fixed inset-0 ${zClass} flex items-start justify-center pt-8 px-4`}>
       <div className="fixed inset-0 bg-black/10 dark:bg-black/40" onClick={onClose} />
       <div className={`relative bg-surface-elevated rounded-xl shadow-2xl w-full max-w-3xl ${fullHeight ? 'h-[90vh]' : 'max-h-[90vh]'} flex flex-col`}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">

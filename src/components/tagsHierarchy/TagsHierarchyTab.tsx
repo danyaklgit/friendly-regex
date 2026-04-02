@@ -355,7 +355,7 @@ export function TagsHierarchyTab() {
           />
         </div>
         <div className="flex items-center gap-2 ml-auto">
-          <Button variant="ghost" size="sm" onClick={handleRefresh} disabled={refreshing}>
+          <Button data-tour="tags-refresh-button" variant="ghost" size="sm" onClick={handleRefresh} disabled={refreshing}>
             <svg className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
@@ -422,6 +422,7 @@ export function TagsHierarchyTab() {
 
                         {groupActions.includes('Archive') && group.groupNode!.StatusTag === 'ACTIVE' && (
                           <button
+                            data-tour="tag-group-archive-button"
                             type="button"
                             onClick={() => handleArchive(group.groupNode!)}
                             className="p-1.5 rounded hover:bg-yellow-100 dark:hover:bg-yellow-900/20 text-muted hover:text-yellow-600 transition-colors cursor-pointer"
@@ -448,6 +449,7 @@ export function TagsHierarchyTab() {
 
                         {groupActions.includes('Delete') && (
                           <button
+                            data-tour="tag-group-delete-button"
                             type="button"
                             onClick={() => setDeleteTarget(group.groupNode!)}
                             className="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/20 text-muted hover:text-red-600 transition-colors cursor-pointer"
@@ -488,7 +490,7 @@ export function TagsHierarchyTab() {
                               {leaf.StatusTag}
                             </Badge>
 
-                            <span className="flex gap-1">
+                            <span className="flex gap-1" data-tour="tag-leaf-row-actions">
                               <button
                                 type="button"
                                 onClick={() => handleEdit(leaf)}
@@ -502,6 +504,7 @@ export function TagsHierarchyTab() {
 
                               {actions.includes('Archive') && leaf.StatusTag === 'ACTIVE' && (
                                 <button
+                                  data-tour="tag-leaf-archive-button"
                                   type="button"
                                   onClick={() => handleArchive(leaf)}
                                   className="p-1.5 rounded hover:bg-yellow-100 dark:hover:bg-yellow-900/20 text-muted hover:text-yellow-600 transition-colors cursor-pointer"
@@ -528,6 +531,7 @@ export function TagsHierarchyTab() {
 
                               {actions.includes('Delete') && (
                                 <button
+                                  data-tour="tag-leaf-delete-button"
                                   type="button"
                                   onClick={() => setDeleteTarget(leaf)}
                                   className="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/20 text-muted hover:text-red-600 transition-colors cursor-pointer"

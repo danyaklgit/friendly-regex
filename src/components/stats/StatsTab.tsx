@@ -310,10 +310,11 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
             className="hidden"
             onChange={handleImport}
           />
-          <Button variant="ghost" size="xs" onClick={() => fileInputRef.current?.click()}>
+          <Button data-tour="backlog-import-button" variant="ghost" size="xs" onClick={() => fileInputRef.current?.click()}>
             Import
           </Button>
           <Button
+            data-tour="backlog-export-all-button"
             variant="secondary"
             size="xs"
             onClick={handleExportAll}
@@ -321,7 +322,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
           >
             Export All
           </Button>
-          <Button variant="primary" size="xs" onClick={onViewAllTransactions}>
+          <Button data-tour="backlog-view-all-button" variant="primary" size="xs" onClick={onViewAllTransactions}>
             View All Transactions
           </Button>
         </div>
@@ -388,7 +389,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                           {definitions.length}
                         </div>
                         {/* Statistics */}
-                        <div className="px-4 py-2 flex-1 min-w-72 min-h-16">
+                        <div data-tour="backlog-statistics" className="px-4 py-2 flex-1 min-w-72 min-h-16">
                           {statsLoading ? (
                             <div className="space-y-1.5">
                               <div className="h-2 w-full rounded-full bg-surface-tertiary animate-pulse" />
@@ -457,12 +458,12 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                         <div className="px-4 py-2.5 text-end flex-1">
                           <div className="flex items-center justify-end gap-2">
                             {row.isOwnedByMe && (
-                              <Button variant="danger_ghost" size="xs" onClick={() => setRollbackTarget(row)} disabled={isLoading}>
+                              <Button data-tour="backlog-rollback-button" variant="danger_ghost" size="xs" onClick={() => setRollbackTarget(row)} disabled={isLoading}>
                                 Rollback
                               </Button>
                             )}
                             {row.isOwnedByMe && (
-                              <Button variant="primary" size="xs" onClick={() => handleCheckin(row)} disabled={isLoading}>
+                              <Button data-tour="backlog-checkin-button" variant="primary" size="xs" onClick={() => handleCheckin(row)} disabled={isLoading}>
                                 Checkin
                               </Button>
                             )}
@@ -478,7 +479,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                               </Button>
                             )}
                             {row.isInProgress && (
-                              <Button variant="outline" size="xs" onClick={() => setCompareTarget(row)} disabled={isLoading}>
+                              <Button data-tour="backlog-compare-button" variant="outline" size="xs" onClick={() => setCompareTarget(row)} disabled={isLoading}>
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
                                   <path d="M2 10a8 8 0 018-8v16a8 8 0 01-8-8z" opacity="0.4" />
                                   <path d="M10 2a8 8 0 018 8 8 8 0 01-8 8V2z" />
@@ -486,7 +487,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                                 Compare
                               </Button>
                             )}
-                            <Button variant="outline" size="xs" onClick={() => onViewTransactions(row.bank, row.side)} disabled={isLoading}>
+                            <Button data-tour="backlog-transactions-button" variant="outline" size="xs" onClick={() => onViewTransactions(row.bank, row.side)} disabled={isLoading}>
                               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
                                 <path fillRule="evenodd" d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zm0 5A.75.75 0 012.75 9h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 9.75zm0 5a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75a.75.75 0 01-.75-.75z" clipRule="evenodd" />
                               </svg>
