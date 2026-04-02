@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import introJs from 'intro.js';
 import './introjs-theme.css';
@@ -10,6 +11,16 @@ interface OnboardingHubProps {
 }
 
 export function OnboardingHub({ open, onClose, onTabChange }: OnboardingHubProps) {
+  const instanceRef = useRef<ReturnType<typeof introJs> | null>(null);
+
+  // When the component unmounts (e.g. session expired and user is logged out), exit any
+  // running tour so intro.js cleans up its DOM elements and body attributes.
+  useEffect(() => {
+    return () => {
+      instanceRef.current?.exit(true);
+    };
+  }, []);
+
   const launchTour = (topicKey: string) => {
     onClose();
     const topic = tours[topicKey];
@@ -21,9 +32,11 @@ export function OnboardingHub({ open, onClose, onTabChange }: OnboardingHubProps
 
     setTimeout(() => {
       const instance = introJs();
+      instanceRef.current = instance;
       let currentStepIdx = 0;
       let prevStepIdx = 0;
       let cleanupInteractive: (() => void) | null = null;
+      let wizardTrackedPage = 1;
 
       instance.setOptions({
         steps: steps.map((s) => ({
@@ -44,9 +57,53 @@ export function OnboardingHub({ open, onClose, onTabChange }: OnboardingHubProps
 
       // Track current step and switch tabs mid-tour
       instance.onBeforeChange((_targetElement, stepIndex) => {
+        // Cancel any running simulation immediately so stray timers don't fire on the new step
+        if (cleanupInteractive) {
+          cleanupInteractive();
+          cleanupInteractive = null;
+        }
+
         prevStepIdx = currentStepIdx;
         currentStepIdx = stepIndex;
         const stepDef = steps[stepIndex];
+
+        // Close TagEditModal when navigating out of wizard mode (e.g. pressing Back from first wizard step)
+        if (steps[prevStepIdx]?.wizardStep && !stepDef?.wizardStep) {
+          const cancelBtn = document.querySelector('[data-tour="tag-edit-cancel"]') as HTMLElement | null;
+          cancelBtn?.click();
+        }
+
+        // Set wizard mode BEFORE intro.js renders so the CSS is already active when the
+        // helperLayer is painted (avoids the 150 ms window where it shows with dark overlay).
+        if (stepDef?.wizardStep) {
+          // Scroll page to top so intro.js's absolute positioning (getBoundingClientRect + scrollY)
+          // matches viewport-fixed coordinates for elements inside the position:fixed modal.
+          // The modal covers the viewport so the user doesn't see this scroll.
+          window.scrollTo({ top: 0, behavior: 'instant' });
+
+          document.body.setAttribute('data-introjs-in-wizard', 'true');
+
+          // Reset tracker whenever we first enter the wizard section of the tour
+          if (!steps[prevStepIdx]?.wizardStep) {
+            wizardTrackedPage = 1;
+          }
+
+          // Backward navigation: if user pressed Back while inside the wizard, navigate
+          // the modal backward to match the target tour step's wizardPage.
+          if (stepIndex < prevStepIdx && stepDef.wizardPage !== undefined) {
+            const diff = wizardTrackedPage - stepDef.wizardPage;
+            if (diff > 0) {
+              const backBtn = document.querySelector('[data-tour="wizard-back-button"]') as HTMLButtonElement | null;
+              for (let i = 0; i < diff; i++) {
+                backBtn?.click();
+              }
+              wizardTrackedPage = stepDef.wizardPage;
+            }
+          }
+        } else {
+          document.body.removeAttribute('data-introjs-in-wizard');
+        }
+
         if (stepDef?.tab !== undefined) {
           onTabChange(stepDef.tab);
         }
@@ -72,6 +129,20 @@ export function OnboardingHub({ open, onClose, onTabChange }: OnboardingHubProps
         }
 
         const stepDef = steps[currentStepIdx];
+
+        // Hide the helperLayer for any step that has no element — there is nothing to highlight,
+        // and leaving it visible causes a stale bounding-box to show from a prior step.
+        if (!stepDef?.element) {
+          setTimeout(() => {
+            const helperLayer = document.querySelector('.introjs-helperLayer') as HTMLElement | null;
+            if (helperLayer) helperLayer.style.setProperty('display', 'none', 'important');
+          }, 30);
+        }
+
+        // Scroll to top before the step content renders (e.g. to ensure the tree is in view)
+        if (stepDef?.scrollToTopFirst) {
+          window.scrollTo({ top: 0, behavior: 'instant' });
+        }
 
         // Disable Back on first step
         const prevBtn = document.querySelector('.introjs-prevbutton') as HTMLButtonElement | null;
@@ -150,20 +221,28 @@ export function OnboardingHub({ open, onClose, onTabChange }: OnboardingHubProps
             }
           }
         } else if (stepDef?.simulateClick) {
+          if (nextBtn) { nextBtn.disabled = true; nextBtn.style.opacity = '0.35'; nextBtn.style.pointerEvents = 'none'; }
           document.body.setAttribute('data-introjs-simulating', 'true');
           const t = setTimeout(() => {
             (document.querySelector(stepDef.simulateClick!) as HTMLElement)?.click();
             document.body.removeAttribute('data-introjs-simulating');
             // Re-anchor the current step's element in case new DOM appeared after the click
-            setTimeout(() => instance.refresh(), 400);
+            setTimeout(() => {
+              if (nextBtn) { nextBtn.disabled = false; nextBtn.style.opacity = ''; nextBtn.style.pointerEvents = ''; }
+              instance.refresh();
+            }, 400);
           }, 1000);
           cleanupInteractive = () => {
             clearTimeout(t);
             document.body.removeAttribute('data-introjs-simulating');
+            if (nextBtn) { nextBtn.disabled = false; nextBtn.style.opacity = ''; nextBtn.style.pointerEvents = ''; }
           };
         } else if (stepDef?.simulateType) {
           const { target, value, charDelay = 45 } = stepDef.simulateType;
+          if (nextBtn) { nextBtn.disabled = true; nextBtn.style.opacity = '0.35'; nextBtn.style.pointerEvents = 'none'; }
           document.body.setAttribute('data-introjs-simulating', 'true');
+          const savedScrollX = window.scrollX;
+          const savedScrollY = window.scrollY;
           let i = 0;
           let current = '';
           const simTimers: ReturnType<typeof setTimeout>[] = [];
@@ -171,7 +250,9 @@ export function OnboardingHub({ open, onClose, onTabChange }: OnboardingHubProps
           const typeNext = () => {
             const input = document.querySelector(target) as HTMLInputElement | null;
             if (!input || i >= value.length) {
+              window.scrollTo({ top: savedScrollY, left: savedScrollX, behavior: 'instant' });
               document.body.removeAttribute('data-introjs-simulating');
+              if (nextBtn) { nextBtn.disabled = false; nextBtn.style.opacity = ''; nextBtn.style.pointerEvents = ''; }
               return;
             }
             current += value[i++];
@@ -182,13 +263,31 @@ export function OnboardingHub({ open, onClose, onTabChange }: OnboardingHubProps
           simTimers.push(setTimeout(typeNext, 900));
           cleanupInteractive = () => {
             simTimers.forEach(clearTimeout);
+            window.scrollTo({ top: savedScrollY, left: savedScrollX, behavior: 'instant' });
             document.body.removeAttribute('data-introjs-simulating');
+            if (nextBtn) { nextBtn.disabled = false; nextBtn.style.opacity = ''; nextBtn.style.pointerEvents = ''; }
           };
         } else if (stepDef?.simulateSequence) {
+          if (nextBtn) { nextBtn.disabled = true; nextBtn.style.opacity = '0.35'; nextBtn.style.pointerEvents = 'none'; }
           document.body.setAttribute('data-introjs-simulating', 'true');
           const simTimers: ReturnType<typeof setTimeout>[] = [];
           let lastAt = 0;
           const nativeSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+          // Snapshot scroll position so any click-triggered browser scroll can be undone
+          const savedScrollX = window.scrollX;
+          const savedScrollY = window.scrollY;
+          // RAF scroll lock — runs every frame and immediately snaps back any scroll change
+          let scrollLockId: ReturnType<typeof requestAnimationFrame> | null = null;
+          const lockScroll = () => {
+            if (window.scrollY !== savedScrollY || window.scrollX !== savedScrollX) {
+              window.scrollTo({ top: savedScrollY, left: savedScrollX, behavior: 'instant' });
+            }
+            scrollLockId = requestAnimationFrame(lockScroll);
+          };
+          scrollLockId = requestAnimationFrame(lockScroll);
+          const stopScrollLock = () => {
+            if (scrollLockId !== null) { cancelAnimationFrame(scrollLockId); scrollLockId = null; }
+          };
           stepDef.simulateSequence.forEach((action) => {
             if (action.at > lastAt) lastAt = action.at;
             const t = setTimeout(() => {
@@ -196,28 +295,53 @@ export function OnboardingHub({ open, onClose, onTabChange }: OnboardingHubProps
               if (!el) return;
               if (action.type === 'click') {
                 el.click();
-              } else if (action.type === 'type' && action.value) {
-                let ci = 0;
-                let cur = '';
-                const typeChar = () => {
-                  if (ci >= (action.value?.length ?? 0)) return;
-                  cur += action.value![ci++];
-                  nativeSetter?.call(el, cur);
-                  (el as HTMLInputElement).dispatchEvent(new Event('input', { bubbles: true }));
-                  if (ci < (action.value?.length ?? 0)) simTimers.push(setTimeout(typeChar, 45));
-                };
-                typeChar();
+              } else if (action.type === 'select') {
+                const selectEl = (el.tagName === 'SELECT' ? el : el.querySelector('select')) as HTMLSelectElement | null;
+                if (!selectEl) return;
+                const targetValue =
+                  action.value === 'first'
+                    ? Array.from(selectEl.options).find((o) => o.value !== '')?.value ?? ''
+                    : action.value ?? '';
+                const nativeSelectSetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+                nativeSelectSetter?.call(selectEl, targetValue);
+                selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+              } else if (action.type === 'type' && action.value !== undefined) {
+                const inputEl = el as HTMLInputElement;
+                if (action.value === '') {
+                  // Clear the input
+                  nativeSetter?.call(inputEl, '');
+                  inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+                } else {
+                  let ci = 0;
+                  let cur = '';
+                  const typeChar = () => {
+                    if (ci >= (action.value?.length ?? 0)) return;
+                    cur += action.value![ci++];
+                    nativeSetter?.call(inputEl, cur);
+                    inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+                    if (ci < (action.value?.length ?? 0)) simTimers.push(setTimeout(typeChar, 45));
+                  };
+                  typeChar();
+                }
               }
             }, action.at);
             simTimers.push(t);
           });
           const doneTimer = setTimeout(() => {
+            stopScrollLock();
             document.body.removeAttribute('data-introjs-simulating');
+            if (nextBtn) { nextBtn.disabled = false; nextBtn.style.opacity = ''; nextBtn.style.pointerEvents = ''; }
+            // Track wizard page advances driven by wizard-next-button simulation clicks
+            if (stepDef.simulateSequence?.some((a) => a.target === '[data-tour="wizard-next-button"]')) {
+              wizardTrackedPage++;
+            }
           }, lastAt + 600);
           simTimers.push(doneTimer);
           cleanupInteractive = () => {
+            stopScrollLock();
             simTimers.forEach(clearTimeout);
             document.body.removeAttribute('data-introjs-simulating');
+            if (nextBtn) { nextBtn.disabled = false; nextBtn.style.opacity = ''; nextBtn.style.pointerEvents = ''; }
           };
         } else if (stepDef?.interactive && nextBtn) {
           nextBtn.style.display = 'none';
@@ -285,12 +409,24 @@ export function OnboardingHub({ open, onClose, onTabChange }: OnboardingHubProps
             return el;
           };
 
+          // Restore the helperLayer only for steps that actually have an element present in the DOM.
+          // Keeping it hidden for element-less steps (or steps whose element isn't rendered yet)
+          // prevents stale bounding-boxes from showing at wrong positions.
+          if (!stepDef?.wizardStep && stepDef?.element) {
+            const targetEl = document.querySelector(stepDef.element);
+            if (targetEl) {
+              const helperLayer = document.querySelector('.introjs-helperLayer') as HTMLElement | null;
+              if (helperLayer) helperLayer.style.removeProperty('display');
+            }
+          }
+
           if (prevStep?.simulateClick && stepDef?.element) {
             // After a simulateClick the new DOM may still be animating — poll until found
             const tryRefresh = (attemptsLeft: number) => {
               const el = reanchor();
               if (el) {
-                instance.refresh();
+                // Wizard steps skip instance.refresh() — manual position:fixed override handles them
+                if (!stepDef.wizardStep) instance.refresh();
               } else if (attemptsLeft > 0) {
                 setTimeout(() => tryRefresh(attemptsLeft - 1), 150);
               }
@@ -298,30 +434,53 @@ export function OnboardingHub({ open, onClose, onTabChange }: OnboardingHubProps
             tryRefresh(6); // up to ~900 ms of retries
           } else {
             reanchor();
-            if (stepDef?.element) instance.refresh();
+            // Wizard steps skip instance.refresh() — calling it would position the helperLayer using
+            // document-absolute coords (getBoundingClientRect + scrollY), which is wrong for elements
+            // inside a position:fixed modal. The manual override below uses position:fixed instead.
+            if (stepDef?.element && !stepDef.wizardStep) instance.refresh();
           }
 
-          // Clear the tags-search input after advancing past a simulateType step that typed into it
-          if (prevStep?.simulateType?.target === '[data-tour="tags-search"]') {
-            const searchInput = document.querySelector('[data-tour="tags-search"]') as HTMLInputElement | null;
-            if (searchInput) {
-              const nativeSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-              nativeSetter?.call(searchInput, '');
-              searchInput.dispatchEvent(new Event('input', { bubbles: true }));
-            }
-          }
           applyStepState();
+
+          // Wizard steps: intro.js uses document-absolute positioning (getBoundingClientRect + scrollY)
+          // which is wrong for elements inside the position:fixed modal. Override both layers to
+          // use position:fixed with raw viewport coordinates so the highlight lands correctly.
+          const wizardDef = steps[currentStepIdx];
+          if (wizardDef?.wizardStep && wizardDef.element) {
+            setTimeout(() => {
+              const el = document.querySelector(wizardDef.element!) as HTMLElement | null;
+              if (!el) return;
+              const r = el.getBoundingClientRect();
+              const pad = 4;
+              ['.introjs-helperLayer', '.introjs-tooltipReferenceLayer'].forEach((sel) => {
+                const node = document.querySelector(sel) as HTMLElement | null;
+                if (!node) return;
+                // Remove any prior display:none set by elementless-wizard-step logic
+                node.style.removeProperty('display');
+                // Suppress CSS transitions so the layer jumps directly to the correct position
+                node.style.setProperty('transition', 'none', 'important');
+                node.style.setProperty('position', 'fixed', 'important');
+                node.style.setProperty('top', `${r.top - pad}px`, 'important');
+                node.style.setProperty('left', `${r.left - pad}px`, 'important');
+                node.style.setProperty('width', `${r.width + pad * 2}px`, 'important');
+                node.style.setProperty('height', `${r.height + pad * 2}px`, 'important');
+              });
+            }, 60);
+          }
         }, delay);
       });
 
       const teardown = () => {
+        instanceRef.current = null;
         if (cleanupInteractive) {
           cleanupInteractive();
           cleanupInteractive = null;
         }
+        wizardTrackedPage = 1;
         document.body.removeAttribute('data-introjs-interactive');
         document.body.removeAttribute('data-introjs-watch');
         document.body.removeAttribute('data-introjs-simulating');
+        document.body.removeAttribute('data-introjs-in-wizard');
       };
 
       instance.oncomplete(teardown);

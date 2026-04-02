@@ -13,7 +13,7 @@ interface StepAttributesProps {
 
 export function StepAttributes({ attributes, onAdd, onRemove, onUpdate, transactions, startCollapsed }: StepAttributesProps) {
   return (
-    <div>
+    <div data-tour="wizard-attributes">
       <p className="text-xs text-muted mb-2">
         Define attributes to extract from transactions when this tag matches.
         Attributes are optional — you can skip this step.

@@ -137,14 +137,14 @@ export function TagEditModal({ open, onClose, editingNode, allNodes, onSave }: T
       title={isCreate ? 'Create New Tag' : `Edit ${editingNode!.Tag}`}
       footer={
         <>
-          <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button variant="primary" onClick={handleSave} disabled={!canSave}>
+          <Button data-tour="tag-edit-cancel" variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button data-tour="tag-edit-create" variant="primary" onClick={handleSave} disabled={!canSave}>
             {isCreate ? 'Create' : 'Save'}
           </Button>
         </>
       }
     >
-      <div className="flex flex-col gap-4">
+      <div data-tour="tag-edit-form" className="flex flex-col gap-4">
         {isCreate && (
           <Select
             label="Type"
@@ -158,35 +158,41 @@ export function TagEditModal({ open, onClose, editingNode, allNodes, onSave }: T
           />
         )}
 
-        <Input
-          label="Tag Code"
-          required
-          value={tag}
-          onChange={(e) => setTag(e.target.value)}
-          disabled={!isCreate}
-          placeholder="e.g. PAYMENTCR"
-          error={tagExists}
-        />
-        {tagExists && <p className="text-xs text-red-500 -mt-3 pl-1">Tag already exists</p>}
+        <div data-tour="tag-edit-code">
+          <Input
+            label="Tag Code"
+            required
+            value={tag}
+            onChange={(e) => setTag(e.target.value)}
+            disabled={!isCreate}
+            placeholder="e.g. PAYMENTCR"
+            error={tagExists}
+          />
+          {tagExists && <p className="text-xs text-red-500 mt-1 pl-1">Tag already exists</p>}
+        </div>
 
-        <Input
-          label="Name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Display name"
-        />
+        <div data-tour="tag-edit-name">
+          <Input
+            label="Name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Display name"
+          />
+        </div>
 
-        <Input
-          label="Description"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Description"
-        />
+        <div data-tour="tag-edit-description">
+          <Input
+            label="Description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Description"
+          />
+        </div>
 
         {level === 'T' && (
           <>
             {/* Searchable Parent Tag */}
-            <div className={`flex flex-col gap-1 ${parentDropdownOpen ? 'mb-48' : ''}`} ref={parentRef}>
+            <div data-tour="tag-edit-parent" className={`flex flex-col gap-1 ${parentDropdownOpen ? 'mb-48' : ''}`} ref={parentRef}>
               <label className="text-xs font-medium text-body pl-1">Parent Tag</label>
               <div className="relative">
                 <input
@@ -242,7 +248,7 @@ export function TagEditModal({ open, onClose, editingNode, allNodes, onSave }: T
               </div>
             </div>
 
-            <div className="flex flex-col gap-1">
+            <div data-tour="tag-edit-groups" className="flex flex-col gap-1">
               <label className="text-xs font-medium text-body pl-1">Groups</label>
               <div className="rounded-lg border border-input-border bg-input-bg overflow-hidden">
                 {groups.length > 5 && (
@@ -270,7 +276,7 @@ export function TagEditModal({ open, onClose, editingNode, allNodes, onSave }: T
                     )}
                   </div>
                 )}
-                <div className="max-h-60 overflow-y-auto custom-scrollbar p-2 flex flex-wrap gap-1.5">
+                <div data-tour="tag-edit-groups-list" className="max-h-60 overflow-y-auto custom-scrollbar p-2 flex flex-wrap gap-1.5">
                   {groups.length === 0 && (
                     <span className="text-xs text-muted">No groups available</span>
                   )}

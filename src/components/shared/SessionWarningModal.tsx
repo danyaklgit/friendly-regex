@@ -20,6 +20,7 @@ export function SessionWarningModal() {
       open={showSessionWarning}
       onClose={() => {}}
       title="Session Expiring"
+      zClass="z-[10000]"
       footer={
         <>
           <Button variant="secondary" onClick={logout}>

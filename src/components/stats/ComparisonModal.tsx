@@ -59,7 +59,7 @@ export function ComparisonModal({ open, onClose, activeLib, inProgressLib }: Com
       open={open}
       onClose={onClose}
       title="Compare: Active vs In Progress"
-      footer={<Button variant="secondary" onClick={onClose}>Close</Button>}
+      footer={<Button data-tour="comparison-modal-close" variant="secondary" onClick={onClose}>Close</Button>}
     >
       {!hasChanges ? (
         <p className="text-sm text-body-secondary py-4">No differences found between the active and in-progress versions.</p>

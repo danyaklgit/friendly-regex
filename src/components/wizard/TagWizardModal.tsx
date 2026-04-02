@@ -73,21 +73,21 @@ export function TagWizardModal({ existingDef, parentLib, initialFormState, initi
       title={wizard.isEditing ? `Edit Tag: ${existingDef?.Tag} (${existingDef?.Id})` : 'Create New Tag'}
       footer={
         <>
-          <Button variant="ghost" onClick={onClose}>
+          <Button data-tour="wizard-cancel-button" variant="ghost" onClick={onClose}>
             Cancel
           </Button>
           <div className="flex-1" />
           {wizard.currentStep > 1 && (
-            <Button variant="secondary" onClick={wizard.goBack}>
+            <Button data-tour="wizard-back-button" variant="secondary" onClick={wizard.goBack}>
               Back
             </Button>
           )}
           {wizard.currentStep < 4 ? (
-            <Button variant="primary" onClick={wizard.goNext} disabled={!canProceed()}>
+            <Button data-tour="wizard-next-button" variant="primary" onClick={wizard.goNext} disabled={!canProceed()}>
               Next
             </Button>
           ) : (
-            <Button variant="primary" onClick={handleFinish}>
+            <Button data-tour="wizard-create-button" variant="primary" onClick={handleFinish}>
               {wizard.isEditing ? 'Save Changes' : 'Create Tag'}
             </Button>
           )}
@@ -101,14 +101,16 @@ export function TagWizardModal({ existingDef, parentLib, initialFormState, initi
       )}
 
       {wizard.currentStep === 2 && (
-        <StepRuleExpressions
-          ruleGroups={wizard.formState.ruleGroups}
-          onAddGroup={wizard.addRuleGroup}
-          onRemoveGroup={wizard.removeRuleGroup}
-          onAddCondition={wizard.addCondition}
-          onRemoveCondition={wizard.removeCondition}
-          onUpdateCondition={wizard.updateCondition}
-        />
+        <div data-tour="wizard-step-2-content">
+          <StepRuleExpressions
+            ruleGroups={wizard.formState.ruleGroups}
+            onAddGroup={wizard.addRuleGroup}
+            onRemoveGroup={wizard.removeRuleGroup}
+            onAddCondition={wizard.addCondition}
+            onRemoveCondition={wizard.removeCondition}
+            onUpdateCondition={wizard.updateCondition}
+          />
+        </div>
       )}
 
       {wizard.currentStep === 3 && (

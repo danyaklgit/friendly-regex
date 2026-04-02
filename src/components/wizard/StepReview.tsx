@@ -9,7 +9,7 @@ interface StepReviewProps {
 
 export function StepReview({ formState, isEditing }: StepReviewProps) {
   return (
-    <div className="space-y-5">
+    <div data-tour="wizard-review" className="space-y-5">
       <p className="text-sm text-muted">
         Review your {isEditing ? 'changes' : 'new tag rule'} before saving.
       </p>

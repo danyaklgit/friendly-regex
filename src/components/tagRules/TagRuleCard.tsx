@@ -20,6 +20,7 @@ export function TagRuleCard({ definition, parentLib, onEdit, onDelete, onExport,
   return (
     <div className="border border-border rounded-lg bg-surface overflow-hidden">
       <button
+        data-tour="tag-rule-card-toggle"
         onClick={() => setExpanded(!expanded)}
         className="w-full px-4 py-3 flex items-center justify-between hover:bg-surface-hover transition-colors cursor-pointer"
       >
@@ -62,11 +63,11 @@ export function TagRuleCard({ definition, parentLib, onEdit, onDelete, onExport,
             </div>
 
             {/* Actions */}
-            <div className="flex items-center gap-2 pt-2 border-t border-border-subtle">
-              {!readOnly && <Button size="xs" onClick={() => onEdit(definition, parentLib)}>Edit</Button>}
-              <Button size="xs" onClick={() => onExport(definition, parentLib)}>Export</Button>
+            <div data-tour="tag-rule-card-actions" className="flex items-center gap-2 pt-2 border-t border-border-subtle">
+              {!readOnly && <Button data-tour="tag-rule-card-edit" size="xs" onClick={() => onEdit(definition, parentLib)}>Edit</Button>}
+              <Button data-tour="tag-rule-card-export" size="xs" onClick={() => onExport(definition, parentLib)}>Export</Button>
               {!readOnly && (
-                <Button size="xs" variant="danger_ghost" onClick={() => onDelete(definition.Id)}>
+                <Button data-tour="tag-rule-card-delete" size="xs" variant="danger_ghost" onClick={() => onDelete(definition.Id)}>
                   Delete
                 </Button>
               )}

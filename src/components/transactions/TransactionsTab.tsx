@@ -722,7 +722,7 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
               setVisibleCount(BATCH_SIZE);
               if (!v && isLiveMode) fetchPage(filters, false, 0, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined);
             }} />
-            <Toggle label="Show attributes" checked={showAttributes} onChange={setShowAttributes} />
+            <span data-tour="show-attributes-toggle"><Toggle label="Show attributes" checked={showAttributes} onChange={setShowAttributes} /></span>
           </div>
 
           <div className="hidden md:flex items-center gap-5 ml-4 text-[11px] text-muted">
@@ -826,7 +826,7 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
                 Build rules and see their effect on the table in real time.
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div data-tour="builder-transaction-type" className="flex items-center gap-2">
               <label className="text-xs font-medium text-primary-dark whitespace-nowrap">Transaction Type</label>
               <TransactionTypePicker
                 value={builder.formState.transactionTypeCode}
