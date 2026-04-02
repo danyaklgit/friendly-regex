@@ -79,7 +79,7 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
         return {
           AttributeTag: attr.attributeTag,
           IsMandatory: attr.isMandatory,
-          LOVTag: null,
+          LOVTag: attr.isLovBased ? (attr.lovTag ?? null) : null,
           ValidationRuleTag: attr.validationRuleTag,
           AttributeRuleExpression: {
             SourceField: attr.sourceField,
@@ -407,9 +407,14 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
     return [...effectiveLibraries, previewLib];
   }, [effectiveLibraries, tempDefinition, editingDef]);
 
-  // Flat definitions including preview (for table column ordering)
+  // Flat definitions including preview (for table column ordering + LOV resolution)
   const allDefinitions = useMemo(() => {
-    if (!tempDefinition || editingDef) return tagDefinitions;
+    if (!tempDefinition) return tagDefinitions;
+    if (editingDef) {
+      // Replace the edited definition with the live temp version so the table
+      // picks up LOV tag changes (isLovBased toggle) for real-time resolution.
+      return [...tagDefinitions.filter(d => d.Id !== editingDef.Id), tempDefinition];
+    }
     return [...tagDefinitions, tempDefinition];
   }, [tagDefinitions, tempDefinition, editingDef]);
 

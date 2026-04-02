@@ -59,7 +59,7 @@ export interface TagAttribute {
   AttributeTag: string;
   IsMandatory: boolean;
   LOVTag: string | null;
-  ValidationRuleTag: 'STRING' | 'NUMBER' | 'DATE';
+  ValidationRuleTag: string;
   AttributeRuleExpression: AttributeRuleExpression;
 }
 

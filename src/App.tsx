@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { useAuth } from './context/AuthContext';
 import { TagSpecProvider } from './context/TagSpecContext';
 import { TransactionDataProvider } from './context/TransactionDataContext';
+import { LovAttributesProvider } from './context/LovAttributesContext';
 import { TepConfigProvider, useTepConfig } from './context/TepConfigContext';
 import { useTagSpecs } from './hooks/useTagSpecs';
 import { useLocalChanges } from './hooks/useLocalChanges';
@@ -9,7 +10,7 @@ import { LoginPage } from './components/auth/LoginPage';
 import { TabContainer } from './components/layout/TabContainer';
 import { StatsTab } from './components/stats/StatsTab';
 import { TransactionsTab } from './components/transactions/TransactionsTab';
-import { TagsHierarchyTab } from './components/tagsHierarchy/TagsHierarchyTab';
+import { SettingsTab } from './components/settings/SettingsTab';
 import { SessionWarningModal } from './components/shared/SessionWarningModal';
 import { UndoChangesDialog } from './components/shared/UndoChangesDialog';
 import { OnboardingHub } from './components/onboarding/OnboardingHub';
@@ -129,7 +130,7 @@ function AppShell({ authToken, tepHeaders, operatorName }: AppShellProps) {
           tabs={[
             { label: 'Backlog', content: <StatsTab onViewTransactions={handleViewTransactions} onViewAllTransactions={handleViewAllTransactions} onCheckoutComplete={handleCheckoutComplete} authToken={authToken} tepHeaders={tepHeaders} /> },
             { label: 'Transactions', content: <TransactionsTab activeCheckout={activeCheckout} /> },
-            { label: 'Tags Hierarchy', content: <TagsHierarchyTab /> },
+            { label: 'Settings', content: <SettingsTab /> },
           ]}
           checkout={activeCheckout ? {
             bank: activeCheckout.bank,
@@ -186,9 +187,11 @@ function AppContent() {
 
   return (
     <TagSpecProvider useDummyData={useDummyData} authToken={authToken} tepHeaders={tepHeaders}>
-      <TransactionDataProvider>
-        <AppShell authToken={authToken} tepHeaders={tepHeaders} operatorName={operatorName} />
-      </TransactionDataProvider>
+      <LovAttributesProvider authToken={authToken} tepHeaders={tepHeaders}>
+        <TransactionDataProvider>
+          <AppShell authToken={authToken} tepHeaders={tepHeaders} operatorName={operatorName} />
+        </TransactionDataProvider>
+      </LovAttributesProvider>
     </TagSpecProvider>
   );
 }

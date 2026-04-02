@@ -62,6 +62,8 @@ export function fromExistingDefinition(
         suffix: decomposed.suffix,
         pattern: decomposed.pattern,
         verifyValue: attr.AttributeRuleExpression.VerifyValue,
+        lovTag: attr.LOVTag ?? null,
+        isLovBased: !!attr.LOVTag,
       };
     }),
   };
@@ -105,6 +107,8 @@ export function useWizardForm(
       extractionOperation: 'predefined:ksa_iban',
       prefix: '',
       suffix: '',
+      lovTag: null,
+      isLovBased: false,
     };
   }
 
@@ -291,7 +295,7 @@ export function useWizardForm(
         return {
           AttributeTag: attr.attributeTag,
           IsMandatory: attr.isMandatory,
-          LOVTag: null,
+          LOVTag: attr.isLovBased ? (attr.lovTag ?? null) : null,
           ValidationRuleTag: attr.validationRuleTag,
           AttributeRuleExpression: {
             SourceField: attr.sourceField,
