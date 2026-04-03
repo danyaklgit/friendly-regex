@@ -1,6 +1,7 @@
 import type { TepHeaders } from './transactions';
 import type { LOVList, ValidationClass, BackendAttribute, AttributeDetail } from '../types/lov';
 import { buildHeaders } from './checkout';
+import { throwIfNotOk } from './apiError';
 import { LOV_TAGS } from '../constants/lov';
 
 const BASE = '/api/tep/api/v1/TEP';
@@ -27,7 +28,7 @@ export async function getListsByTags(
     body: JSON.stringify({ Tags: [...LOV_TAGS] }),
     signal,
   });
-  if (!res.ok) throw new Error(`GetListsByTags failed: ${res.status}`);
+  await throwIfNotOk(res, 'Failed to fetch LOV lists');
   const json = await res.json();
   return json.Lists ?? [];
 }
@@ -43,7 +44,7 @@ export async function getValidationClasses(
     body: JSON.stringify({}),
     signal,
   });
-  if (!res.ok) throw new Error(`GetValidationClasses failed: ${res.status}`);
+  await throwIfNotOk(res, 'Failed to fetch validation classes');
   const json = await res.json();
   return json.ValidationClasses ?? [];
 }
@@ -59,7 +60,7 @@ export async function getAttributes(
     body: JSON.stringify({}),
     signal,
   });
-  if (!res.ok) throw new Error(`GetAttributes failed: ${res.status}`);
+  await throwIfNotOk(res, 'Failed to fetch attributes');
   const json = await res.json();
   return json.Attributes ?? [];
 }
@@ -76,7 +77,7 @@ export async function createAttribute(
     body: JSON.stringify(payload),
     signal,
   });
-  if (!res.ok) throw new Error(`CreateAttribute failed: ${res.status}`);
+  await throwIfNotOk(res, 'Failed to create attribute');
   const json = await res.json();
   return extractSfmMessage(json);
 }
@@ -93,7 +94,7 @@ export async function updateAttribute(
     body: JSON.stringify(payload),
     signal,
   });
-  if (!res.ok) throw new Error(`UpdateAttribute failed: ${res.status}`);
+  await throwIfNotOk(res, 'Failed to update attribute');
   const json = await res.json();
   return extractSfmMessage(json);
 }
@@ -110,7 +111,7 @@ export async function disableAttribute(
     body: JSON.stringify({ Id: id }),
     signal,
   });
-  if (!res.ok) throw new Error(`DisableAttribute failed: ${res.status}`);
+  await throwIfNotOk(res, 'Failed to disable attribute');
   const json = await res.json();
   return extractSfmMessage(json);
 }
@@ -127,7 +128,7 @@ export async function enableAttribute(
     body: JSON.stringify({ Id: id }),
     signal,
   });
-  if (!res.ok) throw new Error(`EnableAttribute failed: ${res.status}`);
+  await throwIfNotOk(res, 'Failed to enable attribute');
   const json = await res.json();
   return extractSfmMessage(json);
 }
@@ -144,7 +145,7 @@ export async function deleteAttribute(
     body: JSON.stringify({ Id: id }),
     signal,
   });
-  if (!res.ok) throw new Error(`DeleteAttribute failed: ${res.status}`);
+  await throwIfNotOk(res, 'Failed to delete attribute');
   const json = await res.json();
   return extractSfmMessage(json);
 }

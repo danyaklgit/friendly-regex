@@ -102,24 +102,24 @@ export function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [useDummy, setUseDummy] = useState(false);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [shakeKey, setShakeKey] = useState(0);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setError(false);
+    setError(null);
     setLoading(true);
 
     try {
       const success = await login(username, password, useDummy);
       if (!success) {
-        setError(true);
+        setError('Invalid username or password');
         setShakeKey((k) => k + 1);
       }
-    } catch {
-      setError(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Invalid username or password');
       setShakeKey((k) => k + 1);
     } finally {
       setLoading(false);
@@ -170,7 +170,7 @@ export function LoginPage() {
                 type="email"
                 name='tepEmail'
                 value={username}
-                onChange={(e) => { setUsername(e.target.value); setError(false); }}
+                onChange={(e) => { setUsername(e.target.value); setError(null); }}
                 className="w-full rounded-lg border backdrop-blur-2xl border-gray-300 bg-white px-3.5 py-2.5 text-sm text-heading placeholder:text-faint focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-slate-500 dark:focus:bg-white/[0.07]"
                 placeholder="Enter your email"
                 autoComplete="email"
@@ -189,7 +189,7 @@ export function LoginPage() {
                   type={showPassword ? 'text' : 'password'}
                   name='tepPass'
                   value={password}
-                  onChange={(e) => { setPassword(e.target.value); setError(false); }}
+                  onChange={(e) => { setPassword(e.target.value); setError(null); }}
                   className="w-full rounded-lg border backdrop-blur-2xl border-gray-300 bg-white px-3.5 py-2.5 pr-10 text-sm text-heading placeholder:text-faint focus:border-primary/50 focus:ring-1 focus:ring-primary/50 outline-none transition-all dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-slate-500 dark:focus:bg-white/[0.07]"
                   placeholder="Enter your password"
                   autoComplete="current-password"
@@ -231,7 +231,7 @@ export function LoginPage() {
             {/* Error message */}
             {error && (
               <p className="text-sm text-red-500 dark:text-red-400 text-center">
-                Invalid username or password
+                {error}
               </p>
             )}
 

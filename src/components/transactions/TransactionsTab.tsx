@@ -418,6 +418,18 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
     return [...tagDefinitions, tempDefinition];
   }, [tagDefinitions, tempDefinition, editingDef]);
 
+  // Map definition ID → source label for tag tooltip
+  const definitionSourceMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const lib of allLibraries) {
+      const source = lib.StatusTag === 'ACTIVE' ? 'Backend Prod' : lib.StatusTag === 'INPROGRESS' ? 'Backend Ops' : 'Frontend';
+      for (const def of lib.TagSpecDefinitions) {
+        map.set(def.Id, source);
+      }
+    }
+    return map;
+  }, [allLibraries]);
+
   // Check if builder has any real content
   const builderHasContent = builder.formState.ruleGroups.some((g) =>
     g.conditions.some((c) => c.value.trim().length > 0)
@@ -993,6 +1005,7 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
         data={visibleData}
         tagDefinitions={allDefinitions}
         originalDefinitionIds={originalDefinitionIds}
+        definitionSourceMap={definitionSourceMap}
         highlightExpressions={highlightExpressions}
         searchHighlights={searchHighlights}
         onTagClick={handleTagClick}

@@ -1,4 +1,5 @@
 import type { TepHeaders } from './transactions';
+import { throwIfNotOk } from './apiError';
 
 const BASE = '/api/tep/api/v1/TEP';
 
@@ -125,7 +126,7 @@ export async function getTagsHierarchy(
     signal,
   });
 
-  if (!res.ok) throw new Error('Failed to fetch tags hierarchy');
+  await throwIfNotOk(res, 'Failed to fetch tags hierarchy');
   const json = await res.json();
   const wrapper = json.TagsHierarchy;
   // Response shape: { TagsHierarchy: { Id, DataSetType, ..., TagsHierarchy: [...flat nodes] } }
@@ -146,7 +147,7 @@ export async function getRawTagsHierarchy(
     signal,
   });
 
-  if (!res.ok) throw new Error('Failed to fetch tags hierarchy');
+  await throwIfNotOk(res, 'Failed to fetch tags hierarchy');
   const json = await res.json();
   const outer = json.TagsHierarchy;
   if (Array.isArray(outer)) {
@@ -176,5 +177,5 @@ export async function saveTagsHierarchy(
     signal,
   });
 
-  if (!res.ok) throw new Error('Failed to save tags hierarchy');
+  await throwIfNotOk(res, 'Failed to save tags hierarchy');
 }
