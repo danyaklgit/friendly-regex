@@ -415,8 +415,18 @@ export function OnboardingHub({ open, onClose, onTabChange }: OnboardingHubProps
           if (!stepDef?.wizardStep && stepDef?.element) {
             const targetEl = document.querySelector(stepDef.element);
             if (targetEl) {
-              const helperLayer = document.querySelector('.introjs-helperLayer') as HTMLElement | null;
-              if (helperLayer) helperLayer.style.removeProperty('display');
+              // Remove wizard-mode position:fixed !important overrides so refresh() can reposition normally
+              ['.introjs-helperLayer', '.introjs-tooltipReferenceLayer'].forEach((sel) => {
+                const node = document.querySelector(sel) as HTMLElement | null;
+                if (!node) return;
+                node.style.removeProperty('display');
+                node.style.removeProperty('position');
+                node.style.removeProperty('top');
+                node.style.removeProperty('left');
+                node.style.removeProperty('width');
+                node.style.removeProperty('height');
+                node.style.removeProperty('transition');
+              });
             }
           }
 

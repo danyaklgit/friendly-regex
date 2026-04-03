@@ -2,14 +2,17 @@ import { useState, useMemo, useCallback } from 'react';
 import type { AttributeFormValue, TransactionRow } from '../../types';
 import { Input } from '../shared/Input';
 import { Select } from '../shared/Select';
+import { SearchableSelect } from '../shared/SearchableSelect';
 import { Toggle } from '../shared/Toggle';
 import { Button } from '../shared/Button';
 import { Modal } from '../shared/Modal';
 import { VALIDATION_RULE_TAG_OPTIONS } from '../../constants/fields';
+import { useLovAttributes } from '../../context/LovAttributesContext';
 import { useTransactionData } from '../../hooks/useTransactionData';
 import { EXTRACTION_OPERATIONS, PREDEFINED_PATTERNS } from '../../constants/operations';
 import { generateExtractionPrompt, regexifyExtraction } from '../../utils/regexify';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
+import { AttributeFormModal } from '../attributes/AttributeFormModal';
 
 interface AttributeEditorProps {
   attribute: AttributeFormValue;
@@ -21,11 +24,29 @@ interface AttributeEditorProps {
 
 export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, startCollapsed }: AttributeEditorProps) {
   const { fieldMeta } = useTransactionData();
+  const { activeAttributes, validationClasses, validationOptions, lovOptions, lovLookup, createNewAttribute } = useLovAttributes();
   const [showDistinct, setShowDistinct] = useState(false);
   const [editing, setEditing] = useState(!startCollapsed);
+  const [createAttrOpen, setCreateAttrOpen] = useState(false);
   const [snapshot, setSnapshot] = useState<AttributeFormValue | null>(() =>
     !startCollapsed ? { ...attribute } : null
   );
+
+  // Build attribute name options from backend attributes
+  const attributeNameOptions = useMemo(() =>
+    activeAttributes.map((a) => ({
+      value: a.Value,
+      label: a.Details.find((d) => d.LanguageCode === 'en')?.Name ?? a.Value,
+      sublabel: a.PossibleLOVTag ? `Suggested LOV: ${a.PossibleLOVTag}` : undefined,
+    })),
+  [activeAttributes]);
+
+  // Use dynamic validation options, fall back to hardcoded
+  const validationRuleOptions = useMemo(() =>
+    validationOptions.length > 0
+      ? validationOptions
+      : VALIDATION_RULE_TAG_OPTIONS.map((t) => ({ value: t, label: t })),
+  [validationOptions]);
 
   const hasChanges = useMemo(() => {
     if (!snapshot) return false;
@@ -38,7 +59,9 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
       (attribute.prefix ?? '') !== (snapshot.prefix ?? '') ||
       (attribute.suffix ?? '') !== (snapshot.suffix ?? '') ||
       (attribute.pattern ?? '') !== (snapshot.pattern ?? '') ||
-      (attribute.verifyValue ?? '') !== (snapshot.verifyValue ?? '')
+      (attribute.verifyValue ?? '') !== (snapshot.verifyValue ?? '') ||
+      (attribute.lovTag ?? '') !== (snapshot.lovTag ?? '') ||
+      (attribute.isLovBased ?? false) !== (snapshot.isLovBased ?? false)
     );
   }, [attribute, snapshot]);
 
@@ -111,51 +134,109 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
     }
 
     // Handle predefined patterns
-    if (!attribute.extractionOperation.startsWith('predefined:')) return null;
-    const predefined = PREDEFINED_PATTERNS.find((p) => p.key === attribute.extractionOperation);
-    if (!predefined?.validate) return null;
-    try {
-      const regex = new RegExp(predefined.regex);
-      let total = 0;
-      let passed = 0;
-      for (const row of transactions) {
-        const fieldValue = row[attribute.sourceField];
-        if (fieldValue === undefined || fieldValue === null) continue;
-        total++;
-        if (regex.test(String(fieldValue))) passed++;
+    if (attribute.extractionOperation.startsWith('predefined:')) {
+      const predefined = PREDEFINED_PATTERNS.find((p) => p.key === attribute.extractionOperation);
+      if (predefined?.validate) {
+        try {
+          const regex = new RegExp(predefined.regex);
+          let total = 0;
+          let passed = 0;
+          for (const row of transactions) {
+            const fieldValue = row[attribute.sourceField];
+            if (fieldValue === undefined || fieldValue === null) continue;
+            total++;
+            if (regex.test(String(fieldValue))) passed++;
+          }
+          if (total > 0) return { allValid: passed === total, passed, total, notPassed: total - passed };
+        } catch { /* skip */ }
       }
-      if (total === 0) return null;
-      return { allValid: passed === total, passed, total, notPassed: total - passed };
-    } catch {
-      return null;
     }
-  }, [transactions, attribute.sourceField, attribute.extractionOperation, attribute.prefix, attribute.suffix, attribute.verifyValue]);
+
+    // Handle ValidationClass regex — validate extracted values against the class pattern
+    const vc = validationClasses.find((c) => c.Tag === attribute.validationRuleTag);
+    if (vc?.Regex && attribute.sourceField) {
+      try {
+        const extractionRegex = new RegExp(regexifyExtraction(attribute.extractionOperation, {
+          prefix: attribute.prefix,
+          suffix: attribute.suffix,
+          pattern: attribute.pattern,
+          verifyValue: attribute.verifyValue,
+        }));
+        const vcRegex = new RegExp(vc.Regex);
+        let total = 0;
+        let passed = 0;
+        for (const row of transactions) {
+          const fieldValue = row[attribute.sourceField];
+          if (fieldValue === undefined || fieldValue === null) continue;
+          const match = String(fieldValue).match(extractionRegex);
+          if (!match?.[1]) continue;
+          total++;
+          if (vcRegex.test(match[1])) passed++;
+        }
+        if (total > 0) return { allValid: passed === total, passed, total, notPassed: total - passed };
+      } catch { /* skip */ }
+    }
+
+    return null;
+  }, [transactions, attribute.sourceField, attribute.extractionOperation, attribute.prefix, attribute.suffix, attribute.verifyValue, attribute.validationRuleTag, validationClasses]);
 
   return (
     <div className="border border-border rounded-lg p-3 py-2 bg-surface space-y-3">
       {editing ? (
         <>
-          <div className="flex items-start justify-between">
+          <div className="flex items-start gap-3">
+            {/* Dropdowns — equal width */}
             <div className="flex-1 grid grid-cols-2 gap-2">
-              <Input
-                placeholder="Attribute name"
+              <SearchableSelect
                 value={attribute.attributeTag}
-                onChange={(e) => onUpdate({ attributeTag: e.target.value })}
+                onChange={(val) => {
+                  const backend = activeAttributes.find((a) => a.Value === val);
+                  const updates: Partial<AttributeFormValue> = { attributeTag: val };
+                  if (backend?.PossibleLOVTag) {
+                    updates.isLovBased = true;
+                    updates.lovTag = backend.PossibleLOVTag;
+                  }
+                  onUpdate(updates);
+                }}
+                options={attributeNameOptions}
+                placeholder="Select attribute…"
+                onCreateNew={() => setCreateAttrOpen(true)}
+                createNewLabel="+ Create New Attribute"
               />
               <Select
                 value={attribute.validationRuleTag}
-                onChange={(e) => onUpdate({ validationRuleTag: e.target.value as AttributeFormValue['validationRuleTag'] })}
-                options={VALIDATION_RULE_TAG_OPTIONS.map((t) => ({ value: t, label: t }))}
+                onChange={(e) => onUpdate({ validationRuleTag: e.target.value })}
+                options={validationRuleOptions}
               />
             </div>
 
-            <div className="flex items-center gap-2 ml-2">
+            {/* Toggles — stacked vertically */}
+            <div className="flex flex-col gap-1.5 shrink-0">
               <Toggle label="Mandatory" checked={attribute.isMandatory} onChange={(checked) => onUpdate({ isMandatory: checked })} />
-              <Button variant="ghost" size="xs" onClick={onRemove} className="text-red-400 hover:text-red-500">
-                Remove Attribute
-              </Button>
+              <Toggle
+                label="Is LOV Based?"
+                checked={attribute.isLovBased ?? false}
+                onChange={(checked) => onUpdate({ isLovBased: checked, lovTag: checked ? attribute.lovTag : null })}
+              />
             </div>
+
+            {/* Remove */}
+            <Button variant="ghost" size="xs" onClick={onRemove} className="text-red-400 hover:text-red-500 shrink-0 mt-0.5">
+              Remove Attribute
+            </Button>
           </div>
+
+          {attribute.isLovBased && (
+            <div className="grid grid-cols-2 gap-2">
+              <Select
+                label="LOV"
+                value={attribute.lovTag ?? ''}
+                onChange={(e) => onUpdate({ lovTag: e.target.value || null })}
+                options={lovOptions}
+                placeholder="Select LOV…"
+              />
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-2" id="attribute_edit_1">
             <Select
@@ -284,16 +365,33 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
         </div>
       )}
 
-      {showDistinct && (
-        <Modal open onClose={() => setShowDistinct(false)} title={`Distinct values for "${attribute.attributeTag || 'Attribute'}"`}>
-          <div className="space-y-1">
-            {distinctValues.map((val, i) => (
-              <div key={i} className="px-3 py-1.5 text-sm font-mono bg-surface-secondary rounded border border-border dark:text-primary-light">
-                {val}
-              </div>
-            ))}
-          </div>
-        </Modal>
+      {showDistinct && (() => {
+        const lovMap = attribute.isLovBased && attribute.lovTag ? lovLookup.get(attribute.lovTag) : undefined;
+        return (
+          <Modal open onClose={() => setShowDistinct(false)} title={`Distinct values for "${attribute.attributeTag || 'Attribute'}"`}>
+            <div className="space-y-1">
+              {distinctValues.map((val, i) => {
+                const resolved = lovMap?.get(val);
+                return (
+                  <div key={i} className="px-3 py-1.5 text-sm font-mono bg-surface-secondary rounded border border-border dark:text-primary-light">
+                    {resolved ? <>{resolved} <span className="text-faint text-xs">({val})</span></> : val}
+                  </div>
+                );
+              })}
+            </div>
+          </Modal>
+        );
+      })()}
+
+      {createAttrOpen && (
+        <AttributeFormModal
+          open
+          onClose={() => setCreateAttrOpen(false)}
+          onSave={async (payload) => {
+            await createNewAttribute({ Value: payload.Value, Details: payload.Details });
+            onUpdate({ attributeTag: payload.Value });
+          }}
+        />
       )}
     </div>
   );

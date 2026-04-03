@@ -92,7 +92,7 @@ export function SyncReviewModal({ open, onClose, currentNodes, originalNodes, on
       title="Review Changes"
       footer={
         <>
-          <Button variant="ghost" onClick={onClose} disabled={syncing}>{demoMode ? 'Close' : 'Cancel'}</Button>
+          <Button data-tour="sync-review-close" variant="ghost" onClick={onClose} disabled={syncing}>{demoMode ? 'Close' : 'Cancel'}</Button>
           {!demoMode && (
             <Button variant="primary" onClick={onConfirm} disabled={syncing || totalChanges === 0}>
               {syncing ? 'Syncing...' : 'Sync Tags'}

@@ -46,13 +46,15 @@ export interface AttributeFormValue {
   id: string;
   attributeTag: string;
   isMandatory: boolean;
-  validationRuleTag: 'STRING' | 'NUMBER' | 'DATE';
+  validationRuleTag: string;
   sourceField: string;
   extractionOperation: ExtractionOperation;
   prefix?: string;
   suffix?: string;
   pattern?: string;
   verifyValue?: string;
+  lovTag?: string | null;
+  isLovBased?: boolean;
 }
 
 export interface WizardFormState {

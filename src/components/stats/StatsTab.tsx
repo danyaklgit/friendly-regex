@@ -449,7 +449,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                             : <span className="text-faint">-</span>}
                         </div>
                         {/* Status */}
-                        <div className="px-4 py-2.5 text-center w-24 shrink-0">
+                        <div data-tour="backlog-status" className="px-4 py-2.5 text-center w-24 shrink-0">
                           <Badge variant={row.isInProgress ? 'emerald' : 'primary'} size="xs">
                             {row.isInProgress ? 'In Progress' : 'Active'}
                           </Badge>

@@ -1,6 +1,7 @@
 import { useMemo, useLayoutEffect, useEffect, useRef, useState, useCallback, type ReactNode } from 'react';
 import type { AnalyzedTransaction, TagSpecDefinition, RuleExpression } from '../../types';
 import { useTransactionData } from '../../hooks/useTransactionData';
+import { useLovAttributes } from '../../context/LovAttributesContext';
 import { PREDEFINED_PATTERNS } from '../../constants/operations';
 import { TagBadge } from './TagBadge';
 import { Badge } from '../shared/Badge';
@@ -334,7 +335,21 @@ export type { ColumnDef };
 
 export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady, builderHeight = 0, loading = false, accentHue = 190 }: TransactionTableProps) {
   const { fieldMeta } = useTransactionData();
+  const { lovLookup } = useLovAttributes();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Map attribute name → LOVTag for LOV value resolution
+  const attrLovTagMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const def of tagDefinitions) {
+      for (const attr of def.Attributes) {
+        if (attr.LOVTag && !map.has(attr.AttributeTag)) {
+          map.set(attr.AttributeTag, attr.LOVTag);
+        }
+      }
+    }
+    return map;
+  }, [tagDefinitions]);
 
   const getRowId = useCallback((row: AnalyzedTransaction['row']) =>
     String(row[fieldMeta.identifierField] ?? row['Id'] ?? ''),
@@ -444,10 +459,22 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
   }, [tagDefinitions]);
 
   // Map attribute names to their validation info (predefined patterns or extract_between_and_verify)
+  const { validationClasses } = useLovAttributes();
+
+  // Build a quick lookup: ValidationRuleTag → regex string
+  const validationClassRegexMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const vc of validationClasses) {
+      map.set(vc.Tag, vc.Regex);
+    }
+    return map;
+  }, [validationClasses]);
+
   const attrValidationMap = useMemo(() => {
-    const map = new Map<string, { regex: RegExp; sourceField: string; verifyValue?: string }>();
+    const map = new Map<string, { regex: RegExp; sourceField: string; verifyValue?: string; validateExtracted?: boolean }>();
     for (const def of tagDefinitions) {
       for (const attr of def.Attributes) {
+        if (map.has(attr.AttributeTag)) continue;
         const op = attr.AttributeRuleExpression.Regex;
 
         // Check for extract_between_and_verify (has VerifyValue)
@@ -471,11 +498,24 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
           try {
             map.set(attr.AttributeTag, { regex: new RegExp(predefined.regex), sourceField: attr.AttributeRuleExpression.SourceField });
           } catch { /* skip */ }
+          continue;
+        }
+
+        // Use ValidationClass regex to validate the extracted value
+        const vcRegex = validationClassRegexMap.get(attr.ValidationRuleTag);
+        if (vcRegex) {
+          try {
+            map.set(attr.AttributeTag, {
+              regex: new RegExp(vcRegex),
+              sourceField: attr.AttributeRuleExpression.SourceField,
+              validateExtracted: true,
+            });
+          } catch { /* skip */ }
         }
       }
     }
     return map;
-  }, [tagDefinitions]);
+  }, [tagDefinitions, validationClassRegexMap]);
 
   // Build ordered column list: attributes placed right after their source field (no identifier column)
   const columns: ColumnDef[] = useMemo(() => {
@@ -1252,6 +1292,9 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                           if (validation) {
                             if (validation.verifyValue) {
                               validationPassed = val === validation.verifyValue;
+                            } else if (validation.validateExtracted) {
+                              // Validate the extracted value against the ValidationClass regex
+                              validationPassed = val ? validation.regex.test(val) : null;
                             } else {
                               const sourceVal = String(item.row[validation.sourceField] ?? '');
                               validationPassed = validation.regex.test(sourceVal);
@@ -1260,7 +1303,11 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                               ? <span className="text-emerald-500 mr-1" title="Valid">&#10003;</span>
                               : <span className="text-red-400 mr-1" title="Invalid">&#10007;</span>;
                           }
-                          const displayVal = val ?? (validation ? String(item.row[validation.sourceField] ?? '') : null);
+                          const rawDisplayVal = val ?? (validation ? String(item.row[validation.sourceField] ?? '') : null);
+                          const attrLovTag = attrLovTagMap.get(col.name);
+                          const trimmedVal = rawDisplayVal?.trim();
+                          const lovMap = attrLovTag ? (lovLookup.get(attrLovTag) ?? lovLookup.get(attrLovTag.replace(/[_ ]/g, '').toLowerCase())) : undefined;
+                          const displayVal = lovMap && trimmedVal ? (lovMap.get(trimmedVal) ?? rawDisplayVal) : rawDisplayVal;
                           const srcField = getAttributeSourceField(item, col.name);
                           const isAttrHighlighted = highlightSource?.rowIdx === i && highlightSource.attrKey === col.key;
                           return (
