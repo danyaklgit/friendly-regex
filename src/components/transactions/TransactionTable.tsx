@@ -37,7 +37,39 @@ type ColumnDef =
   | { type: 'debit'; key: string }
   | { type: 'credit'; key: string };
 
-const DEFAULT_COLUMN_ORDER = ['data:AdditionalInformation', 'data:Description1', 'data:Description2', 'data:BankReference', '__dates', '__debit', '__credit'];
+const DEFAULT_COLUMN_ORDER = [
+  '__dates',
+  '__debit',
+  '__credit',
+  'data:CurrencyCode',
+  'data:TransactionTypeCode',
+  'data:FundsCode',
+  'data:BankSwiftCode',
+  'data:IBAN',
+  'data:BankReference',
+  'data:TransactionStatusIndicator',
+  'data:TransactionDetails',
+  'data:AdditionalInformation',
+  'data:Description1',
+  'data:Description2',
+];
+
+export const ALLOWED_COLUMN_KEYS = new Set([
+  '__dates',
+  '__debit',
+  '__credit',
+  'data:CurrencyCode',
+  'data:TransactionTypeCode',
+  'data:FundsCode',
+  'data:BankSwiftCode',
+  'data:IBAN',
+  'data:BankReference',
+  'data:TransactionStatusIndicator',
+  'data:TransactionDetails',
+  'data:AdditionalInformation',
+  'data:Description1',
+  'data:Description2',
+]);
 const SIDE_AMOUNT_FIELDS = new Set(['Side', 'Amount']);
 const DATE_GROUP_FIELDS = ['StatementDate', 'EntryDate', 'ValueDate'];
 const DATE_GROUP_LABELS: Record<string, string> = {
@@ -162,10 +194,11 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Exclude tags (always visible) and attributes (follow their source field, not independently sortable)
+  // Exclude tags (always visible), attributes, and columns not in the allowed list
   const toggleable = columns.filter((col) => {
     if (col.type === 'tags') return false;
     if (col.type === 'attribute') return false;
+    if (!ALLOWED_COLUMN_KEYS.has(col.key)) return false;
     return true;
   });
 
