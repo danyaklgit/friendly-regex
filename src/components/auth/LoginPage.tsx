@@ -218,7 +218,7 @@ export function LoginPage() {
               </div>
             </div>
 
-            <label className="my-6 flex items-center gap-2 cursor-pointer select-none">
+            {/* <label className="my-6 flex items-center gap-2 cursor-pointer select-none">
               <input
                 type="checkbox"
                 checked={useDummy}
@@ -226,7 +226,7 @@ export function LoginPage() {
                 className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary/50 dark:border-white/20 dark:bg-white/5 cursor-pointer"
               />
               <span className="text-xs text-body-secondary dark:text-primary">Preloaded data</span>
-            </label>
+            </label> */}
 
             {/* Error message */}
             {error && (
