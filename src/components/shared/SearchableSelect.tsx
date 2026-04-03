@@ -16,6 +16,7 @@ interface SearchableSelectProps {
   onCreateNew?: () => void;
   createNewLabel?: string;
   disabled?: boolean;
+  label?: string;
 }
 
 export function SearchableSelect({
@@ -26,6 +27,7 @@ export function SearchableSelect({
   onCreateNew,
   createNewLabel = '+ Create New',
   disabled,
+  label,
 }: SearchableSelectProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -90,7 +92,10 @@ export function SearchableSelect({
   };
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative flex flex-col gap-1">
+      {label && (
+        <label className="text-xs font-medium text-body pl-1">{label}</label>
+      )}
       <button
         ref={triggerRef}
         type="button"

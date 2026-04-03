@@ -1285,6 +1285,19 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                           );
                         }
                         case 'attribute': {
+                          // Untagged transactions should not display any attribute value
+                          if (item.analysis.tags.length === 0) {
+                            return (
+                              <td
+                                key={col.key}
+                                className={`px-3 ${cellPy} text-xs text-left ${isStickyCol ? 'bg-primary/10 group-hover:bg-primary/15' : 'bg-primary/5'}`}
+                                style={getCellStyle(colIdx, false)}
+                              >
+                                <span className="text-faint">-</span>
+                                {stickyEdgeShadow(colIdx)}
+                              </td>
+                            );
+                          }
                           const val = getAttributeValue(item, col.name);
                           const validation = attrValidationMap.get(col.name);
                           let validationIcon: ReactNode = null;

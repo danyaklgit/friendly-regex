@@ -5,6 +5,17 @@ import { LOV_TAGS } from '../constants/lov';
 
 const BASE = '/api/tep/api/v1/TEP';
 
+/** Extract a human-readable message from the standard SFM envelope returned by TEP APIs. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function extractSfmMessage(json: any): string | null {
+  const sfm = json?.SFM;
+  if (!sfm) return null;
+  const majorDetails: { LanguageCode: string; ShortDescription: string }[] | undefined =
+    sfm.Major?.MajorRetCodeDetails;
+  const en = majorDetails?.find((d) => d.LanguageCode === 'en');
+  return en?.ShortDescription ?? null;
+}
+
 export async function getListsByTags(
   token: string,
   tepHeaders: TepHeaders,
@@ -58,7 +69,7 @@ export async function createAttribute(
   token: string,
   tepHeaders: TepHeaders,
   signal?: AbortSignal,
-): Promise<void> {
+): Promise<string | null> {
   const res = await fetch(`${BASE}/CreateAttribute`, {
     method: 'POST',
     headers: { ...buildHeaders(token, tepHeaders), ActivityTag: 'CreateAttribute' },
@@ -66,6 +77,8 @@ export async function createAttribute(
     signal,
   });
   if (!res.ok) throw new Error(`CreateAttribute failed: ${res.status}`);
+  const json = await res.json();
+  return extractSfmMessage(json);
 }
 
 export async function updateAttribute(
@@ -73,7 +86,7 @@ export async function updateAttribute(
   token: string,
   tepHeaders: TepHeaders,
   signal?: AbortSignal,
-): Promise<void> {
+): Promise<string | null> {
   const res = await fetch(`${BASE}/UpdateAttribute`, {
     method: 'POST',
     headers: { ...buildHeaders(token, tepHeaders), ActivityTag: 'UpdateAttribute' },
@@ -81,6 +94,8 @@ export async function updateAttribute(
     signal,
   });
   if (!res.ok) throw new Error(`UpdateAttribute failed: ${res.status}`);
+  const json = await res.json();
+  return extractSfmMessage(json);
 }
 
 export async function disableAttribute(
@@ -88,7 +103,7 @@ export async function disableAttribute(
   token: string,
   tepHeaders: TepHeaders,
   signal?: AbortSignal,
-): Promise<void> {
+): Promise<string | null> {
   const res = await fetch(`${BASE}/DisableAttribute`, {
     method: 'POST',
     headers: { ...buildHeaders(token, tepHeaders), ActivityTag: 'DisableAttribute' },
@@ -96,6 +111,8 @@ export async function disableAttribute(
     signal,
   });
   if (!res.ok) throw new Error(`DisableAttribute failed: ${res.status}`);
+  const json = await res.json();
+  return extractSfmMessage(json);
 }
 
 export async function enableAttribute(
@@ -103,7 +120,7 @@ export async function enableAttribute(
   token: string,
   tepHeaders: TepHeaders,
   signal?: AbortSignal,
-): Promise<void> {
+): Promise<string | null> {
   const res = await fetch(`${BASE}/EnableAttribute`, {
     method: 'POST',
     headers: { ...buildHeaders(token, tepHeaders), ActivityTag: 'EnableAttribute' },
@@ -111,6 +128,8 @@ export async function enableAttribute(
     signal,
   });
   if (!res.ok) throw new Error(`EnableAttribute failed: ${res.status}`);
+  const json = await res.json();
+  return extractSfmMessage(json);
 }
 
 export async function deleteAttribute(
@@ -118,7 +137,7 @@ export async function deleteAttribute(
   token: string,
   tepHeaders: TepHeaders,
   signal?: AbortSignal,
-): Promise<void> {
+): Promise<string | null> {
   const res = await fetch(`${BASE}/DeleteAttribute`, {
     method: 'POST',
     headers: { ...buildHeaders(token, tepHeaders), ActivityTag: 'DeleteAttribute' },
@@ -126,4 +145,6 @@ export async function deleteAttribute(
     signal,
   });
   if (!res.ok) throw new Error(`DeleteAttribute failed: ${res.status}`);
+  const json = await res.json();
+  return extractSfmMessage(json);
 }

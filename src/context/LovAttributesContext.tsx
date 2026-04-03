@@ -32,10 +32,10 @@ interface LovAttributesContextValue {
   // Actions
   refetchAll: () => Promise<void>;
   refetchAttributes: () => Promise<void>;
-  createNewAttribute: (payload: { Value: string; PossibleLOVTag?: string | null; Details: AttributeDetail[] }) => Promise<void>;
-  updateExistingAttribute: (payload: { Id: number; Value: string; PossibleLOVTag?: string | null; Details: AttributeDetail[] }) => Promise<void>;
-  toggleAttributeStatus: (id: number, enable: boolean) => Promise<void>;
-  deleteExistingAttribute: (id: number) => Promise<void>;
+  createNewAttribute: (payload: { Value: string; PossibleLOVTag?: string | null; Details: AttributeDetail[] }) => Promise<string | null>;
+  updateExistingAttribute: (payload: { Id: number; Value: string; PossibleLOVTag?: string | null; Details: AttributeDetail[] }) => Promise<string | null>;
+  toggleAttributeStatus: (id: number, enable: boolean) => Promise<string | null>;
+  deleteExistingAttribute: (id: number) => Promise<string | null>;
 }
 
 const LovAttributesContext = createContext<LovAttributesContextValue | null>(null);
@@ -112,32 +112,37 @@ export function LovAttributesProvider({ authToken, tepHeaders, children }: LovAt
     await fetchAttrs();
   }, [fetchAttrs]);
 
-  const createNewAttribute = useCallback(async (payload: { Value: string; PossibleLOVTag?: string | null; Details: AttributeDetail[] }) => {
-    if (!authToken || !tepHeaders) return;
-    await apiCreateAttribute(payload, authToken, tepHeaders);
+  const createNewAttribute = useCallback(async (payload: { Value: string; PossibleLOVTag?: string | null; Details: AttributeDetail[] }): Promise<string | null> => {
+    if (!authToken || !tepHeaders) return null;
+    const sfm = await apiCreateAttribute(payload, authToken, tepHeaders);
     await fetchAttrs();
+    return sfm;
   }, [authToken, tepHeaders, fetchAttrs]);
 
-  const updateExistingAttribute = useCallback(async (payload: { Id: number; Value: string; PossibleLOVTag?: string | null; Details: AttributeDetail[] }) => {
-    if (!authToken || !tepHeaders) return;
-    await apiUpdateAttribute(payload, authToken, tepHeaders);
+  const updateExistingAttribute = useCallback(async (payload: { Id: number; Value: string; PossibleLOVTag?: string | null; Details: AttributeDetail[] }): Promise<string | null> => {
+    if (!authToken || !tepHeaders) return null;
+    const sfm = await apiUpdateAttribute(payload, authToken, tepHeaders);
     await fetchAttrs();
+    return sfm;
   }, [authToken, tepHeaders, fetchAttrs]);
 
-  const toggleAttributeStatus = useCallback(async (id: number, enable: boolean) => {
-    if (!authToken || !tepHeaders) return;
+  const toggleAttributeStatus = useCallback(async (id: number, enable: boolean): Promise<string | null> => {
+    if (!authToken || !tepHeaders) return null;
+    let sfm: string | null;
     if (enable) {
-      await apiEnableAttribute(id, authToken, tepHeaders);
+      sfm = await apiEnableAttribute(id, authToken, tepHeaders);
     } else {
-      await apiDisableAttribute(id, authToken, tepHeaders);
+      sfm = await apiDisableAttribute(id, authToken, tepHeaders);
     }
     await fetchAttrs();
+    return sfm;
   }, [authToken, tepHeaders, fetchAttrs]);
 
-  const deleteExistingAttribute = useCallback(async (id: number) => {
-    if (!authToken || !tepHeaders) return;
-    await apiDeleteAttribute(id, authToken, tepHeaders);
+  const deleteExistingAttribute = useCallback(async (id: number): Promise<string | null> => {
+    if (!authToken || !tepHeaders) return null;
+    const sfm = await apiDeleteAttribute(id, authToken, tepHeaders);
     await fetchAttrs();
+    return sfm;
   }, [authToken, tepHeaders, fetchAttrs]);
 
   // Derived: LOV lookup — LOVTag → (Value → Name)
