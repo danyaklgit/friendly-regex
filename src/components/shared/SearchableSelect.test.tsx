@@ -236,6 +236,16 @@ describe('SearchableSelect', () => {
     expect(screen.getByText('Gamma')).toBeDefined();
   });
 
+  it('renders label when provided', () => {
+    render(<SearchableSelect value="" onChange={() => {}} options={options} label="My Label" />);
+    expect(screen.getByText('My Label')).toBeDefined();
+  });
+
+  it('does not render label when not provided', () => {
+    render(<SearchableSelect value="" onChange={() => {}} options={options} />);
+    expect(screen.queryByText('My Label')).toBeNull();
+  });
+
   it('positions dropdown below the trigger button', async () => {
     const user = userEvent.setup();
     render(<SearchableSelect value="" onChange={() => {}} options={options} />);

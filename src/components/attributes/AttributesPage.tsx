@@ -1,8 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useLovAttributes } from '../../context/LovAttributesContext';
 import { Button } from '../shared/Button';
-import { Badge } from '../shared/Badge';
-import { Input } from '../shared/Input';
 import { Toast } from '../shared/Toast';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { AttributeFormModal } from './AttributeFormModal';
@@ -13,21 +11,19 @@ export function AttributesPage() {
     backendAttributes,
     attributesLoading,
     createNewAttribute,
-    updateExistingAttribute,
-    toggleAttributeStatus,
     deleteExistingAttribute,
   } = useLovAttributes();
 
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
-  const [editTarget, setEditTarget] = useState<BackendAttribute | undefined>(undefined);
   const [deleteTarget, setDeleteTarget] = useState<BackendAttribute | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return backendAttributes;
+    const active = backendAttributes.filter((a) => a.StatusTag === 'ACTIVE' || a.StatusTag === null);
+    if (!search.trim()) return active;
     const term = search.toLowerCase();
-    return backendAttributes.filter((a) => {
+    return active.filter((a) => {
       const enName = a.Details.find((d) => d.LanguageCode === 'en')?.Name ?? '';
       return (
         enName.toLowerCase().includes(term) ||
@@ -37,45 +33,24 @@ export function AttributesPage() {
   }, [backendAttributes, search]);
 
   const handleCreate = useCallback(() => {
-    setEditTarget(undefined);
-    setFormOpen(true);
-  }, []);
-
-  const handleEdit = useCallback((attr: BackendAttribute) => {
-    setEditTarget(attr);
     setFormOpen(true);
   }, []);
 
   const handleSave = useCallback(async (payload: { Id?: number; Value: string; PossibleLOVTag?: string | null; Details: { LanguageCode: string; Name: string; ShortDescription: string }[] }) => {
     try {
-      if (payload.Id) {
-        await updateExistingAttribute({ Id: payload.Id, Value: payload.Value, PossibleLOVTag: payload.PossibleLOVTag, Details: payload.Details });
-        setToast({ message: 'Attribute updated', type: 'success' });
-      } else {
-        await createNewAttribute({ Value: payload.Value, PossibleLOVTag: payload.PossibleLOVTag, Details: payload.Details });
-        setToast({ message: 'Attribute created', type: 'success' });
-      }
+      const sfm = await createNewAttribute({ Value: payload.Value, PossibleLOVTag: payload.PossibleLOVTag, Details: payload.Details });
+      setToast({ message: sfm ?? 'Attribute created', type: 'success' });
     } catch {
       setToast({ message: 'Operation failed', type: 'error' });
       throw new Error('save failed');
     }
-  }, [createNewAttribute, updateExistingAttribute]);
-
-  const handleToggle = useCallback(async (attr: BackendAttribute) => {
-    const isActive = attr.StatusTag === 'ACTIVE' || attr.StatusTag === null;
-    try {
-      await toggleAttributeStatus(attr.Id, !isActive);
-      setToast({ message: isActive ? 'Attribute disabled' : 'Attribute enabled', type: 'success' });
-    } catch {
-      setToast({ message: 'Toggle failed', type: 'error' });
-    }
-  }, [toggleAttributeStatus]);
+  }, [createNewAttribute]);
 
   const handleDeleteConfirm = useCallback(async () => {
     if (!deleteTarget) return;
     try {
-      await deleteExistingAttribute(deleteTarget.Id);
-      setToast({ message: 'Attribute deleted', type: 'success' });
+      const sfm = await deleteExistingAttribute(deleteTarget.Id);
+      setToast({ message: sfm ?? 'Attribute deleted', type: 'success' });
     } catch {
       setToast({ message: 'Delete failed', type: 'error' });
     }
@@ -86,20 +61,25 @@ export function AttributesPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <h2 className="text-sm font-semibold text-heading">Attributes</h2>
-          <Badge variant="default" size="xs">{backendAttributes.length}</Badge>
-        </div>
-        <div className="flex items-center gap-2">
-          <Input
-            placeholder="Search attributes…"
+      <div className="flex items-center gap-3 mb-4">
+        <div className="relative flex-1 max-w-sm">
+          <svg
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted"
+            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            type="text"
+            placeholder="Search attributes..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="!py-1 !text-xs w-56"
+            className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-input-border bg-input-bg text-heading placeholder:text-placeholder focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors"
           />
-          <Button variant="primary" size="xs" onClick={handleCreate}>
-            Create Attribute
+        </div>
+        <div className="flex items-center gap-2 ml-auto">
+          <Button variant="primary" size="sm" onClick={handleCreate}>
+            + Create Attribute
           </Button>
         </div>
       </div>
@@ -119,39 +99,22 @@ export function AttributesPage() {
                 <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Value</th>
                 <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Description</th>
                 <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Suggested LOV</th>
-                <th className="px-4 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Status</th>
                 <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-surface divide-y divide-divide">
               {filtered.map((attr) => {
                 const en = getEnDetail(attr);
-                const isActive = attr.StatusTag === 'ACTIVE' || attr.StatusTag === null;
                 return (
                   <tr key={attr.Id} className="hover:bg-surface-hover transition-colors">
                     <td className="px-4 py-2.5 text-xs font-medium text-heading">{en?.Name ?? attr.Value}</td>
                     <td className="px-4 py-2.5 text-xs text-body-secondary font-mono">{attr.Value}</td>
                     <td className="px-4 py-2.5 text-xs text-body-secondary">{en?.ShortDescription ?? '—'}</td>
                     <td className="px-4 py-2.5 text-xs text-body-secondary">{attr.PossibleLOVTag ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-center">
-                      <Badge variant={isActive ? 'success' : 'warning'} size="xs">
-                        {isActive ? 'Active' : 'Disabled'}
-                      </Badge>
-                    </td>
                     <td className="px-4 py-2.5 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button variant="ghost" size="xs" onClick={() => handleEdit(attr)}>Edit</Button>
-                        <Button
-                          variant={isActive ? 'danger_ghost' : 'ghost'}
-                          size="xs"
-                          onClick={() => handleToggle(attr)}
-                        >
-                          {isActive ? 'Disable' : 'Enable'}
-                        </Button>
-                        <Button variant="danger_ghost" size="xs" onClick={() => setDeleteTarget(attr)}>
-                          Delete
-                        </Button>
-                      </div>
+                      <Button variant="danger_ghost" size="xs" onClick={() => setDeleteTarget(attr)}>
+                        Delete
+                      </Button>
                     </td>
                   </tr>
                 );
@@ -164,9 +127,8 @@ export function AttributesPage() {
       {formOpen && (
         <AttributeFormModal
           open
-          onClose={() => { setFormOpen(false); setEditTarget(undefined); }}
+          onClose={() => setFormOpen(false)}
           onSave={handleSave}
-          existing={editTarget}
         />
       )}
 

@@ -188,6 +188,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
             {/* Dropdowns — equal width */}
             <div className="flex-1 grid grid-cols-2 gap-2">
               <SearchableSelect
+                label="Attribute Name"
                 value={attribute.attributeTag}
                 onChange={(val) => {
                   const backend = activeAttributes.find((a) => a.Value === val);
@@ -204,20 +205,16 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                 createNewLabel="+ Create New Attribute"
               />
               <Select
+                label="Validation Class"
                 value={attribute.validationRuleTag}
                 onChange={(e) => onUpdate({ validationRuleTag: e.target.value })}
                 options={validationRuleOptions}
               />
             </div>
 
-            {/* Toggles — stacked vertically */}
-            <div className="flex flex-col gap-1.5 shrink-0">
+            {/* Mandatory toggle */}
+            <div className="shrink-0">
               <Toggle label="Mandatory" checked={attribute.isMandatory} onChange={(checked) => onUpdate({ isMandatory: checked })} />
-              <Toggle
-                label="Is LOV Based?"
-                checked={attribute.isLovBased ?? false}
-                onChange={(checked) => onUpdate({ isLovBased: checked, lovTag: checked ? attribute.lovTag : null })}
-              />
             </div>
 
             {/* Remove */}
@@ -226,17 +223,24 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
             </Button>
           </div>
 
-          {attribute.isLovBased && (
-            <div className="grid grid-cols-2 gap-2">
-              <Select
-                label="LOV"
-                value={attribute.lovTag ?? ''}
-                onChange={(e) => onUpdate({ lovTag: e.target.value || null })}
-                options={lovOptions}
-                placeholder="Select LOV…"
-              />
-            </div>
-          )}
+          <div className="flex items-center gap-3">
+            <Toggle
+              label="Is LOV Based?"
+              checked={attribute.isLovBased ?? false}
+              onChange={(checked) => onUpdate({ isLovBased: checked, lovTag: checked ? attribute.lovTag : null })}
+            />
+            {attribute.isLovBased && (
+              <div className="flex-1 max-w-xs">
+                <Select
+                  label="LOV"
+                  value={attribute.lovTag ?? ''}
+                  onChange={(e) => onUpdate({ lovTag: e.target.value || null })}
+                  options={lovOptions}
+                  placeholder="Select LOV…"
+                />
+              </div>
+            )}
+          </div>
 
           <div className="grid grid-cols-2 gap-2" id="attribute_edit_1">
             <Select
