@@ -1316,7 +1316,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                               ? <span className="text-emerald-500 mr-1" title="Valid">&#10003;</span>
                               : <span className="text-red-400 mr-1" title="Invalid">&#10007;</span>;
                           }
-                          const rawDisplayVal = val ?? (validation ? String(item.row[validation.sourceField] ?? '') : null);
+                          const rawDisplayVal = val;
                           const attrLovTag = attrLovTagMap.get(col.name);
                           const trimmedVal = rawDisplayVal?.trim();
                           const lovMap = attrLovTag ? (lovLookup.get(attrLovTag) ?? lovLookup.get(attrLovTag.replace(/[_ ]/g, '').toLowerCase())) : undefined;
