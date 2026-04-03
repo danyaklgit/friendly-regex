@@ -1,4 +1,5 @@
 import type { TepHeaders } from './transactions';
+import { throwIfNotOk } from './apiError';
 
 const BASE = '/api/tep/api/v1/TEP';
 
@@ -29,7 +30,7 @@ export async function tagSpecLibraryCheckOut(
     body: JSON.stringify({ TagSpecLibraryId: tagSpecLibraryId }),
     signal,
   });
-  if (!res.ok) throw new Error('Checkout failed');
+  await throwIfNotOk(res, 'Checkout failed');
 }
 
 export async function tagSpecLibraryCheckIn(
@@ -44,7 +45,7 @@ export async function tagSpecLibraryCheckIn(
     body: JSON.stringify({ TagSpecLibraryId: tagSpecLibraryId }),
     signal,
   });
-  if (!res.ok) throw new Error('Checkin failed');
+  await throwIfNotOk(res, 'Check-in failed');
 }
 
 export async function tagSpecLibraryRollback(
@@ -59,7 +60,7 @@ export async function tagSpecLibraryRollback(
     body: JSON.stringify({ TagSpecLibraryId: tagSpecLibraryId }),
     signal,
   });
-  if (!res.ok) throw new Error('Rollback failed');
+  await throwIfNotOk(res, 'Rollback failed');
 }
 
 export async function tagSpecLibraryRelease(
@@ -74,5 +75,5 @@ export async function tagSpecLibraryRelease(
     body: JSON.stringify({ TagSpecLibraryId: tagSpecLibraryId }),
     signal,
   });
-  if (!res.ok) throw new Error('Release failed');
+  await throwIfNotOk(res, 'Release failed');
 }

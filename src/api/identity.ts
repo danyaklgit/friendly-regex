@@ -1,3 +1,5 @@
+import { throwIfNotOk } from './apiError';
+
 const BASE = '/api/identity/auth';
 
 interface LoginRequest {
@@ -29,7 +31,7 @@ export async function loginApi(payload: LoginRequest): Promise<TokenResponse> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) throw new Error('Login failed');
+  await throwIfNotOk(res, 'Login failed');
   return res.json();
 }
 
@@ -39,7 +41,7 @@ export async function refreshTokenApi(refreshToken: string): Promise<TokenRespon
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ RefreshToken: refreshToken }),
   });
-  if (!res.ok) throw new Error('Token refresh failed');
+  await throwIfNotOk(res, 'Token refresh failed');
   return res.json();
 }
 
@@ -54,7 +56,7 @@ export async function getUserInfo(accessToken: string): Promise<UserInfo> {
   const res = await fetch(`${BASE}/userinfo`, {
     headers: authHeader(accessToken),
   });
-  if (!res.ok) throw new Error('Failed to fetch user info');
+  await throwIfNotOk(res, 'Failed to fetch user info');
   return res.json();
 }
 
@@ -62,6 +64,6 @@ export async function getUsersInfo(accessToken: string): Promise<UserInfo[]> {
   const res = await fetch(`${BASE}/usersinfo`, {
     headers: authHeader(accessToken),
   });
-  if (!res.ok) throw new Error('Failed to fetch users info');
+  await throwIfNotOk(res, 'Failed to fetch users info');
   return res.json();
 }

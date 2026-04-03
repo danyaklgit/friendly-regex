@@ -40,9 +40,9 @@ export function AttributesPage() {
     try {
       const sfm = await createNewAttribute({ Value: payload.Value, PossibleLOVTag: payload.PossibleLOVTag, Details: payload.Details });
       setToast({ message: sfm ?? 'Attribute created', type: 'success' });
-    } catch {
-      setToast({ message: 'Operation failed', type: 'error' });
-      throw new Error('save failed');
+    } catch (err) {
+      setToast({ message: err instanceof Error ? err.message : 'Operation failed', type: 'error' });
+      throw err;
     }
   }, [createNewAttribute]);
 
@@ -51,8 +51,8 @@ export function AttributesPage() {
     try {
       const sfm = await deleteExistingAttribute(deleteTarget.Id);
       setToast({ message: sfm ?? 'Attribute deleted', type: 'success' });
-    } catch {
-      setToast({ message: 'Delete failed', type: 'error' });
+    } catch (err) {
+      setToast({ message: err instanceof Error ? err.message : 'Delete failed', type: 'error' });
     }
     setDeleteTarget(null);
   }, [deleteTarget, deleteExistingAttribute]);

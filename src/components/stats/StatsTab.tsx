@@ -164,8 +164,8 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
       await refetchTagSpecs();
       setToast({ message: `Checked out ${row.bank} / ${row.side}`, type: 'success' });
       onCheckoutComplete(row.bank, row.side);
-    } catch {
-      setToast({ message: 'Checkout failed', type: 'error' });
+    } catch (err) {
+      setToast({ message: err instanceof Error ? err.message : 'Checkout failed', type: 'error' });
     } finally {
       setActionLoading(null);
     }
@@ -178,8 +178,8 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
       await tagSpecLibraryCheckIn(row.inProgressLib.Id, authToken, tepHeaders);
       refetchTagSpecs();
       setToast({ message: `Checked in ${row.bank} / ${row.side}`, type: 'success' });
-    } catch {
-      setToast({ message: 'Checkin failed', type: 'error' });
+    } catch (err) {
+      setToast({ message: err instanceof Error ? err.message : 'Check-in failed', type: 'error' });
     } finally {
       setActionLoading(null);
     }
@@ -193,8 +193,8 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
       clearChanges(rollbackTarget.bank, rollbackTarget.side);
       refetchTagSpecs();
       setToast({ message: `Rolled back ${rollbackTarget.bank} / ${rollbackTarget.side}`, type: 'success' });
-    } catch {
-      setToast({ message: 'Rollback failed', type: 'error' });
+    } catch (err) {
+      setToast({ message: err instanceof Error ? err.message : 'Rollback failed', type: 'error' });
     } finally {
       setActionLoading(null);
       setRollbackTarget(null);

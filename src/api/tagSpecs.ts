@@ -1,5 +1,6 @@
 import type { TepHeaders } from './transactions';
 import type { TagSpecLibrary } from '../types';
+import { throwIfNotOk } from './apiError';
 
 const BASE = '/api/tep/api/v1/TEP';
 
@@ -26,7 +27,7 @@ export async function getTagSpecLibraries(
     signal,
   });
 
-  if (!res.ok) throw new Error('Failed to fetch tag spec libraries');
+  await throwIfNotOk(res, 'Failed to fetch tag spec libraries');
   const json: { TagSpecLibs: TagSpecLibrary[] } = await res.json();
   return json.TagSpecLibs;
 }

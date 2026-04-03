@@ -1,4 +1,5 @@
 import type { TransactionRow } from '../types';
+import { throwIfNotOk } from './apiError';
 
 // --- Request types ---
 
@@ -128,7 +129,7 @@ export async function getFilters(
     signal,
   });
 
-  if (!res.ok) throw new Error('Failed to fetch filters');
+  await throwIfNotOk(res, 'Failed to fetch filters');
   const data: GetFiltersResponse = await res.json();
   return data.Filters;
 }
@@ -157,7 +158,7 @@ export async function getTransactions(
     signal,
   });
 
-  if (!res.ok) throw new Error('Failed to fetch transactions');
+  await throwIfNotOk(res, 'Failed to fetch transactions');
   return res.json();
 }
 
@@ -185,7 +186,7 @@ export async function getBacklogStats(
     signal,
   });
 
-  if (!res.ok) throw new Error('Failed to fetch backlog stats');
+  await throwIfNotOk(res, 'Failed to fetch backlog stats');
   const data: GetBacklogStatsResponse = await res.json();
   return data.BacklogStats;
 }

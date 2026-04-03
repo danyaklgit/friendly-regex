@@ -14,6 +14,7 @@ interface TransactionTableProps {
   data: AnalyzedTransaction[];
   tagDefinitions: TagSpecDefinition[];
   originalDefinitionIds?: Set<string>;
+  definitionSourceMap?: Map<string, string>;
   highlightExpressions?: RuleExpression[];
   searchHighlights?: Map<string, string>;
   onTagClick?: (tagName: string, definitionId?: string) => void;
@@ -333,7 +334,7 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
 
 export type { ColumnDef };
 
-export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady, builderHeight = 0, loading = false, accentHue = 190 }: TransactionTableProps) {
+export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, definitionSourceMap, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady, builderHeight = 0, loading = false, accentHue = 190 }: TransactionTableProps) {
   const { fieldMeta } = useTransactionData();
   const { lovLookup } = useLovAttributes();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -1316,7 +1317,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                               ? <span className="text-emerald-500 mr-1" title="Valid">&#10003;</span>
                               : <span className="text-red-400 mr-1" title="Invalid">&#10007;</span>;
                           }
-                          const rawDisplayVal = val ?? (validation ? String(item.row[validation.sourceField] ?? '') : null);
+                          const rawDisplayVal = val;
                           const attrLovTag = attrLovTagMap.get(col.name);
                           const trimmedVal = rawDisplayVal?.trim();
                           const lovMap = attrLovTag ? (lovLookup.get(attrLovTag) ?? lovLookup.get(attrLovTag.replace(/[_ ]/g, '').toLowerCase())) : undefined;
@@ -1370,14 +1371,20 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                                       {item.analysis.tags.map((tag, ti) => {
                                         const defId = item.analysis.matchedDefinitions[ti]?.Id;
                                         const isUserCreated = defId ? !(originalDefinitionIds?.has(defId)) : false;
-                                        return (
+                                        const source = isUserCreated ? 'Frontend' : (defId ? (definitionSourceMap?.get(defId) ?? null) : null);
+                                        const badge = (
                                           <TagBadge
-                                            key={tag}
                                             tag={tag}
                                             certainty={getCertainty(tag)}
                                             isUserCreated={isUserCreated}
                                             onClick={onTagClick ? () => onTagClick(tag, defId) : undefined}
                                           />
+                                        );
+                                        if (!source) return <span key={tag}>{badge}</span>;
+                                        return (
+                                          <Tooltip key={tag} content={`Source: ${source}`} placement="top">
+                                            <span>{badge}</span>
+                                          </Tooltip>
                                         );
                                       })}
                                       {/* {hintList && (

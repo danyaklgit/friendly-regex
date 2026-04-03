@@ -80,8 +80,8 @@ function AppShell({ authToken, tepHeaders, operatorName }: AppShellProps) {
       );
       setToast({ message: `${localLib ? 'Saved and released' : 'Released'} ${bank} / ${side}`, type: 'success' });
       setActiveTab(0);
-    } catch {
-      setToast({ message: 'Release failed', type: 'error' });
+    } catch (err) {
+      setToast({ message: err instanceof Error ? err.message : 'Release failed', type: 'error' });
     }
   }, [authToken, tepHeaders, findInProgressLib, refetchTagSpecs, getLocalLib, clearChanges]);
 
@@ -104,8 +104,8 @@ function AppShell({ authToken, tepHeaders, operatorName }: AppShellProps) {
       );
       setToast({ message: `${localLib ? 'Saved and checked in' : 'Checked in'} ${bank} / ${side}`, type: 'success' });
       setActiveTab(0);
-    } catch {
-      setToast({ message: 'Check in failed', type: 'error' });
+    } catch (err) {
+      setToast({ message: err instanceof Error ? err.message : 'Check-in failed', type: 'error' });
     }
   }, [authToken, tepHeaders, findInProgressLib, refetchTagSpecs, getLocalLib, clearChanges]);
 

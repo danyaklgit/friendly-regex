@@ -263,8 +263,8 @@ export function TagsHierarchyTab() {
     try {
       await refetchHierarchy();
       setToast({ message: 'Tags hierarchy refreshed', type: 'success' });
-    } catch {
-      setToast({ message: 'Failed to refresh tags hierarchy', type: 'error' });
+    } catch (err) {
+      setToast({ message: err instanceof Error ? err.message : 'Failed to refresh tags hierarchy', type: 'error' });
     } finally {
       setRefreshing(false);
     }
@@ -298,7 +298,7 @@ export function TagsHierarchyTab() {
       setRefreshing(false);
     } catch (err) {
       console.error('Failed to sync tags:', err);
-      setToast({ message: 'Failed to sync tags', type: 'error' });
+      setToast({ message: err instanceof Error ? err.message : 'Failed to sync tags', type: 'error' });
       setSyncing(false);
     }
   }, [hierarchyWrapper, rawHierarchyNodes, authToken, tepHeaders, useDummyData, setOriginalRawNodes, setHierarchyWrapper, refetchHierarchy]);
