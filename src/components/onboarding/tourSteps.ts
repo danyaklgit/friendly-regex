@@ -255,15 +255,6 @@ export const tours: Record<string, TourDef> = {
       {
         wizardStep: true,
         wizardPage: 1,
-        element: '[data-tour="wizard-transaction-type"]',
-        title: 'Transaction Type',
-        intro:
-          'The <b>Transaction Type</b> links this rule to a specific type of transaction. It is pre-filled from your checkout but you can change it if needed. The tour will select the default option now.',
-        simulateSequence: [{ type: 'select', target: '[data-tour="wizard-transaction-type"] select', value: 'first', at: 900 }],
-      },
-      {
-        wizardStep: true,
-        wizardPage: 1,
         element: '[data-tour="wizard-basic-info-fields"]',
         title: 'Step 1 — Other Settings',
         intro:
@@ -365,6 +356,15 @@ export const tours: Record<string, TourDef> = {
           'Use the <b>search box</b> to find any tag by name or code. The list filters as you type — matching text is highlighted in yellow. The tour will type a search to show you.',
         simulateType: { target: '[data-tour="tags-search"]', value: 'ACC', postDelay: 900 },
       },
+      {
+        title: 'Clearing the Search',
+        intro: 'The tour is clearing the search box and re-expanding the group so you can see the full tree again.',
+        scrollToTopFirst: true,
+        simulateSequence: [
+          { type: 'type', target: '[data-tour="tags-search"]', value: '', at: 300 },
+          { type: 'click', target: '[data-tour="tags-tree"] > div:first-child > button', at: 900 },
+        ],
+      },
       // ── ROW ACTIONS ───────────────────────────────────────────────────────
       {
         element: '[data-tour="tag-row-actions"]',
@@ -397,33 +397,16 @@ export const tours: Record<string, TourDef> = {
         intro: 'The tour is clicking <b>Cancel</b> to close the form without saving.',
         simulateSequence: [{ type: 'click', target: '[data-tour="tag-edit-cancel"]', at: 200 }],
       },
-      {
-        element: '[data-tour="tag-leaf-archive-button"]',
-        position: 'bottom',
-        title: 'Archive a Tag',
-        intro:
-          'The <b>yellow archive button</b> marks a tag as <i>archived</i>. It stays in the system but is hidden from active use. You can bring it back at any time using the <b>green reactivate button</b> — nothing is permanently lost.',
-      },
-      {
-        element: '[data-tour="tag-leaf-delete-button"]',
-        position: 'bottom',
-        title: 'Delete a Tag',
-        intro:
-          'The <b>red delete button</b> <i>permanently removes</i> a tag. A confirmation dialog appears first so you can\'t delete by accident — use this only when you\'re sure the tag is no longer needed.',
-      },
-      // ── REFRESH ───────────────────────────────────────────────────────────
-      {
-        element: '[data-tour="tags-refresh-button"]',
-        title: 'Refresh',
-        intro:
-          'The <b>Refresh</b> button reloads the tag list from the server. Use it whenever you want to pick up changes made by other users.',
-      },
       // ── NEW TAG ───────────────────────────────────────────────────────────
       {
         element: '[data-tour="new-tag-button"]',
         title: 'Create a New Tag',
         intro:
-          'Click <b>+ New Tag</b> to open the creation form. The tour will open it now so you can explore each field.',
+          'Click <b>+ New Tag</b> to open the creation form. Click <b>Next</b> and the tour will open it for you so you can explore each field.',
+      },
+      {
+        title: 'Opening the New Tag Form…',
+        intro: 'The tour is clicking <b>+ New Tag</b> now.',
         simulateClick: '[data-tour="new-tag-button"]',
       },
       // ── TAG EDIT MODAL ────────────────────────────────────────────────────
@@ -497,11 +480,50 @@ export const tours: Record<string, TourDef> = {
       },
       // ── SYNC TAGS ─────────────────────────────────────────────────────────
       {
-        element: '[data-tour="new-tag-button"]',
+        element: '[data-tour="sync-tags-button"]',
         position: 'bottom',
         title: 'Sync Tags',
         intro:
-          'After making changes — creating, editing, or archiving tags — a <b>Sync Tags</b> button appears here at the top right. Click it to review a summary of everything that changed before confirming and sending the updates to the server.',
+          'After making changes — creating, editing, or archiving tags — a <b>Sync Tags</b> button appears here at the top right. Click <b>Next</b> and the tour will open it for you.',
+      },
+      {
+        title: 'Opening the Sync Review…',
+        intro: 'The tour is clicking <b>Sync Tags</b> now to show you the review screen.',
+        simulateClick: '[data-tour="sync-tags-button"]',
+      },
+      {
+        wizardStep: true,
+        title: 'The Sync Review',
+        intro:
+          'This is the <b>Sync Review</b> screen. It shows a summary of everything that changed: tags <b>added</b> in green, <b>modified</b> in yellow, and <b>removed</b> in red. Review the list, then click <b>Sync Tags</b> to push the changes to the server — or <b>Cancel</b> to go back without syncing.',
+      },
+      {
+        wizardStep: true,
+        title: 'Closing the Review…',
+        intro: 'The tour is closing the review without syncing.',
+        simulateClick: '[data-tour="sync-review-close"]',
+      },
+      // ── REFRESH ───────────────────────────────────────────────────────────
+      {
+        element: '[data-tour="tags-refresh-button"]',
+        title: 'Refresh',
+        intro:
+          'The <b>Refresh</b> button reloads the tag list from the server. Use it whenever you want to pick up changes made by other users.',
+      },
+      // ── ARCHIVE & DELETE ──────────────────────────────────────────────────
+      {
+        element: '[data-tour="tag-group-archive-button"]',
+        position: 'bottom',
+        title: 'Archive a Tag',
+        intro:
+          'The <b>yellow archive button</b> marks a tag or group as <i>archived</i>. It stays in the system but is hidden from active use. You can bring it back at any time using the <b>green reactivate button</b> — nothing is permanently lost.',
+      },
+      {
+        element: '[data-tour="tag-group-delete-button"]',
+        position: 'bottom',
+        title: 'Delete a Tag',
+        intro:
+          'The <b>red delete button</b> <i>permanently removes</i> a tag or group. A confirmation dialog appears first so you can\'t delete by accident — use this only when you\'re sure it is no longer needed.',
       },
     ],
   },
@@ -536,7 +558,7 @@ export const tours: Record<string, TourDef> = {
       },
       // ── STATUS ───────────────────────────────────────────────────────────
       {
-        element: '[data-tour="backlog-table"]',
+        element: '[data-tour="backlog-status"]',
         title: 'Status Badge',
         intro:
           'The <b>Status</b> column shows whether a row is <b>Active</b> (available to check out) or <b>In Progress</b> (currently checked out by someone). An <b>Operator</b> name appears in the next column when someone has it reserved.',
@@ -554,20 +576,7 @@ export const tours: Record<string, TourDef> = {
         element: '[data-tour="backlog-compare-button"]',
         title: 'Compare Button',
         intro:
-          'The <b>Compare</b> button appears only when a row is <b>In Progress</b>. It opens a side-by-side view of the current (checked-out) version versus the last saved version — so you can see exactly what has changed before checking in. The tour will click it now to show you.',
-        simulateClick: '[data-tour="backlog-compare-button"]',
-      },
-      {
-        wizardStep: true,
-        title: 'The Comparison View',
-        intro:
-          'Here you can see what has <b>changed</b> since the last check-in: rules added are shown in <b>green</b>, removed in <b>red</b>, and modified in <b>yellow</b>. Click <b>Next</b> and the tour will close this window.',
-      },
-      {
-        wizardStep: true,
-        title: 'Closing the Comparison…',
-        intro: 'The tour is closing the comparison window now.',
-        simulateClick: '[data-tour="comparison-modal-close"]',
+          'The <b>Compare</b> button appears only when a row is <b>In Progress</b>. It opens a side-by-side view of the current (checked-out) version versus the last saved version — so you can see exactly what has changed before checking in. Rules added are shown in <b>green</b>, removed in <b>red</b>, and modified in <b>yellow</b>.',
       },
       // ── CHECKIN BUTTON ───────────────────────────────────────────────────
       {
@@ -598,9 +607,8 @@ export const tours: Record<string, TourDef> = {
         element: '[data-tour="backlog-export-all-button"]',
         title: 'Export All',
         intro:
-          'The <b>Export All</b> button downloads <i>all</i> tag rule definitions across every bank as a single JSON file. The tour will click it now so you can see what gets downloaded.',
+          'The <b>Export All</b> button downloads <i>all</i> tag rule definitions across every bank as a single JSON file. Useful for backups or migrating rules between environments.',
         position: 'bottom',
-        simulateClick: '[data-tour="backlog-export-all-button"]',
       },
       // ── VIEW ALL TRANSACTIONS BUTTON ──────────────────────────────────────
       {
