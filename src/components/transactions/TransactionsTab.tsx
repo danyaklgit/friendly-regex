@@ -10,7 +10,7 @@ import { analyzeRow } from '../../utils/analyzeRow';
 import { regexify, regexifyExtraction, generateExpressionPrompt, generateExtractionPrompt } from '../../utils/regexify';
 import { generateExpressionId } from '../../utils/uuid';
 import { getContextValue } from '../../types/tagSpec';
-import { TransactionTable, ColumnPicker, type ColumnDef } from './TransactionTable';
+import { TransactionTable, ColumnPicker, ALLOWED_COLUMN_KEYS, type ColumnDef } from './TransactionTable';
 import { StepRuleExpressions } from '../wizard/StepRuleExpressions';
 import { StepAttributes } from '../wizard/StepAttributes';
 import { TagWizardModal } from '../wizard/TagWizardModal';
@@ -279,19 +279,16 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
   }, [builderOpen]);
 
 
-  // Default visible columns: only Tags + 4 data fields
-  const DEFAULT_VISIBLE_DATA = useMemo(() => new Set(['AdditionalInformation', 'Description1', 'Description2', 'BankReference']), []);
-
   const defaultHiddenColumns = useMemo(() => {
     const s = new Set<string>();
     for (const col of tableColumns) {
       if (col.type === 'tags') continue;
       if (col.type === 'attribute') continue;
-      if (col.type === 'data' && DEFAULT_VISIBLE_DATA.has(col.field)) continue;
+      if (ALLOWED_COLUMN_KEYS.has(col.key)) continue;
       s.add(col.key);
     }
     return s;
-  }, [tableColumns, DEFAULT_VISIBLE_DATA]);
+  }, [tableColumns]);
 
   // When hiddenColumns is null (no stored preference), use defaults
   const effectiveHiddenColumns = useMemo(() => hiddenColumns ?? defaultHiddenColumns, [hiddenColumns, defaultHiddenColumns]);
