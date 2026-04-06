@@ -358,20 +358,26 @@ function StringFromListDropdown({
                   {/* Selected items sticky at top */}
                   {filteredValues.some((v) => selected.has(v.Value ?? '')) && (
                     <div className="sticky top-0 z-10 bg-surface p-1.5 pb-0">
-                      {filteredValues.filter((v) => selected.has(v.Value ?? '')).map((v) => (
-                        <label
-                          key={v.Value}
-                          className="flex items-center gap-2 px-2 py-1 text-xs hover:bg-surface-hover rounded cursor-pointer text-black dark:text-white whitespace-nowrap bg-primary/5"
-                        >
-                          <input
-                            type="checkbox"
-                            checked
-                            onChange={() => handleToggle(v.Value ?? '')}
-                            className="rounded border-border-strong shrink-0"
-                          />
-                          <span className="truncate">{v.Label ?? v.Value}</span>
-                        </label>
-                      ))}
+                      {filteredValues.filter((v) => selected.has(v.Value ?? '')).map((v) => {
+                        const hasDistinctLabel = v.Label && v.Label !== v.Value;
+                        return (
+                          <label
+                            key={v.Value}
+                            className="flex items-start gap-2 px-2 py-1.5 text-xs hover:bg-surface-hover rounded cursor-pointer bg-primary/5"
+                          >
+                            <input
+                              type="checkbox"
+                              checked
+                              onChange={() => handleToggle(v.Value ?? '')}
+                              className="rounded border-border-strong shrink-0 mt-0.5"
+                            />
+                            <span className="min-w-0">
+                              <span className="block text-black dark:text-white font-medium truncate">{v.Value}</span>
+                              {hasDistinctLabel && <span className="block text-[10px] text-muted truncate">{v.Label}</span>}
+                            </span>
+                          </label>
+                        );
+                      })}
                       {filteredValues.some((v) => !selected.has(v.Value ?? '')) && (
                         <div className="border-t border-border-subtle mt-1" />
                       )}
@@ -379,20 +385,26 @@ function StringFromListDropdown({
                   )}
                   {/* Unselected items */}
                   <div className="p-1.5 pt-0">
-                    {filteredValues.filter((v) => !selected.has(v.Value ?? '')).map((v) => (
-                      <label
-                        key={v.Value}
-                        className="flex items-center gap-2 px-2 py-1 text-xs hover:bg-surface-hover rounded cursor-pointer text-black dark:text-white whitespace-nowrap"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={false}
-                          onChange={() => handleToggle(v.Value ?? '')}
-                          className="rounded border-border-strong shrink-0"
-                        />
-                        <span className="truncate">{v.Label ?? v.Value}</span>
-                      </label>
-                    ))}
+                    {filteredValues.filter((v) => !selected.has(v.Value ?? '')).map((v) => {
+                      const hasDistinctLabel = v.Label && v.Label !== v.Value;
+                      return (
+                        <label
+                          key={v.Value}
+                          className="flex items-start gap-2 px-2 py-1.5 text-xs hover:bg-surface-hover rounded cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={false}
+                            onChange={() => handleToggle(v.Value ?? '')}
+                            className="rounded border-border-strong shrink-0 mt-0.5"
+                          />
+                          <span className="min-w-0">
+                            <span className="block text-black dark:text-white font-medium truncate">{v.Value}</span>
+                            {hasDistinctLabel && <span className="block text-[10px] text-muted truncate">{v.Label}</span>}
+                          </span>
+                        </label>
+                      );
+                    })}
                   </div>
                 </>
               )}
