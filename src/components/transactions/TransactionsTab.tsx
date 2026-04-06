@@ -588,12 +588,12 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
     setEditingDef(undefined);
     setEditingParentLib(undefined);
     builder.resetForm();
-    // Restore filters from before tag click
+    // Restore filters from before tag click, ensuring base filters (bank/side) are always preserved
     if (tagClickState !== null) {
-      setFilters(tagClickState.preFilters);
+      setFilters({ ...baseFilters, ...tagClickState.preFilters });
       setTagClickState(null);
     }
-  }, [builder, tagClickState]);
+  }, [builder, tagClickState, baseFilters]);
 
   const handleWizardSave = useCallback((result: WizardFormResult) => {
     if (editingDef) {
