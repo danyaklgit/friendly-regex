@@ -8,17 +8,8 @@ interface ConditionRowProps {
   showAnd?: boolean;
 }
 
-function stripTrailingFieldRef(text: string, sourceField: string): string {
-  const suffix = ` in ${sourceField}`;
-  if (text.endsWith(suffix)) return text.slice(0, -suffix.length);
-  const humanSuffix = ` in ${humanizeFieldName(sourceField)}`;
-  if (text.endsWith(humanSuffix)) return text.slice(0, -humanSuffix.length);
-  return text;
-}
-
 export function ConditionRow({ condition, showAnd }: ConditionRowProps) {
-  const rawText = getRegexDescription(condition.RegexDetails) || condition.ExpressionPrompt || engregxify(condition.Regex);
-  const humanText = stripTrailingFieldRef(rawText, condition.SourceField);
+  const humanText = getRegexDescription(condition.RegexDetails) || condition.ExpressionPrompt || engregxify(condition.Regex);
 
   return (
     <div>

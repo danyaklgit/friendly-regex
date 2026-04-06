@@ -7,20 +7,11 @@ interface AttributeRuleRowProps {
   attribute: TagAttribute;
 }
 
-function stripTrailingFieldRef(text: string, sourceField: string): string {
-  const suffix = ` from ${sourceField}`;
-  if (text.endsWith(suffix)) return text.slice(0, -suffix.length);
-  const humanSuffix = ` from ${humanizeFieldName(sourceField)}`;
-  if (text.endsWith(humanSuffix)) return text.slice(0, -humanSuffix.length);
-  return text;
-}
-
 export function AttributeRuleRow({ attribute }: AttributeRuleRowProps) {
-  const rawText =
+  const humanText =
     getRegexDescription(attribute.AttributeRuleExpression.RegexDetails) ||
     attribute.AttributeRuleExpression.ExpressionPrompt ||
     engregxify(attribute.AttributeRuleExpression.Regex);
-  const humanText = stripTrailingFieldRef(rawText, attribute.AttributeRuleExpression.SourceField);
 
   return (
     <div className="flex items-start gap-3 py-2 px-3 bg-surface-secondary rounded-md">
