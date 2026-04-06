@@ -8,6 +8,7 @@ import { Badge } from '../shared/Badge';
 import { Button } from '../shared/Button';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { Toast } from '../shared/Toast';
+import { Tooltip } from '../shared/Tooltip';
 import { ComparisonModal } from './ComparisonModal';
 import { TagRuleCard } from '../tagRules/TagRuleCard';
 import { TagWizardModal } from '../wizard/TagWizardModal';
@@ -401,7 +402,6 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                             </div>
                           ) : stats ? (() => {
                             const rate = stats.TaggingRate;
-                            const issueCount = stats.TaggedWithMissingMandatoryAttrCount + stats.TaggedWithMissingOptionalAttrCount + stats.TaggedWithInvalidAttrCount;
                             return (
                               <div className="space-y-1.5 py-0.5">
                                 {/* Progress bar with label */}
@@ -419,20 +419,45 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                                 </div>
                                 {/* Badges */}
                                 <div className="flex items-end justify-start pl-27 gap-2 flex-wrap">
-                                  
                                   <div className='flex gap-2'>
-                                  <Badge variant="emerald" size="xs"><span className="text-xs font-medium">{stats.FullyTaggedCount.toLocaleString()}</span> Fully</Badge>
-                                  {issueCount > 0 && (
-                                    <Badge variant="amber" size="xs"><span className="text-xs font-medium">{issueCount.toLocaleString()}</span> Issues</Badge>
+                                  <Badge variant="emerald" size="xs" className="items-baseline!"><span className="text-xs font-medium">{stats.FullyTaggedCount.toLocaleString()}</span> Clean</Badge>
+                                  {stats.IssuesCount > 0 && (
+                                    <Tooltip
+                                      placement="bottom"
+                                      content={
+                                        <div className="space-y-1.5 min-w-48">
+                                          <div className="flex justify-between gap-4">
+                                            <span>Missing Mandatory Attr</span>
+                                            <span className="font-semibold">{stats.TaggedWithMissingMandatoryAttrCount.toLocaleString()}</span>
+                                          </div>
+                                          <div className="flex justify-between gap-4">
+                                            <span>Missing Optional Attr</span>
+                                            <span className="font-semibold">{stats.TaggedWithMissingOptionalAttrCount.toLocaleString()}</span>
+                                          </div>
+                                          <div className="flex justify-between gap-4">
+                                            <span>Invalid Attr</span>
+                                            <span className="font-semibold">{stats.TaggedWithInvalidAttrCount.toLocaleString()}</span>
+                                          </div>
+                                          <div className="flex justify-between gap-4">
+                                            <span>Multi-Tagged</span>
+                                            <span className="font-semibold">{stats.MultiTaggedCount.toLocaleString()}</span>
+                                          </div>
+                                          <div className="border-t border-white/20 pt-1.5 mt-1 text-[10px] text-white/60 italic">
+                                            A transaction may appear in multiple categories
+                                          </div>
+                                        </div>
+                                      }
+                                    >
+                                      <span className="cursor-help">
+                                        <Badge variant="amber" size="xs" className="items-baseline!"><span className="text-xs font-medium">{stats.IssuesCount.toLocaleString()}</span> Issues</Badge>
+                                      </span>
+                                    </Tooltip>
                                   )}
                                   {stats.UntaggedCount > 0 && (
-                                    <Badge variant="red" size="xs"><span className="text-xs font-medium">{stats.UntaggedCount.toLocaleString()}</span> Untagged</Badge>
-                                  )}
-                                  {stats.MultiTaggedCount > 0 && (
-                                    <Badge variant="violet" size="xs"><span className="text-xs font-medium">{stats.MultiTaggedCount.toLocaleString()}</span> Multi</Badge>
+                                    <Badge variant="red" size="xs" className="items-baseline!"><span className="text-xs font-medium">{stats.UntaggedCount.toLocaleString()}</span> Untagged</Badge>
                                   )}
                                   {stats.DeadEndCount > 0 && (
-                                    <Badge variant="gray" size="xs"><span className="text-xs font-medium">{stats.DeadEndCount.toLocaleString()}</span> Dead End</Badge>
+                                    <Badge variant="gray" size="xs" className="items-baseline!"><span className="text-xs font-medium">{stats.DeadEndCount.toLocaleString()}</span> Dead End</Badge>
                                   )}
                                   </div>
                                 </div>
