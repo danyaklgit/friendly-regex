@@ -38,23 +38,25 @@ type ColumnDef =
   | { type: 'credit'; key: string };
 
 const DEFAULT_COLUMN_ORDER = [
+  'data:Sequence',
+  'data:BankSwiftCode',
   '__dates',
+  'data:TransactionTypeCode',
+  'data:IBAN',
+  'data:FundsCode',
+  'data:TransactionStatusIndicator',
+  'data:CurrencyCode',
   '__debit',
   '__credit',
-  'data:CurrencyCode',
-  'data:TransactionTypeCode',
-  'data:FundsCode',
-  'data:BankSwiftCode',
-  'data:IBAN',
   'data:BankReference',
-  'data:TransactionStatusIndicator',
-  'data:TransactionDetails',
-  'data:AdditionalInformation',
   'data:Description1',
   'data:Description2',
+  'data:AdditionalInformation',
+  'data:TransactionDetails',
 ];
 
 export const ALLOWED_COLUMN_KEYS = new Set([
+  'data:Sequence',
   '__dates',
   '__debit',
   '__credit',
@@ -285,10 +287,15 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
                     checked={visibleCount === totalCount}
                     ref={(el) => { if (el) el.indeterminate = visibleCount > 0 && visibleCount < totalCount; }}
                     onChange={() => {
+                      // Preserve hidden state of non-toggleable columns
+                      const nonToggleableHidden = new Set([...hiddenColumns].filter((k) => !toggleable.some((c) => c.key === k)));
                       if (visibleCount === totalCount) {
-                        onChange(new Set(toggleable.map((c) => c.key)));
+                        // Hide all toggleable
+                        const next = new Set([...nonToggleableHidden, ...toggleable.map((c) => c.key)]);
+                        onChange(next);
                       } else {
-                        onChange(new Set());
+                        // Show all toggleable (keep non-toggleable hidden)
+                        onChange(nonToggleableHidden);
                       }
                     }}
                     className="rounded border-border-strong"
