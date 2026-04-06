@@ -53,7 +53,10 @@ export function TransactionTypePicker({ value, onChange, filterDefinitions, disa
     );
   }, [options, search]);
 
-  const selectedLabel = options.find((o) => o.value === value)?.label || value || 'All types';
+  const selectedOption = options.find((o) => o.value === value);
+  const selectedLabel = selectedOption
+    ? (selectedOption.value !== selectedOption.label ? `${selectedOption.value} — ${selectedOption.label}` : selectedOption.label)
+    : (value || 'All types');
 
   const handleSelect = (val: string) => {
     onChange(val);
@@ -100,18 +103,24 @@ export function TransactionTypePicker({ value, onChange, filterDefinitions, disa
             {filtered.length === 0 ? (
               <div className="px-2 py-3 text-xs text-faint text-center">No matches</div>
             ) : (
-              filtered.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => handleSelect(opt.value)}
-                  className={`w-full text-left flex items-center gap-2 px-2 py-1.5 text-xs rounded transition-colors ${
-                    value === opt.value ? 'text-primary font-medium bg-primary/5' : 'text-heading hover:bg-surface-hover'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))
+              filtered.map((opt) => {
+                const hasDistinctLabel = opt.value !== opt.label;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => handleSelect(opt.value)}
+                    className={`w-full text-left flex items-start gap-2 px-2 py-1.5 text-xs rounded transition-colors ${
+                      value === opt.value ? 'bg-primary/5' : 'hover:bg-surface-hover'
+                    }`}
+                  >
+                    <span className="min-w-0">
+                      <span className={`block font-medium truncate ${value === opt.value ? 'text-primary' : 'text-heading'}`}>{opt.value}</span>
+                      {hasDistinctLabel && <span className="block text-[10px] text-muted truncate">{opt.label}</span>}
+                    </span>
+                  </button>
+                );
+              })
             )}
           </div>
         </div>
