@@ -395,8 +395,8 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                                   </span>
                                 </div>
                                 {/* Badges */}
-                                <div className="flex items-end justify-start pl-27 gap-2 flex-wrap">
-                                  <div className='flex gap-2'>
+                                <div className="flex items-center justify-start pl-27 gap-2 flex-wrap">
+                                  <div className='flex items-center gap-2'>
                                   <Badge variant="emerald" size="xs" className="items-baseline!"><span className="text-xs font-medium">{stats.FullyTaggedCount.toLocaleString()}</span> Clean</Badge>
                                   {stats.IssuesCount > 0 && (
                                     <Tooltip
@@ -425,7 +425,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                                         </div>
                                       }
                                     >
-                                      <span className="cursor-help">
+                                      <span className="cursor-help inline-flex">
                                         <Badge variant="amber" size="xs" className="items-baseline!"><span className="text-xs font-medium">{stats.IssuesCount.toLocaleString()}</span> Issues</Badge>
                                       </span>
                                     </Tooltip>
