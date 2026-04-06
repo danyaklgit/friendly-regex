@@ -25,6 +25,7 @@ import { TransactionTypePicker } from '../shared/TransactionTypePicker';
 
 interface TransactionsTabProps {
   activeCheckout?: CheckoutState | null;
+  onClearPendingDefinition?: () => void;
   onCheckin?: (bank: string, side: string) => void;
   onRelease?: (bank: string, side: string) => void;
   onRequestUndo?: (bank: string, side: string) => void;
@@ -122,7 +123,7 @@ function buildRulesetFilters(formState: WizardFormState): FilterProperty[] {
   return filters;
 }
 
-export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
+export function TransactionsTab({ activeCheckout, onClearPendingDefinition }: TransactionsTabProps) {
   const { libraries, tagDefinitions, originalDefinitionIds, dispatch } = useTagSpecs();
   const { userId, usersMap } = useAuth();
   const { saveBaseline, updateCurrent } = useLocalChanges(activeCheckout?.bank, activeCheckout?.side);
@@ -356,13 +357,8 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
     }
   }, [tagClickState?.rulesetApplied, loading, totalTransactionsCount]);
 
-  // Ref to hold pending definition ID from Backlog navigation
-  const pendingDefIdRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (activeCheckout?.pendingDefinitionId) {
-      pendingDefIdRef.current = activeCheckout.pendingDefinitionId;
-    }
-  }, [activeCheckout?.pendingDefinitionId]);
+  // Ref to hold pending definition ID from Backlog navigation (one-shot)
+  const pendingDefIdRef = useRef<string | null>(activeCheckout?.pendingDefinitionId ?? null);
 
   const [visibleCount, setVisibleCount] = useState(BATCH_SIZE);
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -703,6 +699,7 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
     if (!pendingDefIdRef.current || libraries.length === 0) return;
     const defId = pendingDefIdRef.current;
     pendingDefIdRef.current = null;
+    onClearPendingDefinition?.();
 
     let tagName: string | undefined;
     for (const lib of libraries) {
@@ -712,7 +709,8 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
     if (tagName) {
       setTimeout(() => handleTagClick(tagName!, defId), 300);
     }
-  }, [libraries, handleTagClick]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [libraries]);
 
   const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
