@@ -187,6 +187,42 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
   const [overIdx, setOverIdx] = useState<number | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const scrollRafRef = useRef<number | null>(null);
+
+  // Auto-scroll the dropdown when dragging near edges
+  useEffect(() => {
+    if (dragIdx === null) {
+      if (scrollRafRef.current) { cancelAnimationFrame(scrollRafRef.current); scrollRafRef.current = null; }
+      return;
+    }
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    let lastY = 0;
+    const EDGE = 40;
+    const SPEED = 6;
+
+    const onDrag = (e: DragEvent) => { lastY = e.clientY; };
+    const tick = () => {
+      const rect = container.getBoundingClientRect();
+      const topDist = lastY - rect.top;
+      const bottomDist = rect.bottom - lastY;
+      if (topDist < EDGE && topDist > 0) {
+        container.scrollTop -= SPEED * (1 - topDist / EDGE);
+      } else if (bottomDist < EDGE && bottomDist > 0) {
+        container.scrollTop += SPEED * (1 - bottomDist / EDGE);
+      }
+      scrollRafRef.current = requestAnimationFrame(tick);
+    };
+
+    document.addEventListener('drag', onDrag);
+    scrollRafRef.current = requestAnimationFrame(tick);
+    return () => {
+      document.removeEventListener('drag', onDrag);
+      if (scrollRafRef.current) cancelAnimationFrame(scrollRafRef.current);
+    };
+  }, [dragIdx]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -267,7 +303,7 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
       {open && (
         <>
           <DropdownBackdrop onClick={() => { setOpen(false); setSearch(''); }} />
-          <div className="absolute top-full mt-1 right-0 z-50 bg-surface border border-border rounded-lg shadow-lg min-w-55 max-h-72 overflow-y-auto px-2 pb-2">
+          <div ref={scrollContainerRef} className="absolute top-full mt-1 right-0 z-50 bg-surface border border-border rounded-lg shadow-lg min-w-55 max-h-72 overflow-y-auto custom-scrollbar px-2 pb-2">
             <div className="sticky top-0 bg-surface z-10 border-b border-border-subtle mb-1 pt-2 pb-1.5">
               <div className="px-2 pb-1.5">
                 <input
@@ -328,7 +364,7 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
                   onDragOver={(e) => {
                     e.preventDefault();
                     e.dataTransfer.dropEffect = 'move';
-                    setOverIdx(i);
+                    setOverIdx((prev) => prev === i ? prev : i);
                   }}
                   onDragLeave={() => { if (overIdx === i) setOverIdx(null); }}
                   onDrop={(e) => {
