@@ -11,10 +11,11 @@ interface TagRuleCardProps {
   onEdit: (def: TagSpecDefinition, parentLib?: TagSpecLibrary) => void;
   onDelete: (id: string) => void;
   onExport: (def: TagSpecDefinition, parentLib?: TagSpecLibrary) => void;
+  onViewTransactions?: (def: TagSpecDefinition, parentLib?: TagSpecLibrary) => void;
   readOnly?: boolean;
 }
 
-export function TagRuleCard({ definition, parentLib, onEdit, onDelete, onExport, readOnly }: TagRuleCardProps) {
+export function TagRuleCard({ definition, parentLib, onEdit, onDelete, onExport, onViewTransactions, readOnly }: TagRuleCardProps) {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -65,6 +66,11 @@ export function TagRuleCard({ definition, parentLib, onEdit, onDelete, onExport,
             {/* Actions */}
             <div data-tour="tag-rule-card-actions" className="flex items-center gap-2 pt-2 border-t border-border-subtle">
               {!readOnly && <Button data-tour="tag-rule-card-edit" size="xs" onClick={() => onEdit(definition, parentLib)}>Edit</Button>}
+              {readOnly && onViewTransactions && (
+                <Button size="xs" onClick={() => onViewTransactions(definition, parentLib)}>
+                  View Transactions
+                </Button>
+              )}
               <Button data-tour="tag-rule-card-export" size="xs" onClick={() => onExport(definition, parentLib)}>Export</Button>
               {!readOnly && (
                 <Button data-tour="tag-rule-card-delete" size="xs" variant="danger_ghost" onClick={() => onDelete(definition.Id)}>

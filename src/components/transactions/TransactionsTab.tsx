@@ -356,6 +356,14 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
     }
   }, [tagClickState?.rulesetApplied, loading, totalTransactionsCount]);
 
+  // Ref to hold pending definition ID from Backlog navigation
+  const pendingDefIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (activeCheckout?.pendingDefinitionId) {
+      pendingDefIdRef.current = activeCheckout.pendingDefinitionId;
+    }
+  }, [activeCheckout?.pendingDefinitionId]);
+
   const [visibleCount, setVisibleCount] = useState(BATCH_SIZE);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardInitialState, setWizardInitialState] = useState<WizardFormState | undefined>(undefined);
@@ -689,6 +697,22 @@ export function TransactionsTab({ activeCheckout }: TransactionsTabProps) {
       }
     }
   }, [libraries, builder, isLiveMode, filterDefinitions, filters, fetchPage, fetchCount]);
+
+  // Auto-open a definition's rule builder when navigating from the Backlog with a pendingDefinitionId
+  useEffect(() => {
+    if (!pendingDefIdRef.current || libraries.length === 0) return;
+    const defId = pendingDefIdRef.current;
+    pendingDefIdRef.current = null;
+
+    let tagName: string | undefined;
+    for (const lib of libraries) {
+      const def = lib.TagSpecDefinitions.find(d => d.Id === defId);
+      if (def) { tagName = def.Tag; break; }
+    }
+    if (tagName) {
+      setTimeout(() => handleTagClick(tagName!, defId), 300);
+    }
+  }, [libraries, handleTagClick]);
 
   const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

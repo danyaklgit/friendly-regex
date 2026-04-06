@@ -91,6 +91,7 @@ export interface BacklogStatEntry {
   TotalTaggedCount: number;
   TaggingRate: number;
   FullyTaggedCount: number;
+  IssuesCount: number;
   TaggedWithMissingMandatoryAttrCount: number;
   TaggedWithMissingOptionalAttrCount: number;
   TaggedWithInvalidAttrCount: number;

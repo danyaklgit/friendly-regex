@@ -46,8 +46,8 @@ function AppShell({ authToken, tepHeaders, operatorName }: AppShellProps) {
     );
   }, [libraries]);
 
-  const handleViewTransactions = useCallback((bank: string, side: string) => {
-    setActiveCheckout({ bank, side });
+  const handleViewTransactions = useCallback((bank: string, side: string, definitionId?: string) => {
+    setActiveCheckout({ bank, side, pendingDefinitionId: definitionId });
     setActiveTab(1);
   }, []);
 

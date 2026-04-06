@@ -8,18 +8,17 @@ import { Badge } from '../shared/Badge';
 import { Button } from '../shared/Button';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { Toast } from '../shared/Toast';
+import { Tooltip } from '../shared/Tooltip';
 import { ComparisonModal } from './ComparisonModal';
 import { TagRuleCard } from '../tagRules/TagRuleCard';
-import { TagWizardModal } from '../wizard/TagWizardModal';
 import type { TepHeaders, BacklogStatEntry } from '../../api/transactions';
 import { getBacklogStats } from '../../api/transactions';
 import type { TagSpecLibrary, TagSpecDefinition } from '../../types';
-import type { WizardFormResult } from '../../hooks/useWizardForm';
 import { useLocalChanges } from '../../hooks/useLocalChanges';
 import { useTransactionData } from '../../hooks/useTransactionData';
 
 interface StatsTabProps {
-  onViewTransactions: (bank: string, side: string) => void;
+  onViewTransactions: (bank: string, side: string, definitionId?: string) => void;
   onViewAllTransactions: () => void;
   onCheckoutComplete: (bank: string, side: string) => void;
   authToken: string | null;
@@ -76,9 +75,6 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
   // Tag rule management state
-  const [wizardOpen, setWizardOpen] = useState(false);
-  const [editingDef, setEditingDef] = useState<TagSpecDefinition | undefined>(undefined);
-  const [editingParentLib, setEditingParentLib] = useState<TagSpecLibrary | undefined>(undefined);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; tag: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -204,29 +200,11 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
   // --- Tag rule CRUD ---
 
   const handleEditTag = useCallback((def: TagSpecDefinition, parentLib?: TagSpecLibrary) => {
-    setEditingDef(def);
-    setEditingParentLib(parentLib);
-    setWizardOpen(true);
-  }, []);
-
-  const handleWizardSave = useCallback((result: WizardFormResult) => {
-    if (editingDef) {
-      dispatch({ type: 'UPDATE', payload: result });
-      setToast({ message: `Tag '${result.definition.Tag}' updated`, type: 'success' });
-    } else {
-      dispatch({ type: 'ADD', payload: result });
-      setToast({ message: `Tag '${result.definition.Tag}' created`, type: 'success' });
-    }
-    setWizardOpen(false);
-    setEditingDef(undefined);
-    setEditingParentLib(undefined);
-  }, [editingDef, dispatch]);
-
-  const handleWizardClose = useCallback(() => {
-    setWizardOpen(false);
-    setEditingDef(undefined);
-    setEditingParentLib(undefined);
-  }, []);
+    if (!parentLib) return;
+    const bank = getContextValue(parentLib.Context, 'BankSwiftCode') ?? '';
+    const side = getContextValue(parentLib.Context, 'Side') ?? '';
+    onViewTransactions(bank, side, def.Id);
+  }, [onViewTransactions]);
 
   const handleDeleteTag = useCallback((id: string) => {
     const def = tagDefinitions.find((d) => d.Id === id);
@@ -401,7 +379,6 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                             </div>
                           ) : stats ? (() => {
                             const rate = stats.TaggingRate;
-                            const issueCount = stats.TaggedWithMissingMandatoryAttrCount + stats.TaggedWithMissingOptionalAttrCount + stats.TaggedWithInvalidAttrCount;
                             return (
                               <div className="space-y-1.5 py-0.5">
                                 {/* Progress bar with label */}
@@ -419,20 +396,45 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                                 </div>
                                 {/* Badges */}
                                 <div className="flex items-end justify-start pl-27 gap-2 flex-wrap">
-                                  
                                   <div className='flex gap-2'>
-                                  <Badge variant="emerald" size="xs"><span className="text-xs font-medium">{stats.FullyTaggedCount.toLocaleString()}</span> Fully</Badge>
-                                  {issueCount > 0 && (
-                                    <Badge variant="amber" size="xs"><span className="text-xs font-medium">{issueCount.toLocaleString()}</span> Issues</Badge>
+                                  <Badge variant="emerald" size="xs" className="items-baseline!"><span className="text-xs font-medium">{stats.FullyTaggedCount.toLocaleString()}</span> Clean</Badge>
+                                  {stats.IssuesCount > 0 && (
+                                    <Tooltip
+                                      placement="bottom"
+                                      content={
+                                        <div className="space-y-1.5 min-w-48">
+                                          <div className="flex justify-between gap-4">
+                                            <span>Missing Mandatory Attr</span>
+                                            <span className="font-semibold">{stats.TaggedWithMissingMandatoryAttrCount.toLocaleString()}</span>
+                                          </div>
+                                          <div className="flex justify-between gap-4">
+                                            <span>Missing Optional Attr</span>
+                                            <span className="font-semibold">{stats.TaggedWithMissingOptionalAttrCount.toLocaleString()}</span>
+                                          </div>
+                                          <div className="flex justify-between gap-4">
+                                            <span>Invalid Attr</span>
+                                            <span className="font-semibold">{stats.TaggedWithInvalidAttrCount.toLocaleString()}</span>
+                                          </div>
+                                          <div className="flex justify-between gap-4">
+                                            <span>Multi-Tagged</span>
+                                            <span className="font-semibold">{stats.MultiTaggedCount.toLocaleString()}</span>
+                                          </div>
+                                          <div className="border-t border-white/20 pt-1.5 mt-1 text-[10px] text-white/60 italic">
+                                            A transaction may appear in multiple categories
+                                          </div>
+                                        </div>
+                                      }
+                                    >
+                                      <span className="cursor-help">
+                                        <Badge variant="amber" size="xs" className="items-baseline!"><span className="text-xs font-medium">{stats.IssuesCount.toLocaleString()}</span> Issues</Badge>
+                                      </span>
+                                    </Tooltip>
                                   )}
                                   {stats.UntaggedCount > 0 && (
-                                    <Badge variant="red" size="xs"><span className="text-xs font-medium">{stats.UntaggedCount.toLocaleString()}</span> Untagged</Badge>
-                                  )}
-                                  {stats.MultiTaggedCount > 0 && (
-                                    <Badge variant="violet" size="xs"><span className="text-xs font-medium">{stats.MultiTaggedCount.toLocaleString()}</span> Multi</Badge>
+                                    <Badge variant="red" size="xs" className="items-baseline!"><span className="text-xs font-medium">{stats.UntaggedCount.toLocaleString()}</span> Untagged</Badge>
                                   )}
                                   {stats.DeadEndCount > 0 && (
-                                    <Badge variant="gray" size="xs"><span className="text-xs font-medium">{stats.DeadEndCount.toLocaleString()}</span> Dead End</Badge>
+                                    <Badge variant="gray" size="xs" className="items-baseline!"><span className="text-xs font-medium">{stats.DeadEndCount.toLocaleString()}</span> Dead End</Badge>
                                   )}
                                   </div>
                                 </div>
@@ -518,6 +520,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                                       onEdit={handleEditTag}
                                       onDelete={handleDeleteTag}
                                       onExport={handleExportSingle}
+                                      onViewTransactions={handleEditTag}
                                       readOnly={!row.isOwnedByMe}
                                     />
                                   </div>
@@ -562,15 +565,6 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
           onClose={() => setCompareTarget(null)}
           activeLib={compareTarget.library}
           inProgressLib={compareTarget.inProgressLib}
-        />
-      )}
-
-      {wizardOpen && (
-        <TagWizardModal
-          existingDef={editingDef}
-          parentLib={editingParentLib}
-          onSave={handleWizardSave}
-          onClose={handleWizardClose}
         />
       )}
 
