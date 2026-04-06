@@ -419,7 +419,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                                             <span>Multi-Tagged</span>
                                             <span className="font-semibold">{stats.MultiTaggedCount.toLocaleString()}</span>
                                           </div>
-                                          <div className="border-t border-white/20 pt-1.5 mt-1 text-[10px] text-white/60 italic">
+                                          <div className="border-t border-gray-200 dark:border-gray-600 pt-1.5 mt-1 text-[10px] text-muted italic">
                                             A transaction may appear in multiple categories
                                           </div>
                                         </div>
