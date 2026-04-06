@@ -101,7 +101,7 @@ export function LoginPage() {
   const { theme, toggleTheme } = useTheme();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [useDummy, setUseDummy] = useState(false);
+  const [useDummy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [shakeKey, setShakeKey] = useState(0);
   const [loading, setLoading] = useState(false);
