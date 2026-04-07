@@ -121,7 +121,7 @@ export function useWizardForm(
       statusTag: 'ACTIVE',
       certaintyLevelTag: 'HIGH',
       validity: {
-        StartDate: new Date().toISOString().split('T')[0],
+        StartDate: null,
         EndDate: null,
       },
       ruleGroups: [],
@@ -266,7 +266,10 @@ export function useWizardForm(
       Context: childContext,
       StatusTag: formState.statusTag,
       CertaintyLevelTag: formState.certaintyLevelTag,
-      Validity: formState.validity,
+      Validity: {
+        StartDate: formState.validity.StartDate || null,
+        EndDate: formState.validity.EndDate || null,
+      },
       TagRuleExpressions: formState.ruleGroups.map((group) =>
         group.conditions.map((c) => {
           const prompt = generateExpressionPrompt(c.operation, c.value, c.values, {
