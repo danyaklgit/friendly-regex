@@ -2,7 +2,7 @@ import { createContext, useState, useMemo, useCallback, useRef, useEffect, type 
 import type { TransactionRow } from '../types';
 import { deriveFieldMeta, type FieldMeta } from '../utils/deriveFieldMeta';
 import { translateFilters } from '../utils/translateFilters';
-import { getTransactions, getFilters, DEFAULT_SORTING, type TepHeaders, type FilterDefinition, type FilterProperty } from '../api/transactions';
+import { getTransactions, getFilters, markTransactionsAsDeadEnd, unmarkDeadEndTransactions, DEFAULT_SORTING, type TepHeaders, type FilterDefinition, type FilterProperty } from '../api/transactions';
 import { useAuth } from './AuthContext';
 import { useTepConfig } from './TepConfigContext';
 import sampleTransactionData from '../data/sampleData.json';
@@ -15,7 +15,7 @@ export interface TransactionDataContextValue {
   loadTransactions: (rows: TransactionRow[]) => void;
   resetToSample: () => void;
   isCustomData: boolean;
-  flagDeadEnd: (ids: string[], value: boolean) => void;
+  flagDeadEnd: (ids: string[], value: boolean) => Promise<void>;
   // Live mode additions
   isLiveMode: boolean;
   loading: boolean;
@@ -74,7 +74,25 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
     setIsCustomData(false);
   }, []);
 
-  const flagDeadEnd = useCallback((ids: string[], value: boolean) => {
+  const flagDeadEnd = useCallback(async (ids: string[], value: boolean) => {
+    if (isLiveMode) {
+      await refreshIfNeeded();
+      const authHeaders = getAuthHeaders();
+      const token = authHeaders.Authorization?.replace('Bearer ', '') ?? '';
+      const tepHeaders: TepHeaders = {
+        apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
+        userId: userId ?? '',
+        tenantCode: tepConfig.ttpTenantCode,
+        languageCode: tepConfig.languageCode,
+        timeZone: tepConfig.timeZone,
+        requestId: tepConfig.ttpRequestId,
+      };
+      if (value) {
+        await markTransactionsAsDeadEnd(ids, token, tepHeaders);
+      } else {
+        await unmarkDeadEndTransactions(ids, token, tepHeaders);
+      }
+    }
     const idSet = new Set(ids);
     setTransactions((prev) =>
       prev.map((row) =>
@@ -83,7 +101,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
           : row
       )
     );
-  }, [fieldMeta.identifierField]);
+  }, [fieldMeta.identifierField, isLiveMode, getAuthHeaders, refreshIfNeeded, userId, tepConfig]);
 
   const filterFetchingRef = useRef(false);
   const fetchFilterDefinitions = useCallback(async () => {
