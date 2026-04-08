@@ -296,15 +296,34 @@ export function OnboardingHub({ open, onClose, onTabChange }: OnboardingHubProps
               if (action.type === 'click') {
                 el.click();
               } else if (action.type === 'select') {
+                // Support both native <select> and SearchableSelect (custom dropdown)
                 const selectEl = (el.tagName === 'SELECT' ? el : el.querySelector('select')) as HTMLSelectElement | null;
-                if (!selectEl) return;
-                const targetValue =
-                  action.value === 'first'
-                    ? Array.from(selectEl.options).find((o) => o.value !== '')?.value ?? ''
-                    : action.value ?? '';
-                const nativeSelectSetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
-                nativeSelectSetter?.call(selectEl, targetValue);
-                selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+                if (selectEl) {
+                  const targetValue =
+                    action.value === 'first'
+                      ? Array.from(selectEl.options).find((o) => o.value !== '')?.value ?? ''
+                      : action.value ?? '';
+                  const nativeSelectSetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+                  nativeSelectSetter?.call(selectEl, targetValue);
+                  selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+                } else {
+                  // SearchableSelect: click the trigger button, then find and click the matching option
+                  const triggerBtn = el.querySelector('button') as HTMLElement | null;
+                  if (triggerBtn) {
+                    triggerBtn.click();
+                    // Wait for the dropdown to render in a portal, then click the option
+                    simTimers.push(setTimeout(() => {
+                      const allButtons = document.querySelectorAll('.max-h-60 button');
+                      for (const btn of allButtons) {
+                        const btnText = btn.textContent?.trim() ?? '';
+                        if (btnText === action.value || btn.querySelector('span')?.textContent?.trim() === action.value) {
+                          (btn as HTMLElement).click();
+                          break;
+                        }
+                      }
+                    }, 300));
+                  }
+                }
               } else if (action.type === 'type' && action.value !== undefined) {
                 const inputEl = el as HTMLInputElement;
                 if (action.value === '') {

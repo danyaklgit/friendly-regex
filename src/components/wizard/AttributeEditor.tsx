@@ -80,8 +80,10 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
   }, [attribute, snapshot]);
 
   const handleDiscard = useCallback(() => {
-    if (snapshot) onUpdate(snapshot);
-    setEditing(false);
+    if (snapshot) {
+      onUpdate(snapshot);
+      setSnapshot({ ...snapshot });
+    }
   }, [snapshot, onUpdate]);
 
   const selectedOp = EXTRACTION_OPERATIONS.find((op) => op.key === attribute.extractionOperation);

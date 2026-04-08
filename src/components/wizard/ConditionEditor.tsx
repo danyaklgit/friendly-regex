@@ -52,8 +52,10 @@ export function ConditionEditor({
   }, [condition, snapshot]);
 
   const handleDiscard = useCallback(() => {
-    if (snapshot) onUpdate(snapshot);
-    setEditing(false);
+    if (snapshot) {
+      onUpdate(snapshot);
+      setSnapshot({ ...snapshot });
+    }
   }, [snapshot, onUpdate]);
 
   const isFieldNumeric = useMemo(() => {
