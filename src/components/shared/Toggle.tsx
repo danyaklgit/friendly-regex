@@ -11,7 +11,7 @@ export function Toggle({ label, checked, onChange }: ToggleProps) {
       role="switch"
       aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer border
+      className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer border
         ${checked
           ? 'bg-primary/10 border-primary/30 text-primary-dark dark:text-primary shadow-sm'
           : 'bg-surface border-border-strong text-body hover:bg-surface-hover'

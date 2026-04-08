@@ -184,8 +184,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
     <div className="border border-border rounded-lg p-3 py-2 bg-surface space-y-3">
       {editing ? (
         <>
-          <div className="flex items-start gap-3">
-            {/* Dropdowns — equal width */}
+          <div className="flex items-start justify-between">
             <div className="flex-1 grid grid-cols-2 gap-2">
               <SearchableSelect
                 label="Attribute Name"
@@ -212,18 +211,14 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
               />
             </div>
 
-            {/* Mandatory toggle */}
-            <div className="shrink-0">
-              <Toggle label="Mandatory" checked={attribute.isMandatory} onChange={(checked) => onUpdate({ isMandatory: checked })} />
-            </div>
-
             {/* Remove */}
-            <Button variant="ghost" size="xs" onClick={onRemove} className="text-red-400 hover:text-red-500 shrink-0 mt-0.5">
+            <Button variant="ghost" size="xs" onClick={onRemove} className="text-red-400 hover:text-red-500 shrink-0 ml-3">
               Remove Attribute
             </Button>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-end gap-3">
+            <Toggle label="Mandatory" checked={attribute.isMandatory} onChange={(checked) => onUpdate({ isMandatory: checked })} />
             <Toggle
               label="Is LOV Based?"
               checked={attribute.isLovBased ?? false}
