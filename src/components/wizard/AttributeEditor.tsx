@@ -1,7 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import type { AttributeFormValue, TransactionRow } from '../../types';
 import { Input } from '../shared/Input';
-import { Select } from '../shared/Select';
 import { SearchableSelect } from '../shared/SearchableSelect';
 import { Toggle } from '../shared/Toggle';
 import { Button } from '../shared/Button';
@@ -184,72 +183,70 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
     <div className="border border-border rounded-lg p-3 py-2 bg-surface space-y-3">
       {editing ? (
         <>
-          <div className="flex items-start justify-between">
-            <div className="flex-1 grid grid-cols-2 gap-2">
-              <SearchableSelect
-                label="Attribute Name"
-                value={attribute.attributeTag}
-                onChange={(val) => {
-                  const backend = activeAttributes.find((a) => a.Value === val);
-                  const updates: Partial<AttributeFormValue> = { attributeTag: val };
-                  if (backend?.PossibleLOVTag) {
-                    updates.isLovBased = true;
-                    updates.lovTag = backend.PossibleLOVTag;
-                  }
-                  onUpdate(updates);
-                }}
-                options={attributeNameOptions}
-                placeholder="Select attribute…"
-                onCreateNew={() => setCreateAttrOpen(true)}
-                createNewLabel="+ Create New Attribute"
-              />
-              <Select
-                label="Validation Class"
-                value={attribute.validationRuleTag}
-                onChange={(e) => onUpdate({ validationRuleTag: e.target.value })}
-                options={validationRuleOptions}
-              />
-            </div>
-
-            {/* Remove */}
-            <Button variant="ghost" size="xs" onClick={onRemove} className="text-red-400 hover:text-red-500 shrink-0 ml-3">
+          <div className="flex justify-end">
+            <Button variant="ghost" size="xs" onClick={onRemove} className="text-red-400 hover:text-red-500 shrink-0">
               Remove Attribute
             </Button>
           </div>
 
-          <div className="flex items-end gap-3">
+          <div className="grid grid-cols-2 gap-2">
+            <SearchableSelect
+              label="Attribute Name"
+              value={attribute.attributeTag}
+              onChange={(val) => {
+                const backend = activeAttributes.find((a) => a.Value === val);
+                const updates: Partial<AttributeFormValue> = { attributeTag: val };
+                if (backend?.PossibleLOVTag) {
+                  updates.isLovBased = true;
+                  updates.lovTag = backend.PossibleLOVTag;
+                }
+                onUpdate(updates);
+              }}
+              options={attributeNameOptions}
+              placeholder="Select attribute…"
+              onCreateNew={() => setCreateAttrOpen(true)}
+              createNewLabel="+ Create New Attribute"
+            />
+            <SearchableSelect
+              label="Validation Class"
+              placeholder="Select validation class"
+              value={attribute.validationRuleTag}
+              onChange={(val) => onUpdate({ validationRuleTag: val })}
+              options={validationRuleOptions}
+            />
+          </div>
+
+          <div className="flex items-stretch gap-3">
             <Toggle label="Mandatory" size="lg" checked={attribute.isMandatory} onChange={(checked) => onUpdate({ isMandatory: checked })} />
             <Toggle
-              label="Is LOV Based?"
+              label="LOV Based"
               size="lg"
               checked={attribute.isLovBased ?? false}
               onChange={(checked) => onUpdate({ isLovBased: checked, lovTag: checked ? attribute.lovTag : null })}
             />
-            {attribute.isLovBased && (
-              <div className="flex-1 max-w-xs">
-                <Select
-                  label="LOV"
-                  value={attribute.lovTag ?? ''}
-                  onChange={(e) => onUpdate({ lovTag: e.target.value || null })}
-                  options={lovOptions}
-                  placeholder="Select LOV…"
-                />
-              </div>
-            )}
+            <div className={`flex-1 ${attribute.isLovBased ? '' : 'invisible pointer-events-none'}`}>
+              <SearchableSelect
+                value={attribute.lovTag ?? ''}
+                onChange={(val) => onUpdate({ lovTag: val || null })}
+                options={lovOptions}
+                placeholder="Select LOV…"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-2" id="attribute_edit_1">
-            <Select
+            <SearchableSelect
               label="Source Field"
               placeholder="Select source field"
               value={attribute.sourceField}
-              onChange={(e) => onUpdate({ sourceField: e.target.value })}
+              onChange={(val) => onUpdate({ sourceField: val })}
               options={fieldMeta.sourceFields.map((f) => ({ value: f, label: humanizeFieldName(f) }))}
             />
-            <Select
+            <SearchableSelect
               label="Extraction Method"
+              placeholder="Select extraction method"
               value={attribute.extractionOperation}
-              onChange={(e) => onUpdate({ extractionOperation: e.target.value as AttributeFormValue['extractionOperation'] })}
+              onChange={(val) => onUpdate({ extractionOperation: val as AttributeFormValue['extractionOperation'] })}
               options={EXTRACTION_OPERATIONS.map((op) => ({ value: op.key, label: op.label }))}
             />
           </div>
