@@ -38,14 +38,12 @@ describe('regexify', () => {
     expect(regexify('match_regex', '\\d{3}')).toBe('\\d{3}');
   });
 
-  it('extract_and_compare: wraps with non-capturing groups', () => {
-    expect(regexify('extract_and_compare', '100', undefined, { prefix: '/ORDP/', suffix: '/' }))
-      .toBe('(?:/ORDP/)100(?:/)');
+  it('does_not_start_with: negative lookahead at start', () => {
+    expect(regexify('does_not_start_with', 'CFT')).toBe('^(?!CFT)');
   });
 
-  it('extract_and_compare: defaults prefix/suffix to empty when no params', () => {
-    expect(regexify('extract_and_compare', '100'))
-      .toBe('(?:)100(?:)');
+  it('does_not_end_with: negative lookbehind at end', () => {
+    expect(regexify('does_not_end_with', 'USD')).toBe('(?<!USD)$');
   });
 
   it('greater_than: numeric prefix', () => {
@@ -143,6 +141,26 @@ describe('regexifyExtraction', () => {
     expect(regexifyExtraction('extract_between_and_verify', {}))
       .toBe('(.*?)');
   });
+
+  it('extract_substring: from position only', () => {
+    expect(regexifyExtraction('extract_substring', { fromPosition: 5 }))
+      .toBe('.{5}(.*)');
+  });
+
+  it('extract_substring: from position with numChars', () => {
+    expect(regexifyExtraction('extract_substring', { fromPosition: 2, numChars: 10 }))
+      .toBe('.{2}(.{10})');
+  });
+
+  it('extract_substring: from position with toStr', () => {
+    expect(regexifyExtraction('extract_substring', { fromPosition: 3, toStr: 'END' }))
+      .toBe('.{3}(.*?)END');
+  });
+
+  it('extract_substring: no position defaults to capturing from start', () => {
+    expect(regexifyExtraction('extract_substring', {}))
+      .toBe('(.*)');
+  });
 });
 
 describe('generateExpressionPrompt', () => {
@@ -184,9 +202,14 @@ describe('generateExpressionPrompt', () => {
     expect(generateExpressionPrompt('match_regex', '\\d+')).toBe("Match pattern '\\d+'");
   });
 
-  it('extract_and_compare', () => {
-    expect(generateExpressionPrompt('extract_and_compare', '100', undefined, { prefix: 'P', suffix: 'S' }))
-      .toBe("Extract between 'P' and 'S' equals '100'");
+  it('does_not_start_with', () => {
+    expect(generateExpressionPrompt('does_not_start_with', 'CFT'))
+      .toBe("Does not start with 'CFT'");
+  });
+
+  it('does_not_end_with', () => {
+    expect(generateExpressionPrompt('does_not_end_with', 'USD'))
+      .toBe("Does not end with 'USD'");
   });
 
   it('greater_than', () => {
@@ -209,10 +232,6 @@ describe('generateExpressionPrompt', () => {
     expect(generateExpressionPrompt('unknown' as any, 'fallback')).toBe('fallback');
   });
 
-  it('extract_and_compare with missing params defaults to empty', () => {
-    expect(generateExpressionPrompt('extract_and_compare', '100'))
-      .toBe("Extract between '' and '' equals '100'");
-  });
 });
 
 describe('generateExtractionPrompt', () => {
@@ -254,6 +273,21 @@ describe('generateExtractionPrompt', () => {
   it('default returns Extract value', () => {
     expect(generateExtractionPrompt('unknown' as any, {}))
       .toBe('Extract value');
+  });
+
+  it('extract_substring with all params', () => {
+    expect(generateExtractionPrompt('extract_substring', { fromPosition: 5, numChars: 10, toStr: 'END' }))
+      .toBe("Sub-string (from position 5, 10 chars, to 'END')");
+  });
+
+  it('extract_substring with position only', () => {
+    expect(generateExtractionPrompt('extract_substring', { fromPosition: 3 }))
+      .toBe('Sub-string (from position 3)');
+  });
+
+  it('extract_substring with no params', () => {
+    expect(generateExtractionPrompt('extract_substring', {}))
+      .toBe('Sub-string');
   });
 
   it('extract_between with missing prefix/suffix defaults to empty strings', () => {

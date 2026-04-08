@@ -19,9 +19,13 @@ describe('engregxify', () => {
     expect(engregxify('__NUMERIC_LTE:999')).toBe("Less than or equal to '999'");
   });
 
-  // Extract and compare
-  it('extract and compare: (?:prefix)value(?:suffix)', () => {
-    expect(engregxify('(?:/ORDP/)100(?:/)')).toBe("Extract between '/ORDP/' and '/' equals '100'");
+  // Does not start with / does not end with
+  it('does not start with: ^(?!CFT)', () => {
+    expect(engregxify('^(?!CFT)')).toBe("Does not start with 'CFT'");
+  });
+
+  it('does not end with: (?<!USD)$', () => {
+    expect(engregxify('(?<!USD)$')).toBe("Does not end with 'USD'");
   });
 
   // Negative lookahead
@@ -135,14 +139,14 @@ describe('decomposeRegex', () => {
     expect(decomposeRegex('__NUMERIC_LTE:999')).toEqual({ operation: 'less_than_or_equal', value: '999' });
   });
 
-  // Extract and compare
-  it('extract_and_compare', () => {
-    expect(decomposeRegex('(?:/ORDP/)100(?:/)')).toEqual({
-      operation: 'extract_and_compare',
-      value: '100',
-      prefix: '/ORDP/',
-      suffix: '/',
-    });
+  // Does not start with
+  it('does_not_start_with', () => {
+    expect(decomposeRegex('^(?!CFT)')).toEqual({ operation: 'does_not_start_with', value: 'CFT' });
+  });
+
+  // Does not end with
+  it('does_not_end_with', () => {
+    expect(decomposeRegex('(?<!USD)$')).toEqual({ operation: 'does_not_end_with', value: 'USD' });
   });
 
   // Does not contain

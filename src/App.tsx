@@ -35,7 +35,7 @@ function AppShell({ authToken, tepHeaders, operatorName }: AppShellProps) {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const { libraries, refetchTagSpecs } = useTagSpecs();
-  const { clearChanges, getLocalLib, getChangeSummary, hasChanges } = useLocalChanges(activeCheckout?.bank, activeCheckout?.side);
+  const { clearChanges, getChangeSummary, hasChanges } = useLocalChanges(activeCheckout?.bank, activeCheckout?.side);
 
   const findInProgressLib = useCallback((bank: string, side: string) => {
     return libraries.find(
@@ -66,48 +66,40 @@ function AppShell({ authToken, tepHeaders, operatorName }: AppShellProps) {
     const inProgressLib = findInProgressLib(bank, side);
     if (!inProgressLib?.Id) return;
     try {
-      // Save first if there are local changes
-      const localLib = getLocalLib(bank, side);
-      if (localLib) {
-        const libToSave = { ...inProgressLib, TagSpecDefinitions: localLib.TagSpecDefinitions };
-        await tagSpecLibrarySave(libToSave, authToken, tepHeaders);
-      }
+      // Always save the current in-memory state (reflects adds, edits, and deletes)
+      await tagSpecLibrarySave(inProgressLib, authToken, tepHeaders);
       await tagSpecLibraryRelease(inProgressLib.Id, authToken, tepHeaders);
       clearChanges(bank, side);
       await refetchTagSpecs();
       setActiveCheckout((prev) =>
         prev && prev.bank === bank && prev.side === side ? null : prev
       );
-      setToast({ message: `${localLib ? 'Saved and released' : 'Released'} ${bank} / ${side}`, type: 'success' });
+      setToast({ message: `Saved and released ${bank} / ${side}`, type: 'success' });
       setActiveTab(0);
     } catch (err) {
       setToast({ message: err instanceof Error ? err.message : 'Release failed', type: 'error' });
     }
-  }, [authToken, tepHeaders, findInProgressLib, refetchTagSpecs, getLocalLib, clearChanges]);
+  }, [authToken, tepHeaders, findInProgressLib, refetchTagSpecs, clearChanges]);
 
   const handleCheckinWithSave = useCallback(async (bank: string, side: string) => {
     if (!authToken || !tepHeaders) return;
     const inProgressLib = findInProgressLib(bank, side);
     if (!inProgressLib?.Id) return;
     try {
-      // Save first if there are local changes
-      const localLib = getLocalLib(bank, side);
-      if (localLib) {
-        const libToSave = { ...inProgressLib, TagSpecDefinitions: localLib.TagSpecDefinitions };
-        await tagSpecLibrarySave(libToSave, authToken, tepHeaders);
-      }
+      // Always save the current in-memory state (reflects adds, edits, and deletes)
+      await tagSpecLibrarySave(inProgressLib, authToken, tepHeaders);
       await tagSpecLibraryCheckIn(inProgressLib.Id, authToken, tepHeaders);
       clearChanges(bank, side);
       await refetchTagSpecs();
       setActiveCheckout((prev) =>
         prev && prev.bank === bank && prev.side === side ? null : prev
       );
-      setToast({ message: `${localLib ? 'Saved and checked in' : 'Checked in'} ${bank} / ${side}`, type: 'success' });
+      setToast({ message: `Saved and checked in ${bank} / ${side}`, type: 'success' });
       setActiveTab(0);
     } catch (err) {
       setToast({ message: err instanceof Error ? err.message : 'Check-in failed', type: 'error' });
     }
-  }, [authToken, tepHeaders, findInProgressLib, refetchTagSpecs, getLocalLib, clearChanges]);
+  }, [authToken, tepHeaders, findInProgressLib, refetchTagSpecs, clearChanges]);
 
   const handleRequestUndo = useCallback((bank: string, side: string) => {
     setUndoTarget({ bank, side });

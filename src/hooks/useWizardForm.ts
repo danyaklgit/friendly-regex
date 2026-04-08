@@ -85,7 +85,7 @@ export function useWizardForm(
     return {
       id: crypto.randomUUID(),
       sourceField: '',
-      operation: 'begins_with',
+      operation: '' as ConditionFormValue['operation'],
       value: '',
     };
   }
@@ -102,9 +102,9 @@ export function useWizardForm(
       id: crypto.randomUUID(),
       attributeTag: '',
       isMandatory: false,
-      validationRuleTag: 'STRING',
+      validationRuleTag: '',
       sourceField: '',
-      extractionOperation: 'predefined:ksa_iban',
+      extractionOperation: '' as AttributeFormValue['extractionOperation'],
       prefix: '',
       suffix: '',
       lovTag: null,
@@ -272,29 +272,29 @@ export function useWizardForm(
       },
       TagRuleExpressions: formState.ruleGroups.map((group) =>
         group.conditions.map((c) => {
-          const prompt = generateExpressionPrompt(c.operation, c.value, c.values, {
-            prefix: c.prefix,
-            suffix: c.suffix,
-          });
+          const prompt = generateExpressionPrompt(c.operation, c.value, c.values);
           return {
             SourceField: c.sourceField,
             ExpressionPrompt: null,
             ExpressionId: null,
-            Regex: regexify(c.operation, c.value, c.values, {
-              prefix: c.prefix,
-              suffix: c.suffix,
-            }),
+            Regex: regexify(c.operation, c.value, c.values),
             RegexDetails: [{ LanguageCode: 'en', Description: prompt }],
           };
         })
       ),
       Attributes: formState.attributes.map((attr, index) => {
-        const prompt = generateExtractionPrompt(attr.extractionOperation, {
+        const extractionParams = {
           prefix: attr.prefix,
           suffix: attr.suffix,
           pattern: attr.pattern,
           verifyValue: attr.verifyValue,
-        });
+          numChars: attr.numChars,
+          toStr: attr.toStr,
+          occurrence: attr.occurrence,
+          startingPosition: attr.startingPosition,
+          fromPosition: attr.fromPosition,
+        };
+        const prompt = generateExtractionPrompt(attr.extractionOperation, extractionParams);
         return {
           AttributeTag: attr.attributeTag,
           IsMandatory: attr.isMandatory,
@@ -304,12 +304,7 @@ export function useWizardForm(
             SourceField: attr.sourceField,
             ExpressionPrompt: null,
             ExpressionId: generateExpressionId(id, 'attr', index),
-            Regex: regexifyExtraction(attr.extractionOperation, {
-              prefix: attr.prefix,
-              suffix: attr.suffix,
-              pattern: attr.pattern,
-              verifyValue: attr.verifyValue,
-            }),
+            Regex: regexifyExtraction(attr.extractionOperation, extractionParams),
             RegexDetails: [{ LanguageCode: 'en', Description: prompt }],
             ...(attr.verifyValue ? { VerifyValue: attr.verifyValue } : {}),
           },

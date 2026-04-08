@@ -32,11 +32,11 @@ export function RuleGroupEditor({
 
   return (
     <div data-tour="rule-group-editor" className="border border-border rounded-lg p-3 bg-surface flex flex-col items-start">
-      <div
-        className="flex items-center justify-between w-full cursor-pointer select-none"
-        onClick={() => setIsExpanded((prev) => !prev)}
-      >
-        <div className="flex items-center gap-1.5">
+      <div className="flex items-center justify-between w-full">
+        <div
+          className="flex items-center gap-1.5 cursor-pointer select-none flex-1"
+          onClick={() => setIsExpanded((prev) => !prev)}
+        >
           <svg
             className={`w-3.5 h-3.5 text-faint transition-transform ${isExpanded ? 'rotate-90' : ''}`}
             fill="none"
@@ -54,10 +54,7 @@ export function RuleGroupEditor({
               <span className="text-xs text-faint ml-1">(empty)</span>
             );
             const first = filled[0];
-            const preview = generateExpressionPrompt(first.operation, first.value, first.values, {
-              prefix: first.prefix,
-              suffix: first.suffix,
-            });
+            const preview = generateExpressionPrompt(first.operation, first.value, first.values);
             const rest = filled.length - 1;
             return (
               <span className="text-xs text-faint ml-1">
@@ -68,6 +65,11 @@ export function RuleGroupEditor({
             );
           })()}
         </div>
+        {canRemoveGroup && (
+          <Button variant="ghost" size="xs" onClick={onRemoveGroup} className="text-red-400 hover:text-red-600 shrink-0">
+            Remove Group
+          </Button>
+        )}
       </div>
 
       {isExpanded && (
@@ -88,16 +90,9 @@ export function RuleGroupEditor({
               ))}
             </div>
           </div>
-          <div className='flex justify-between w-full gap-1'>
-            <Button data-tour="add-condition" variant="ghost" size="xs" onClick={onAddCondition} className="mt-1 ">
-              + Add condition
-            </Button>
-            {canRemoveGroup && (
-              <Button variant="ghost" size="xs" onClick={onRemoveGroup} className="text-red-400 hover:text-red-600">
-                Remove group
-              </Button>
-            )}
-          </div>
+          <Button data-tour="add-condition" variant="ghost" size="xs" onClick={onAddCondition} className="mt-1">
+            + Add condition
+          </Button>
         </>
       )}
     </div>

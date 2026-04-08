@@ -14,11 +14,12 @@ export const MATCH_OPERATIONS: MatchOperationDef[] = [
   { key: 'ends_with', label: 'Ends with', description: 'Value ends with the given text', requiresMultipleValues: false },
   { key: 'contains', label: 'Contains', description: 'Value contains the given text', requiresMultipleValues: false },
   { key: 'does_not_contain', label: 'Does not contain', description: 'Value does not contain the given text', requiresMultipleValues: false },
+  { key: 'does_not_start_with', label: 'Does not start with', description: 'Value does not start with the given text', requiresMultipleValues: false },
+  { key: 'does_not_end_with', label: 'Does not end with', description: 'Value does not end with the given text', requiresMultipleValues: false },
   { key: 'equals', label: 'Equals', description: 'Value exactly matches the given text', requiresMultipleValues: false },
   { key: 'does_not_equal', label: 'Does not equal', description: 'Value does not match the given text', requiresMultipleValues: false },
   { key: 'matches_pattern', label: 'Matches one of', description: 'Value matches one of the given patterns', requiresMultipleValues: true },
   { key: 'match_regex', label: 'Match pattern', description: 'Value matches the given regex pattern', requiresMultipleValues: false },
-  { key: 'extract_and_compare', label: 'Extract between and compare', description: 'Extract text between prefix and suffix, then compare to a value', requiresMultipleValues: false, requiresExtraction: true },
   { key: 'greater_than', label: 'Greater than', description: 'Numeric value is greater than the given number', requiresMultipleValues: false, isNumeric: true },
   { key: 'less_than', label: 'Less than', description: 'Numeric value is less than the given number', requiresMultipleValues: false, isNumeric: true },
   { key: 'greater_than_or_equal', label: 'Greater than or equal', description: 'Numeric value is greater than or equal to the given number', requiresMultipleValues: false, isNumeric: true },
@@ -29,6 +30,7 @@ export interface ExtractionOperationDef {
   key: ExtractionOperation;
   label: string;
   fields: ('prefix' | 'suffix' | 'pattern' | 'verifyValue')[];
+  optionalFields?: ('numChars' | 'toStr' | 'occurrence' | 'startingPosition')[];
 }
 
 /** Predefined regex patterns that require no user input fields. */
@@ -46,9 +48,10 @@ export const PREDEFINED_PATTERNS: PredefinedPatternDef[] = [
 
 export const EXTRACTION_OPERATIONS: ExtractionOperationDef[] = [
   ...PREDEFINED_PATTERNS.map((p) => ({ key: p.key as ExtractionOperation, label: p.label, fields: [] as ('prefix' | 'suffix' | 'pattern')[] })),
-  { key: 'extract_between', label: 'Extract between [prefix] and [suffix]', fields: ['prefix', 'suffix'] },
-  { key: 'extract_after', label: 'Extract after [prefix]', fields: ['prefix'] },
-  { key: 'extract_before', label: 'Extract before [suffix]', fields: ['suffix'] },
-  { key: 'extract_matching', label: 'Extract matching pattern', fields: ['pattern'] },
+  { key: 'extract_between', label: 'Extract between [prefix] and [suffix]', fields: ['prefix', 'suffix'], optionalFields: ['occurrence'] },
+  { key: 'extract_after', label: 'Extract after [prefix]', fields: ['prefix'], optionalFields: ['numChars', 'toStr', 'occurrence'] },
+  { key: 'extract_before', label: 'Extract before [suffix]', fields: ['suffix'], optionalFields: ['numChars', 'toStr', 'occurrence'] },
+  { key: 'extract_matching', label: 'Extract matching pattern', fields: ['pattern'], optionalFields: ['startingPosition', 'occurrence'] },
+  { key: 'extract_substring', label: 'Sub-String', fields: [], optionalFields: ['numChars', 'toStr'] },
   { key: 'extract_between_and_verify', label: 'Extract between [prefix] and [suffix] and verify', fields: ['prefix', 'suffix', 'verifyValue']},
 ];

@@ -181,14 +181,14 @@ export const tours: Record<string, TourDef> = {
         title: 'Pick a Field',
         intro:
           'Choose which part of the transaction to look at — for example, the <b>Description</b> (what the payment says), the <b>Amount</b>, or the <b>Reference number</b>. The tour will pick one for you.',
-        simulateSequence: [{ type: 'select', target: '[data-tour="condition-source-field"] select', value: 'Description1', at: 900 }],
+        simulateSequence: [{ type: 'select', target: '[data-tour="condition-source-field"]', value: 'Description 1', at: 900 }],
       },
       {
         element: '[data-tour="condition-operation"]',
         title: 'Pick How to Match',
         intro:
           'Choose <b>how to compare</b> the value. <i>Contains</i> finds it anywhere in the text. <i>Starts with</i> matches only the start. <i>Equals</i> requires an exact match. The tour will select <i>Contains</i> as an example.',
-        simulateSequence: [{ type: 'select', target: '[data-tour="condition-operation"] select', value: 'contains', at: 900 }],
+        simulateSequence: [{ type: 'select', target: '[data-tour="condition-operation"]', value: 'Contains', at: 900 }],
       },
       {
         element: '[data-tour="condition-value"]',

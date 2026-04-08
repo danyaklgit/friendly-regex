@@ -3,7 +3,7 @@ import type { WizardFormState } from '../../types';
 import { useTagSpecs } from '../../hooks/useTagSpecs';
 import { TagTreePicker } from '../shared/TagTreePicker';
 import { Select } from '../shared/Select';
-import { STATUS_OPTIONS, CERTAINTY_OPTIONS, SIDE_OPTIONS, TXN_TYPE_OPTIONS, BANK_SWIFT_CODE_OPTIONS } from '../../constants/fields';
+import { CERTAINTY_OPTIONS, SIDE_OPTIONS, TXN_TYPE_OPTIONS, BANK_SWIFT_CODE_OPTIONS } from '../../constants/fields';
 
 interface StepBasicInfoProps {
   formState: WizardFormState;
@@ -62,12 +62,6 @@ export function StepBasicInfo({ formState, onUpdate, fromCheckoutContext }: Step
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <Select
-            label="Status"
-            value={formState.statusTag}
-            onChange={(e) => onUpdate({ statusTag: e.target.value as typeof formState.statusTag })}
-            options={STATUS_OPTIONS.map((s) => ({ value: s, label: s }))}
-          />
           <Select
             label="Certainty Level"
             value={formState.certaintyLevelTag}

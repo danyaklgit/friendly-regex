@@ -18,6 +18,7 @@ const SKIP_FIELDS = new Set([
   'Attributes',
   'MultiTags',
   'ExtractionCompletness',
+  'OpsAttributes',
 ]);
 
 const IDENTIFIER_CANDIDATES = ['_id', 'Identifier', 'Name'];

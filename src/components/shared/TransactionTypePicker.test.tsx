@@ -179,8 +179,8 @@ describe('TransactionTypePicker', () => {
     );
     await user.click(screen.getByRole('button'));
     const buttons = container.querySelectorAll('.max-h-60 button');
-    expect((buttons[0] as HTMLElement).className).toContain('text-primary');
-    expect((buttons[1] as HTMLElement).className).toContain('text-heading');
+    expect((buttons[0] as HTMLElement).className).toContain('bg-primary/5');
+    expect((buttons[0] as HTMLElement).className).not.toContain('hover:bg-surface-hover');
   });
 
   it('uses value as label fallback when FilterValue Label is empty-ish', () => {

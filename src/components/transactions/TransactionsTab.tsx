@@ -22,6 +22,9 @@ import { Toggle } from '../shared/Toggle';
 import { useLocalChanges } from '../../hooks/useLocalChanges';
 import { EmptyState } from '../shared/EmptyState';
 import { TransactionTypePicker } from '../shared/TransactionTypePicker';
+import { tagSpecLibrarySave } from '../../api/tagSpecSave';
+import { useTepConfig } from '../../context/TepConfigContext';
+import type { TepHeaders } from '../../api/transactions';
 
 interface TransactionsTabProps {
   activeCheckout?: CheckoutState | null;
@@ -53,18 +56,12 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
       group.conditions
         .filter((c) => c.value.trim().length > 0)
         .map((c) => {
-          const prompt = generateExpressionPrompt(c.operation, c.value, c.values, {
-            prefix: c.prefix,
-            suffix: c.suffix,
-          });
+          const prompt = generateExpressionPrompt(c.operation, c.value, c.values);
           return {
             SourceField: c.sourceField,
             ExpressionPrompt: null,
             ExpressionId: null,
-            Regex: regexify(c.operation, c.value, c.values, {
-              prefix: c.prefix,
-              suffix: c.suffix,
-            }),
+            Regex: regexify(c.operation, c.value, c.values),
             RegexDetails: [{ LanguageCode: 'en', Description: prompt }],
           };
         })
@@ -72,11 +69,17 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
     Attributes: formState.attributes
       .filter((a) => a.attributeTag.trim().length > 0)
       .map((attr, index) => {
-        const prompt = generateExtractionPrompt(attr.extractionOperation, {
+        const params = {
           prefix: attr.prefix,
           suffix: attr.suffix,
           pattern: attr.pattern,
-        });
+          numChars: attr.numChars,
+          toStr: attr.toStr,
+          occurrence: attr.occurrence,
+          startingPosition: attr.startingPosition,
+          fromPosition: attr.fromPosition,
+        };
+        const prompt = generateExtractionPrompt(attr.extractionOperation, params);
         return {
           AttributeTag: attr.attributeTag,
           IsMandatory: attr.isMandatory,
@@ -86,11 +89,7 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
             SourceField: attr.sourceField,
             ExpressionPrompt: null,
             ExpressionId: generateExpressionId(id, 'attr', index),
-            Regex: regexifyExtraction(attr.extractionOperation, {
-              prefix: attr.prefix,
-              suffix: attr.suffix,
-              pattern: attr.pattern,
-            }),
+            Regex: regexifyExtraction(attr.extractionOperation, params),
             RegexDetails: [{ LanguageCode: 'en', Description: prompt }],
           },
         };
@@ -125,7 +124,8 @@ function buildRulesetFilters(formState: WizardFormState): FilterProperty[] {
 
 export function TransactionsTab({ activeCheckout, onClearPendingDefinition }: TransactionsTabProps) {
   const { libraries, tagDefinitions, originalDefinitionIds, dispatch } = useTagSpecs();
-  const { userId, usersMap } = useAuth();
+  const { userId, usersMap, getAuthHeaders, refreshIfNeeded } = useAuth();
+  const tepConfig = useTepConfig();
   const { saveBaseline, updateCurrent } = useLocalChanges(activeCheckout?.bank, activeCheckout?.side);
 
   // Determine if the current user is NOT the checkout owner (read-only mode)
@@ -591,7 +591,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition }: Tr
     }
   }, [builder, tagClickState, baseFilters]);
 
-  const handleWizardSave = useCallback((result: WizardFormResult) => {
+  const handleWizardSave = useCallback(async (result: WizardFormResult) => {
     if (editingDef) {
       dispatch({ type: 'UPDATE', payload: result });
       setToast({ message: `Tag '${result.definition.Tag}' updated`, type: 'success' });
@@ -608,10 +608,46 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition }: Tr
     setBuilderOpen(false);
     builder.resetForm();
     if (tagClickState !== null) {
-      setFilters(tagClickState.preFilters);
+      setFilters({ ...baseFilters, ...tagClickState.preFilters });
       setTagClickState(null);
     }
-  }, [dispatch, builder, editingDef, tagClickState]);
+
+    // Persist to API immediately
+    if (activeCheckout) {
+      try {
+        await refreshIfNeeded();
+        const authHeaders = getAuthHeaders();
+        const token = authHeaders.Authorization?.replace('Bearer ', '') ?? '';
+        if (token) {
+          const tepHeaders: TepHeaders = {
+            apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
+            userId: userId ?? '',
+            tenantCode: tepConfig.ttpTenantCode,
+            languageCode: tepConfig.languageCode,
+            timeZone: tepConfig.timeZone,
+            requestId: tepConfig.ttpRequestId,
+          };
+          // Find the inProgressLib and apply the change manually (dispatch is async in React batching)
+          const currentLib = libraries.find(
+            (l) =>
+              l.StatusTag === 'INPROGRESS' &&
+              getContextValue(l.Context, 'BankSwiftCode') === activeCheckout.bank &&
+              getContextValue(l.Context, 'Side') === activeCheckout.side
+          );
+          if (currentLib) {
+            const isEditing = !!editingDef;
+            const updatedDefs = isEditing
+              ? currentLib.TagSpecDefinitions.map((d) => d.Id === result.definition.Id ? result.definition : d)
+              : [...currentLib.TagSpecDefinitions, result.definition];
+            const libToSave = { ...currentLib, TagSpecDefinitions: updatedDefs };
+            await tagSpecLibrarySave(libToSave, token, tepHeaders);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to save tag spec library:', err);
+      }
+    }
+  }, [dispatch, builder, editingDef, tagClickState, baseFilters, activeCheckout, libraries, refreshIfNeeded, getAuthHeaders, userId, tepConfig]);
 
   const handleWizardClose = useCallback(() => {
     setWizardOpen(false);

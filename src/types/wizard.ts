@@ -9,11 +9,12 @@ export type MatchOperation =
   | 'ends_with'
   | 'contains'
   | 'does_not_contain'
+  | 'does_not_start_with'
+  | 'does_not_end_with'
   | 'equals'
   | 'does_not_equal'
   | 'matches_pattern'
   | 'match_regex'
-  | 'extract_and_compare'
   | 'greater_than'
   | 'less_than'
   | 'greater_than_or_equal'
@@ -24,6 +25,7 @@ export type ExtractionOperation =
   | 'extract_after'
   | 'extract_before'
   | 'extract_matching'
+  | 'extract_substring'
   | 'extract_between_and_verify'
   | `predefined:${string}`;
 
@@ -55,6 +57,11 @@ export interface AttributeFormValue {
   verifyValue?: string;
   lovTag?: string | null;
   isLovBased?: boolean;
+  numChars?: number;
+  toStr?: string;
+  occurrence?: number;
+  startingPosition?: number;
+  fromPosition?: number;
 }
 
 export interface WizardFormState {

@@ -1,7 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import type { AttributeFormValue, TransactionRow } from '../../types';
 import { Input } from '../shared/Input';
-import { Select } from '../shared/Select';
 import { SearchableSelect } from '../shared/SearchableSelect';
 import { Toggle } from '../shared/Toggle';
 import { Button } from '../shared/Button';
@@ -13,6 +12,16 @@ import { EXTRACTION_OPERATIONS, PREDEFINED_PATTERNS } from '../../constants/oper
 import { generateExtractionPrompt, regexifyExtraction } from '../../utils/regexify';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
 import { AttributeFormModal } from '../attributes/AttributeFormModal';
+
+const ALLOWED_SOURCE_FIELDS = new Set([
+  'IBAN', 'EntryDate', 'BankReference', 'Description1', 'Description2',
+  'AdditionalInformation', 'StatementDate', 'TransactionDetails', 'ValueDate',
+  'FundsCode', 'TransactionStatusIndicator', 'CurrencyCode', 'Amount',
+]);
+
+const FILTERED_EXTRACTION_OPERATIONS = EXTRACTION_OPERATIONS.filter(
+  (op) => op.key !== 'predefined:ksa_iban' && op.key !== 'extract_between_and_verify'
+);
 
 interface AttributeEditorProps {
   attribute: AttributeFormValue;
@@ -61,32 +70,41 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
       (attribute.pattern ?? '') !== (snapshot.pattern ?? '') ||
       (attribute.verifyValue ?? '') !== (snapshot.verifyValue ?? '') ||
       (attribute.lovTag ?? '') !== (snapshot.lovTag ?? '') ||
-      (attribute.isLovBased ?? false) !== (snapshot.isLovBased ?? false)
+      (attribute.isLovBased ?? false) !== (snapshot.isLovBased ?? false) ||
+      (attribute.numChars ?? 0) !== (snapshot.numChars ?? 0) ||
+      (attribute.toStr ?? '') !== (snapshot.toStr ?? '') ||
+      (attribute.occurrence ?? 0) !== (snapshot.occurrence ?? 0) ||
+      (attribute.startingPosition ?? 0) !== (snapshot.startingPosition ?? 0) ||
+      (attribute.fromPosition ?? 0) !== (snapshot.fromPosition ?? 0)
     );
   }, [attribute, snapshot]);
 
   const handleDiscard = useCallback(() => {
-    if (snapshot) onUpdate(snapshot);
-    setEditing(false);
+    if (snapshot) {
+      onUpdate(snapshot);
+      setSnapshot({ ...snapshot });
+    }
   }, [snapshot, onUpdate]);
 
   const selectedOp = EXTRACTION_OPERATIONS.find((op) => op.key === attribute.extractionOperation);
-  const preview = generateExtractionPrompt(attribute.extractionOperation, {
+  const filteredOp = FILTERED_EXTRACTION_OPERATIONS.find((op) => op.key === attribute.extractionOperation);
+  const extractionParams = useMemo(() => ({
     prefix: attribute.prefix,
     suffix: attribute.suffix,
     pattern: attribute.pattern,
     verifyValue: attribute.verifyValue,
-  });
+    numChars: attribute.numChars,
+    toStr: attribute.toStr,
+    occurrence: attribute.occurrence,
+    startingPosition: attribute.startingPosition,
+    fromPosition: attribute.fromPosition,
+  }), [attribute.prefix, attribute.suffix, attribute.pattern, attribute.verifyValue, attribute.numChars, attribute.toStr, attribute.occurrence, attribute.startingPosition, attribute.fromPosition]);
+  const preview = generateExtractionPrompt(attribute.extractionOperation, extractionParams);
 
   const distinctValues = useMemo(() => {
     if (!transactions || !selectedOp) return [];
     try {
-      const regex = new RegExp(regexifyExtraction(attribute.extractionOperation, {
-        prefix: attribute.prefix,
-        suffix: attribute.suffix,
-        pattern: attribute.pattern,
-        verifyValue: attribute.verifyValue,
-      }));
+      const regex = new RegExp(regexifyExtraction(attribute.extractionOperation, extractionParams));
       const values = new Set<string>();
       for (const row of transactions) {
         const fieldValue = row[attribute.sourceField];
@@ -98,7 +116,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
     } catch {
       return [];
     }
-  }, [transactions, attribute.sourceField, attribute.extractionOperation, attribute.prefix, attribute.suffix, attribute.pattern, attribute.verifyValue, selectedOp]);
+  }, [transactions, attribute.sourceField, attribute.extractionOperation, attribute.prefix, attribute.suffix, attribute.pattern, attribute.verifyValue, selectedOp, extractionParams]);
 
   // For predefined patterns with validate: true or extract_between_and_verify, check if all rows pass
   const validationSummary = useMemo(() => {
@@ -107,11 +125,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
     // Handle extract_between_and_verify
     if (attribute.extractionOperation === 'extract_between_and_verify' && attribute.verifyValue) {
       try {
-        const regex = new RegExp(regexifyExtraction(attribute.extractionOperation, {
-          prefix: attribute.prefix,
-          suffix: attribute.suffix,
-          verifyValue: attribute.verifyValue,
-        }));
+        const regex = new RegExp(regexifyExtraction(attribute.extractionOperation, extractionParams));
         let total = 0;
         let passed = 0;
         let notPassed = 0;
@@ -156,12 +170,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
     const vc = validationClasses.find((c) => c.Tag === attribute.validationRuleTag);
     if (vc?.Regex && attribute.sourceField) {
       try {
-        const extractionRegex = new RegExp(regexifyExtraction(attribute.extractionOperation, {
-          prefix: attribute.prefix,
-          suffix: attribute.suffix,
-          pattern: attribute.pattern,
-          verifyValue: attribute.verifyValue,
-        }));
+        const extractionRegex = new RegExp(regexifyExtraction(attribute.extractionOperation, extractionParams));
         const vcRegex = new RegExp(vc.Regex);
         let total = 0;
         let passed = 0;
@@ -184,75 +193,102 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
     <div className="border border-border rounded-lg p-3 py-2 bg-surface space-y-3">
       {editing ? (
         <>
-          <div className="flex items-start justify-between">
-            <div className="flex-1 grid grid-cols-2 gap-2">
-              <SearchableSelect
-                label="Attribute Name"
-                value={attribute.attributeTag}
-                onChange={(val) => {
-                  const backend = activeAttributes.find((a) => a.Value === val);
-                  const updates: Partial<AttributeFormValue> = { attributeTag: val };
-                  if (backend?.PossibleLOVTag) {
-                    updates.isLovBased = true;
-                    updates.lovTag = backend.PossibleLOVTag;
-                  }
-                  onUpdate(updates);
-                }}
-                options={attributeNameOptions}
-                placeholder="Select attribute…"
-                onCreateNew={() => setCreateAttrOpen(true)}
-                createNewLabel="+ Create New Attribute"
-              />
-              <Select
-                label="Validation Class"
-                value={attribute.validationRuleTag}
-                onChange={(e) => onUpdate({ validationRuleTag: e.target.value })}
-                options={validationRuleOptions}
-              />
-            </div>
-
-            {/* Remove */}
-            <Button variant="ghost" size="xs" onClick={onRemove} className="text-red-400 hover:text-red-500 shrink-0 ml-3">
+          <div className="flex justify-end">
+            <Button variant="ghost" size="xs" onClick={onRemove} className="text-red-400 hover:text-red-500 shrink-0">
               Remove Attribute
             </Button>
           </div>
 
-          <div className="flex items-end gap-3">
+          <div className="grid grid-cols-2 gap-2">
+            <SearchableSelect
+              label="Attribute Name"
+              value={attribute.attributeTag}
+              onChange={(val) => {
+                const backend = activeAttributes.find((a) => a.Value === val);
+                const updates: Partial<AttributeFormValue> = { attributeTag: val };
+                if (backend?.PossibleLOVTag) {
+                  updates.isLovBased = true;
+                  updates.lovTag = backend.PossibleLOVTag;
+                }
+                onUpdate(updates);
+              }}
+              options={attributeNameOptions}
+              placeholder="Select attribute…"
+              onCreateNew={() => setCreateAttrOpen(true)}
+              createNewLabel="+ Create New Attribute"
+            />
+            <SearchableSelect
+              label="Validation Class"
+              placeholder="Select validation class"
+              value={attribute.validationRuleTag}
+              onChange={(val) => onUpdate({ validationRuleTag: val })}
+              options={validationRuleOptions}
+            />
+          </div>
+
+          <div className="flex items-stretch gap-3">
             <Toggle label="Mandatory" size="lg" checked={attribute.isMandatory} onChange={(checked) => onUpdate({ isMandatory: checked })} />
             <Toggle
-              label="Is LOV Based?"
+              label="LOV Based"
               size="lg"
               checked={attribute.isLovBased ?? false}
-              onChange={(checked) => onUpdate({ isLovBased: checked, lovTag: checked ? attribute.lovTag : null })}
+              onChange={(checked) => {
+                if (checked) {
+                  const backend = activeAttributes.find((a) => a.Value === attribute.attributeTag);
+                  const suggestedLov = backend?.PossibleLOVTag ?? null;
+                  onUpdate({ isLovBased: true, lovTag: attribute.lovTag || suggestedLov });
+                } else {
+                  onUpdate({ isLovBased: false, lovTag: null });
+                }
+              }}
             />
-            {attribute.isLovBased && (
-              <div className="flex-1 max-w-xs">
-                <Select
-                  label="LOV"
-                  value={attribute.lovTag ?? ''}
-                  onChange={(e) => onUpdate({ lovTag: e.target.value || null })}
-                  options={lovOptions}
-                  placeholder="Select LOV…"
-                />
-              </div>
-            )}
+            <div className={`flex-1 ${attribute.isLovBased ? '' : 'invisible pointer-events-none'}`}>
+              <SearchableSelect
+                value={attribute.lovTag ?? ''}
+                onChange={(val) => onUpdate({ lovTag: val || null })}
+                options={lovOptions}
+                placeholder="Select LOV…"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-2" id="attribute_edit_1">
-            <Select
+            <SearchableSelect
               label="Source Field"
               placeholder="Select source field"
               value={attribute.sourceField}
-              onChange={(e) => onUpdate({ sourceField: e.target.value })}
-              options={fieldMeta.sourceFields.map((f) => ({ value: f, label: humanizeFieldName(f) }))}
+              onChange={(val) => onUpdate({ sourceField: val })}
+              options={fieldMeta.sourceFields.filter((f) => ALLOWED_SOURCE_FIELDS.has(f)).map((f) => ({ value: f, label: humanizeFieldName(f) }))}
             />
-            <Select
+            <SearchableSelect
               label="Extraction Method"
+              placeholder="Select extraction method"
               value={attribute.extractionOperation}
-              onChange={(e) => onUpdate({ extractionOperation: e.target.value as AttributeFormValue['extractionOperation'] })}
-              options={EXTRACTION_OPERATIONS.map((op) => ({ value: op.key, label: op.label }))}
+              onChange={(val) => onUpdate({
+                extractionOperation: val as AttributeFormValue['extractionOperation'],
+                numChars: undefined,
+                toStr: undefined,
+                occurrence: undefined,
+                startingPosition: undefined,
+                fromPosition: undefined,
+              })}
+              options={FILTERED_EXTRACTION_OPERATIONS.map((op) => ({ value: op.key, label: op.label }))}
             />
           </div>
+
+          {attribute.extractionOperation === 'extract_substring' && (
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                label="From Position"
+                placeholder="Starting position (required)"
+                type="number"
+                min={0}
+                required
+                value={attribute.fromPosition ?? ''}
+                onChange={(e) => onUpdate({ fromPosition: e.target.value ? Number(e.target.value) : undefined })}
+              />
+            </div>
+          )}
 
           {selectedOp && (
             <div className="grid grid-cols-2 gap-2" id="attribute_edit_2">
@@ -291,6 +327,48 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
             </div>
           )}
 
+          {filteredOp?.optionalFields && filteredOp.optionalFields.length > 0 && (
+            <div className="grid grid-cols-3 gap-2">
+              {filteredOp.optionalFields.includes('numChars') && (
+                <Input
+                  label="# of Chars"
+                  placeholder="Optional"
+                  type="number"
+                  min={1}
+                  value={attribute.numChars ?? ''}
+                  onChange={(e) => onUpdate({ numChars: e.target.value ? Number(e.target.value) : undefined })}
+                />
+              )}
+              {filteredOp.optionalFields.includes('toStr') && (
+                <Input
+                  label="To String"
+                  placeholder="Optional"
+                  value={attribute.toStr ?? ''}
+                  onChange={(e) => onUpdate({ toStr: e.target.value || undefined })}
+                />
+              )}
+              {filteredOp.optionalFields.includes('startingPosition') && (
+                <Input
+                  label="Starting Position"
+                  placeholder="Optional"
+                  type="number"
+                  min={0}
+                  value={attribute.startingPosition ?? ''}
+                  onChange={(e) => onUpdate({ startingPosition: e.target.value ? Number(e.target.value) : undefined })}
+                />
+              )}
+              {filteredOp.optionalFields.includes('occurrence') && (
+                <SearchableSelect
+                  label="Occurrence"
+                  placeholder="Optional"
+                  value={attribute.occurrence ? String(attribute.occurrence) : ''}
+                  onChange={(val) => onUpdate({ occurrence: val ? Number(val) : undefined })}
+                  options={Array.from({ length: 10 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))}
+                />
+              )}
+            </div>
+          )}
+
           <div className="flex items-center gap-2 justify-between">
             <div className="flex items-center gap-2 justify-between ">
               <p className="text-xs text-primary italic border-dashed border w-fit px-2 py-1">
@@ -299,10 +377,10 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
               {attribute.attributeTag.trim().length > 0 && (
                 hasChanges ? (
                   <>
-                    <Button variant="secondary" size="xs" onClick={handleDiscard}>
+                    <Button variant="secondary" size="xs" onClick={handleDiscard} className="min-w-16 text-center">
                       Discard
                     </Button>
-                    <Button variant="primary" size="xs" onClick={() => setEditing(false)}>
+                    <Button variant="primary" size="xs" onClick={() => setEditing(false)} className="min-w-16 text-center">
                       Save
                     </Button>
                   </>

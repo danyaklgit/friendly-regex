@@ -303,7 +303,7 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
       {open && (
         <>
           <DropdownBackdrop onClick={() => { setOpen(false); setSearch(''); }} />
-          <div ref={scrollContainerRef} className="absolute top-full mt-1 right-0 z-50 bg-surface border border-border rounded-lg shadow-lg min-w-55 max-h-72 overflow-y-auto custom-scrollbar px-2 pb-2">
+          <div ref={scrollContainerRef} className="absolute top-full mt-1 right-0 z-50 bg-surface border border-border rounded-lg shadow-lg min-w-64 max-h-72 overflow-y-auto custom-scrollbar p-1.5">
             <div className="sticky top-0 bg-surface z-10 border-b border-border-subtle mb-1 pt-2 pb-1.5">
               <div className="px-2 pb-1.5">
                 <input
@@ -374,7 +374,7 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
                     setOverIdx(null);
                   }}
                   onDragEnd={() => { setDragIdx(null); setOverIdx(null); }}
-                  className={`flex items-center gap-2 px-2 py-1 text-xs hover:bg-surface-hover rounded cursor-grab active:cursor-grabbing select-none transition-colors ${isDragOver ? 'border-t-2 border-primary' : 'border-t-2 border-transparent'
+                  className={`flex items-center gap-2 px-2 py-1.5 text-xs hover:bg-surface-hover rounded cursor-grab active:cursor-grabbing select-none transition-colors ${isDragOver ? 'border-t-2 border-primary' : 'border-t-2 border-transparent'
                     } ${dragIdx === i ? 'opacity-40' : ''}`}
                 >
                   <svg className="w-3 h-3 text-faint shrink-0" fill="currentColor" viewBox="0 0 20 20">
