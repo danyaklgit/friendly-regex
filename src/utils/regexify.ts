@@ -48,11 +48,32 @@ export function regexify(
   }
 }
 
+/** Build a forward capture group: numChars limits length, toStr limits by delimiter, both = whichever comes first */
+function buildCapture(numChars?: number, toStr?: string): string {
+  const hasN = numChars && numChars > 0;
+  const hasTo = !!toStr;
+  if (hasN && hasTo) return `(.{0,${numChars}}?)${escapeRegex(toStr)}`;
+  if (hasN) return `(.{${numChars}})`;
+  if (hasTo) return `(.*?)${escapeRegex(toStr)}`;
+  return '(.*)';
+}
+
+/** Build a backward capture group (for extract_before): capture precedes the suffix */
+function buildCaptureBefore(numChars?: number, toStr?: string): string {
+  const hasN = numChars && numChars > 0;
+  const hasTo = !!toStr;
+  if (hasN && hasTo) return `${escapeRegex(toStr)}(.{0,${numChars}}?)`;
+  if (hasN) return `(.{${numChars}})`;
+  if (hasTo) return `${escapeRegex(toStr)}(.*?)`;
+  return '(.*?)';
+}
+
 export function regexifyExtraction(
   operation: ExtractionOperation,
   params: {
     prefix?: string; suffix?: string; pattern?: string; verifyValue?: string;
     numChars?: number; toStr?: string; occurrence?: number; startingPosition?: number;
+    fromPosition?: number;
   }
 ): string {
   if (operation.startsWith('predefined:')) {
@@ -71,26 +92,22 @@ export function regexifyExtraction(
     case 'extract_after': {
       const pre = escapeRegex(params.prefix ?? '');
       const skip = occ ? `(?:.*?${pre}){${occ - 1}}.*?` : '';
-      let capture: string;
-      if (params.numChars && params.numChars > 0) capture = `(.{${params.numChars}})`;
-      else if (params.toStr) capture = `(.*?)${escapeRegex(params.toStr)}`;
-      else capture = '(.*)';
-      return `${skip}${pre}${capture}`;
+      return `${skip}${pre}${buildCapture(params.numChars, params.toStr)}`;
     }
     case 'extract_before': {
       const suf = escapeRegex(params.suffix ?? '');
       const skip = occ ? `(?:.*?${suf}){${occ - 1}}.*?` : '';
-      let capture: string;
-      if (params.numChars && params.numChars > 0) capture = `(.{${params.numChars}})`;
-      else if (params.toStr) capture = `${escapeRegex(params.toStr)}(.*?)`;
-      else capture = '(.*?)';
-      return `${skip}${capture}${suf}`;
+      return `${skip}${buildCaptureBefore(params.numChars, params.toStr)}${suf}`;
     }
     case 'extract_matching': {
       const pat = params.pattern ?? '.*';
       const posSkip = params.startingPosition && params.startingPosition > 0 ? `.{${params.startingPosition}}` : '';
       const occSkip = occ ? `(?:.*?(?:${pat})){${occ - 1}}.*?` : '';
       return `${posSkip}${occSkip}(${pat})`;
+    }
+    case 'extract_substring': {
+      const pos = params.fromPosition && params.fromPosition > 0 ? `.{${params.fromPosition}}` : '';
+      return `${pos}${buildCapture(params.numChars, params.toStr)}`;
     }
     case 'extract_between_and_verify':
       return `${escapeRegex(params.prefix ?? '')}(.*?)${escapeRegex(params.suffix ?? '')}`;
@@ -145,6 +162,7 @@ export function generateExtractionPrompt(
   params: {
     prefix?: string; suffix?: string; pattern?: string; verifyValue?: string;
     numChars?: number; toStr?: string; occurrence?: number; startingPosition?: number;
+    fromPosition?: number;
   }
 ): string {
   if (operation.startsWith('predefined:')) {
@@ -167,6 +185,13 @@ export function generateExtractionPrompt(
       return `Extract before '${params.suffix ?? ''}'${suffix}`;
     case 'extract_matching':
       return `Extract matching '${params.pattern ?? ''}'${suffix}`;
+    case 'extract_substring': {
+      const parts: string[] = [];
+      if (params.fromPosition && params.fromPosition > 0) parts.push(`from position ${params.fromPosition}`);
+      if (params.numChars && params.numChars > 0) parts.push(`${params.numChars} chars`);
+      if (params.toStr) parts.push(`to '${params.toStr}'`);
+      return `Sub-string${parts.length > 0 ? ` (${parts.join(', ')})` : ''}`;
+    }
     case 'extract_between_and_verify':
       return `Extract between '${params.prefix ?? ''}' and '${params.suffix ?? ''}', verify = '${params.verifyValue ?? ''}'`;
     default:

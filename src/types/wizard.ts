@@ -25,6 +25,7 @@ export type ExtractionOperation =
   | 'extract_after'
   | 'extract_before'
   | 'extract_matching'
+  | 'extract_substring'
   | 'extract_between_and_verify'
   | `predefined:${string}`;
 
@@ -60,6 +61,7 @@ export interface AttributeFormValue {
   toStr?: string;
   occurrence?: number;
   startingPosition?: number;
+  fromPosition?: number;
 }
 
 export interface WizardFormState {

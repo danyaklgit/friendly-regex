@@ -74,7 +74,8 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
       (attribute.numChars ?? 0) !== (snapshot.numChars ?? 0) ||
       (attribute.toStr ?? '') !== (snapshot.toStr ?? '') ||
       (attribute.occurrence ?? 0) !== (snapshot.occurrence ?? 0) ||
-      (attribute.startingPosition ?? 0) !== (snapshot.startingPosition ?? 0)
+      (attribute.startingPosition ?? 0) !== (snapshot.startingPosition ?? 0) ||
+      (attribute.fromPosition ?? 0) !== (snapshot.fromPosition ?? 0)
     );
   }, [attribute, snapshot]);
 
@@ -94,7 +95,8 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
     toStr: attribute.toStr,
     occurrence: attribute.occurrence,
     startingPosition: attribute.startingPosition,
-  }), [attribute.prefix, attribute.suffix, attribute.pattern, attribute.verifyValue, attribute.numChars, attribute.toStr, attribute.occurrence, attribute.startingPosition]);
+    fromPosition: attribute.fromPosition,
+  }), [attribute.prefix, attribute.suffix, attribute.pattern, attribute.verifyValue, attribute.numChars, attribute.toStr, attribute.occurrence, attribute.startingPosition, attribute.fromPosition]);
   const preview = generateExtractionPrompt(attribute.extractionOperation, extractionParams);
 
   const distinctValues = useMemo(() => {
@@ -266,10 +268,25 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                 toStr: undefined,
                 occurrence: undefined,
                 startingPosition: undefined,
+                fromPosition: undefined,
               })}
               options={FILTERED_EXTRACTION_OPERATIONS.map((op) => ({ value: op.key, label: op.label }))}
             />
           </div>
+
+          {attribute.extractionOperation === 'extract_substring' && (
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                label="From Position"
+                placeholder="Starting position (required)"
+                type="number"
+                min={0}
+                required
+                value={attribute.fromPosition ?? ''}
+                onChange={(e) => onUpdate({ fromPosition: e.target.value ? Number(e.target.value) : undefined })}
+              />
+            </div>
+          )}
 
           {selectedOp && (
             <div className="grid grid-cols-2 gap-2" id="attribute_edit_2">

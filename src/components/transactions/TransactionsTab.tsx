@@ -74,6 +74,7 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
           toStr: attr.toStr,
           occurrence: attr.occurrence,
           startingPosition: attr.startingPosition,
+          fromPosition: attr.fromPosition,
         };
         const prompt = generateExtractionPrompt(attr.extractionOperation, params);
         return {

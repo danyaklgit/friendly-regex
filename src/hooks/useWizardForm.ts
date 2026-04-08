@@ -289,6 +289,7 @@ export function useWizardForm(
           toStr: attr.toStr,
           occurrence: attr.occurrence,
           startingPosition: attr.startingPosition,
+          fromPosition: attr.fromPosition,
         };
         const prompt = generateExtractionPrompt(attr.extractionOperation, extractionParams);
         return {

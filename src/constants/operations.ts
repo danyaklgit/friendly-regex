@@ -52,5 +52,6 @@ export const EXTRACTION_OPERATIONS: ExtractionOperationDef[] = [
   { key: 'extract_after', label: 'Extract after [prefix]', fields: ['prefix'], optionalFields: ['numChars', 'toStr', 'occurrence'] },
   { key: 'extract_before', label: 'Extract before [suffix]', fields: ['suffix'], optionalFields: ['numChars', 'toStr', 'occurrence'] },
   { key: 'extract_matching', label: 'Extract matching pattern', fields: ['pattern'], optionalFields: ['startingPosition', 'occurrence'] },
+  { key: 'extract_substring', label: 'Sub-String', fields: [], optionalFields: ['numChars', 'toStr'] },
   { key: 'extract_between_and_verify', label: 'Extract between [prefix] and [suffix] and verify', fields: ['prefix', 'suffix', 'verifyValue']},
 ];
