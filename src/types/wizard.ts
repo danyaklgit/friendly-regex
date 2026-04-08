@@ -56,6 +56,10 @@ export interface AttributeFormValue {
   verifyValue?: string;
   lovTag?: string | null;
   isLovBased?: boolean;
+  numChars?: number;
+  toStr?: string;
+  occurrence?: number;
+  startingPosition?: number;
 }
 
 export interface WizardFormState {

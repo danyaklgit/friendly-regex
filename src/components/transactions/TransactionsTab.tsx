@@ -66,11 +66,16 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
     Attributes: formState.attributes
       .filter((a) => a.attributeTag.trim().length > 0)
       .map((attr, index) => {
-        const prompt = generateExtractionPrompt(attr.extractionOperation, {
+        const params = {
           prefix: attr.prefix,
           suffix: attr.suffix,
           pattern: attr.pattern,
-        });
+          numChars: attr.numChars,
+          toStr: attr.toStr,
+          occurrence: attr.occurrence,
+          startingPosition: attr.startingPosition,
+        };
+        const prompt = generateExtractionPrompt(attr.extractionOperation, params);
         return {
           AttributeTag: attr.attributeTag,
           IsMandatory: attr.isMandatory,
@@ -80,11 +85,7 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
             SourceField: attr.sourceField,
             ExpressionPrompt: null,
             ExpressionId: generateExpressionId(id, 'attr', index),
-            Regex: regexifyExtraction(attr.extractionOperation, {
-              prefix: attr.prefix,
-              suffix: attr.suffix,
-              pattern: attr.pattern,
-            }),
+            Regex: regexifyExtraction(attr.extractionOperation, params),
             RegexDetails: [{ LanguageCode: 'en', Description: prompt }],
           },
         };

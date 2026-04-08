@@ -280,12 +280,17 @@ export function useWizardForm(
         })
       ),
       Attributes: formState.attributes.map((attr, index) => {
-        const prompt = generateExtractionPrompt(attr.extractionOperation, {
+        const extractionParams = {
           prefix: attr.prefix,
           suffix: attr.suffix,
           pattern: attr.pattern,
           verifyValue: attr.verifyValue,
-        });
+          numChars: attr.numChars,
+          toStr: attr.toStr,
+          occurrence: attr.occurrence,
+          startingPosition: attr.startingPosition,
+        };
+        const prompt = generateExtractionPrompt(attr.extractionOperation, extractionParams);
         return {
           AttributeTag: attr.attributeTag,
           IsMandatory: attr.isMandatory,
@@ -295,12 +300,7 @@ export function useWizardForm(
             SourceField: attr.sourceField,
             ExpressionPrompt: null,
             ExpressionId: generateExpressionId(id, 'attr', index),
-            Regex: regexifyExtraction(attr.extractionOperation, {
-              prefix: attr.prefix,
-              suffix: attr.suffix,
-              pattern: attr.pattern,
-              verifyValue: attr.verifyValue,
-            }),
+            Regex: regexifyExtraction(attr.extractionOperation, extractionParams),
             RegexDetails: [{ LanguageCode: 'en', Description: prompt }],
             ...(attr.verifyValue ? { VerifyValue: attr.verifyValue } : {}),
           },

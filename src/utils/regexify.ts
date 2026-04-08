@@ -50,21 +50,48 @@ export function regexify(
 
 export function regexifyExtraction(
   operation: ExtractionOperation,
-  params: { prefix?: string; suffix?: string; pattern?: string; verifyValue?: string }
+  params: {
+    prefix?: string; suffix?: string; pattern?: string; verifyValue?: string;
+    numChars?: number; toStr?: string; occurrence?: number; startingPosition?: number;
+  }
 ): string {
   if (operation.startsWith('predefined:')) {
     const def = PREDEFINED_PATTERNS.find((p) => p.key === operation);
     return def?.regex ?? '(.*)';
   }
+  const occ = params.occurrence && params.occurrence > 1 ? params.occurrence : 0;
+
   switch (operation) {
-    case 'extract_between':
-      return `${escapeRegex(params.prefix ?? '')}(.*?)${escapeRegex(params.suffix ?? '')}`;
-    case 'extract_after':
-      return `${escapeRegex(params.prefix ?? '')}(.*)`;
-    case 'extract_before':
-      return `(.*?)${escapeRegex(params.suffix ?? '')}`;
-    case 'extract_matching':
-      return `(${params.pattern ?? '.*'})`;
+    case 'extract_between': {
+      const pre = escapeRegex(params.prefix ?? '');
+      const suf = escapeRegex(params.suffix ?? '');
+      const skip = occ ? `(?:.*?${pre}.*?${suf}){${occ - 1}}.*?` : '';
+      return `${skip}${pre}(.*?)${suf}`;
+    }
+    case 'extract_after': {
+      const pre = escapeRegex(params.prefix ?? '');
+      const skip = occ ? `(?:.*?${pre}){${occ - 1}}.*?` : '';
+      let capture: string;
+      if (params.numChars && params.numChars > 0) capture = `(.{${params.numChars}})`;
+      else if (params.toStr) capture = `(.*?)${escapeRegex(params.toStr)}`;
+      else capture = '(.*)';
+      return `${skip}${pre}${capture}`;
+    }
+    case 'extract_before': {
+      const suf = escapeRegex(params.suffix ?? '');
+      const skip = occ ? `(?:.*?${suf}){${occ - 1}}.*?` : '';
+      let capture: string;
+      if (params.numChars && params.numChars > 0) capture = `(.{${params.numChars}})`;
+      else if (params.toStr) capture = `${escapeRegex(params.toStr)}(.*?)`;
+      else capture = '(.*?)';
+      return `${skip}${capture}${suf}`;
+    }
+    case 'extract_matching': {
+      const pat = params.pattern ?? '.*';
+      const posSkip = params.startingPosition && params.startingPosition > 0 ? `.{${params.startingPosition}}` : '';
+      const occSkip = occ ? `(?:.*?(?:${pat})){${occ - 1}}.*?` : '';
+      return `${posSkip}${occSkip}(${pat})`;
+    }
     case 'extract_between_and_verify':
       return `${escapeRegex(params.prefix ?? '')}(.*?)${escapeRegex(params.suffix ?? '')}`;
     default:
@@ -115,21 +142,31 @@ export function generateExpressionPrompt(
 
 export function generateExtractionPrompt(
   operation: ExtractionOperation,
-  params: { prefix?: string; suffix?: string; pattern?: string; verifyValue?: string }
+  params: {
+    prefix?: string; suffix?: string; pattern?: string; verifyValue?: string;
+    numChars?: number; toStr?: string; occurrence?: number; startingPosition?: number;
+  }
 ): string {
   if (operation.startsWith('predefined:')) {
     const def = PREDEFINED_PATTERNS.find((p) => p.key === operation);
     return def ? `Match ${def.label}` : 'Extract value';
   }
+  const modifiers: string[] = [];
+  if (params.numChars && params.numChars > 0) modifiers.push(`${params.numChars} chars`);
+  if (params.toStr) modifiers.push(`to '${params.toStr}'`);
+  if (params.occurrence && params.occurrence > 1) modifiers.push(`occurrence #${params.occurrence}`);
+  if (params.startingPosition && params.startingPosition > 0) modifiers.push(`from position ${params.startingPosition}`);
+  const suffix = modifiers.length > 0 ? ` (${modifiers.join(', ')})` : '';
+
   switch (operation) {
     case 'extract_between':
-      return `Extract between '${params.prefix ?? ''}' and '${params.suffix ?? ''}'`;
+      return `Extract between '${params.prefix ?? ''}' and '${params.suffix ?? ''}'${suffix}`;
     case 'extract_after':
-      return `Extract after '${params.prefix ?? ''}'`;
+      return `Extract after '${params.prefix ?? ''}'${suffix}`;
     case 'extract_before':
-      return `Extract before '${params.suffix ?? ''}'`;
+      return `Extract before '${params.suffix ?? ''}'${suffix}`;
     case 'extract_matching':
-      return `Extract matching '${params.pattern ?? ''}'`;
+      return `Extract matching '${params.pattern ?? ''}'${suffix}`;
     case 'extract_between_and_verify':
       return `Extract between '${params.prefix ?? ''}' and '${params.suffix ?? ''}', verify = '${params.verifyValue ?? ''}'`;
     default:

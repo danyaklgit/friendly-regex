@@ -70,7 +70,11 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
       (attribute.pattern ?? '') !== (snapshot.pattern ?? '') ||
       (attribute.verifyValue ?? '') !== (snapshot.verifyValue ?? '') ||
       (attribute.lovTag ?? '') !== (snapshot.lovTag ?? '') ||
-      (attribute.isLovBased ?? false) !== (snapshot.isLovBased ?? false)
+      (attribute.isLovBased ?? false) !== (snapshot.isLovBased ?? false) ||
+      (attribute.numChars ?? 0) !== (snapshot.numChars ?? 0) ||
+      (attribute.toStr ?? '') !== (snapshot.toStr ?? '') ||
+      (attribute.occurrence ?? 0) !== (snapshot.occurrence ?? 0) ||
+      (attribute.startingPosition ?? 0) !== (snapshot.startingPosition ?? 0)
     );
   }, [attribute, snapshot]);
 
@@ -80,22 +84,23 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
   }, [snapshot, onUpdate]);
 
   const selectedOp = EXTRACTION_OPERATIONS.find((op) => op.key === attribute.extractionOperation);
-  const preview = generateExtractionPrompt(attribute.extractionOperation, {
+  const filteredOp = FILTERED_EXTRACTION_OPERATIONS.find((op) => op.key === attribute.extractionOperation);
+  const extractionParams = useMemo(() => ({
     prefix: attribute.prefix,
     suffix: attribute.suffix,
     pattern: attribute.pattern,
     verifyValue: attribute.verifyValue,
-  });
+    numChars: attribute.numChars,
+    toStr: attribute.toStr,
+    occurrence: attribute.occurrence,
+    startingPosition: attribute.startingPosition,
+  }), [attribute.prefix, attribute.suffix, attribute.pattern, attribute.verifyValue, attribute.numChars, attribute.toStr, attribute.occurrence, attribute.startingPosition]);
+  const preview = generateExtractionPrompt(attribute.extractionOperation, extractionParams);
 
   const distinctValues = useMemo(() => {
     if (!transactions || !selectedOp) return [];
     try {
-      const regex = new RegExp(regexifyExtraction(attribute.extractionOperation, {
-        prefix: attribute.prefix,
-        suffix: attribute.suffix,
-        pattern: attribute.pattern,
-        verifyValue: attribute.verifyValue,
-      }));
+      const regex = new RegExp(regexifyExtraction(attribute.extractionOperation, extractionParams));
       const values = new Set<string>();
       for (const row of transactions) {
         const fieldValue = row[attribute.sourceField];
@@ -107,7 +112,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
     } catch {
       return [];
     }
-  }, [transactions, attribute.sourceField, attribute.extractionOperation, attribute.prefix, attribute.suffix, attribute.pattern, attribute.verifyValue, selectedOp]);
+  }, [transactions, attribute.sourceField, attribute.extractionOperation, attribute.prefix, attribute.suffix, attribute.pattern, attribute.verifyValue, selectedOp, extractionParams]);
 
   // For predefined patterns with validate: true or extract_between_and_verify, check if all rows pass
   const validationSummary = useMemo(() => {
@@ -116,11 +121,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
     // Handle extract_between_and_verify
     if (attribute.extractionOperation === 'extract_between_and_verify' && attribute.verifyValue) {
       try {
-        const regex = new RegExp(regexifyExtraction(attribute.extractionOperation, {
-          prefix: attribute.prefix,
-          suffix: attribute.suffix,
-          verifyValue: attribute.verifyValue,
-        }));
+        const regex = new RegExp(regexifyExtraction(attribute.extractionOperation, extractionParams));
         let total = 0;
         let passed = 0;
         let notPassed = 0;
@@ -165,12 +166,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
     const vc = validationClasses.find((c) => c.Tag === attribute.validationRuleTag);
     if (vc?.Regex && attribute.sourceField) {
       try {
-        const extractionRegex = new RegExp(regexifyExtraction(attribute.extractionOperation, {
-          prefix: attribute.prefix,
-          suffix: attribute.suffix,
-          pattern: attribute.pattern,
-          verifyValue: attribute.verifyValue,
-        }));
+        const extractionRegex = new RegExp(regexifyExtraction(attribute.extractionOperation, extractionParams));
         const vcRegex = new RegExp(vc.Regex);
         let total = 0;
         let passed = 0;
@@ -264,7 +260,13 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
               label="Extraction Method"
               placeholder="Select extraction method"
               value={attribute.extractionOperation}
-              onChange={(val) => onUpdate({ extractionOperation: val as AttributeFormValue['extractionOperation'] })}
+              onChange={(val) => onUpdate({
+                extractionOperation: val as AttributeFormValue['extractionOperation'],
+                numChars: undefined,
+                toStr: undefined,
+                occurrence: undefined,
+                startingPosition: undefined,
+              })}
               options={FILTERED_EXTRACTION_OPERATIONS.map((op) => ({ value: op.key, label: op.label }))}
             />
           </div>
@@ -301,6 +303,48 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                   placeholder="Expected extracted value"
                   value={attribute.verifyValue ?? ''}
                   onChange={(e) => onUpdate({ verifyValue: e.target.value })}
+                />
+              )}
+            </div>
+          )}
+
+          {filteredOp?.optionalFields && filteredOp.optionalFields.length > 0 && (
+            <div className="grid grid-cols-3 gap-2">
+              {filteredOp.optionalFields.includes('numChars') && (
+                <Input
+                  label="# of Chars"
+                  placeholder="Optional"
+                  type="number"
+                  min={1}
+                  value={attribute.numChars ?? ''}
+                  onChange={(e) => onUpdate({ numChars: e.target.value ? Number(e.target.value) : undefined })}
+                />
+              )}
+              {filteredOp.optionalFields.includes('toStr') && (
+                <Input
+                  label="To String"
+                  placeholder="Optional"
+                  value={attribute.toStr ?? ''}
+                  onChange={(e) => onUpdate({ toStr: e.target.value || undefined })}
+                />
+              )}
+              {filteredOp.optionalFields.includes('startingPosition') && (
+                <Input
+                  label="Starting Position"
+                  placeholder="Optional"
+                  type="number"
+                  min={0}
+                  value={attribute.startingPosition ?? ''}
+                  onChange={(e) => onUpdate({ startingPosition: e.target.value ? Number(e.target.value) : undefined })}
+                />
+              )}
+              {filteredOp.optionalFields.includes('occurrence') && (
+                <SearchableSelect
+                  label="Occurrence"
+                  placeholder="Optional"
+                  value={attribute.occurrence ? String(attribute.occurrence) : ''}
+                  onChange={(val) => onUpdate({ occurrence: val ? Number(val) : undefined })}
+                  options={Array.from({ length: 10 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))}
                 />
               )}
             </div>

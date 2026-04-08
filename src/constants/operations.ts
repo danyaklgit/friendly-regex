@@ -30,6 +30,7 @@ export interface ExtractionOperationDef {
   key: ExtractionOperation;
   label: string;
   fields: ('prefix' | 'suffix' | 'pattern' | 'verifyValue')[];
+  optionalFields?: ('numChars' | 'toStr' | 'occurrence' | 'startingPosition')[];
 }
 
 /** Predefined regex patterns that require no user input fields. */
@@ -47,9 +48,9 @@ export const PREDEFINED_PATTERNS: PredefinedPatternDef[] = [
 
 export const EXTRACTION_OPERATIONS: ExtractionOperationDef[] = [
   ...PREDEFINED_PATTERNS.map((p) => ({ key: p.key as ExtractionOperation, label: p.label, fields: [] as ('prefix' | 'suffix' | 'pattern')[] })),
-  { key: 'extract_between', label: 'Extract between [prefix] and [suffix]', fields: ['prefix', 'suffix'] },
-  { key: 'extract_after', label: 'Extract after [prefix]', fields: ['prefix'] },
-  { key: 'extract_before', label: 'Extract before [suffix]', fields: ['suffix'] },
-  { key: 'extract_matching', label: 'Extract matching pattern', fields: ['pattern'] },
+  { key: 'extract_between', label: 'Extract between [prefix] and [suffix]', fields: ['prefix', 'suffix'], optionalFields: ['occurrence'] },
+  { key: 'extract_after', label: 'Extract after [prefix]', fields: ['prefix'], optionalFields: ['numChars', 'toStr', 'occurrence'] },
+  { key: 'extract_before', label: 'Extract before [suffix]', fields: ['suffix'], optionalFields: ['numChars', 'toStr', 'occurrence'] },
+  { key: 'extract_matching', label: 'Extract matching pattern', fields: ['pattern'], optionalFields: ['startingPosition', 'occurrence'] },
   { key: 'extract_between_and_verify', label: 'Extract between [prefix] and [suffix] and verify', fields: ['prefix', 'suffix', 'verifyValue']},
 ];
