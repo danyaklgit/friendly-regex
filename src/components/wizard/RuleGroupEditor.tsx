@@ -54,10 +54,7 @@ export function RuleGroupEditor({
               <span className="text-xs text-faint ml-1">(empty)</span>
             );
             const first = filled[0];
-            const preview = generateExpressionPrompt(first.operation, first.value, first.values, {
-              prefix: first.prefix,
-              suffix: first.suffix,
-            });
+            const preview = generateExpressionPrompt(first.operation, first.value, first.values);
             const rest = filled.length - 1;
             return (
               <span className="text-xs text-faint ml-1">
@@ -94,7 +91,7 @@ export function RuleGroupEditor({
             </Button>
             {canRemoveGroup && (
               <Button variant="ghost" size="xs" onClick={onRemoveGroup} className="text-red-400 hover:text-red-600">
-                Remove group
+                Remove Group
               </Button>
             )}
           </div>

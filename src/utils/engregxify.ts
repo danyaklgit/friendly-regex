@@ -33,10 +33,12 @@ export function engregxify(regex: string): string {
   if (regex.startsWith('__NUMERIC_GTE:')) return `Greater than or equal to '${regex.slice('__NUMERIC_GTE:'.length)}'`;
   if (regex.startsWith('__NUMERIC_LTE:')) return `Less than or equal to '${regex.slice('__NUMERIC_LTE:'.length)}'`;
 
-  // Extract and compare: (?:prefix)value(?:suffix)
-  const extractAndCompareMatch = regex.match(/^\(\?:(.+?)\)(.+)\(\?:(.+)\)$/);
-  if (extractAndCompareMatch) {
-    return `Extract between '${unescapeRegex(extractAndCompareMatch[1])}' and '${unescapeRegex(extractAndCompareMatch[3])}' equals '${unescapeRegex(extractAndCompareMatch[2])}'`;
+  // Negative lookbehind: does not end with — (?<!value)$
+  const doesNotEndWithMatch = regex.match(/^\(\?<!(.+)\)\$$/);
+  if (doesNotEndWithMatch) {
+    if (!hasActiveRegexSyntax(doesNotEndWithMatch[1])) {
+      return `Does not end with '${unescapeRegex(doesNotEndWithMatch[1])}'`;
+    }
   }
 
   // Negative lookahead: does not contain
@@ -47,11 +49,19 @@ export function engregxify(regex: string): string {
     }
   }
 
-  // Negative lookahead: does not equal
+  // Negative lookahead: does not equal — ^(?!value$)
   const doesNotEqualMatch = regex.match(/^\^\(\?!(.+)\$\)$/);
   if (doesNotEqualMatch) {
     if (!hasActiveRegexSyntax(doesNotEqualMatch[1])) {
       return `Does not equal '${unescapeRegex(doesNotEqualMatch[1])}'`;
+    }
+  }
+
+  // Negative lookahead: does not start with — ^(?!value)
+  const doesNotStartWithMatch = regex.match(/^\^\(\?!(.+)\)$/);
+  if (doesNotStartWithMatch) {
+    if (!hasActiveRegexSyntax(doesNotStartWithMatch[1])) {
+      return `Does not start with '${unescapeRegex(doesNotStartWithMatch[1])}'`;
     }
   }
 
@@ -136,27 +146,28 @@ export function decomposeRegex(regex: string): {
     }
   }
 
-  // Extract and compare: (?:prefix)value(?:suffix)
-  const extractAndCompareMatch = regex.match(/^\(\?:(.+?)\)(.+)\(\?:(.+)\)$/);
-  if (extractAndCompareMatch && !hasActiveRegexSyntax(extractAndCompareMatch[2])) {
-    return {
-      operation: 'extract_and_compare',
-      value: unescapeRegex(extractAndCompareMatch[2]),
-      prefix: unescapeRegex(extractAndCompareMatch[1]),
-      suffix: unescapeRegex(extractAndCompareMatch[3]),
-    };
+  // Negative lookbehind: does not end with — (?<!value)$
+  const doesNotEndWithMatch = regex.match(/^\(\?<!(.+)\)\$$/);
+  if (doesNotEndWithMatch && !hasActiveRegexSyntax(doesNotEndWithMatch[1])) {
+    return { operation: 'does_not_end_with', value: unescapeRegex(doesNotEndWithMatch[1]) };
   }
 
-  // Negative lookahead: does not contain
+  // Negative lookahead: does not contain — ^(?!.*value)
   const doesNotContainMatch = regex.match(/^\^\(\?!\.\*(.+)\)$/);
   if (doesNotContainMatch && !hasActiveRegexSyntax(doesNotContainMatch[1])) {
     return { operation: 'does_not_contain', value: unescapeRegex(doesNotContainMatch[1]) };
   }
 
-  // Negative lookahead: does not equal
+  // Negative lookahead: does not equal — ^(?!value$)
   const doesNotEqualMatch = regex.match(/^\^\(\?!(.+)\$\)$/);
   if (doesNotEqualMatch && !hasActiveRegexSyntax(doesNotEqualMatch[1])) {
     return { operation: 'does_not_equal', value: unescapeRegex(doesNotEqualMatch[1]) };
+  }
+
+  // Negative lookahead: does not start with — ^(?!value)
+  const doesNotStartWithMatch = regex.match(/^\^\(\?!(.+)\)$/);
+  if (doesNotStartWithMatch && !hasActiveRegexSyntax(doesNotStartWithMatch[1])) {
+    return { operation: 'does_not_start_with', value: unescapeRegex(doesNotStartWithMatch[1]) };
   }
 
   // Equals: ^value$

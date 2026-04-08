@@ -53,18 +53,12 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
       group.conditions
         .filter((c) => c.value.trim().length > 0)
         .map((c) => {
-          const prompt = generateExpressionPrompt(c.operation, c.value, c.values, {
-            prefix: c.prefix,
-            suffix: c.suffix,
-          });
+          const prompt = generateExpressionPrompt(c.operation, c.value, c.values);
           return {
             SourceField: c.sourceField,
             ExpressionPrompt: null,
             ExpressionId: null,
-            Regex: regexify(c.operation, c.value, c.values, {
-              prefix: c.prefix,
-              suffix: c.suffix,
-            }),
+            Regex: regexify(c.operation, c.value, c.values),
             RegexDetails: [{ LanguageCode: 'en', Description: prompt }],
           };
         })

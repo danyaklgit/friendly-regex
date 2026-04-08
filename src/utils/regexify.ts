@@ -9,7 +9,6 @@ export function regexify(
   operation: MatchOperation,
   value: string,
   values?: string[],
-  params?: { prefix?: string; suffix?: string }
 ): string {
   const escaped = escapeRegex(value);
 
@@ -26,14 +25,16 @@ export function regexify(
       return `^${escaped}$`;
     case 'does_not_equal':
       return `^(?!${escaped}$)`;
+    case 'does_not_start_with':
+      return `^(?!${escaped})`;
+    case 'does_not_end_with':
+      return `(?<!${escaped})$`;
     case 'matches_pattern': {
       const vals = values && values.length > 0 ? values : [value];
       return vals.map(escapeRegex).join('|');
     }
     case 'match_regex':
       return value;
-    case 'extract_and_compare':
-      return `(?:${escapeRegex(params?.prefix ?? '')})${escaped}(?:${escapeRegex(params?.suffix ?? '')})`;
     case 'greater_than':
       return `__NUMERIC_GT:${value}`;
     case 'less_than':
@@ -75,7 +76,6 @@ export function generateExpressionPrompt(
   operation: MatchOperation,
   value: string,
   values?: string[],
-  params?: { prefix?: string; suffix?: string }
 ): string {
   switch (operation) {
     case 'begins_with':
@@ -90,14 +90,16 @@ export function generateExpressionPrompt(
       return `Equal '${value}'`;
     case 'does_not_equal':
       return `Not equal '${value}'`;
+    case 'does_not_start_with':
+      return `Does not start with '${value}'`;
+    case 'does_not_end_with':
+      return `Does not end with '${value}'`;
     case 'matches_pattern': {
       const vals = values && values.length > 0 ? values : [value];
       return `Match one of: ${vals.map(v => `'${v}'`).join(', ')}`;
     }
     case 'match_regex':
       return `Match pattern '${value}'`;
-    case 'extract_and_compare':
-      return `Extract between '${params?.prefix ?? ''}' and '${params?.suffix ?? ''}' equals '${value}'`;
     case 'greater_than':
       return `Greater than '${value}'`;
     case 'less_than':

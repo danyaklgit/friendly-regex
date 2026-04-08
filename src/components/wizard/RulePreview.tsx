@@ -45,10 +45,7 @@ export function RulePreview({ ruleGroups, attributes }: RulePreviewProps) {
                         )}
                         <p className="text-sm text-orange-500">
                           <span className="font-mono text-xs text-primary-dark">{humanizeFieldName(c.sourceField)}</span>{' '}
-                          {generateExpressionPrompt(c.operation, c.value, c.values, {
-                            prefix: c.prefix,
-                            suffix: c.suffix,
-                          })}
+                          {generateExpressionPrompt(c.operation, c.value, c.values)}
                         </p>
                       </div>
                     ))}

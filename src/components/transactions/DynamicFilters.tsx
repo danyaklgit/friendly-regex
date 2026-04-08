@@ -212,14 +212,14 @@ function ListEqDropdown({
           {createPortal(
             <div
               ref={panelRef}
-              className="fixed z-50 bg-surface border border-border rounded-lg shadow-lg min-w-40"
+              className="fixed z-50 bg-surface border border-border rounded-lg shadow-lg min-w-64"
               style={{ top: panelPos.top, left: panelPos.left }}
             >
-              <div className="p-2">
+              <div className="p-1.5 max-h-60 overflow-y-auto custom-scrollbar">
                 {definition.Values.map((v) => (
                   <label
                     key={v.Column}
-                    className={`flex items-center gap-2 px-2 py-1 text-xs rounded text-black dark:text-white ${
+                    className={`flex items-center gap-2 px-2 py-1.5 text-xs rounded text-black dark:text-white ${
                       isDisabled(v)
                         ? 'opacity-50 cursor-not-allowed'
                         : 'hover:bg-surface-hover cursor-pointer'
@@ -329,7 +329,7 @@ function StringFromListDropdown({
       {open && !disabled && (
         <>
           <DropdownBackdrop onClick={() => setOpen(false)} />
-          <div className="absolute top-full mt-1 left-0 z-50 bg-surface border border-border rounded-lg shadow-lg min-w-40">
+          <div className="absolute top-full mt-1 left-0 z-50 bg-surface border border-border rounded-lg shadow-lg min-w-64">
             {isSearchable && (
               <div className="p-2 border-b border-border-subtle">
                 <div className="relative">
@@ -350,14 +350,14 @@ function StringFromListDropdown({
                 </div>
               </div>
             )}
-            <div className="max-h-60 overflow-y-auto custom-scrollbar">
+            <div className="max-h-60 overflow-y-auto custom-scrollbar p-1.5">
               {filteredValues.length === 0 ? (
                 <div className="px-2 py-3 text-xs text-faint text-center">No matches</div>
               ) : (
                 <>
                   {/* Selected items sticky at top */}
                   {filteredValues.some((v) => selected.has(v.Value ?? '')) && (
-                    <div className="sticky top-0 z-10 bg-surface p-1.5 pb-0">
+                    <div className="sticky top-0 z-10 bg-surface pb-0">
                       {filteredValues.filter((v) => selected.has(v.Value ?? '')).map((v) => {
                         const hasDistinctLabel = v.Label && v.Label !== v.Value;
                         return (
@@ -384,7 +384,7 @@ function StringFromListDropdown({
                     </div>
                   )}
                   {/* Unselected items */}
-                  <div className="p-1.5 pt-0">
+                  <div>
                     {filteredValues.filter((v) => !selected.has(v.Value ?? '')).map((v) => {
                       const hasDistinctLabel = v.Label && v.Label !== v.Value;
                       return (
@@ -860,14 +860,14 @@ function ShowOnlyDropdown({
           {createPortal(
             <div
               ref={panelRef}
-              className="fixed z-50 bg-surface border border-border rounded-lg shadow-lg min-w-40"
+              className="fixed z-50 bg-surface border border-border rounded-lg shadow-lg min-w-64"
               style={{ top: panelPos.top, left: panelPos.left }}
             >
-              <div className="p-2">
+              <div className="p-1.5">
                 {SHOW_ONLY_OPTIONS.map((option) => (
                   <label
                     key={option}
-                    className="flex items-center gap-2 px-2 py-1 text-xs hover:bg-surface-hover rounded cursor-pointer text-black dark:text-white"
+                    className="flex items-center gap-2 px-2 py-1.5 text-xs hover:bg-surface-hover rounded cursor-pointer text-black dark:text-white"
                   >
                     <input
                       type="checkbox"
@@ -968,7 +968,7 @@ function FilterDropdown({
       {open && (
         <>
           <DropdownBackdrop onClick={() => setOpen(false)} />
-          <div className="absolute top-full mt-1 left-0 z-50 bg-surface border border-border rounded-lg shadow-lg min-w-55">
+          <div className="absolute top-full mt-1 left-0 z-50 bg-surface border border-border rounded-lg shadow-lg min-w-64">
             {numericInfo && (
               <div className={values.length <= 50 ? 'border-b border-border-subtle' : ''}>
                 <RangeSlider
@@ -982,11 +982,11 @@ function FilterDropdown({
               </div>
             )}
             {values.length <= 50 && (
-              <div className="p-2 max-h-48 overflow-y-auto">
+              <div className="p-1.5 max-h-60 overflow-y-auto custom-scrollbar">
                 {values.map((val) => (
                   <label
                     key={val}
-                    className="flex items-center gap-2 px-2 py-1 text-xs hover:bg-surface-hover rounded cursor-pointer text-black dark:text-white"
+                    className="flex items-center gap-2 px-2 py-1.5 text-xs hover:bg-surface-hover rounded cursor-pointer text-black dark:text-white"
                   >
                     <input
                       type="checkbox"

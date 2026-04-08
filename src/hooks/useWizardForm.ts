@@ -85,7 +85,7 @@ export function useWizardForm(
     return {
       id: crypto.randomUUID(),
       sourceField: '',
-      operation: 'begins_with',
+      operation: '' as ConditionFormValue['operation'],
       value: '',
     };
   }
@@ -269,18 +269,12 @@ export function useWizardForm(
       Validity: formState.validity,
       TagRuleExpressions: formState.ruleGroups.map((group) =>
         group.conditions.map((c) => {
-          const prompt = generateExpressionPrompt(c.operation, c.value, c.values, {
-            prefix: c.prefix,
-            suffix: c.suffix,
-          });
+          const prompt = generateExpressionPrompt(c.operation, c.value, c.values);
           return {
             SourceField: c.sourceField,
             ExpressionPrompt: null,
             ExpressionId: null,
-            Regex: regexify(c.operation, c.value, c.values, {
-              prefix: c.prefix,
-              suffix: c.suffix,
-            }),
+            Regex: regexify(c.operation, c.value, c.values),
             RegexDetails: [{ LanguageCode: 'en', Description: prompt }],
           };
         })

@@ -1,12 +1,18 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import type { ConditionFormValue } from '../../types';
-import { Select } from '../shared/Select';
+import { SearchableSelect } from '../shared/SearchableSelect';
 import { Input } from '../shared/Input';
 import { Button } from '../shared/Button';
 import { MATCH_OPERATIONS } from '../../constants/operations';
 import { useTransactionData } from '../../hooks/useTransactionData';
 import { generateExpressionPrompt } from '../../utils/regexify';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
+
+const ALLOWED_SOURCE_FIELDS = new Set([
+  'IBAN', 'EntryDate', 'BankReference', 'Description1', 'Description2',
+  'AdditionalInformation', 'StatementDate', 'TransactionDetails', 'ValueDate',
+  'FundsCode', 'TransactionStatusIndicator', 'CurrencyCode', 'Amount',
+]);
 
 interface ConditionEditorProps {
   condition: ConditionFormValue;
@@ -29,6 +35,26 @@ export function ConditionEditor({
 }: ConditionEditorProps) {
   const { fieldMeta, transactions } = useTransactionData();
   const [editing, setEditing] = useState(!startCollapsed);
+  const [snapshot, setSnapshot] = useState<ConditionFormValue | null>(() =>
+    !startCollapsed ? { ...condition } : null
+  );
+
+  const hasChanges = useMemo(() => {
+    if (!snapshot) return false;
+    return (
+      condition.sourceField !== snapshot.sourceField ||
+      condition.operation !== snapshot.operation ||
+      condition.value !== snapshot.value ||
+      (condition.values ?? []).join(',') !== (snapshot.values ?? []).join(',') ||
+      (condition.prefix ?? '') !== (snapshot.prefix ?? '') ||
+      (condition.suffix ?? '') !== (snapshot.suffix ?? '')
+    );
+  }, [condition, snapshot]);
+
+  const handleDiscard = useCallback(() => {
+    if (snapshot) onUpdate(snapshot);
+    setEditing(false);
+  }, [snapshot, onUpdate]);
 
   const isFieldNumeric = useMemo(() => {
     if (!condition.sourceField || transactions.length === 0) return false;
@@ -46,10 +72,7 @@ export function ConditionEditor({
 
   const selectedOp = MATCH_OPERATIONS.find((op) => op.key === condition.operation);
   const preview = condition.value
-    ? generateExpressionPrompt(condition.operation, condition.value, condition.values, {
-      prefix: condition.prefix,
-      suffix: condition.suffix,
-    })
+    ? generateExpressionPrompt(condition.operation, condition.value, condition.values)
     : '';
 
   return (
@@ -65,12 +88,11 @@ export function ConditionEditor({
         {editing ? (
           <div data-tour="condition-fields" className={`flex-1 grid gap-2 grid-cols-3`} id='edit_mode_fields'>
             <div data-tour="condition-source-field">
-              <Select
+              <SearchableSelect
                 label='Source Field'
                 placeholder='Select source field'
                 value={condition.sourceField}
-                onChange={(e) => {
-                  const newField = e.target.value;
+                onChange={(newField) => {
                   const updates: Partial<ConditionFormValue> = { sourceField: newField };
                   const currentOp = MATCH_OPERATIONS.find((op) => op.key === condition.operation);
                   if (currentOp?.isNumeric) {
@@ -85,14 +107,15 @@ export function ConditionEditor({
                   }
                   onUpdate(updates);
                 }}
-                options={fieldMeta.sourceFields.map((f) => ({ value: f, label: humanizeFieldName(f) }))}
+                options={fieldMeta.sourceFields.filter((f) => ALLOWED_SOURCE_FIELDS.has(f)).map((f) => ({ value: f, label: humanizeFieldName(f) }))}
               />
             </div>
             <div data-tour="condition-operation">
-              <Select
+              <SearchableSelect
                 label='Operation'
+                placeholder='Select operation'
                 value={condition.operation}
-                onChange={(e) => onUpdate({ operation: e.target.value as ConditionFormValue['operation'] })}
+                onChange={(val) => onUpdate({ operation: val as ConditionFormValue['operation'] })}
                 options={availableOperations.map((op) => ({ value: op.key, label: op.label }))}
               />
             </div>
@@ -107,27 +130,6 @@ export function ConditionEditor({
                     onUpdate({ values, value: values[0] ?? '' });
                   }}
                 />
-              ) : selectedOp?.requiresExtraction ? (
-                <div className='flex flex-col gap-1'>
-                  <Input
-                    label='Starting Character'
-                    placeholder="Prefix..."
-                    value={condition.prefix ?? ''}
-                    onChange={(e) => onUpdate({ prefix: e.target.value })}
-                  />
-                  <Input
-                    label='End Character'
-                    placeholder="Suffix..."
-                    value={condition.suffix ?? ''}
-                    onChange={(e) => onUpdate({ suffix: e.target.value })}
-                  />
-                  <Input
-                    label='Compare value to'
-                    placeholder="Equals value..."
-                    value={condition.value}
-                    onChange={(e) => onUpdate({ value: e.target.value })}
-                  />
-                </div>
               ) : (
                 <Input
                   label='Value'
@@ -141,7 +143,7 @@ export function ConditionEditor({
         ) : (
           <div
             className="flex-1 cursor-pointer hover:bg-surface-active rounded px-2 py-1.5 transition-colors"
-            onClick={() => setEditing(true)}
+            onClick={() => { setSnapshot({ ...condition }); setEditing(true); }}
           >
             <p className="text-xs text-primary italic">
               {humanizeFieldName(condition.sourceField)} &rarr; <span className='text-orange-500'>{preview}</span>
@@ -159,6 +161,11 @@ export function ConditionEditor({
           <p className="text-xs text-primary italic text-left border-dashed border w-fit px-2 py-1">
             {humanizeFieldName(condition.sourceField)} &rarr; <span className='text-orange-500'>{preview}</span>
           </p>
+          {hasChanges && (
+            <Button variant="secondary" size="xs" onClick={handleDiscard}>
+              Discard
+            </Button>
+          )}
           <Button data-tour="condition-save-button" variant="primary" size="xs" onClick={() => { setEditing(false); onSave?.(); }}>
             Save
           </Button>

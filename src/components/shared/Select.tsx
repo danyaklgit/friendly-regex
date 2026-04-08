@@ -21,9 +21,9 @@ export function Select({ label, options, className = '', id, error, placeholder,
       )}
       <select
         id={selectId}
-        className={`block w-full rounded-lg border ${borderClass} bg-input-bg px-3 py-2 text-sm text-heading
+        className={`block w-full rounded-lg border ${borderClass} bg-input-bg px-3 py-2 text-sm
           disabled:opacity-50 disabled:cursor-not-allowed
-          focus:ring-1 outline-none transition-colors ${className}`}
+          focus:ring-1 outline-none transition-colors ${placeholder && !props.value ? 'text-placeholder' : 'text-heading'} ${className}`}
         {...props}
       >
         {placeholder && (
