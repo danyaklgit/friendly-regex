@@ -62,6 +62,8 @@ export interface AttributeFormValue {
   occurrence?: number;
   startingPosition?: number;
   fromPosition?: number;
+  prefixOccurrence?: number;
+  suffixOccurrence?: number;
 }
 
 export interface WizardFormState {
