@@ -13,6 +13,16 @@ import { generateExtractionPrompt, regexifyExtraction } from '../../utils/regexi
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
 import { AttributeFormModal } from '../attributes/AttributeFormModal';
 
+const ALLOWED_SOURCE_FIELDS = new Set([
+  'IBAN', 'EntryDate', 'BankReference', 'Description1', 'Description2',
+  'AdditionalInformation', 'StatementDate', 'TransactionDetails', 'ValueDate',
+  'FundsCode', 'TransactionStatusIndicator', 'CurrencyCode', 'Amount',
+]);
+
+const FILTERED_EXTRACTION_OPERATIONS = EXTRACTION_OPERATIONS.filter(
+  (op) => op.key !== 'predefined:ksa_iban' && op.key !== 'extract_between_and_verify'
+);
+
 interface AttributeEditorProps {
   attribute: AttributeFormValue;
   onUpdate: (updates: Partial<AttributeFormValue>) => void;
@@ -222,7 +232,15 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
               label="LOV Based"
               size="lg"
               checked={attribute.isLovBased ?? false}
-              onChange={(checked) => onUpdate({ isLovBased: checked, lovTag: checked ? attribute.lovTag : null })}
+              onChange={(checked) => {
+                if (checked) {
+                  const backend = activeAttributes.find((a) => a.Value === attribute.attributeTag);
+                  const suggestedLov = backend?.PossibleLOVTag ?? null;
+                  onUpdate({ isLovBased: true, lovTag: attribute.lovTag || suggestedLov });
+                } else {
+                  onUpdate({ isLovBased: false, lovTag: null });
+                }
+              }}
             />
             <div className={`flex-1 ${attribute.isLovBased ? '' : 'invisible pointer-events-none'}`}>
               <SearchableSelect
@@ -240,14 +258,14 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
               placeholder="Select source field"
               value={attribute.sourceField}
               onChange={(val) => onUpdate({ sourceField: val })}
-              options={fieldMeta.sourceFields.map((f) => ({ value: f, label: humanizeFieldName(f) }))}
+              options={fieldMeta.sourceFields.filter((f) => ALLOWED_SOURCE_FIELDS.has(f)).map((f) => ({ value: f, label: humanizeFieldName(f) }))}
             />
             <SearchableSelect
               label="Extraction Method"
               placeholder="Select extraction method"
               value={attribute.extractionOperation}
               onChange={(val) => onUpdate({ extractionOperation: val as AttributeFormValue['extractionOperation'] })}
-              options={EXTRACTION_OPERATIONS.map((op) => ({ value: op.key, label: op.label }))}
+              options={FILTERED_EXTRACTION_OPERATIONS.map((op) => ({ value: op.key, label: op.label }))}
             />
           </div>
 
@@ -296,10 +314,10 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
               {attribute.attributeTag.trim().length > 0 && (
                 hasChanges ? (
                   <>
-                    <Button variant="secondary" size="xs" onClick={handleDiscard}>
+                    <Button variant="secondary" size="xs" onClick={handleDiscard} className="min-w-16 text-center">
                       Discard
                     </Button>
-                    <Button variant="primary" size="xs" onClick={() => setEditing(false)}>
+                    <Button variant="primary" size="xs" onClick={() => setEditing(false)} className="min-w-16 text-center">
                       Save
                     </Button>
                   </>

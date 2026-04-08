@@ -162,11 +162,11 @@ export function ConditionEditor({
             {humanizeFieldName(condition.sourceField)} &rarr; <span className='text-orange-500'>{preview}</span>
           </p>
           {hasChanges && (
-            <Button variant="secondary" size="xs" onClick={handleDiscard}>
+            <Button variant="secondary" size="xs" onClick={handleDiscard} className="min-w-16 text-center">
               Discard
             </Button>
           )}
-          <Button data-tour="condition-save-button" variant="primary" size="xs" onClick={() => { setEditing(false); onSave?.(); }}>
+          <Button data-tour="condition-save-button" variant="primary" size="xs" onClick={() => { setEditing(false); onSave?.(); }} className="min-w-16 text-center">
             Save
           </Button>
         </div>
