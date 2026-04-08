@@ -33,19 +33,6 @@ export function StepReview({ formState, isEditing }: StepReviewProps) {
             {formState.transactionTypeCode || '(not set)'}
           </span>
 
-          <span className="text-muted">Status</span>
-          <Badge
-            variant={
-              formState.statusTag === 'ACTIVE'
-                ? 'success'
-                : formState.statusTag === 'DRAFT'
-                ? 'warning'
-                : 'default'
-            }
-          >
-            {formState.statusTag}
-          </Badge>
-
           <span className="text-muted">Certainty</span>
           <Badge
             variant={
@@ -59,11 +46,14 @@ export function StepReview({ formState, isEditing }: StepReviewProps) {
             {formState.certaintyLevelTag}
           </Badge>
 
-          <span className="text-muted">Validity</span>
-          <span className="text-heading">
-            {formState.validity.StartDate}
-            {formState.validity.EndDate ? ` to ${formState.validity.EndDate}` : ' (no end date)'}
-          </span>
+          {(formState.validity.StartDate || formState.validity.EndDate) && (
+            <>
+              <span className="text-muted">Validity</span>
+              <span className="text-heading">
+                {formState.validity.StartDate}{formState.validity.EndDate ? ` to ${formState.validity.EndDate}` : ''}
+              </span>
+            </>
+          )}
         </div>
       </div>
 
