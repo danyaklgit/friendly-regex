@@ -218,9 +218,10 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
           </div>
 
           <div className="flex items-end gap-3">
-            <Toggle label="Mandatory" checked={attribute.isMandatory} onChange={(checked) => onUpdate({ isMandatory: checked })} />
+            <Toggle label="Mandatory" size="lg" checked={attribute.isMandatory} onChange={(checked) => onUpdate({ isMandatory: checked })} />
             <Toggle
               label="Is LOV Based?"
+              size="lg"
               checked={attribute.isLovBased ?? false}
               onChange={(checked) => onUpdate({ isLovBased: checked, lovTag: checked ? attribute.lovTag : null })}
             />
