@@ -18,7 +18,7 @@ interface TransactionTableProps {
   highlightExpressions?: RuleExpression[];
   searchHighlights?: Map<string, string>;
   onTagClick?: (tagName: string, definitionId?: string) => void;
-  onFlagDeadEnd?: (ids: string[], value: boolean) => void;
+  onFlagDeadEnd?: (ids: string[], value: boolean) => Promise<void>;
   showAttributes?: boolean;
   relaxedMode?: boolean;
   hiddenColumns?: Set<string>;
@@ -450,10 +450,16 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     }
   }, [data, selectedIds.size, getRowId]);
 
-  const handleFlagDeadEnd = useCallback((value: boolean) => {
+  const [flagLoading, setFlagLoading] = useState(false);
+  const handleFlagDeadEnd = useCallback(async (value: boolean) => {
     if (!onFlagDeadEnd || selectedIds.size === 0) return;
-    onFlagDeadEnd(Array.from(selectedIds), value);
-    setSelectedIds(new Set());
+    setFlagLoading(true);
+    try {
+      await onFlagDeadEnd(Array.from(selectedIds), value);
+      setSelectedIds(new Set());
+    } finally {
+      setFlagLoading(false);
+    }
   }, [onFlagDeadEnd, selectedIds]);
 
   // Clear selection when data changes
@@ -1160,31 +1166,47 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
       )}
 
       {/* Selection action bar */}
-      {hasSelection && onFlagDeadEnd && (
-        <div className="flex items-center gap-3 px-4 py-2 bg-primary/10 border-b border-primary/20 shrink-0">
-          <span className="text-xs font-medium text-primary-dark">
-            {selectedIds.size} selected
-          </span>
-          <button
-            onClick={() => handleFlagDeadEnd(true)}
-            className="text-xs px-2.5 py-1 rounded border border-red-300 bg-red-50 text-red-700 hover:bg-red-100 transition-colors"
-          >
-            Flag as Dead End
-          </button>
-          <button
-            onClick={() => handleFlagDeadEnd(false)}
-            className="text-xs px-2.5 py-1 rounded border border-border-strong bg-surface text-body hover:bg-surface-hover transition-colors"
-          >
-            Unflag Dead End
-          </button>
-          <button
-            onClick={() => setSelectedIds(new Set())}
-            className="text-xs text-muted hover:text-body ml-auto"
-          >
-            Clear selection
-          </button>
-        </div>
-      )}
+      {hasSelection && onFlagDeadEnd && (() => {
+        const allDeadEnd = [...selectedIds].every((id) => {
+          const item = data.find((d) => getRowId(d.row) === id);
+          return item?.row['IsDeadEnd'] === true;
+        });
+        const noneDeadEnd = [...selectedIds].every((id) => {
+          const item = data.find((d) => getRowId(d.row) === id);
+          return item?.row['IsDeadEnd'] !== true;
+        });
+        return (
+          <div className="flex items-center gap-3 px-4 py-2 bg-primary/10 border-b border-primary/20 shrink-0">
+            <span className="text-xs font-medium text-primary-dark">
+              {selectedIds.size} selected
+            </span>
+            {!allDeadEnd && (
+              <button
+                onClick={() => handleFlagDeadEnd(true)}
+                disabled={flagLoading}
+                className="text-xs px-2.5 py-1 rounded border border-red-300 bg-red-50 text-red-700 hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {flagLoading ? 'Flagging...' : 'Flag as Dead End'}
+              </button>
+            )}
+            {!noneDeadEnd && (
+              <button
+                onClick={() => handleFlagDeadEnd(false)}
+                disabled={flagLoading}
+                className="text-xs px-2.5 py-1 rounded border border-border-strong bg-surface text-body hover:bg-surface-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {flagLoading ? 'Unflagging...' : 'Unflag Dead End'}
+              </button>
+            )}
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="text-xs text-muted hover:text-body ml-auto"
+            >
+              Clear selection
+            </button>
+          </div>
+        );
+      })()}
 
       {/* Column Minimap */}
       {(hasOverflow || (loading && data.length === 0)) && (
@@ -1294,7 +1316,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                 const isSelected = selectedIds.has(rowId);
                 const isDeadEnd = item.row['IsDeadEnd'] === true;
                 return (
-                  <tr key={i} className={`group transition-colors ${isDeadEnd ? 'bg-red-200/70 opacity-60' : 'hover:bg-surface-hover'} ${isSelected ? 'bg-primary/10!' : ''}`}>
+                  <tr key={i} className={`group transition-colors ${isDeadEnd ? 'bg-red-100/60 dark:bg-red-950/30 text-red-400 dark:text-red-500/70' : 'hover:bg-surface-hover'} ${isSelected ? 'bg-primary/10!' : ''}`}>
                     {visibleColumns.map((col, colIdx) => {
                       const isStickyCol = stickyLefts.has(colIdx) || stickyRights.has(colIdx);
                       const stickyBg = isStickyCol ? 'bg-surface group-hover:bg-surface-hover' : '';
@@ -1432,18 +1454,21 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                         case 'tags': {
                           return (
                             <td key={col.key} className={`px-3 ${cellPy} ${stickyBg}`} style={getCellStyle(colIdx, false)}>
-                              <div className="flex items-start gap-1.5">
+                              <div className="flex items-center gap-1.5">
                                 {onFlagDeadEnd && (
                                   <input
                                     type="checkbox"
                                     checked={isSelected}
                                     onChange={() => toggleSelect(rowId)}
-                                    className="rounded border-border-strong mt-0.5 shrink-0"
+                                    className="rounded border-border-strong shrink-0"
                                   />
                                 )}
                                 <div className="flex-1">
                                   {item.analysis.tags.length > 0 ? (
                                     <div className={`flex gap-1 ${relaxedMode ? 'flex-nowrap' : 'flex-wrap'}`}>
+                                      {isDeadEnd && (
+                                        <Badge variant="none" size="sm" className="border border-red-200 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800 px-2.5 shrink-0">Dead End</Badge>
+                                      )}
                                       {item.analysis.tags.map((tag, ti) => {
                                         const defId = item.analysis.matchedDefinitions[ti]?.Id;
                                         const isUserCreated = defId ? !(originalDefinitionIds?.has(defId)) : false;
@@ -1463,23 +1488,9 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                                           </Tooltip>
                                         );
                                       })}
-                                      {/* {hintList && (
-                                        <Tooltip
-                                          content={
-                                            <div className="">
-                                              {hintList.map((h, hi) => (
-                                                <span key={hi}>{h}</span>
-                                              ))}
-                                            </div>
-                                          }
-                                          placement="left"
-                                        >
-                                          <span className="text-left pl-2 text-[10px] text-primary cursor-default mt-0.5 inline-block">
-                                            Hints?
-                                          </span>
-                                        </Tooltip>
-                                      )} */}
                                     </div>
+                                  ) : isDeadEnd ? (
+                                    <Badge variant="none" size="sm" className="border border-red-200 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800 px-2.5">Dead End</Badge>
                                   ) : (
                                     <span className="text-faint text-xs">-</span>
                                   )}

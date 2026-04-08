@@ -191,3 +191,55 @@ export async function getBacklogStats(
   const data: GetBacklogStatsResponse = await res.json();
   return data.BacklogStats;
 }
+
+export async function markTransactionsAsDeadEnd(
+  ids: string[],
+  authToken: string,
+  tepHeaders: TepHeaders,
+  signal?: AbortSignal,
+): Promise<void> {
+  const res = await fetch(`${BASE}/MarkTransactionsAsDeadEnd`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      Authorization: `Bearer ${authToken}`,
+      'x-apikey': tepHeaders.apiKey,
+      ActivityTag: 'MarkTransactionsAsDeadEnd',
+      LanguageCode: tepHeaders.languageCode,
+      TTPUserId: tepHeaders.userId,
+      TTPTenantCode: tepHeaders.tenantCode,
+      TTPRequestId: tepHeaders.requestId,
+      TimeZone: tepHeaders.timeZone,
+    },
+    body: JSON.stringify({ Ids: ids }),
+    signal,
+  });
+  await throwIfNotOk(res, 'Failed to mark transactions as dead end');
+}
+
+export async function unmarkDeadEndTransactions(
+  ids: string[],
+  authToken: string,
+  tepHeaders: TepHeaders,
+  signal?: AbortSignal,
+): Promise<void> {
+  const res = await fetch(`${BASE}/UnmarkDeadEndTransactions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      Authorization: `Bearer ${authToken}`,
+      'x-apikey': tepHeaders.apiKey,
+      ActivityTag: 'UnmarkDeadEndTransactions',
+      LanguageCode: tepHeaders.languageCode,
+      TTPUserId: tepHeaders.userId,
+      TTPTenantCode: tepHeaders.tenantCode,
+      TTPRequestId: tepHeaders.requestId,
+      TimeZone: tepHeaders.timeZone,
+    },
+    body: JSON.stringify({ Ids: ids }),
+    signal,
+  });
+  await throwIfNotOk(res, 'Failed to unmark dead end transactions');
+}
