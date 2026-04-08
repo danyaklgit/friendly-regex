@@ -75,7 +75,9 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
       (attribute.toStr ?? '') !== (snapshot.toStr ?? '') ||
       (attribute.occurrence ?? 0) !== (snapshot.occurrence ?? 0) ||
       (attribute.startingPosition ?? 0) !== (snapshot.startingPosition ?? 0) ||
-      (attribute.fromPosition ?? 0) !== (snapshot.fromPosition ?? 0)
+      (attribute.fromPosition ?? 0) !== (snapshot.fromPosition ?? 0) ||
+      (attribute.prefixOccurrence ?? 0) !== (snapshot.prefixOccurrence ?? 0) ||
+      (attribute.suffixOccurrence ?? 0) !== (snapshot.suffixOccurrence ?? 0)
     );
   }, [attribute, snapshot]);
 
@@ -98,7 +100,9 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
     occurrence: attribute.occurrence,
     startingPosition: attribute.startingPosition,
     fromPosition: attribute.fromPosition,
-  }), [attribute.prefix, attribute.suffix, attribute.pattern, attribute.verifyValue, attribute.numChars, attribute.toStr, attribute.occurrence, attribute.startingPosition, attribute.fromPosition]);
+    prefixOccurrence: attribute.prefixOccurrence,
+    suffixOccurrence: attribute.suffixOccurrence,
+  }), [attribute.prefix, attribute.suffix, attribute.pattern, attribute.verifyValue, attribute.numChars, attribute.toStr, attribute.occurrence, attribute.startingPosition, attribute.fromPosition, attribute.prefixOccurrence, attribute.suffixOccurrence]);
   const preview = generateExtractionPrompt(attribute.extractionOperation, extractionParams);
 
   const distinctValues = useMemo(() => {
@@ -271,6 +275,8 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                 occurrence: undefined,
                 startingPosition: undefined,
                 fromPosition: undefined,
+                prefixOccurrence: undefined,
+                suffixOccurrence: undefined,
               })}
               options={FILTERED_EXTRACTION_OPERATIONS.map((op) => ({ value: op.key, label: op.label }))}
             />
@@ -363,6 +369,24 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                   placeholder="Optional"
                   value={attribute.occurrence ? String(attribute.occurrence) : ''}
                   onChange={(val) => onUpdate({ occurrence: val ? Number(val) : undefined })}
+                  options={Array.from({ length: 10 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))}
+                />
+              )}
+              {filteredOp.optionalFields.includes('prefixOccurrence') && (
+                <SearchableSelect
+                  label="Prefix Occurrence"
+                  placeholder="Optional"
+                  value={attribute.prefixOccurrence ? String(attribute.prefixOccurrence) : ''}
+                  onChange={(val) => onUpdate({ prefixOccurrence: val ? Number(val) : undefined })}
+                  options={Array.from({ length: 10 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))}
+                />
+              )}
+              {filteredOp.optionalFields.includes('suffixOccurrence') && (
+                <SearchableSelect
+                  label="Suffix Occurrence"
+                  placeholder="Optional"
+                  value={attribute.suffixOccurrence ? String(attribute.suffixOccurrence) : ''}
+                  onChange={(val) => onUpdate({ suffixOccurrence: val ? Number(val) : undefined })}
                   options={Array.from({ length: 10 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))}
                 />
               )}

@@ -290,6 +290,8 @@ export function useWizardForm(
           occurrence: attr.occurrence,
           startingPosition: attr.startingPosition,
           fromPosition: attr.fromPosition,
+          prefixOccurrence: attr.prefixOccurrence,
+          suffixOccurrence: attr.suffixOccurrence,
         };
         const prompt = generateExtractionPrompt(attr.extractionOperation, extractionParams);
         return {

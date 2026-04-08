@@ -73,7 +73,7 @@ export function regexifyExtraction(
   params: {
     prefix?: string; suffix?: string; pattern?: string; verifyValue?: string;
     numChars?: number; toStr?: string; occurrence?: number; startingPosition?: number;
-    fromPosition?: number;
+    fromPosition?: number; prefixOccurrence?: number; suffixOccurrence?: number;
   }
 ): string {
   if (operation.startsWith('predefined:')) {
@@ -86,8 +86,11 @@ export function regexifyExtraction(
     case 'extract_between': {
       const pre = escapeRegex(params.prefix ?? '');
       const suf = escapeRegex(params.suffix ?? '');
-      const skip = occ ? `(?:.*?${pre}.*?${suf}){${occ - 1}}.*?` : '';
-      return `${skip}${pre}(.*?)${suf}`;
+      const preOcc = params.prefixOccurrence && params.prefixOccurrence > 1 ? params.prefixOccurrence : 0;
+      const sufOcc = params.suffixOccurrence && params.suffixOccurrence > 1 ? params.suffixOccurrence : 0;
+      const preSkip = preOcc ? `(?:.*?${pre}){${preOcc - 1}}.*?` : '';
+      const sufSkip = sufOcc ? `(?:.*?${suf}){${sufOcc - 1}}.*?` : '';
+      return `${preSkip}${pre}${sufSkip}(.*?)${suf}`;
     }
     case 'extract_after': {
       const pre = escapeRegex(params.prefix ?? '');
@@ -162,7 +165,7 @@ export function generateExtractionPrompt(
   params: {
     prefix?: string; suffix?: string; pattern?: string; verifyValue?: string;
     numChars?: number; toStr?: string; occurrence?: number; startingPosition?: number;
-    fromPosition?: number;
+    fromPosition?: number; prefixOccurrence?: number; suffixOccurrence?: number;
   }
 ): string {
   if (operation.startsWith('predefined:')) {
@@ -177,8 +180,13 @@ export function generateExtractionPrompt(
   const suffix = modifiers.length > 0 ? ` (${modifiers.join(', ')})` : '';
 
   switch (operation) {
-    case 'extract_between':
-      return `Extract between '${params.prefix ?? ''}' and '${params.suffix ?? ''}'${suffix}`;
+    case 'extract_between': {
+      const betweenMods: string[] = [];
+      if (params.prefixOccurrence && params.prefixOccurrence > 1) betweenMods.push(`prefix #${params.prefixOccurrence}`);
+      if (params.suffixOccurrence && params.suffixOccurrence > 1) betweenMods.push(`suffix #${params.suffixOccurrence}`);
+      const betweenSuffix = betweenMods.length > 0 ? ` (${betweenMods.join(', ')})` : '';
+      return `Extract between '${params.prefix ?? ''}' and '${params.suffix ?? ''}'${betweenSuffix}`;
+    }
     case 'extract_after':
       return `Extract after '${params.prefix ?? ''}'${suffix}`;
     case 'extract_before':
