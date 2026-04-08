@@ -16,6 +16,14 @@ const FILTER_EXCLUSIONS = new Set([
   'Description2',
 ]);
 
+/** API filter tags that should not render as filter dropdowns in live mode */
+const HIDDEN_API_FILTER_TAGS = new Set([
+  'IsDeadEnd',
+  'IsUntagged',
+  'IsMultiTagged',
+  'OpsAttributes',
+]);
+
 interface DynamicFiltersProps {
   data: AnalyzedTransaction[];
   fieldMeta: FieldMeta;
@@ -1242,7 +1250,9 @@ export function DynamicFilters({
               ))}
             </>
           )}
-          {isLiveMode && !filterDefinitionsLoading && filterDefinitions && filterDefinitions.map((def) => (
+          {isLiveMode && !filterDefinitionsLoading && filterDefinitions && filterDefinitions
+            .filter((def) => !HIDDEN_API_FILTER_TAGS.has(def.Tag))
+            .map((def) => (
             <ApiFilterRenderer
               key={def.Tag}
               definition={def}
