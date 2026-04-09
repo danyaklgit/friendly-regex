@@ -64,6 +64,14 @@ export function fromExistingDefinition(
         verifyValue: attr.AttributeRuleExpression.VerifyValue,
         lovTag: attr.LOVTag ?? null,
         isLovBased: !!attr.LOVTag,
+        transformations: (attr.Transformations ?? [])
+          .slice()
+          .sort((a, b) => a.Order - b.Order)
+          .map((t) => ({
+            id: crypto.randomUUID(),
+            method: t.Method,
+            args: { ...t.Args },
+          })),
       };
     }),
   };
@@ -109,6 +117,7 @@ export function useWizardForm(
       suffix: '',
       lovTag: null,
       isLovBased: false,
+      transformations: [],
     };
   }
 
@@ -308,6 +317,15 @@ export function useWizardForm(
             RegexDetails: [{ LanguageCode: 'en', Description: prompt }],
             ...(attr.verifyValue ? { VerifyValue: attr.verifyValue } : {}),
           },
+          ...((attr.transformations && attr.transformations.length > 0)
+            ? {
+                Transformations: attr.transformations.map((t, tIdx) => ({
+                  Method: t.method,
+                  Args: { ...t.args },
+                  Order: tIdx + 1,
+                })),
+              }
+            : {}),
         };
       }),
     };

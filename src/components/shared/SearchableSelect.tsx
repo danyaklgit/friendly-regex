@@ -136,7 +136,7 @@ export function SearchableSelect({
                 />
               </div>
             </div>
-            <div className="max-h-60 overflow-y-auto custom-scrollbar p-1.5">
+            <div className="max-h-60 overflow-y-auto overscroll-contain custom-scrollbar p-1.5">
               {filtered.length === 0 ? (
                 <div className="px-2 py-3 text-xs text-faint text-center">No matches</div>
               ) : (

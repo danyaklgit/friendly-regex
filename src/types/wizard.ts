@@ -44,6 +44,12 @@ export interface AndGroupFormValue {
   conditions: ConditionFormValue[];
 }
 
+export interface TransformationFormValue {
+  id: string;
+  method: string;
+  args: Record<string, string>;
+}
+
 export interface AttributeFormValue {
   id: string;
   attributeTag: string;
@@ -65,6 +71,7 @@ export interface AttributeFormValue {
   toStart?: boolean;
   prefixOccurrence?: number;
   suffixOccurrence?: number;
+  transformations?: TransformationFormValue[];
 }
 
 export interface WizardFormState {

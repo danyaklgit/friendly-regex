@@ -95,6 +95,15 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
             Regex: regexifyExtraction(attr.extractionOperation, params),
             RegexDetails: [{ LanguageCode: 'en', Description: prompt }],
           },
+          ...((attr.transformations && attr.transformations.length > 0)
+            ? {
+                Transformations: attr.transformations.map((t, tIdx) => ({
+                  Method: t.method,
+                  Args: { ...t.args },
+                  Order: tIdx + 1,
+                })),
+              }
+            : {}),
         };
       }),
   };

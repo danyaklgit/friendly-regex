@@ -3,4 +3,5 @@ export const LOV_TAGS = [
   'ATTRIBUTES',
   'SADAD_GOVERNMENT_SERVICES',
   'BANKS',
+  'ATTRIBUTE_TRANSFORMATON',
 ] as const;

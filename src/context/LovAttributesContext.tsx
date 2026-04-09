@@ -11,6 +11,7 @@ import {
   enableAttribute as apiEnableAttribute,
   deleteAttribute as apiDeleteAttribute,
 } from '../api/lovAttributes';
+import { TRANSFORMATION_METHODS, type TransformationMethodDef } from '../constants/transformations';
 
 interface LovAttributesContextValue {
   // Raw data
@@ -28,6 +29,7 @@ interface LovAttributesContextValue {
   lovOptions: { value: string; label: string }[];
   activeAttributes: BackendAttribute[];
   validationOptions: { value: string; label: string }[];
+  transformationMethods: TransformationMethodDef[];
 
   // Actions
   refetchAll: () => Promise<void>;
@@ -182,6 +184,23 @@ export function LovAttributesProvider({ authToken, tepHeaders, children }: LovAt
     return validationClasses.map((vc) => ({ value: vc.Tag, label: vc.Name }));
   }, [validationClasses]);
 
+  // Derived: transformation methods — use backend LOV list if available, fall back to local
+  const transformationMethods = useMemo<TransformationMethodDef[]>(() => {
+    const backendList = lovLists.find((l) => l.Tag === 'ATTRIBUTE_TRANSFORMATON');
+    if (backendList && backendList.Items.length > 0) {
+      return backendList.Items.map((item) => {
+        const local = TRANSFORMATION_METHODS.find((m) => m.key === item.Value);
+        return {
+          key: item.Value,
+          label: item.Name,
+          category: item.Tags?.[0] ?? local?.category ?? 'Other',
+          args: local?.args ?? [],
+        };
+      });
+    }
+    return TRANSFORMATION_METHODS;
+  }, [lovLists]);
+
   const value = useMemo<LovAttributesContextValue>(() => ({
     lovLists,
     validationClasses,
@@ -193,6 +212,7 @@ export function LovAttributesProvider({ authToken, tepHeaders, children }: LovAt
     lovOptions,
     activeAttributes,
     validationOptions,
+    transformationMethods,
     refetchAll,
     refetchAttributes,
     createNewAttribute,
@@ -202,7 +222,7 @@ export function LovAttributesProvider({ authToken, tepHeaders, children }: LovAt
   }), [
     lovLists, validationClasses, backendAttributes,
     lovLoading, attributesLoading, validationLoading,
-    lovLookup, lovOptions, activeAttributes, validationOptions,
+    lovLookup, lovOptions, activeAttributes, validationOptions, transformationMethods,
     refetchAll, refetchAttributes, createNewAttribute,
     updateExistingAttribute, toggleAttributeStatus, deleteExistingAttribute,
   ]);
