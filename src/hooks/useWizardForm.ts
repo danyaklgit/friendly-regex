@@ -65,12 +65,10 @@ export function fromExistingDefinition(
         lovTag: attr.LOVTag ?? null,
         isLovBased: !!attr.LOVTag,
         transformations: (attr.Transformations ?? [])
-          .slice()
-          .sort((a, b) => a.Order - b.Order)
           .map((t) => ({
             id: crypto.randomUUID(),
             method: t.Method,
-            args: { ...t.Args },
+            args: Object.fromEntries(t.Args.map((a) => [a.Key, a.Value])),
           })),
       };
     }),
@@ -319,10 +317,9 @@ export function useWizardForm(
           },
           ...((attr.transformations && attr.transformations.length > 0)
             ? {
-                Transformations: attr.transformations.map((t, tIdx) => ({
+                Transformations: attr.transformations.map((t) => ({
                   Method: t.method,
-                  Args: { ...t.args },
-                  Order: tIdx + 1,
+                  Args: Object.entries(t.args).map(([k, v]) => ({ Key: k, Value: v })),
                 })),
               }
             : {}),

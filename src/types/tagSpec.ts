@@ -55,10 +55,14 @@ export interface AttributeRuleExpression {
 
 // --- Transformation Rules ---
 
+export interface TransformationArg {
+  Key: string;
+  Value: string;
+}
+
 export interface TransformationRule {
   Method: string;
-  Args: Record<string, string>;
-  Order: number;
+  Args: TransformationArg[];
 }
 
 // --- Tag Attributes ---

@@ -37,11 +37,11 @@ export function extractAttributes(
       }
     }
 
-    // Apply transformation pipeline
+    // Apply transformation pipeline (array order = execution order)
     if (extracted !== null && attr.Transformations && attr.Transformations.length > 0) {
-      const sorted = [...attr.Transformations].sort((a, b) => a.Order - b.Order);
-      for (const t of sorted) {
-        extracted = applyTransformation(t.Method, t.Args, extracted);
+      for (const t of attr.Transformations) {
+        const argsRecord = Object.fromEntries(t.Args.map((a) => [a.Key, a.Value]));
+        extracted = applyTransformation(t.Method, argsRecord, extracted);
       }
     }
 

@@ -97,10 +97,9 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
           },
           ...((attr.transformations && attr.transformations.length > 0)
             ? {
-                Transformations: attr.transformations.map((t, tIdx) => ({
+                Transformations: attr.transformations.map((t) => ({
                   Method: t.method,
-                  Args: { ...t.args },
-                  Order: tIdx + 1,
+                  Args: Object.entries(t.args).map(([k, v]) => ({ Key: k, Value: v })),
                 })),
               }
             : {}),
