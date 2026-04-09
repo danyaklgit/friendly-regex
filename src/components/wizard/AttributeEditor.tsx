@@ -14,9 +14,10 @@ import { humanizeFieldName } from '../../utils/humanizeFieldName';
 import { AttributeFormModal } from '../attributes/AttributeFormModal';
 
 const ALLOWED_SOURCE_FIELDS = new Set([
-  'IBAN', 'EntryDate', 'BankReference', 'Description1', 'Description2',
-  'AdditionalInformation', 'StatementDate', 'TransactionDetails', 'ValueDate',
-  'FundsCode', 'TransactionStatusIndicator', 'CurrencyCode', 'Amount',
+  'AdditionalInformation', 'Amount', 'BankReference', 'CurrencyCode',
+  'Description1', 'Description2', 'EntryDate', 'FundsCode',
+  'IBAN', 'StatementDate', 'TransactionDetails', 'TransactionStatusIndicator',
+  'ValueDate',
 ]);
 
 const FILTERED_EXTRACTION_OPERATIONS = EXTRACTION_OPERATIONS.filter(
@@ -52,9 +53,10 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
 
   // Use dynamic validation options, fall back to hardcoded
   const validationRuleOptions = useMemo(() =>
-    validationOptions.length > 0
+    (validationOptions.length > 0
       ? validationOptions
-      : VALIDATION_RULE_TAG_OPTIONS.map((t) => ({ value: t, label: t })),
+      : VALIDATION_RULE_TAG_OPTIONS.map((t) => ({ value: t, label: t }))
+    ).slice().sort((a, b) => a.label.localeCompare(b.label)),
   [validationOptions]);
 
   const hasChanges = useMemo(() => {
@@ -76,6 +78,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
       (attribute.occurrence ?? 0) !== (snapshot.occurrence ?? 0) ||
       (attribute.startingPosition ?? 0) !== (snapshot.startingPosition ?? 0) ||
       (attribute.fromPosition ?? 0) !== (snapshot.fromPosition ?? 0) ||
+      (attribute.toStart ?? false) !== (snapshot.toStart ?? false) ||
       (attribute.prefixOccurrence ?? 0) !== (snapshot.prefixOccurrence ?? 0) ||
       (attribute.suffixOccurrence ?? 0) !== (snapshot.suffixOccurrence ?? 0)
     );
@@ -100,9 +103,10 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
     occurrence: attribute.occurrence,
     startingPosition: attribute.startingPosition,
     fromPosition: attribute.fromPosition,
+    toStart: attribute.toStart,
     prefixOccurrence: attribute.prefixOccurrence,
     suffixOccurrence: attribute.suffixOccurrence,
-  }), [attribute.prefix, attribute.suffix, attribute.pattern, attribute.verifyValue, attribute.numChars, attribute.toStr, attribute.occurrence, attribute.startingPosition, attribute.fromPosition, attribute.prefixOccurrence, attribute.suffixOccurrence]);
+  }), [attribute.prefix, attribute.suffix, attribute.pattern, attribute.verifyValue, attribute.numChars, attribute.toStr, attribute.toStart, attribute.occurrence, attribute.startingPosition, attribute.fromPosition, attribute.prefixOccurrence, attribute.suffixOccurrence]);
   const preview = generateExtractionPrompt(attribute.extractionOperation, extractionParams);
 
   const distinctValues = useMemo(() => {
@@ -262,7 +266,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
               placeholder="Select source field"
               value={attribute.sourceField}
               onChange={(val) => onUpdate({ sourceField: val })}
-              options={fieldMeta.sourceFields.filter((f) => ALLOWED_SOURCE_FIELDS.has(f)).map((f) => ({ value: f, label: humanizeFieldName(f) }))}
+              options={fieldMeta.sourceFields.filter((f) => ALLOWED_SOURCE_FIELDS.has(f)).map((f) => ({ value: f, label: humanizeFieldName(f) })).sort((a, b) => a.label.localeCompare(b.label))}
             />
             <SearchableSelect
               label="Extraction Method"
@@ -343,6 +347,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                   min={1}
                   value={attribute.numChars ?? ''}
                   onChange={(e) => onUpdate({ numChars: e.target.value ? Number(e.target.value) : undefined })}
+                  disabled={!!attribute.toStart}
                 />
               )}
               {filteredOp.optionalFields.includes('toStr') && (
@@ -351,7 +356,29 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                   placeholder="Optional"
                   value={attribute.toStr ?? ''}
                   onChange={(e) => onUpdate({ toStr: e.target.value || undefined })}
+                  disabled={!!attribute.toStart}
                 />
+              )}
+              {filteredOp.optionalFields.includes('toStart') && (
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-medium text-body pl-1">To Start</label>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={attribute.toStart ?? false}
+                    onClick={() => { const checked = !(attribute.toStart ?? false); onUpdate({ toStart: checked, ...(checked ? { numChars: undefined, toStr: undefined } : {}) }); }}
+                    className={`flex items-center gap-2 w-full rounded-lg border px-3 py-2 text-sm font-medium transition-all cursor-pointer
+                      ${attribute.toStart
+                        ? 'bg-primary/10 border-primary/30 text-primary-dark dark:text-primary'
+                        : 'bg-input-bg border-input-border text-body hover:bg-surface-hover'
+                      }`}
+                  >
+                    <span className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors shrink-0 ${attribute.toStart ? 'bg-primary' : 'bg-border-strong dark:bg-faint'}`}>
+                      <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${attribute.toStart ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+                    </span>
+                    {attribute.toStart ? 'On' : 'Off'}
+                  </button>
+                </div>
               )}
               {filteredOp.optionalFields.includes('startingPosition') && (
                 <Input

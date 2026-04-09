@@ -75,6 +75,7 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
           pattern: attr.pattern,
           numChars: attr.numChars,
           toStr: attr.toStr,
+          toStart: attr.toStart,
           occurrence: attr.occurrence,
           startingPosition: attr.startingPosition,
           fromPosition: attr.fromPosition,
@@ -1066,7 +1067,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition }: Tr
         highlightExpressions={highlightExpressions}
         searchHighlights={searchHighlights}
         onTagClick={handleTagClick}
-        onFlagDeadEnd={flagDeadEnd}
+        onFlagDeadEnd={!isReadOnly && !tagClickState?.showingAll && !tagClickState?.rulesetApplied ? flagDeadEnd : undefined}
         showAttributes={showAttributes}
         relaxedMode={relaxedMode}
         hiddenColumns={effectiveHiddenColumns}

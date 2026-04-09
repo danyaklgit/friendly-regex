@@ -290,6 +290,7 @@ export function useWizardForm(
           verifyValue: attr.verifyValue,
           numChars: attr.numChars,
           toStr: attr.toStr,
+          toStart: attr.toStart,
           occurrence: attr.occurrence,
           startingPosition: attr.startingPosition,
           fromPosition: attr.fromPosition,
