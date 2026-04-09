@@ -3,6 +3,7 @@ import { useTagSpecs } from '../../hooks/useTagSpecs';
 import { useAuth } from '../../context/AuthContext';
 import { getContextValue } from '../../types/tagSpec';
 import { tagSpecLibraryCheckOut, tagSpecLibraryCheckIn, tagSpecLibraryRollback } from '../../api/checkout';
+import { tagSpecLibrarySave } from '../../api/tagSpecSave';
 import { exportTagLibraries, exportSingleDefinition, importTagLibraries } from '../../utils/persistence';
 import { Badge } from '../shared/Badge';
 import { Button } from '../shared/Button';
@@ -171,15 +172,17 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
     if (!authToken || !tepHeaders || !row.inProgressLib?.Id) return;
     setActionLoading(row.library.Id!);
     try {
+      await tagSpecLibrarySave(row.inProgressLib, authToken, tepHeaders);
       await tagSpecLibraryCheckIn(row.inProgressLib.Id, authToken, tepHeaders);
-      refetchTagSpecs();
+      clearChanges(row.bank, row.side);
+      await refetchTagSpecs();
       setToast({ message: `Checked in ${row.bank} / ${row.side}`, type: 'success' });
     } catch (err) {
       setToast({ message: err instanceof Error ? err.message : 'Check-in failed', type: 'error' });
     } finally {
       setActionLoading(null);
     }
-  }, [authToken, tepHeaders, refetchTagSpecs]);
+  }, [authToken, tepHeaders, refetchTagSpecs, clearChanges]);
 
   const handleRollbackConfirm = useCallback(async () => {
     if (!authToken || !tepHeaders || !rollbackTarget?.inProgressLib?.Id) return;
