@@ -75,6 +75,7 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
           pattern: attr.pattern,
           numChars: attr.numChars,
           toStr: attr.toStr,
+          toStart: attr.toStart,
           occurrence: attr.occurrence,
           startingPosition: attr.startingPosition,
           fromPosition: attr.fromPosition,

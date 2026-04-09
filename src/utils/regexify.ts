@@ -72,7 +72,7 @@ export function regexifyExtraction(
   operation: ExtractionOperation,
   params: {
     prefix?: string; suffix?: string; pattern?: string; verifyValue?: string;
-    numChars?: number; toStr?: string; occurrence?: number; startingPosition?: number;
+    numChars?: number; toStr?: string; toStart?: boolean; occurrence?: number; startingPosition?: number;
     fromPosition?: number; prefixOccurrence?: number; suffixOccurrence?: number;
   }
 ): string {
@@ -109,6 +109,9 @@ export function regexifyExtraction(
       return `${posSkip}${occSkip}(${pat})`;
     }
     case 'extract_substring': {
+      if (params.toStart && params.fromPosition && params.fromPosition > 0) {
+        return `(.{${params.fromPosition}})`;
+      }
       const pos = params.fromPosition && params.fromPosition > 0 ? `.{${params.fromPosition}}` : '';
       return `${pos}${buildCapture(params.numChars, params.toStr)}`;
     }
@@ -164,7 +167,7 @@ export function generateExtractionPrompt(
   operation: ExtractionOperation,
   params: {
     prefix?: string; suffix?: string; pattern?: string; verifyValue?: string;
-    numChars?: number; toStr?: string; occurrence?: number; startingPosition?: number;
+    numChars?: number; toStr?: string; toStart?: boolean; occurrence?: number; startingPosition?: number;
     fromPosition?: number; prefixOccurrence?: number; suffixOccurrence?: number;
   }
 ): string {
@@ -196,6 +199,7 @@ export function generateExtractionPrompt(
     case 'extract_substring': {
       const parts: string[] = [];
       if (params.fromPosition && params.fromPosition > 0) parts.push(`from position ${params.fromPosition}`);
+      if (params.toStart) parts.push('to start');
       if (params.numChars && params.numChars > 0) parts.push(`${params.numChars} chars`);
       if (params.toStr) parts.push(`to '${params.toStr}'`);
       return `Sub-string${parts.length > 0 ? ` (${parts.join(', ')})` : ''}`;

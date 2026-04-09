@@ -62,6 +62,7 @@ export interface AttributeFormValue {
   occurrence?: number;
   startingPosition?: number;
   fromPosition?: number;
+  toStart?: boolean;
   prefixOccurrence?: number;
   suffixOccurrence?: number;
 }

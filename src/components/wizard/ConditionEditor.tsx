@@ -9,9 +9,10 @@ import { generateExpressionPrompt } from '../../utils/regexify';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
 
 const ALLOWED_SOURCE_FIELDS = new Set([
-  'IBAN', 'EntryDate', 'BankReference', 'Description1', 'Description2',
-  'AdditionalInformation', 'StatementDate', 'TransactionDetails', 'ValueDate',
-  'FundsCode', 'TransactionStatusIndicator', 'CurrencyCode', 'Amount',
+  'AdditionalInformation', 'Amount', 'BankReference', 'CurrencyCode',
+  'Description1', 'Description2', 'EntryDate', 'FundsCode',
+  'IBAN', 'StatementDate', 'TransactionDetails', 'TransactionStatusIndicator',
+  'ValueDate',
 ]);
 
 interface ConditionEditorProps {
@@ -109,7 +110,7 @@ export function ConditionEditor({
                   }
                   onUpdate(updates);
                 }}
-                options={fieldMeta.sourceFields.filter((f) => ALLOWED_SOURCE_FIELDS.has(f)).map((f) => ({ value: f, label: humanizeFieldName(f) }))}
+                options={fieldMeta.sourceFields.filter((f) => ALLOWED_SOURCE_FIELDS.has(f)).map((f) => ({ value: f, label: humanizeFieldName(f) })).sort((a, b) => a.label.localeCompare(b.label))}
               />
             </div>
             <div data-tour="condition-operation">
