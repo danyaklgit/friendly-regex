@@ -12,6 +12,7 @@ import { EXTRACTION_OPERATIONS, PREDEFINED_PATTERNS } from '../../constants/oper
 import { generateExtractionPrompt, regexifyExtraction } from '../../utils/regexify';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
 import { AttributeFormModal } from '../attributes/AttributeFormModal';
+import { TransformationList } from './TransformationList';
 
 const ALLOWED_SOURCE_FIELDS = new Set([
   'AdditionalInformation', 'Amount', 'BankReference', 'CurrencyCode',
@@ -34,7 +35,7 @@ interface AttributeEditorProps {
 
 export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, startCollapsed }: AttributeEditorProps) {
   const { fieldMeta } = useTransactionData();
-  const { activeAttributes, validationClasses, validationOptions, lovOptions, lovLookup, createNewAttribute } = useLovAttributes();
+  const { activeAttributes, validationClasses, validationOptions, lovOptions, lovLookup, createNewAttribute, transformationMethods } = useLovAttributes();
   const [showDistinct, setShowDistinct] = useState(false);
   const [editing, setEditing] = useState(!startCollapsed);
   const [createAttrOpen, setCreateAttrOpen] = useState(false);
@@ -80,7 +81,8 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
       (attribute.fromPosition ?? 0) !== (snapshot.fromPosition ?? 0) ||
       (attribute.toStart ?? false) !== (snapshot.toStart ?? false) ||
       (attribute.prefixOccurrence ?? 0) !== (snapshot.prefixOccurrence ?? 0) ||
-      (attribute.suffixOccurrence ?? 0) !== (snapshot.suffixOccurrence ?? 0)
+      (attribute.suffixOccurrence ?? 0) !== (snapshot.suffixOccurrence ?? 0) ||
+      JSON.stringify(attribute.transformations ?? []) !== JSON.stringify(snapshot.transformations ?? [])
     );
   }, [attribute, snapshot]);
 
@@ -125,6 +127,18 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
       return [];
     }
   }, [transactions, attribute.sourceField, attribute.extractionOperation, attribute.prefix, attribute.suffix, attribute.pattern, attribute.verifyValue, selectedOp, extractionParams]);
+
+  // Sample value for transformation preview:
+  // If extraction method is set, use the first extracted value; otherwise use the raw source field value
+  const transformationSample = useMemo(() => {
+    if (distinctValues.length > 0) return distinctValues[0];
+    if (!transactions || !attribute.sourceField) return undefined;
+    for (const row of transactions) {
+      const val = row[attribute.sourceField];
+      if (val !== undefined && val !== null && String(val).trim()) return String(val);
+    }
+    return undefined;
+  }, [distinctValues, transactions, attribute.sourceField]);
 
   // For predefined patterns with validate: true or extract_between_and_verify, check if all rows pass
   const validationSummary = useMemo(() => {
@@ -259,6 +273,10 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
               />
             </div>
           </div>
+
+          <p className="text-sm text-primary-dark mt-3 mb-2 font-semibold tracking-wide">
+            Extraction
+          </p>
 
           <div className="grid grid-cols-2 gap-2" id="attribute_edit_1">
             <SearchableSelect
@@ -420,6 +438,15 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
             </div>
           )}
 
+          {!attribute.isLovBased && !!attribute.sourceField && (
+            <TransformationList
+              transformations={attribute.transformations ?? []}
+              methods={transformationMethods}
+              sampleValue={transformationSample}
+              onChange={(transformations) => onUpdate({ transformations })}
+            />
+          )}
+
           <div className="flex items-center gap-2 justify-between">
             <div className="flex items-center gap-2 justify-between ">
               <p className="text-xs text-primary italic border-dashed border w-fit px-2 py-1">
@@ -470,6 +497,11 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
               <span className="text-primary italic">
                 {humanizeFieldName(attribute.sourceField)} &rarr; <span className='text-orange-500'>{preview}</span>
               </span>
+              {(attribute.transformations?.length ?? 0) > 0 && (
+                <span className="text-purple-400 ml-1.5 text-[10px]">
+                  +{attribute.transformations!.length} transform{attribute.transformations!.length > 1 ? 's' : ''}
+                </span>
+              )}
             </p>
           </div>
           <div className="flex items-center gap-1">

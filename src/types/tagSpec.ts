@@ -53,6 +53,14 @@ export interface AttributeRuleExpression {
   VerifyValue?: string;
 }
 
+// --- Transformation Rules ---
+
+export interface TransformationRule {
+  Method: string;
+  Args: Record<string, string>;
+  Order: number;
+}
+
 // --- Tag Attributes ---
 
 export interface TagAttribute {
@@ -61,6 +69,7 @@ export interface TagAttribute {
   LOVTag: string | null;
   ValidationRuleTag: string;
   AttributeRuleExpression: AttributeRuleExpression;
+  Transformations?: TransformationRule[];
 }
 
 // --- Tag Spec Definition ---
