@@ -246,6 +246,34 @@ describe('SearchableSelect', () => {
     expect(screen.queryByText('My Label')).toBeNull();
   });
 
+  it('shows clear button when clearable and value is set', () => {
+    render(<SearchableSelect value="a" onChange={() => {}} options={options} clearable />);
+    expect(screen.getByTitle('Clear selection')).toBeDefined();
+  });
+
+  it('does not show clear button when clearable but no value', () => {
+    render(<SearchableSelect value="" onChange={() => {}} options={options} clearable />);
+    expect(screen.queryByTitle('Clear selection')).toBeNull();
+  });
+
+  it('does not show clear button when not clearable', () => {
+    render(<SearchableSelect value="a" onChange={() => {}} options={options} />);
+    expect(screen.queryByTitle('Clear selection')).toBeNull();
+  });
+
+  it('calls onChange with empty string when clear is clicked', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<SearchableSelect value="a" onChange={onChange} options={options} clearable />);
+    await user.click(screen.getByTitle('Clear selection'));
+    expect(onChange).toHaveBeenCalledWith('');
+  });
+
+  it('does not show clear button when disabled', () => {
+    render(<SearchableSelect value="a" onChange={() => {}} options={options} clearable disabled />);
+    expect(screen.queryByTitle('Clear selection')).toBeNull();
+  });
+
   it('positions dropdown below the trigger button', async () => {
     const user = userEvent.setup();
     render(<SearchableSelect value="" onChange={() => {}} options={options} />);
