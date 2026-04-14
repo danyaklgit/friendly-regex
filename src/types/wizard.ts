@@ -72,6 +72,8 @@ export interface AttributeFormValue {
   prefixOccurrence?: number;
   suffixOccurrence?: number;
   transformations?: TransformationFormValue[];
+  /** Original regex from backend — used for preview when round-tripping isn't lossless */
+  _originalRegex?: string;
 }
 
 export interface WizardFormState {

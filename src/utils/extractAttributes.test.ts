@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { extractAttributes } from './extractAttributes';
 import type { TagAttribute, TransactionRow } from '../types';
 
-const makeAttr = (tag: string, field: string, regex: string): TagAttribute => ({
+const makeAttr = (tag: string, field: string, regex: string, transformations?: TagAttribute['Transformations']): TagAttribute => ({
   AttributeTag: tag,
   IsMandatory: true,
   LOVTag: null,
@@ -14,6 +14,7 @@ const makeAttr = (tag: string, field: string, regex: string): TagAttribute => ({
     Regex: regex,
     RegexDetails: [],
   },
+  ...(transformations ? { Transformations: transformations } : {}),
 });
 
 describe('extractAttributes', () => {
@@ -69,5 +70,42 @@ describe('extractAttributes', () => {
 
   it('handles empty attributes array', () => {
     expect(extractAttributes([], row)).toEqual({});
+  });
+
+  it('uses raw source field value when regex is empty', () => {
+    const attrs = [makeAttr('Raw', 'Description1', '')];
+    const result = extractAttributes(attrs, row);
+    expect(result).toEqual({ Raw: '/ORDP/ACME CORP/REF/INV-001' });
+  });
+
+  it('applies transformations in order after extraction', () => {
+    const attrs = [makeAttr('Upper', 'Amount', '(\\d+\\.\\d+)', [
+      { Method: 'replace', Args: [{ Key: 'find', Value: '.' }, { Key: 'replaceWith', Value: ',' }] },
+    ])];
+    const result = extractAttributes(attrs, row);
+    expect(result).toEqual({ Upper: '1500,50' });
+  });
+
+  it('applies multiple transformations in pipeline order', () => {
+    const attrs = [makeAttr('Pipe', 'Description1', '/ORDP/(.*?)/REF', [
+      { Method: 'to_lowercase', Args: [] },
+      { Method: 'replace', Args: [{ Key: 'find', Value: ' ' }, { Key: 'replaceWith', Value: '_' }] },
+    ])];
+    const result = extractAttributes(attrs, row);
+    expect(result).toEqual({ Pipe: 'acme_corp' });
+  });
+
+  it('does not apply transformations when extracted value is null', () => {
+    const attrs = [makeAttr('Null', 'Description1', '/NONEXISTENT/(.*?)/', [
+      { Method: 'to_uppercase', Args: [] },
+    ])];
+    const result = extractAttributes(attrs, row);
+    expect(result).toEqual({ Null: null });
+  });
+
+  it('skips transformations when array is empty', () => {
+    const attrs = [makeAttr('NoTransform', 'Amount', '(\\d+\\.\\d+)', [])];
+    const result = extractAttributes(attrs, row);
+    expect(result).toEqual({ NoTransform: '1500.50' });
   });
 });

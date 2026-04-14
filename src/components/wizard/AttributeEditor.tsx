@@ -112,21 +112,31 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
   const preview = generateExtractionPrompt(attribute.extractionOperation, extractionParams);
 
   const distinctValues = useMemo(() => {
-    if (!transactions || !selectedOp) return [];
+    if (!transactions || !attribute.sourceField) return [];
     try {
-      const regex = new RegExp(regexifyExtraction(attribute.extractionOperation, extractionParams));
+      // Prefer the original backend regex (lossless) over re-built one (escaping may differ)
+      const rebuilt = attribute.extractionOperation
+        ? regexifyExtraction(attribute.extractionOperation, extractionParams)
+        : '';
+      const regexStr = attribute._originalRegex || rebuilt;
+      const regex = regexStr ? new RegExp(regexStr) : null;
       const values = new Set<string>();
       for (const row of transactions) {
         const fieldValue = row[attribute.sourceField];
         if (fieldValue === undefined || fieldValue === null) continue;
-        const match = String(fieldValue).match(regex);
-        if (match?.[1]) values.add(match[1]);
+        const str = String(fieldValue);
+        if (regex) {
+          const match = str.match(regex);
+          if (match?.[1]) values.add(match[1]);
+        } else if (str.trim()) {
+          values.add(str);
+        }
       }
       return Array.from(values).sort();
     } catch {
       return [];
     }
-  }, [transactions, attribute.sourceField, attribute.extractionOperation, attribute.prefix, attribute.suffix, attribute.pattern, attribute.verifyValue, selectedOp, extractionParams]);
+  }, [transactions, attribute.sourceField, attribute.extractionOperation, attribute.prefix, attribute.suffix, attribute.pattern, attribute.verifyValue, attribute._originalRegex, extractionParams]);
 
   // Sample value for transformation preview:
   // If extraction method is set, use the first extracted value; otherwise use the raw source field value
@@ -245,6 +255,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
               value={attribute.validationRuleTag}
               onChange={(val) => onUpdate({ validationRuleTag: val })}
               options={validationRuleOptions}
+              clearable
             />
           </div>
 
