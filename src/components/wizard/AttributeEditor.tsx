@@ -41,6 +41,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
   const [editing, setEditing] = useState(!startCollapsed);
   const [createAttrOpen, setCreateAttrOpen] = useState(false);
   const [showValidation, setShowValidation] = useState(!!attribute.validationRuleTag);
+  const [hasSaved, setHasSaved] = useState(!!startCollapsed);
   const [snapshot, setSnapshot] = useState<AttributeFormValue | null>(() =>
     !startCollapsed ? { ...attribute } : null
   );
@@ -230,7 +231,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
           {/* Header: collapse arrow + preview + Remove */}
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 flex-1 min-w-0">
-              {attribute.attributeTag.trim().length > 0 && (
+              {attribute.attributeTag.trim().length > 0 && hasSaved && (
                 <button
                   type="button"
                   onClick={() => setEditing(false)}
@@ -551,7 +552,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                   <Button variant="secondary" size="xs" onClick={handleDiscard} className="min-w-16 text-center shrink-0">
                     Discard
                   </Button>
-                  <Button variant="primary" size="xs" onClick={() => setEditing(false)} className="min-w-16 text-center shrink-0">
+                  <Button variant="primary" size="xs" onClick={() => { setHasSaved(true); setEditing(false); }} className="min-w-16 text-center shrink-0">
                     Save
                   </Button>
                 </>
