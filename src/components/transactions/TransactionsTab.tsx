@@ -843,7 +843,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition }: Tr
             </Button>
           )}
           {!builderOpen && (
-            activeCheckout ? (
+            activeCheckout && !isReadOnly ? (
               <Button
                 data-tour="open-rule-builder"
                 variant="secondary"
@@ -857,7 +857,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition }: Tr
                 Create a Rule
               </Button>
             ) : (
-              <Tooltip content="You need to check out a bank/side combination from the Stats page first" placement="bottom">
+              <Tooltip content={isReadOnly && ownerName ? `Checked out by ${ownerName} — read-only` : 'You need to check out a bank/side combination from the Stats page first'} placement="bottom">
                 <span>
                   <Button
                     data-tour="open-rule-builder"
@@ -902,6 +902,17 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition }: Tr
       {/* Rule builder panel */}
       {builderOpen && (
         <div data-tour="rule-builder-panel" ref={builderRef} className="flex flex-col mb-6 border border-primary/20 rounded-xl bg-primary/5 overflow-hidden">
+          {isReadOnly && ownerName && (
+            <div className="flex items-center px-5 py-2 bg-amber-50 border-b border-amber-200 dark:bg-amber-900/20 dark:border-amber-700">
+              <svg className="w-4 h-4 text-amber-500 mr-2 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+              </svg>
+              <span className="text-sm text-amber-800 dark:text-amber-300">
+                Viewing rule owned by <span className="font-semibold">{ownerName}</span> — read-only
+              </span>
+            </div>
+          )}
           <div className="px-5 py-3 bg-primary/15 border-b border-primary/20 flex items-center justify-between gap-4">
             <div>
               <h3 className="text-sm font-semibold text-primary-dark">Rule Builder</h3>
@@ -915,13 +926,14 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition }: Tr
                 value={builder.formState.transactionTypeCode}
                 onChange={(val) => builder.updateBasicInfo({ transactionTypeCode: val })}
                 filterDefinitions={filterDefinitions}
+                disabled={isReadOnly}
               />
             </div>
             <div className="flex flex-col md:flex-row items-center gap-2">
               <Button variant="ghost" size="xs" onClick={handleDiscard}>
-                Discard
+                {isReadOnly ? 'Close' : 'Discard'}
               </Button>
-              {tagClickState && (
+              {!isReadOnly && tagClickState && (
                 <Button
                   variant="outline"
                   size="xs"
@@ -931,15 +943,15 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition }: Tr
                   Apply Rules
                 </Button>
               )}
-              <Button
+              {!isReadOnly && <Button
                 data-tour="create-tag-button"
                 variant="primary"
                 size="xs"
                 onClick={handleCreateFromBuilder}
-                disabled={!builderHasContent || isReadOnly}
+                disabled={!builderHasContent}
               >
                 {editingDef ? `Save changes for "${editingDef.Tag}"` : 'Create Rule with current settings'}
-              </Button>
+              </Button>}
             </div>
           </div>
 
@@ -986,6 +998,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition }: Tr
                 onUpdateCondition={builder.updateCondition}
                 onConditionSave={tagClickState ? () => handleApplyRules() : undefined}
                 startCollapsed={!!editingDef}
+                readOnly={isReadOnly}
               />
             </div>
 
@@ -1002,6 +1015,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition }: Tr
                 onUpdate={builder.updateAttribute}
                 transactions={filteredData.map((d) => d.row)}
                 startCollapsed={!!editingDef}
+                readOnly={isReadOnly}
               />
             </div>
           </div>

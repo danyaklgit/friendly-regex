@@ -31,14 +31,16 @@ interface AttributeEditorProps {
   onRemove: () => void;
   transactions?: TransactionRow[];
   startCollapsed?: boolean;
+  readOnly?: boolean;
 }
 
-export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, startCollapsed }: AttributeEditorProps) {
+export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, startCollapsed, readOnly }: AttributeEditorProps) {
   const { fieldMeta } = useTransactionData();
   const { activeAttributes, validationClasses, validationOptions, lovOptions, lovLookup, createNewAttribute, transformationMethods } = useLovAttributes();
   const [showDistinct, setShowDistinct] = useState(false);
   const [editing, setEditing] = useState(!startCollapsed);
   const [createAttrOpen, setCreateAttrOpen] = useState(false);
+  const [showValidation, setShowValidation] = useState(!!attribute.validationRuleTag);
   const [snapshot, setSnapshot] = useState<AttributeFormValue | null>(() =>
     !startCollapsed ? { ...attribute } : null
   );
@@ -222,45 +224,71 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
   }, [transactions, attribute.sourceField, attribute.extractionOperation, attribute.prefix, attribute.suffix, attribute.verifyValue, attribute.validationRuleTag, validationClasses]);
 
   return (
-    <div className="border border-border rounded-lg p-3 py-2 bg-surface space-y-3">
+    <div className="border border-border rounded-lg bg-surface">
       {editing ? (
-        <>
-          <div className="flex justify-end">
-            <Button variant="ghost" size="xs" onClick={onRemove} className="text-red-400 hover:text-red-500 shrink-0">
-              Remove Attribute
-            </Button>
+        <div className="space-y-4 p-3">
+          {/* Header: collapse arrow + preview + Remove */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              {attribute.attributeTag.trim().length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setEditing(false)}
+                  className="text-faint hover:text-body transition-colors p-0.5 cursor-pointer shrink-0"
+                  title="Collapse Attribute"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                  </svg>
+                </button>
+              )}
+              <p className="text-xs truncate">
+                <span className="font-medium text-primary-dark">{attribute.attributeTag || 'New Attribute'}</span>
+                {attribute.sourceField && (
+                  <>
+                    <span className="text-faint mx-1.5">&mdash;</span>
+                    <span className="text-primary italic">
+                      {humanizeFieldName(attribute.sourceField)} &rarr; <span className="text-orange-500">{preview}</span>
+                    </span>
+                  </>
+                )}
+                {(attribute.transformations?.length ?? 0) > 0 && (
+                  <span className="text-purple-400 ml-1.5 text-[10px]">
+                    +{attribute.transformations!.length} transform{attribute.transformations!.length > 1 ? 's' : ''}
+                  </span>
+                )}
+              </p>
+            </div>
+            {!readOnly && (
+              <Button variant="ghost" size="xs" onClick={onRemove} className="text-red-400 hover:text-red-500 shrink-0">
+                Remove Attribute
+              </Button>
+            )}
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <SearchableSelect
-              label="Attribute Name"
-              value={attribute.attributeTag}
-              onChange={(val) => {
-                const backend = activeAttributes.find((a) => a.Value === val);
-                const updates: Partial<AttributeFormValue> = { attributeTag: val };
-                if (backend?.PossibleLOVTag) {
-                  updates.isLovBased = true;
-                  updates.lovTag = backend.PossibleLOVTag;
-                }
-                onUpdate(updates);
-              }}
-              options={attributeNameOptions}
-              placeholder="Select attribute…"
-              onCreateNew={() => setCreateAttrOpen(true)}
-              createNewLabel="+ Create New Attribute"
-            />
-            <SearchableSelect
-              label="Validation Class"
-              placeholder="Select validation class"
-              value={attribute.validationRuleTag}
-              onChange={(val) => onUpdate({ validationRuleTag: val })}
-              options={validationRuleOptions}
-              clearable
-            />
-          </div>
+          {/* Attribute Name */}
+          <SearchableSelect
+            label="Attribute Name"
+            value={attribute.attributeTag}
+            onChange={(val) => {
+              const backend = activeAttributes.find((a) => a.Value === val);
+              const updates: Partial<AttributeFormValue> = { attributeTag: val };
+              if (backend?.PossibleLOVTag) {
+                updates.isLovBased = true;
+                updates.lovTag = backend.PossibleLOVTag;
+              }
+              onUpdate(updates);
+            }}
+            options={attributeNameOptions}
+            placeholder="Select attribute…"
+            disabled={readOnly}
+            onCreateNew={readOnly ? undefined : () => setCreateAttrOpen(true)}
+            createNewLabel="+ Create New Attribute"
+          />
 
-          <div className="flex items-stretch gap-3">
-            <Toggle label="Mandatory" size="lg" checked={attribute.isMandatory} onChange={(checked) => onUpdate({ isMandatory: checked })} />
+          {/* Toggles + LOV */}
+          <div className="flex items-center gap-3">
+            <Toggle label="Mandatory" size="lg" checked={attribute.isMandatory} onChange={(checked) => onUpdate({ isMandatory: checked })} disabled={readOnly} />
             <Toggle
               label="LOV Based"
               size="lg"
@@ -274,28 +302,32 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                   onUpdate({ isLovBased: false, lovTag: null });
                 }
               }}
+              disabled={readOnly}
             />
-            <div className={`flex-1 ${attribute.isLovBased ? '' : 'invisible pointer-events-none'}`}>
-              <SearchableSelect
-                value={attribute.lovTag ?? ''}
-                onChange={(val) => onUpdate({ lovTag: val || null })}
-                options={lovOptions}
-                placeholder="Select LOV…"
-              />
-            </div>
+            {attribute.isLovBased && (
+              <div className="flex-1">
+                <SearchableSelect
+                  value={attribute.lovTag ?? ''}
+                  onChange={(val) => onUpdate({ lovTag: val || null })}
+                  options={lovOptions}
+                  placeholder="Select LOV…"
+                  disabled={readOnly}
+                />
+              </div>
+            )}
           </div>
 
-          <p className="text-sm text-primary-dark mt-3 mb-2 font-semibold tracking-wide">
-            Extraction
-          </p>
-
-          <div className="grid grid-cols-2 gap-2" id="attribute_edit_1">
+          {/* ── Extraction ── */}
+          <div className="border-t border-border-subtle pt-3 space-y-2">
+            <p className="text-xs font-semibold text-primary uppercase tracking-wide">Extraction</p>
+            <div className="grid grid-cols-2 gap-2" id="attribute_edit_1">
             <SearchableSelect
               label="Source Field"
               placeholder="Select source field"
               value={attribute.sourceField}
               onChange={(val) => onUpdate({ sourceField: val })}
               options={fieldMeta.sourceFields.filter((f) => ALLOWED_SOURCE_FIELDS.has(f)).map((f) => ({ value: f, label: humanizeFieldName(f) })).sort((a, b) => a.label.localeCompare(b.label))}
+              disabled={readOnly}
             />
             <SearchableSelect
               label="Extraction Method"
@@ -312,6 +344,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                 suffixOccurrence: undefined,
               })}
               options={FILTERED_EXTRACTION_OPERATIONS.map((op) => ({ value: op.key, label: op.label }))}
+              disabled={readOnly}
             />
           </div>
 
@@ -325,6 +358,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                 required
                 value={attribute.fromPosition ?? ''}
                 onChange={(e) => onUpdate({ fromPosition: e.target.value ? Number(e.target.value) : undefined })}
+                disabled={readOnly}
               />
             </div>
           )}
@@ -337,6 +371,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                   placeholder="e.g., /ORDP/"
                   value={attribute.prefix ?? ''}
                   onChange={(e) => onUpdate({ prefix: e.target.value })}
+                  disabled={readOnly}
                 />
               )}
               {selectedOp.fields.includes('suffix') && (
@@ -345,6 +380,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                   placeholder="e.g., /"
                   value={attribute.suffix ?? ''}
                   onChange={(e) => onUpdate({ suffix: e.target.value })}
+                  disabled={readOnly}
                 />
               )}
               {selectedOp.fields.includes('pattern') && (
@@ -353,6 +389,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                   placeholder="e.g., \\d{4}"
                   value={attribute.pattern ?? ''}
                   onChange={(e) => onUpdate({ pattern: e.target.value })}
+                  disabled={readOnly}
                 />
               )}
               {selectedOp.fields.includes('verifyValue') && (
@@ -361,6 +398,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                   placeholder="Expected extracted value"
                   value={attribute.verifyValue ?? ''}
                   onChange={(e) => onUpdate({ verifyValue: e.target.value })}
+                  disabled={readOnly}
                 />
               )}
             </div>
@@ -376,7 +414,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                   min={1}
                   value={attribute.numChars ?? ''}
                   onChange={(e) => onUpdate({ numChars: e.target.value ? Number(e.target.value) : undefined })}
-                  disabled={!!attribute.toStart}
+                  disabled={!!attribute.toStart || readOnly}
                 />
               )}
               {filteredOp.optionalFields.includes('toStr') && (
@@ -385,7 +423,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                   placeholder="Optional"
                   value={attribute.toStr ?? ''}
                   onChange={(e) => onUpdate({ toStr: e.target.value || undefined })}
-                  disabled={!!attribute.toStart}
+                  disabled={!!attribute.toStart || readOnly}
                 />
               )}
               {filteredOp.optionalFields.includes('toStart') && (
@@ -395,8 +433,9 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                     type="button"
                     role="switch"
                     aria-checked={attribute.toStart ?? false}
-                    onClick={() => { const checked = !(attribute.toStart ?? false); onUpdate({ toStart: checked, ...(checked ? { numChars: undefined, toStr: undefined } : {}) }); }}
-                    className={`flex items-center gap-2 w-full rounded-lg border px-3 py-2 text-sm font-medium transition-all cursor-pointer
+                    disabled={readOnly}
+                    onClick={() => { if (readOnly) return; const checked = !(attribute.toStart ?? false); onUpdate({ toStart: checked, ...(checked ? { numChars: undefined, toStr: undefined } : {}) }); }}
+                    className={`flex items-center gap-2 w-full rounded-lg border px-3 py-2 text-sm font-medium transition-all ${readOnly ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
                       ${attribute.toStart
                         ? 'bg-primary/10 border-primary/30 text-primary-dark dark:text-primary'
                         : 'bg-input-bg border-input-border text-body hover:bg-surface-hover'
@@ -417,6 +456,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                   min={0}
                   value={attribute.startingPosition ?? ''}
                   onChange={(e) => onUpdate({ startingPosition: e.target.value ? Number(e.target.value) : undefined })}
+                  disabled={readOnly}
                 />
               )}
               {filteredOp.optionalFields.includes('occurrence') && (
@@ -426,6 +466,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                   value={attribute.occurrence ? String(attribute.occurrence) : ''}
                   onChange={(val) => onUpdate({ occurrence: val ? Number(val) : undefined })}
                   options={Array.from({ length: 10 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))}
+                  disabled={readOnly}
                 />
               )}
               {filteredOp.optionalFields.includes('prefixOccurrence') && (
@@ -435,6 +476,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                   value={attribute.prefixOccurrence ? String(attribute.prefixOccurrence) : ''}
                   onChange={(val) => onUpdate({ prefixOccurrence: val ? Number(val) : undefined })}
                   options={Array.from({ length: 10 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))}
+                  disabled={readOnly}
                 />
               )}
               {filteredOp.optionalFields.includes('suffixOccurrence') && (
@@ -444,64 +486,110 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                   value={attribute.suffixOccurrence ? String(attribute.suffixOccurrence) : ''}
                   onChange={(val) => onUpdate({ suffixOccurrence: val ? Number(val) : undefined })}
                   options={Array.from({ length: 10 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))}
+                  disabled={readOnly}
                 />
               )}
             </div>
           )}
+          </div>
 
-          {!attribute.isLovBased && !!attribute.sourceField && (
-            <TransformationList
-              transformations={attribute.transformations ?? []}
-              methods={transformationMethods}
-              sampleValue={transformationSample}
-              onChange={(transformations) => onUpdate({ transformations })}
-            />
+          {/* ── Post-extraction Transformations ── */}
+          {!attribute.isLovBased && !!attribute.sourceField && !(readOnly && (attribute.transformations ?? []).length === 0) && (
+            <div className="border-t border-border-subtle pt-3">
+              <TransformationList
+                transformations={attribute.transformations ?? []}
+                methods={transformationMethods}
+                sampleValue={transformationSample}
+                onChange={(transformations) => onUpdate({ transformations })}
+                readOnly={readOnly}
+              />
+            </div>
           )}
 
-          <div className="flex items-center gap-2 justify-between">
-            <div className="flex items-center gap-2 justify-between ">
-              <p className="text-xs text-primary italic border-dashed border w-fit px-2 py-1">
-                {humanizeFieldName(attribute.sourceField)} &rarr; <span className='text-orange-500'>{preview}</span>
-              </p>
-              {attribute.attributeTag.trim().length > 0 && (
-                hasChanges ? (
-                  <>
-                    <Button variant="secondary" size="xs" onClick={handleDiscard} className="min-w-16 text-center">
-                      Discard
-                    </Button>
-                    <Button variant="primary" size="xs" onClick={() => setEditing(false)} className="min-w-16 text-center">
-                      Save
-                    </Button>
-                  </>
-                ) : (
-                  <Button variant="ghost" size="xs" onClick={() => setEditing(false)}>
-                    Collapse Attribute
+          {/* ── Validations ── */}
+          {!(readOnly && !showValidation) && (
+            <div className="border-t border-border-subtle pt-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-primary uppercase tracking-wide">Validations</p>
+                {!showValidation && !readOnly && (
+                  <Button variant="ghost" size="xs" onClick={() => setShowValidation(true)}>
+                    + Add Validation
                   </Button>
-                )
+                )}
+              </div>
+              {showValidation && (
+                <div className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <SearchableSelect
+                      placeholder="Select validation class"
+                      value={attribute.validationRuleTag}
+                      onChange={(val) => onUpdate({ validationRuleTag: val })}
+                      options={validationRuleOptions}
+                      disabled={readOnly}
+                    />
+                  </div>
+                  {!readOnly && (
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => { onUpdate({ validationRuleTag: '' }); setShowValidation(false); }}
+                      className="text-red-400 hover:text-red-500"
+                    >
+                      Remove Validation
+                    </Button>
+                  )}
+                </div>
               )}
             </div>
-            {validationSummary && (
-              <span className={`text-xs font-medium flex gap-2 mx-2`}>
-                {validationSummary.passed > 0 && <span className='text-emerald-600'>{'\u2713'} {validationSummary.passed}</span>}
-                {(validationSummary.notPassed || 0) > 0 && <span className='text-red-600'>{'\u2717'} {validationSummary.notPassed}</span>}
-              </span>
-            )}
-            {transactions && distinctValues.length > 0 && (
-              <Button
-                variant="ghost" className='text-purple-500!' size="xs"
-                onClick={() => setShowDistinct(true)}
-              >
-                See all distinct values ({distinctValues.length})
-              </Button>
-            )}
+          )}
+
+          {/* ── Footer: actions ── */}
+          <div className="border-t border-border-subtle pt-3 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              {attribute.attributeTag.trim().length > 0 && !readOnly && hasChanges && (
+                <>
+                  <Button variant="secondary" size="xs" onClick={handleDiscard} className="min-w-16 text-center shrink-0">
+                    Discard
+                  </Button>
+                  <Button variant="primary" size="xs" onClick={() => setEditing(false)} className="min-w-16 text-center shrink-0">
+                    Save
+                  </Button>
+                </>
+              )}
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {validationSummary && (
+                <span className="text-xs font-medium flex gap-2">
+                  {validationSummary.passed > 0 && <span className="text-emerald-600">{'\u2713'} {validationSummary.passed}</span>}
+                  {(validationSummary.notPassed || 0) > 0 && <span className="text-red-600">{'\u2717'} {validationSummary.notPassed}</span>}
+                </span>
+              )}
+              {transactions && distinctValues.length > 0 && (
+                <Button
+                  variant="ghost" className="text-purple-500!" size="xs"
+                  onClick={() => setShowDistinct(true)}
+                >
+                  See all distinct values ({distinctValues.length})
+                </Button>
+              )}
+            </div>
           </div>
-        </>
+        </div>
       ) : (
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between px-3 py-2">
           <div
-            className="flex-1 cursor-pointer hover:bg-surface-hover rounded px-2 py-1.5 transition-colors"
+            className="flex-1 cursor-pointer hover:bg-surface-hover rounded px-2 py-1.5 transition-colors flex items-center gap-1.5"
             onClick={() => { setSnapshot({ ...attribute }); setEditing(true); }}
           >
+            <svg
+              className="w-3.5 h-3.5 text-faint shrink-0 transition-transform"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              strokeWidth={2}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
             <p className="text-xs">
               <span className="font-medium text-primary-dark">{attribute.attributeTag}</span>
               <span className="text-faint mx-1.5">&mdash;</span>
@@ -530,9 +618,11 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                 See all distinct values ({distinctValues.length})
               </Button>
             )}
-            <Button variant="ghost" size="xs" onClick={onRemove} className="ml-1 text-red-400 hover:text-red-500">
-              Remove
-            </Button>
+            {!readOnly && (
+              <Button variant="ghost" size="xs" onClick={onRemove} className="ml-1 text-red-400 hover:text-red-500">
+                Remove Attribute
+              </Button>
+            )}
           </div>
         </div>
       )}

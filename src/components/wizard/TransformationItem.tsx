@@ -17,6 +17,7 @@ interface TransformationItemProps {
   /** Methods already selected by sibling items (used to filter out no-arg duplicates) */
   usedNoArgMethods: Set<string>;
   reorderDisabled?: boolean;
+  readOnly?: boolean;
   onUpdate: (updates: Partial<TransformationFormValue>) => void;
   onRemove: () => void;
   onMoveUp: () => void;
@@ -31,6 +32,7 @@ export function TransformationItem({
   methods,
   usedNoArgMethods,
   reorderDisabled,
+  readOnly,
   onUpdate,
   onRemove,
   onMoveUp,
@@ -94,6 +96,7 @@ export function TransformationItem({
             onUpdate({ method: val, args: newArgs });
           }}
           options={methodOptions}
+          disabled={readOnly}
         />
       </div>
 
@@ -106,6 +109,7 @@ export function TransformationItem({
                 placeholder={argDef.placeholder}
                 type={argDef.type}
                 value={transformation.args[argDef.key] ?? ''}
+                disabled={readOnly}
                 onChange={(e) =>
                   onUpdate({ args: { ...transformation.args, [argDef.key]: e.target.value } })
                 }
@@ -137,14 +141,16 @@ export function TransformationItem({
         </button>
       </div>
 
-      <Button
-        variant="ghost"
-        size="xs"
-        onClick={onRemove}
-        className="shrink-0 text-red-400 hover:text-red-500"
-      >
-        Remove Transformation
-      </Button>
+      {!readOnly && (
+        <Button
+          variant="ghost"
+          size="xs"
+          onClick={onRemove}
+          className="shrink-0 text-red-400 hover:text-red-500"
+        >
+          Remove Transformation
+        </Button>
+      )}
     </div>
   );
 }

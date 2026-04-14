@@ -3,16 +3,19 @@ interface ToggleProps {
   checked: boolean;
   onChange: (checked: boolean) => void;
   size?: 'sm' | 'lg';
+  disabled?: boolean;
 }
 
-export function Toggle({ label, checked, onChange, size = 'sm' }: ToggleProps) {
+export function Toggle({ label, checked, onChange, size = 'sm', disabled }: ToggleProps) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
-      onClick={() => onChange(!checked)}
-      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer border
+      disabled={disabled}
+      onClick={() => !disabled && onChange(!checked)}
+      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border
+        ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
         ${checked
           ? 'bg-primary/10 border-primary/30 text-primary-dark dark:text-primary shadow-sm'
           : 'bg-surface border-border-strong text-body hover:bg-surface-hover'

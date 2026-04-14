@@ -11,6 +11,7 @@ interface StepRuleExpressionsProps {
   onUpdateCondition: (groupId: string, conditionId: string, updates: Partial<ConditionFormValue>) => void;
   onConditionSave?: () => void;
   startCollapsed?: boolean;
+  readOnly?: boolean;
 }
 
 export function StepRuleExpressions({
@@ -22,6 +23,7 @@ export function StepRuleExpressions({
   onUpdateCondition,
   onConditionSave,
   startCollapsed,
+  readOnly,
 }: StepRuleExpressionsProps) {
   return (
     <div className="space-y-0 flex flex-col">
@@ -52,6 +54,7 @@ export function StepRuleExpressions({
               onConditionSave={onConditionSave}
               canRemoveGroup
               startCollapsed={startCollapsed}
+              readOnly={readOnly}
             />
           </div>
         ))
@@ -61,12 +64,13 @@ export function StepRuleExpressions({
         </div>
       )}
 
-      <div className="mt-4 ">
-        <Button data-tour="add-rule-group" variant="secondary" size="xs" onClick={onAddGroup}>
-          {/* {ruleGroups.length === 0 ? 'Add first Rule set' : 'Add Rule set'} */}
-          Add Rule Set
-        </Button>
-      </div>
+      {!readOnly && (
+        <div className="mt-4 ">
+          <Button data-tour="add-rule-group" variant="secondary" size="xs" onClick={onAddGroup}>
+            Add Rule Set
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
