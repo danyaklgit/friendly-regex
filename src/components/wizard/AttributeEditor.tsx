@@ -245,6 +245,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
               value={attribute.validationRuleTag}
               onChange={(val) => onUpdate({ validationRuleTag: val })}
               options={validationRuleOptions}
+              clearable
             />
           </div>
 

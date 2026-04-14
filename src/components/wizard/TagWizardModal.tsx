@@ -70,7 +70,7 @@ export function TagWizardModal({ existingDef, parentLib, initialFormState, initi
       open
       onClose={onClose}
       fullHeight
-      title={wizard.isEditing ? `Edit Tag: ${existingDef?.Tag} (${existingDef?.Id})` : 'Create New Rule'}
+      title={wizard.isEditing ? `Edit Rule: ${existingDef?.Tag} (${existingDef?.Id})` : 'Create New Rule'}
       footer={
         <>
           <Button data-tour="wizard-cancel-button" variant="ghost" onClick={onClose}>
