@@ -45,6 +45,10 @@ interface TransactionsTabProps {
   initialShareToggles?: ShareTogglesInput;
   /** Current operator display name (for share link authorship). */
   operatorName?: string;
+  /** Controlled open state for the share dialog (triggered from header). */
+  shareDialogOpen?: boolean;
+  /** Callback to close the share dialog. */
+  onShareDialogClose?: () => void;
 }
 
 function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinition | null {
@@ -146,7 +150,7 @@ function buildRulesetFilters(formState: WizardFormState): FilterProperty[] {
   return filters;
 }
 
-export function TransactionsTab({ activeCheckout, onClearPendingDefinition, initialShareFilters, initialShareToggles, operatorName }: TransactionsTabProps) {
+export function TransactionsTab({ activeCheckout, onClearPendingDefinition, initialShareFilters, initialShareToggles, operatorName, shareDialogOpen: shareDialogOpenProp, onShareDialogClose }: TransactionsTabProps) {
   const { libraries, tagDefinitions, originalDefinitionIds, dispatch } = useTagSpecs();
   const { userId, usersMap, getAuthHeaders, refreshIfNeeded } = useAuth();
   const tepConfig = useTepConfig();
@@ -244,7 +248,6 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   });
   const [tableColumns, setTableColumns] = useState<ColumnDef[]>([]);
   const [filters, setFilters] = useState<Record<string, Set<string>>>({});
-  const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const shareFiltersConsumed = useRef(false);
   // State for tag-click drill-down: tracks both definition-ID and tag-name queries
   const [tagClickState, setTagClickState] = useState<{
@@ -345,27 +348,36 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     };
   }, [activeCheckout, isLiveMode, filterDefinitions]);
 
-  // Apply checkout filters when checkout state changes
+  // Apply checkout filters when checkout state changes.
+  // When share filters are pending, merge them with baseFilters so they aren't lost
+  // when filterDefinitions load (which causes baseFilters to recompute with live-mode keys).
   useEffect(() => {
     if (baseFilters) {
-      setFilters({ ...baseFilters });
+      if (initialShareFilters && !shareFiltersConsumed.current) {
+        // Merge: baseFilters (bank/side) + share filters (all others).
+        // Share filters override base for overlapping keys.
+        setFilters({ ...baseFilters, ...initialShareFilters });
+        // Only mark consumed once filterDefinitions are loaded (live mode keys settled),
+        // so a subsequent baseFilters recompute still preserves share filters.
+        if (!isLiveMode || filterDefinitions.length > 0) {
+          shareFiltersConsumed.current = true;
+        }
+      } else {
+        setFilters({ ...baseFilters });
+      }
       setShowOnlyUntagged(false);
       setShowOnlyMultiTagged(false);
     }
-  }, [baseFilters]);
+  }, [baseFilters, initialShareFilters, isLiveMode, filterDefinitions.length]);
 
-  // Apply shared link filters & toggles once after mount (runs after baseFilters effect)
+  // Apply shared toggles once
   useEffect(() => {
-    if (!shareFiltersConsumed.current && (initialShareFilters || initialShareToggles)) {
-      shareFiltersConsumed.current = true;
-      if (initialShareFilters) setFilters(initialShareFilters);
-      if (initialShareToggles) {
-        setRelaxedMode(initialShareToggles.compactMode);
-        setIncrementalPagination(initialShareToggles.incrementalPagination);
-        setShowAttributes(initialShareToggles.showAttributes);
-      }
+    if (initialShareToggles && !shareFiltersConsumed.current) {
+      setRelaxedMode(initialShareToggles.compactMode);
+      setIncrementalPagination(initialShareToggles.incrementalPagination);
+      setShowAttributes(initialShareToggles.showAttributes);
     }
-  }, [initialShareFilters, initialShareToggles]);
+  }, [initialShareToggles]);
 
   // Live mode: fetch from API when filters or extraFilters change
   useEffect(() => {
@@ -853,16 +865,6 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
             className="hidden"
             onChange={handleFileUpload}
           />
-          {activeCheckout && !builderOpen && (
-            <Tooltip content="Share current view with filters" placement="bottom">
-              <Button variant="ghost" size="xs" onClick={() => setShareDialogOpen(true)}>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                </svg>
-                Share
-              </Button>
-            </Tooltip>
-          )}
           {!builderOpen && !isLiveMode && <Button variant="primary" size="xs" onClick={() => {
             fileInputRef.current?.click()
           }}>
@@ -1253,10 +1255,10 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      {activeCheckout && (
+      {activeCheckout && shareDialogOpenProp && (
         <ShareLinkDialog
-          open={shareDialogOpen}
-          onClose={() => setShareDialogOpen(false)}
+          open={shareDialogOpenProp}
+          onClose={onShareDialogClose ?? (() => {})}
           bank={activeCheckout.bank}
           side={activeCheckout.side}
           filters={filters}

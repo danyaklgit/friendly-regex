@@ -38,6 +38,7 @@ function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps
   const [undoTarget, setUndoTarget] = useState<{ bank: string; side: string } | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [shareData, setShareData] = useState<ShareParams | null>(null);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
 
   // On mount, consume share params stored before login
   useEffect(() => {
@@ -149,7 +150,7 @@ function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps
           onTabChange={setActiveTab}
           tabs={[
             { label: 'Backlog', content: <StatsTab onViewTransactions={handleViewTransactions} onViewAllTransactions={handleViewAllTransactions} onCheckoutComplete={handleCheckoutComplete} authToken={authToken} tepHeaders={tepHeaders} /> },
-            { label: 'Transactions', content: <TransactionsTab activeCheckout={activeCheckout} onClearPendingDefinition={() => setActiveCheckout(prev => prev ? { ...prev, pendingDefinitionId: undefined } : prev)} initialShareFilters={shareData?.filters} initialShareToggles={shareData?.toggles} operatorName={operatorName} /> },
+            { label: 'Transactions', content: <TransactionsTab activeCheckout={activeCheckout} onClearPendingDefinition={() => setActiveCheckout(prev => prev ? { ...prev, pendingDefinitionId: undefined } : prev)} initialShareFilters={shareData?.filters} initialShareToggles={shareData?.toggles} operatorName={operatorName} shareDialogOpen={shareDialogOpen} onShareDialogClose={() => setShareDialogOpen(false)} /> },
             { label: 'Settings', content: <SettingsTab /> },
           ]}
           checkout={activeCheckout ? {
@@ -162,6 +163,7 @@ function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps
             onRequestUndo: handleRequestUndo,
           } : undefined}
           onOpenOnboarding={() => setOnboardingOpen(true)}
+          onShare={activeCheckout ? () => setShareDialogOpen(true) : undefined}
         />
       </div>
       <UndoChangesDialog
