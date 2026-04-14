@@ -13,7 +13,7 @@ export function CheckoutBanner({ bank, side, hasChanges, onRelease, onCheckin, o
   return (
     <div className="flex items-center justify-between px-4 py-2 mb-3 rounded-lg flex-col md:flex-row gap-4">
       <span className="text-sm text-primary-dark">
-        <span className="font-semibold">You're working on</span> Bank {bank}, Side {side}
+        <span className="font-semibold">You're working on</span> {bank} - {side}
       </span>
       <div className='flex gap-3'>
         {onRequestUndo && hasChanges && (

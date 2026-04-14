@@ -8,6 +8,7 @@ interface CheckoutInfo {
   bank: string;
   side: string;
   hasChanges: boolean;
+  isReadOnly?: boolean;
   onRelease: (bank: string, side: string) => void;
   onCheckin: (bank: string, side: string) => void;
   onRequestUndo?: (bank: string, side: string) => void;
@@ -49,21 +50,25 @@ export function PageHeader({ tabs, activeIndex, onTabChange, checkout, onOpenOnb
         {checkout && (
           <div data-tour="checkout-active-indicator" className="flex items-center gap-3 ml-auto">
             <span className="text-sm text-primary-dark">
-              <span className="font-semibold">You're working on</span> Bank {checkout.bank}, Side {checkout.side}
+              <span className="font-semibold">{checkout.isReadOnly ? "You're viewing" : "You're working on"}</span> {checkout.bank} - {checkout.side}
             </span>
-            {checkout.onRequestUndo && checkout.hasChanges && (
-              <Button variant="secondary" size="xs" onClick={() => checkout.onRequestUndo!(checkout.bank, checkout.side)}>
-                Review Changes
-              </Button>
+            {!checkout.isReadOnly && (
+              <>
+                {checkout.onRequestUndo && checkout.hasChanges && (
+                  <Button variant="secondary" size="xs" onClick={() => checkout.onRequestUndo!(checkout.bank, checkout.side)}>
+                    Review Changes
+                  </Button>
+                )}
+                <span data-tour="checkout-actions" className="flex items-center gap-2">
+                  <Button variant="primary" size="xs" onClick={() => checkout.onRelease(checkout.bank, checkout.side)}>
+                    {checkout.hasChanges ? 'Save and Release' : 'Release'}
+                  </Button>
+                  <Button variant="primary" size="xs" onClick={() => checkout.onCheckin(checkout.bank, checkout.side)}>
+                    {checkout.hasChanges ? 'Save and Check In' : 'Check In'}
+                  </Button>
+                </span>
+              </>
             )}
-            <span data-tour="checkout-actions" className="flex items-center gap-2">
-              <Button variant="primary" size="xs" onClick={() => checkout.onRelease(checkout.bank, checkout.side)}>
-                {checkout.hasChanges ? 'Save and Release' : 'Release'}
-              </Button>
-              <Button variant="primary" size="xs" onClick={() => checkout.onCheckin(checkout.bank, checkout.side)}>
-                {checkout.hasChanges ? 'Save and Check In' : 'Check In'}
-              </Button>
-            </span>
           </div>
         )}
         <div className={`${checkout ? '' : 'ml-auto '}flex items-center gap-3`}>

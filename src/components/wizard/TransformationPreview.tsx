@@ -22,7 +22,7 @@ export function TransformationPreview({ transformations, sampleValue }: Transfor
 
   return (
     <div className="mt-2 rounded-lg border border-border bg-surface-secondary p-2.5 space-y-1">
-      <p className="text-[10px] font-semibold text-body-secondary uppercase tracking-wide mb-1.5">
+      <p className="text-xs font-semibold text-primary uppercase tracking-wide mb-1.5">
         Transformation Preview
       </p>
 

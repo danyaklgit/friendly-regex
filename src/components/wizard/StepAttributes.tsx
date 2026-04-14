@@ -9,9 +9,10 @@ interface StepAttributesProps {
   onUpdate: (attrId: string, updates: Partial<AttributeFormValue>) => void;
   transactions?: TransactionRow[];
   startCollapsed?: boolean;
+  readOnly?: boolean;
 }
 
-export function StepAttributes({ attributes, onAdd, onRemove, onUpdate, transactions, startCollapsed }: StepAttributesProps) {
+export function StepAttributes({ attributes, onAdd, onRemove, onUpdate, transactions, startCollapsed, readOnly }: StepAttributesProps) {
   return (
     <div data-tour="wizard-attributes">
       <p className="text-xs text-muted mb-2">
@@ -29,6 +30,7 @@ export function StepAttributes({ attributes, onAdd, onRemove, onUpdate, transact
               onRemove={() => onRemove(attr.id)}
               transactions={transactions}
               startCollapsed={startCollapsed && attr.attributeTag.trim().length > 0}
+              readOnly={readOnly}
             />
           ))}
         </div>
@@ -38,9 +40,11 @@ export function StepAttributes({ attributes, onAdd, onRemove, onUpdate, transact
         </div>
       )}
 
-      <Button variant="secondary" size="xs" onClick={onAdd} className="mt-4">
-        Add Attribute
-      </Button>
+      {!readOnly && (
+        <Button variant="secondary" size="xs" onClick={onAdd} className="mt-4">
+          Add Attribute
+        </Button>
+      )}
     </div>
   );
 }

@@ -25,6 +25,7 @@ interface TransformationListProps {
   methods: TransformationMethodDef[];
   sampleValue?: string;
   onChange: (transformations: TransformationFormValue[]) => void;
+  readOnly?: boolean;
 }
 
 export function TransformationList({
@@ -32,6 +33,7 @@ export function TransformationList({
   methods,
   sampleValue,
   onChange,
+  readOnly,
 }: TransformationListProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -108,12 +110,14 @@ export function TransformationList({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-primary-dark mt-3 mb-2 font-semibold text-body-secondary tracking-wide">
+        <p className="text-xs font-semibold text-primary uppercase tracking-wide">
           Post-extraction Transformations
         </p>
-        <Button variant="ghost" size="xs" onClick={handleAdd} disabled={hasUnselected}>
-          + Add Transformation
-        </Button>
+        {!readOnly && (
+          <Button variant="ghost" size="xs" onClick={handleAdd} disabled={hasUnselected}>
+            + Add Transformation
+          </Button>
+        )}
       </div>
 
       {transformations.length > 0 && (
@@ -144,7 +148,8 @@ export function TransformationList({
                   isLast={i === transformations.length - 1}
                   methods={methods}
                   usedNoArgMethods={usedNoArgMethods}
-                  reorderDisabled={hasUnselected}
+                  reorderDisabled={hasUnselected || readOnly}
+                  readOnly={readOnly}
                   onUpdate={(updates) => handleUpdate(t.id, updates)}
                   onRemove={() => handleRemove(t.id)}
                   onMoveUp={() => handleMove(i, 'up')}

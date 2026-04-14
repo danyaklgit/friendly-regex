@@ -23,6 +23,7 @@ interface ConditionEditorProps {
   canRemove: boolean;
   showAnd?: boolean;
   startCollapsed?: boolean;
+  readOnly?: boolean;
 }
 
 export function ConditionEditor({
@@ -33,6 +34,7 @@ export function ConditionEditor({
   canRemove,
   showAnd,
   startCollapsed,
+  readOnly,
 }: ConditionEditorProps) {
   const { fieldMeta, transactions } = useTransactionData();
   const [editing, setEditing] = useState(!startCollapsed);
@@ -95,6 +97,7 @@ export function ConditionEditor({
                 label='Source Field'
                 placeholder='Select source field'
                 value={condition.sourceField}
+                disabled={readOnly}
                 onChange={(newField) => {
                   const updates: Partial<ConditionFormValue> = { sourceField: newField };
                   const currentOp = MATCH_OPERATIONS.find((op) => op.key === condition.operation);
@@ -118,6 +121,7 @@ export function ConditionEditor({
                 label='Operation'
                 placeholder='Select operation'
                 value={condition.operation}
+                disabled={readOnly}
                 onChange={(val) => onUpdate({ operation: val as ConditionFormValue['operation'] })}
                 options={availableOperations.map((op) => ({ value: op.key, label: op.label }))}
               />
@@ -128,6 +132,7 @@ export function ConditionEditor({
                   label='Value'
                   placeholder="Value1, Value2, ..."
                   value={(condition.values ?? []).join(', ')}
+                  disabled={readOnly}
                   onChange={(e) => {
                     const values = e.target.value.split(',').map((v) => v.trim()).filter(Boolean);
                     onUpdate({ values, value: values[0] ?? '' });
@@ -138,6 +143,7 @@ export function ConditionEditor({
                   label='Value'
                   placeholder="Enter value..."
                   value={condition.value}
+                  disabled={readOnly}
                   onChange={(e) => onUpdate({ value: e.target.value })}
                 />
               )}
@@ -153,7 +159,7 @@ export function ConditionEditor({
             </p>
           </div>
         )}
-        {canRemove && (
+        {canRemove && !readOnly && (
           <Button variant="ghost" size="xs" onClick={onRemove} className=" text-faint hover:text-red-500">
             Remove Condition
           </Button>
@@ -164,14 +170,18 @@ export function ConditionEditor({
           <p className="text-xs text-primary italic text-left border-dashed border w-fit px-2 py-1">
             {humanizeFieldName(condition.sourceField)} &rarr; <span className='text-orange-500'>{preview}</span>
           </p>
-          {hasChanges && (
-            <Button variant="secondary" size="xs" onClick={handleDiscard} className="min-w-16 text-center">
-              Discard
-            </Button>
+          {!readOnly && (
+            <>
+              {hasChanges && (
+                <Button variant="secondary" size="xs" onClick={handleDiscard} className="min-w-16 text-center">
+                  Discard
+                </Button>
+              )}
+              <Button data-tour="condition-save-button" variant="primary" size="xs" onClick={() => { setEditing(false); onSave?.(); }} className="min-w-16 text-center">
+                Save
+              </Button>
+            </>
           )}
-          <Button data-tour="condition-save-button" variant="primary" size="xs" onClick={() => { setEditing(false); onSave?.(); }} className="min-w-16 text-center">
-            Save
-          </Button>
         </div>
       )}
     </div>

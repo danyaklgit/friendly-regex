@@ -10,6 +10,7 @@ interface CheckoutInfo {
   bank: string;
   side: string;
   hasChanges: boolean;
+  isReadOnly?: boolean;
   onRelease: (bank: string, side: string) => void;
   onCheckin: (bank: string, side: string) => void;
   onRequestUndo?: (bank: string, side: string) => void;

@@ -15,6 +15,7 @@ interface RuleGroupEditorProps {
   onConditionSave?: () => void;
   canRemoveGroup: boolean;
   startCollapsed?: boolean;
+  readOnly?: boolean;
 }
 
 export function RuleGroupEditor({
@@ -27,6 +28,7 @@ export function RuleGroupEditor({
   onConditionSave,
   canRemoveGroup,
   startCollapsed,
+  readOnly,
 }: RuleGroupEditorProps) {
   const [isExpanded, setIsExpanded] = useState(!startCollapsed);
 
@@ -65,7 +67,7 @@ export function RuleGroupEditor({
             );
           })()}
         </div>
-        {canRemoveGroup && (
+        {canRemoveGroup && !readOnly && (
           <Button variant="ghost" size="xs" onClick={onRemoveGroup} className="text-red-400 hover:text-red-600 shrink-0">
             Remove Group
           </Button>
@@ -86,13 +88,16 @@ export function RuleGroupEditor({
                   canRemove={group.conditions.length > 1}
                   showAnd={i > 0}
                   startCollapsed={startCollapsed && condition.value.trim().length > 0}
+                  readOnly={readOnly}
                 />
               ))}
             </div>
           </div>
-          <Button data-tour="add-condition" variant="ghost" size="xs" onClick={onAddCondition} className="mt-1">
-            + Add condition
-          </Button>
+          {!readOnly && (
+            <Button data-tour="add-condition" variant="ghost" size="xs" onClick={onAddCondition} className="mt-1">
+              + Add condition
+            </Button>
+          )}
         </>
       )}
     </div>

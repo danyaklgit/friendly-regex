@@ -25,9 +25,10 @@ interface AppShellProps {
   authToken: string | null;
   tepHeaders: TepHeaders | null;
   operatorName: string | undefined;
+  userId: string | undefined;
 }
 
-function AppShell({ authToken, tepHeaders, operatorName }: AppShellProps) {
+function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps) {
   const [activeTab, setActiveTab] = useState(0);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [activeCheckout, setActiveCheckout] = useState<CheckoutState | null>(null);
@@ -36,6 +37,18 @@ function AppShell({ authToken, tepHeaders, operatorName }: AppShellProps) {
 
   const { libraries, refetchTagSpecs } = useTagSpecs();
   const { clearChanges, getChangeSummary, hasChanges } = useLocalChanges(activeCheckout?.bank, activeCheckout?.side);
+
+  const isCheckoutReadOnly = useMemo(() => {
+    if (!activeCheckout || !userId) return true;
+    const inProgressLib = libraries.find(
+      (l) =>
+        l.StatusTag === 'INPROGRESS' &&
+        getContextValue(l.Context, 'BankSwiftCode') === activeCheckout.bank &&
+        getContextValue(l.Context, 'Side') === activeCheckout.side
+    );
+    if (!inProgressLib?.OperatorId) return true;
+    return inProgressLib.OperatorId !== userId;
+  }, [activeCheckout, libraries, userId]);
 
   const findInProgressLib = useCallback((bank: string, side: string) => {
     return libraries.find(
@@ -128,6 +141,7 @@ function AppShell({ authToken, tepHeaders, operatorName }: AppShellProps) {
             bank: activeCheckout.bank,
             side: activeCheckout.side,
             hasChanges: hasChanges ?? false,
+            isReadOnly: isCheckoutReadOnly,
             onRelease: handleRelease,
             onCheckin: handleCheckinWithSave,
             onRequestUndo: handleRequestUndo,
@@ -181,7 +195,7 @@ function AppContent() {
     <TagSpecProvider useDummyData={useDummyData} authToken={authToken} tepHeaders={tepHeaders}>
       <LovAttributesProvider authToken={authToken} tepHeaders={tepHeaders}>
         <TransactionDataProvider>
-          <AppShell authToken={authToken} tepHeaders={tepHeaders} operatorName={operatorName} />
+          <AppShell authToken={authToken} tepHeaders={tepHeaders} operatorName={operatorName} userId={userId ?? undefined} />
         </TransactionDataProvider>
       </LovAttributesProvider>
     </TagSpecProvider>
