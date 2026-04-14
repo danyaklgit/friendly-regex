@@ -160,7 +160,7 @@ describe('applyTransformation', () => {
 
 describe('applyTransformationPipeline', () => {
   it('applies transformations in order', () => {
-    const transformations = [
+    const transformations: { id: string; method: string; args: Record<string, string> }[] = [
       { id: '1', method: 'trim', args: {} },
       { id: '2', method: 'to_uppercase', args: {} },
       { id: '3', method: 'replace', args: { find: ' ', replaceWith: '_' } },
