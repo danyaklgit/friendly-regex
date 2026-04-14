@@ -22,12 +22,13 @@ interface TabContainerProps {
   onTabChange: (index: number) => void;
   checkout?: CheckoutInfo;
   onOpenOnboarding?: () => void;
+  onShare?: () => void;
 }
 
-export function TabContainer({ tabs, activeIndex, onTabChange, checkout, onOpenOnboarding }: TabContainerProps) {
+export function TabContainer({ tabs, activeIndex, onTabChange, checkout, onOpenOnboarding, onShare }: TabContainerProps) {
   return (
     <div>
-      <PageHeader tabs={tabs} activeIndex={activeIndex} onTabChange={onTabChange} checkout={checkout} onOpenOnboarding={onOpenOnboarding} />
+      <PageHeader tabs={tabs} activeIndex={activeIndex} onTabChange={onTabChange} checkout={checkout} onOpenOnboarding={onOpenOnboarding} onShare={onShare} />
       <div className="max-w-10xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
         {tabs[activeIndex].content}
       </div>

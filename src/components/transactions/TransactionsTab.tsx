@@ -23,8 +23,15 @@ import { useLocalChanges } from '../../hooks/useLocalChanges';
 import { EmptyState } from '../shared/EmptyState';
 import { TransactionTypePicker } from '../shared/TransactionTypePicker';
 import { tagSpecLibrarySave } from '../../api/tagSpecSave';
+import { ShareLinkDialog } from '../shared/ShareLinkDialog';
 import { useTepConfig } from '../../context/TepConfigContext';
 import type { TepHeaders } from '../../api/transactions';
+
+interface ShareTogglesInput {
+  compactMode: boolean;
+  incrementalPagination: boolean;
+  showAttributes: boolean;
+}
 
 interface TransactionsTabProps {
   activeCheckout?: CheckoutState | null;
@@ -32,6 +39,12 @@ interface TransactionsTabProps {
   onCheckin?: (bank: string, side: string) => void;
   onRelease?: (bank: string, side: string) => void;
   onRequestUndo?: (bank: string, side: string) => void;
+  /** Filters injected from a share link — applied once after mount. */
+  initialShareFilters?: Record<string, Set<string>>;
+  /** Toggles injected from a share link — applied once after mount. */
+  initialShareToggles?: ShareTogglesInput;
+  /** Current operator display name (for share link authorship). */
+  operatorName?: string;
 }
 
 function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinition | null {
@@ -133,7 +146,7 @@ function buildRulesetFilters(formState: WizardFormState): FilterProperty[] {
   return filters;
 }
 
-export function TransactionsTab({ activeCheckout, onClearPendingDefinition }: TransactionsTabProps) {
+export function TransactionsTab({ activeCheckout, onClearPendingDefinition, initialShareFilters, initialShareToggles, operatorName }: TransactionsTabProps) {
   const { libraries, tagDefinitions, originalDefinitionIds, dispatch } = useTagSpecs();
   const { userId, usersMap, getAuthHeaders, refreshIfNeeded } = useAuth();
   const tepConfig = useTepConfig();
@@ -231,6 +244,8 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition }: Tr
   });
   const [tableColumns, setTableColumns] = useState<ColumnDef[]>([]);
   const [filters, setFilters] = useState<Record<string, Set<string>>>({});
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const shareFiltersConsumed = useRef(false);
   // State for tag-click drill-down: tracks both definition-ID and tag-name queries
   const [tagClickState, setTagClickState] = useState<{
     preFilters: Record<string, Set<string>>;  // filters before tag click (restored on close)
@@ -338,6 +353,19 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition }: Tr
       setShowOnlyMultiTagged(false);
     }
   }, [baseFilters]);
+
+  // Apply shared link filters & toggles once after mount (runs after baseFilters effect)
+  useEffect(() => {
+    if (!shareFiltersConsumed.current && (initialShareFilters || initialShareToggles)) {
+      shareFiltersConsumed.current = true;
+      if (initialShareFilters) setFilters(initialShareFilters);
+      if (initialShareToggles) {
+        setRelaxedMode(initialShareToggles.compactMode);
+        setIncrementalPagination(initialShareToggles.incrementalPagination);
+        setShowAttributes(initialShareToggles.showAttributes);
+      }
+    }
+  }, [initialShareFilters, initialShareToggles]);
 
   // Live mode: fetch from API when filters or extraFilters change
   useEffect(() => {
@@ -825,6 +853,16 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition }: Tr
             className="hidden"
             onChange={handleFileUpload}
           />
+          {activeCheckout && !builderOpen && (
+            <Tooltip content="Share current view with filters" placement="bottom">
+              <Button variant="ghost" size="xs" onClick={() => setShareDialogOpen(true)}>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                </svg>
+                Share
+              </Button>
+            </Tooltip>
+          )}
           {!builderOpen && !isLiveMode && <Button variant="primary" size="xs" onClick={() => {
             fileInputRef.current?.click()
           }}>
@@ -1214,6 +1252,18 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition }: Tr
       )}
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
+      {activeCheckout && (
+        <ShareLinkDialog
+          open={shareDialogOpen}
+          onClose={() => setShareDialogOpen(false)}
+          bank={activeCheckout.bank}
+          side={activeCheckout.side}
+          filters={filters}
+          toggles={{ compactMode: relaxedMode, incrementalPagination, showAttributes }}
+          sharedBy={operatorName ?? 'Unknown'}
+        />
+      )}
     </div>
   );
 }
