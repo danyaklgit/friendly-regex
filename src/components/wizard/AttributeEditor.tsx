@@ -231,7 +231,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
           {/* Header: collapse arrow + preview + Remove */}
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 flex-1 min-w-0">
-              {attribute.attributeTag.trim().length > 0 && hasSaved && (
+              {attribute.attributeTag.trim().length > 0 && hasSaved && !hasChanges && (
                 <button
                   type="button"
                   onClick={() => setEditing(false)}
