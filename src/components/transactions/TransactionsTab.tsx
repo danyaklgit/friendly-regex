@@ -663,17 +663,10 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition }: Tr
   const handleWizardClose = useCallback(() => {
     setWizardOpen(false);
     setWizardInitialState(undefined);
-    setEditingDef(undefined);
-    setEditingParentLib(undefined);
     setWizardInitialStep(undefined);
     setWizardFromCheckout(false);
-    setBuilderOpen(false);
-    builder.resetForm();
-    if (tagClickState !== null) {
-      setFilters(tagClickState.preFilters);
-      setTagClickState(null);
-    }
-  }, [builder, tagClickState]);
+    // Keep the builder open with current form state — don't reset anything else
+  }, []);
 
   // Click a tag badge in the table → load into rule builder for live editing
   // Primary call: filter by TagSpecDefinitionId (shows only transactions matched by this rule)
