@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo, useLayoutEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useMemo, useLayoutEffect, useCallback, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { DropdownBackdrop } from './DropdownBackdrop';
 
@@ -6,6 +6,8 @@ interface SearchableSelectOption {
   value: string;
   label: string;
   sublabel?: string;
+  /** Custom rich content to render instead of the plain sublabel text */
+  sublabelNode?: ReactNode;
 }
 
 interface SearchableSelectProps {
@@ -152,8 +154,8 @@ export function SearchableSelect({
                     }`}
                   >
                     <span>{opt.label}</span>
-                    {opt.sublabel && (
-                      <span className="text-[10px] text-faint">{opt.sublabel}</span>
+                    {(opt.sublabelNode || opt.sublabel) && (
+                      <span className="text-[10px] text-faint">{opt.sublabelNode ?? opt.sublabel}</span>
                     )}
                   </button>
                 ))

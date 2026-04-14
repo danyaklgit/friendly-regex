@@ -9,6 +9,7 @@ export interface TransformationArgDef {
 export interface TransformationMethodDef {
   key: string;
   label: string;
+  description?: string;
   category: string;
   args: TransformationArgDef[];
 }

@@ -3,6 +3,7 @@ export interface LOVListItem {
   StatusName: string | null;
   Value: string;
   Name: string;
+  Description?: string;
   Tags: string[];
 }
 

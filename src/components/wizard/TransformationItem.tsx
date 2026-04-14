@@ -1,3 +1,4 @@
+import { type ReactNode } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { TransformationFormValue } from '../../types';
@@ -148,19 +149,109 @@ export function TransformationItem({
   );
 }
 
+/** Strip surrounding quotes from a string */
+function stripQuotes(s: string): string {
+  return s.replace(/^["']|["']$/g, '');
+}
+
+/** Compute LCS kept-index sets for both strings */
+function lcsKeptSets(a: string, b: string): { keptA: Set<number>; keptB: Set<number> } {
+  const m = a.length, n = b.length;
+  const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1]);
+
+  const keptA = new Set<number>();
+  const keptB = new Set<number>();
+  let i = m, j = n;
+  while (i > 0 && j > 0) {
+    if (a[i - 1] === b[j - 1]) { keptA.add(i - 1); keptB.add(j - 1); i--; j--; }
+    else if (dp[i - 1][j] >= dp[i][j - 1]) i--;
+    else j--;
+  }
+  return { keptA, keptB };
+}
+
+/** Highlight removed characters in the input (red).
+ *  Only highlights when characters were actually removed (output shorter),
+ *  not when they were just changed (e.g. case change). */
+function highlightRemoved(text: string, kept: Set<number>, outputLen: number): ReactNode {
+  if (outputLen >= text.length) return <>{text}</>;
+
+  const spans: ReactNode[] = [];
+  let k = 0;
+  while (k < text.length) {
+    const isRemoved = !kept.has(k);
+    let end = k;
+    while (end < text.length && !kept.has(end) === isRemoved) end++;
+    const chunk = text.slice(k, end);
+    spans.push(isRemoved
+      ? <span key={k} className="text-amber-500 font-medium bg-amber-500/20 rounded-sm border border-amber-500/25">{chunk}</span>
+      : <span key={k}>{chunk}</span>);
+    k = end;
+  }
+  return <>{spans}</>;
+}
+
+/** Highlight added/changed characters in the output (primary) */
+function highlightAdded(text: string, kept: Set<number>): ReactNode {
+  const spans: ReactNode[] = [];
+  let k = 0;
+  while (k < text.length) {
+    const isAdded = !kept.has(k);
+    let end = k;
+    while (end < text.length && !kept.has(end) === isAdded) end++;
+    const chunk = text.slice(k, end);
+    spans.push(isAdded
+      ? <span key={k} className="text-primary font-medium">{chunk}</span>
+      : <span key={k}>{chunk}</span>);
+    k = end;
+  }
+  return <>{spans}</>;
+}
+
+/** Build a rich sublabel node from the description's example portion */
+function buildExampleNode(description?: string): ReactNode | undefined {
+  if (!description) return undefined;
+  const hasArgs = /Args[^.]*\./i.test(description) && !/No args\./i.test(description);
+  const match = description.match(/(?:No args\.|Args[^.]*\.)\s*(.*)/i);
+  const example = match?.[1]?.trim();
+  if (!example) return undefined;
+
+  const parts = example.split(/\s*->\s*/);
+  if (parts.length === 2) {
+    const raw0 = parts[0].trim();
+    const raw1 = parts[1].trim();
+    const inner0 = stripQuotes(raw0);
+    // Keep quotes when whitespace matters (leading/trailing spaces or multiple consecutive spaces)
+    const keepQuotes = inner0 !== inner0.trim() || /\s{2,}/.test(inner0);
+    const input = keepQuotes ? raw0 : inner0;
+    const output = keepQuotes ? raw1 : stripQuotes(raw1);
+
+    const { keptA, keptB } = lcsKeptSets(input, output);
+    return (
+      <span className="font-mono">
+        {hasArgs ? input : highlightRemoved(input, keptA, output.length)} &rarr; {highlightAdded(output, keptB)}
+      </span>
+    );
+  }
+  return <span>{stripQuotes(example)}</span>;
+}
+
 function buildMethodOptions(methods: TransformationMethodDef[]) {
-  const options: { value: string; label: string; sublabel?: string }[] = [];
+  const options: { value: string; label: string; sublabel?: string; sublabelNode?: ReactNode }[] = [];
   for (const cat of TRANSFORMATION_CATEGORIES) {
     const inCategory = methods.filter((m) => m.category === cat);
     for (const m of inCategory) {
-      options.push({ value: m.key, label: m.label, sublabel: cat });
+      options.push({ value: m.key, label: m.label, sublabel: cat, sublabelNode: buildExampleNode(m.description) });
     }
   }
   // Include any methods not in known categories
   const known = new Set(TRANSFORMATION_CATEGORIES as readonly string[]);
   for (const m of methods) {
     if (!known.has(m.category)) {
-      options.push({ value: m.key, label: m.label, sublabel: m.category });
+      options.push({ value: m.key, label: m.label, sublabel: m.category, sublabelNode: buildExampleNode(m.description) });
     }
   }
   return options;

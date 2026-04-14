@@ -193,6 +193,7 @@ export function LovAttributesProvider({ authToken, tepHeaders, children }: LovAt
         return {
           key: item.Value,
           label: item.Name,
+          description: item.Description,
           category: item.Tags?.[0] ?? local?.category ?? 'Other',
           args: local?.args ?? [],
         };
