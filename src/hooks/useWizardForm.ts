@@ -64,6 +64,7 @@ export function fromExistingDefinition(
         verifyValue: attr.AttributeRuleExpression.VerifyValue,
         lovTag: attr.LOVTag ?? null,
         isLovBased: !!attr.LOVTag,
+        _originalRegex: attr.AttributeRuleExpression.Regex || undefined,
         transformations: (attr.Transformations ?? [])
           .map((t) => ({
             id: crypto.randomUUID(),
