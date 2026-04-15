@@ -495,7 +495,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
           </div>
 
           {/* ── Post-extraction Transformations ── */}
-          {!attribute.isLovBased && !!attribute.sourceField && !(readOnly && (attribute.transformations ?? []).length === 0) && (
+          {!!attribute.sourceField && !(readOnly && (attribute.transformations ?? []).length === 0) && (
             <div className="border-t border-border-subtle pt-3">
               <TransformationList
                 transformations={attribute.transformations ?? []}
