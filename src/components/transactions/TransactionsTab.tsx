@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useTransactionData } from '../../hooks/useTransactionData';
 import type { FilterProperty } from '../../api/transactions';
 import { useWizardForm, fromExistingDefinition } from '../../hooks/useWizardForm';
-import type { TagSpecDefinition, TagSpecLibrary, AnalyzedTransaction, WizardFormState, RuleExpression, CheckoutState } from '../../types';
+import type { TagSpecDefinition, TagSpecLibrary, AnalyzedTransaction, WizardFormState, RuleExpression, CheckoutState, TransactionRow } from '../../types';
 import type { WizardFormResult } from '../../hooks/useWizardForm';
 import { analyzeRow } from '../../utils/analyzeRow';
 import { regexify, regexifyExtraction, generateExpressionPrompt, generateExtractionPrompt } from '../../utils/regexify';
@@ -24,6 +24,8 @@ import { EmptyState } from '../shared/EmptyState';
 import { TransactionTypePicker } from '../shared/TransactionTypePicker';
 import { tagSpecLibrarySave } from '../../api/tagSpecSave';
 import { ShareLinkDialog } from '../shared/ShareLinkDialog';
+import { RowContextMenu } from './RowContextMenu';
+import { ViewContextModal } from './ViewContextModal';
 import { useTepConfig } from '../../context/TepConfigContext';
 import type { TepHeaders } from '../../api/transactions';
 
@@ -247,7 +249,10 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     } catch { return []; }
   });
   const [tableColumns, setTableColumns] = useState<ColumnDef[]>([]);
+  const [visibleTableColumns, setVisibleTableColumns] = useState<ColumnDef[]>([]);
   const [filters, setFilters] = useState<Record<string, Set<string>>>({});
+  const [contextMenu, setContextMenu] = useState<{ row: TransactionRow; x: number; y: number } | null>(null);
+  const [contextModalRow, setContextModalRow] = useState<TransactionRow | null>(null);
   const shareFiltersConsumed = useRef(false);
   const shareFiltersRef = useRef(initialShareFilters);
   const shareTogglesRef = useRef(initialShareToggles);
@@ -1129,6 +1134,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         hiddenColumns={effectiveHiddenColumns}
         columnOrder={columnOrder}
         onColumnsReady={setTableColumns}
+        onVisibleColumnsReady={setVisibleTableColumns}
         builderHeight={builderHeight}
         loading={loading}
         accentHue={190}
@@ -1138,6 +1144,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
 // 340 — pink
 // 30 — orange
 // 140 — green
+        onRowContextMenu={(row, x, y) => setContextMenu({ row, x, y })}
       />
       )}
 
@@ -1267,6 +1274,39 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
           sharedBy={operatorName ?? 'Unknown'}
         />
       )}
+
+      {contextMenu && (
+        <RowContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onViewContext={() => { setContextModalRow(contextMenu.row); setContextMenu(null); }}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
+
+      {contextModalRow && (() => {
+        const authHeaders = getAuthHeaders();
+        const token = authHeaders.Authorization?.replace('Bearer ', '') ?? '';
+        const tepHeaders: TepHeaders = {
+          apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
+          userId: userId ?? '',
+          tenantCode: tepConfig.ttpTenantCode,
+          languageCode: tepConfig.languageCode,
+          timeZone: tepConfig.timeZone,
+          requestId: tepConfig.ttpRequestId,
+        };
+        return (
+          <ViewContextModal
+            open
+            onClose={() => setContextModalRow(null)}
+            transaction={contextModalRow}
+            authToken={token}
+            tepHeaders={tepHeaders}
+            visibleColumns={visibleTableColumns}
+            libraries={effectiveLibraries}
+          />
+        );
+      })()}
     </div>
   );
 }
