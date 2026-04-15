@@ -5,6 +5,8 @@ import { buildShareUrl } from '../../utils/shareLink';
 import type { ShareToggles } from '../../utils/shareLink';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
 
+const NOTE_MAX_LENGTH = 500;
+
 interface ShareLinkDialogProps {
   open: boolean;
   onClose: () => void;
@@ -15,9 +17,14 @@ interface ShareLinkDialogProps {
   sharedBy: string;
 }
 
-/** Produce a short human-readable summary of the active filters (excluding bank/side base). */
-function summarizeFilters(filters: Record<string, Set<string>>): string[] {
-  const lines: string[] = [];
+interface FilterSummaryEntry {
+  label: string;
+  values: string[];
+}
+
+/** Produce a structured summary of the active filters (excluding bank/side base). */
+function summarizeFilters(filters: Record<string, Set<string>>): FilterSummaryEntry[] {
+  const entries: FilterSummaryEntry[] = [];
   for (const [key, values] of Object.entries(filters)) {
     if (values.size === 0) continue;
     const label = key.startsWith('data:')
@@ -29,10 +36,9 @@ function summarizeFilters(filters: Record<string, Set<string>>): string[] {
       : key.endsWith('_GTE') ? `${humanizeFieldName(key.replace(/_GTE$/, ''))} (min)`
       : key.endsWith('_LTE') ? `${humanizeFieldName(key.replace(/_LTE$/, ''))} (max)`
       : humanizeFieldName(key);
-    const vals = [...values].join(', ');
-    lines.push(`${label}: ${vals}`);
+    entries.push({ label, values: [...values] });
   }
-  return lines;
+  return entries;
 }
 
 export function ShareLinkDialog({ open, onClose, bank, side, filters, toggles, sharedBy }: ShareLinkDialogProps) {
@@ -87,8 +93,8 @@ export function ShareLinkDialog({ open, onClose, bank, side, filters, toggles, s
     >
       <div className="space-y-4">
         {/* URL field */}
-        <div>
-          <label className="block text-xs font-medium text-body mb-1 pl-1">Link</label>
+        <div className="space-y-2">
+          <label className="block text-xs font-semibold text-primary uppercase tracking-wide">Link</label>
           <div className="flex gap-2">
             <input
               readOnly
@@ -100,40 +106,59 @@ export function ShareLinkDialog({ open, onClose, bank, side, filters, toggles, s
         </div>
 
         {/* Note textarea */}
-        <div>
-          <label className="block text-xs font-medium text-body mb-1 pl-1">
-            Add a note <span className="text-faint font-normal">(optional)</span>
+        <div className="border-t border-border-subtle pt-3 space-y-2">
+          <label className="block text-xs font-semibold text-primary uppercase tracking-wide">
+            Add a note <span className="text-faint font-normal normal-case tracking-normal">(optional)</span>
           </label>
-          <textarea
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="Add context for the recipient..."
-            rows={3}
-            maxLength={500}
-            className="block w-full rounded-lg border border-input-border bg-input-bg px-3 py-2 text-sm text-heading placeholder:text-placeholder focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors resize-none"
-          />
+          <div className="relative">
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Add context for the recipient..."
+              rows={3}
+              maxLength={NOTE_MAX_LENGTH}
+              className="block w-full rounded-lg border border-input-border bg-input-bg px-3 py-2 pb-5 text-sm text-heading placeholder:text-placeholder focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors resize-none"
+            />
+            <span
+              className={`pointer-events-none absolute bottom-1.5 right-2.5 text-[10px] font-mono tabular-nums transition-colors
+                ${note.length === 0
+                  ? 'text-faint'
+                  : note.length >= NOTE_MAX_LENGTH
+                    ? 'text-primary-dark font-semibold'
+                    : 'text-body-secondary'
+                }`}
+              aria-live="polite"
+            >
+              {note.length}/{NOTE_MAX_LENGTH}
+            </span>
+          </div>
         </div>
 
         {/* Filter & toggle summary */}
-        {(filterSummary.length > 0 || toggles) && (
-          <div className="rounded-lg bg-surface-hover/50 px-3 py-2.5 space-y-2">
-            {filterSummary.length > 0 && (
-              <div>
-                <p className="text-xs font-medium text-body-secondary mb-1">Included filters</p>
-                <ul className="space-y-0.5">
-                  {filterSummary.map((line) => (
-                    <li key={line} className="text-xs text-body-secondary truncate">{line}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            <div>
-              <p className="text-xs font-medium text-body-secondary mb-1">View settings</p>
-              <ul className="space-y-0.5 text-xs text-body-secondary">
-                <li>Compact mode: {toggles.compactMode ? 'on' : 'off'}</li>
-                <li>Incremental pagination: {toggles.incrementalPagination ? 'on' : 'off'}</li>
-                <li>Show attributes: {toggles.showAttributes ? 'on' : 'off'}</li>
-              </ul>
+        {filterSummary.length > 0 && (
+          <div className="border-t border-border-subtle pt-3 space-y-2">
+            <p className="text-xs font-semibold text-primary uppercase tracking-wide">Included filters</p>
+            <div className="flex flex-wrap gap-1.5">
+              {filterSummary.map(({ label, values }) => (
+                <span
+                  key={label}
+                  className="inline-flex items-center gap-1.5 bg-primary/10 border border-primary/30 text-primary-dark text-xs px-2.5 py-1 rounded-lg max-w-full"
+                >
+                  <span className="font-medium shrink-0">{label}:</span>
+                  <span className="truncate">{values.join(', ')}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {toggles && (
+          <div className="border-t border-border-subtle pt-3 space-y-2">
+            <p className="text-xs font-semibold text-primary uppercase tracking-wide">View settings</p>
+            <div className="flex flex-wrap gap-1.5">
+              <ToggleBadge label="Compact mode" checked={toggles.compactMode} />
+              <ToggleBadge label="Incremental pagination" checked={toggles.incrementalPagination} />
+              <ToggleBadge label="Show attributes" checked={toggles.showAttributes} />
             </div>
           </div>
         )}
@@ -143,5 +168,29 @@ export function ShareLinkDialog({ open, onClose, bank, side, filters, toggles, s
         </p>
       </div>
     </Modal>
+  );
+}
+
+/** Read-only visual badge mirroring the Toggle component's aesthetic — shows on/off state for a setting. */
+export function ToggleBadge({ label, checked }: { label: string; checked: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-lg text-xs font-medium border
+        ${checked
+          ? 'bg-primary/10 border-primary/30 text-primary-dark dark:text-primary'
+          : 'bg-surface border-border-strong text-body-secondary'
+        }`}
+    >
+      <span
+        className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors shrink-0
+          ${checked ? 'bg-primary' : 'bg-border-strong dark:bg-faint'}`}
+      >
+        <span
+          className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform
+            ${checked ? 'translate-x-3.5' : 'translate-x-0.5'}`}
+        />
+      </span>
+      {label}
+    </span>
   );
 }
