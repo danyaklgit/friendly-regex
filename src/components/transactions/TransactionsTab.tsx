@@ -249,6 +249,11 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const [tableColumns, setTableColumns] = useState<ColumnDef[]>([]);
   const [filters, setFilters] = useState<Record<string, Set<string>>>({});
   const shareFiltersConsumed = useRef(false);
+  const shareFiltersRef = useRef(initialShareFilters);
+  const shareTogglesRef = useRef(initialShareToggles);
+  // Keep refs in sync (only updates on first non-null value)
+  if (initialShareFilters && !shareFiltersRef.current) shareFiltersRef.current = initialShareFilters;
+  if (initialShareToggles && !shareTogglesRef.current) shareTogglesRef.current = initialShareToggles;
   // State for tag-click drill-down: tracks both definition-ID and tag-name queries
   const [tagClickState, setTagClickState] = useState<{
     preFilters: Record<string, Set<string>>;  // filters before tag click (restored on close)
@@ -351,16 +356,20 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // Apply checkout filters when checkout state changes.
   // When share filters are pending, merge them with baseFilters so they aren't lost
   // when filterDefinitions load (which causes baseFilters to recompute with live-mode keys).
+  // Reads share data from refs (not props) to avoid re-runs when banner is dismissed.
   useEffect(() => {
     if (baseFilters) {
-      if (initialShareFilters && !shareFiltersConsumed.current) {
-        // Merge: baseFilters (bank/side) + share filters (all others).
-        // Share filters override base for overlapping keys.
-        setFilters({ ...baseFilters, ...initialShareFilters });
-        // Only mark consumed once filterDefinitions are loaded (live mode keys settled),
-        // so a subsequent baseFilters recompute still preserves share filters.
+      if (shareFiltersRef.current && !shareFiltersConsumed.current) {
+        setFilters({ ...baseFilters, ...shareFiltersRef.current });
+        // Only mark consumed once filterDefinitions are loaded (live mode keys settled)
         if (!isLiveMode || filterDefinitions.length > 0) {
           shareFiltersConsumed.current = true;
+          // Apply toggles at the same time
+          if (shareTogglesRef.current) {
+            setRelaxedMode(shareTogglesRef.current.compactMode);
+            setIncrementalPagination(shareTogglesRef.current.incrementalPagination);
+            setShowAttributes(shareTogglesRef.current.showAttributes);
+          }
         }
       } else {
         setFilters({ ...baseFilters });
@@ -368,16 +377,8 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       setShowOnlyUntagged(false);
       setShowOnlyMultiTagged(false);
     }
-  }, [baseFilters, initialShareFilters, isLiveMode, filterDefinitions.length]);
-
-  // Apply shared toggles once
-  useEffect(() => {
-    if (initialShareToggles && !shareFiltersConsumed.current) {
-      setRelaxedMode(initialShareToggles.compactMode);
-      setIncrementalPagination(initialShareToggles.incrementalPagination);
-      setShowAttributes(initialShareToggles.showAttributes);
-    }
-  }, [initialShareToggles]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [baseFilters]);
 
   // Live mode: fetch from API when filters or extraFilters change
   useEffect(() => {

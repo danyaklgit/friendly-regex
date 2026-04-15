@@ -4,8 +4,22 @@ import { Button } from './Button';
 import { buildShareUrl } from '../../utils/shareLink';
 import type { ShareToggles } from '../../utils/shareLink';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
+import { useTransactionData } from '../../hooks/useTransactionData';
+import type { FilterDefinition } from '../../api/transactions';
 
 const NOTE_MAX_LENGTH = 500;
+
+/** Resolve a stored filter value to the human-readable Label used in the filter UI. Falls back to the raw value. */
+function resolveValueLabel(key: string, value: string, defs: FilterDefinition[]): string {
+  if (!defs.length) return value;
+  if (key.startsWith('__') || key.endsWith('_GTE') || key.endsWith('_LTE')) return value;
+  const column = key.startsWith('data:') ? key.slice(5) : key;
+  const def = defs.find(
+    (d) => d.Tag === key || d.Tag === column || d.Values.some((v) => v.Column === column),
+  );
+  const match = def?.Values.find((v) => v.Column === value || v.Value === value);
+  return match?.Label ?? value;
+}
 
 interface ShareLinkDialogProps {
   open: boolean;
@@ -23,20 +37,27 @@ interface FilterSummaryEntry {
 }
 
 /** Produce a structured summary of the active filters (excluding bank/side base). */
-function summarizeFilters(filters: Record<string, Set<string>>): FilterSummaryEntry[] {
+function summarizeFilters(
+  filters: Record<string, Set<string>>,
+  defs: FilterDefinition[],
+): FilterSummaryEntry[] {
   const entries: FilterSummaryEntry[] = [];
   for (const [key, values] of Object.entries(filters)) {
     if (values.size === 0) continue;
-    const label = key.startsWith('data:')
-      ? humanizeFieldName(key.slice(5))
-      : key === '__dates' ? 'Dates'
-      : key === '__debit' ? 'Debit Amount'
-      : key === '__credit' ? 'Credit Amount'
-      : key === '__tags' ? 'Tags'
-      : key.endsWith('_GTE') ? `${humanizeFieldName(key.replace(/_GTE$/, ''))} (min)`
-      : key.endsWith('_LTE') ? `${humanizeFieldName(key.replace(/_LTE$/, ''))} (max)`
-      : humanizeFieldName(key);
-    entries.push({ label, values: [...values] });
+    // Prefer the filter definition's human label when available, falling back to humanizeFieldName.
+    const defLabel = defs.find((d) => d.Tag === key)?.Label;
+    const label = defLabel
+      ?? (key.startsWith('data:')
+        ? humanizeFieldName(key.slice(5))
+        : key === '__dates' ? 'Dates'
+        : key === '__debit' ? 'Debit Amount'
+        : key === '__credit' ? 'Credit Amount'
+        : key === '__tags' ? 'Tags'
+        : key.endsWith('_GTE') ? `${humanizeFieldName(key.replace(/_GTE$/, ''))} (min)`
+        : key.endsWith('_LTE') ? `${humanizeFieldName(key.replace(/_LTE$/, ''))} (max)`
+        : humanizeFieldName(key));
+    const resolved = [...values].map((v) => resolveValueLabel(key, v, defs));
+    entries.push({ label, values: resolved });
   }
   return entries;
 }
@@ -44,6 +65,7 @@ function summarizeFilters(filters: Record<string, Set<string>>): FilterSummaryEn
 export function ShareLinkDialog({ open, onClose, bank, side, filters, toggles, sharedBy }: ShareLinkDialogProps) {
   const [note, setNote] = useState('');
   const [copied, setCopied] = useState(false);
+  const { filterDefinitions } = useTransactionData();
 
   // Reset note when dialog opens
   useEffect(() => {
@@ -54,7 +76,7 @@ export function ShareLinkDialog({ open, onClose, bank, side, filters, toggles, s
     ? buildShareUrl({ bank, side, filters, toggles, note: note.trim() || undefined, sharedBy })
     : '';
 
-  const filterSummary = summarizeFilters(filters);
+  const filterSummary = summarizeFilters(filters, filterDefinitions);
 
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(url).then(() => {
@@ -93,8 +115,8 @@ export function ShareLinkDialog({ open, onClose, bank, side, filters, toggles, s
     >
       <div className="space-y-4">
         {/* URL field */}
-        <div className="space-y-2">
-          <label className="block text-xs font-semibold text-primary uppercase tracking-wide">Link</label>
+        {/* <div>
+          <label className="block text-xs font-medium text-body mb-1 pl-1">Link</label>
           <div className="flex gap-2">
             <input
               readOnly
@@ -103,7 +125,7 @@ export function ShareLinkDialog({ open, onClose, bank, side, filters, toggles, s
               onFocus={(e) => e.target.select()}
             />
           </div>
-        </div>
+        </div> */}
 
         {/* Note textarea */}
         <div className="border-t border-border-subtle pt-3 space-y-2">
@@ -152,7 +174,7 @@ export function ShareLinkDialog({ open, onClose, bank, side, filters, toggles, s
           </div>
         )}
 
-        {toggles && (
+        {/* {toggles && (
           <div className="border-t border-border-subtle pt-3 space-y-2">
             <p className="text-xs font-semibold text-primary uppercase tracking-wide">View settings</p>
             <div className="flex flex-wrap gap-1.5">
@@ -161,7 +183,7 @@ export function ShareLinkDialog({ open, onClose, bank, side, filters, toggles, s
               <ToggleBadge label="Show attributes" checked={toggles.showAttributes} />
             </div>
           </div>
-        )}
+        )} */}
 
         <p className="text-xs text-faint">
           This link includes the selected bank, side, filters, and view settings.

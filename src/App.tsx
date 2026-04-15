@@ -37,7 +37,11 @@ function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps
   const [activeCheckout, setActiveCheckout] = useState<CheckoutState | null>(null);
   const [undoTarget, setUndoTarget] = useState<{ bank: string; side: string } | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  // shareData drives the banner popup; shareFilters/shareToggles are passed to
+  // TransactionsTab and must persist after the banner is dismissed.
   const [shareData, setShareData] = useState<ShareParams | null>(null);
+  const [shareFilters, setShareFilters] = useState<Record<string, Set<string>> | undefined>();
+  const [shareToggles, setShareToggles] = useState<ShareParams['toggles'] | undefined>();
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
 
   // On mount, consume share params stored before login
@@ -46,7 +50,9 @@ function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps
     if (stored) {
       setActiveCheckout({ bank: stored.bank, side: stored.side });
       setActiveTab(1);
-      setShareData(stored);
+      setShareData(stored);           // drives banner
+      setShareFilters(stored.filters); // persists for TransactionsTab
+      setShareToggles(stored.toggles); // persists for TransactionsTab
       clearShareParamsFromUrl();
     }
   }, []);
@@ -150,7 +156,7 @@ function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps
           onTabChange={setActiveTab}
           tabs={[
             { label: 'Backlog', content: <StatsTab onViewTransactions={handleViewTransactions} onViewAllTransactions={handleViewAllTransactions} onCheckoutComplete={handleCheckoutComplete} authToken={authToken} tepHeaders={tepHeaders} /> },
-            { label: 'Transactions', content: <TransactionsTab activeCheckout={activeCheckout} onClearPendingDefinition={() => setActiveCheckout(prev => prev ? { ...prev, pendingDefinitionId: undefined } : prev)} initialShareFilters={shareData?.filters} initialShareToggles={shareData?.toggles} operatorName={operatorName} shareDialogOpen={shareDialogOpen} onShareDialogClose={() => setShareDialogOpen(false)} /> },
+            { label: 'Transactions', content: <TransactionsTab activeCheckout={activeCheckout} onClearPendingDefinition={() => setActiveCheckout(prev => prev ? { ...prev, pendingDefinitionId: undefined } : prev)} initialShareFilters={shareFilters} initialShareToggles={shareToggles} operatorName={operatorName} shareDialogOpen={shareDialogOpen} onShareDialogClose={() => setShareDialogOpen(false)} /> },
             { label: 'Settings', content: <SettingsTab /> },
           ]}
           checkout={activeCheckout ? {
@@ -207,14 +213,18 @@ function AppContent() {
 
   const operatorName = displayName ?? username ?? undefined;
 
-  // Capture share params from URL before auth gate — store so AppShell can consume after login
-  useEffect(() => {
+  // Parse share params SYNCHRONOUSLY during render (not in useEffect) so they're
+  // in sessionStorage before AppShell's effects run (React runs child effects first).
+  const [shareParamsCaptured] = useState(() => {
     const share = parseShareParams();
     if (share) {
       storeShareParams(share);
       clearShareParamsFromUrl();
+      return true;
     }
-  }, []);
+    return false;
+  });
+  void shareParamsCaptured;
 
   if (!isAuthenticated) return <LoginPage />;
 
