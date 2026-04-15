@@ -93,8 +93,8 @@ export function ShareLinkDialog({ open, onClose, bank, side, filters, toggles, s
     >
       <div className="space-y-4">
         {/* URL field */}
-        <div className="space-y-2">
-          <label className="block text-xs font-semibold text-primary uppercase tracking-wide">Link</label>
+        {/* <div>
+          <label className="block text-xs font-medium text-body mb-1 pl-1">Link</label>
           <div className="flex gap-2">
             <input
               readOnly
@@ -103,7 +103,7 @@ export function ShareLinkDialog({ open, onClose, bank, side, filters, toggles, s
               onFocus={(e) => e.target.select()}
             />
           </div>
-        </div>
+        </div> */}
 
         {/* Note textarea */}
         <div className="border-t border-border-subtle pt-3 space-y-2">
