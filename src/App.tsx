@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useAuth } from './context/AuthContext';
 import { TagSpecProvider } from './context/TagSpecContext';
 import { TransactionDataProvider } from './context/TransactionDataContext';
@@ -13,10 +13,13 @@ import { TransactionsTab } from './components/transactions/TransactionsTab';
 import { SettingsTab } from './components/settings/SettingsTab';
 import { SessionWarningModal } from './components/shared/SessionWarningModal';
 import { UndoChangesDialog } from './components/shared/UndoChangesDialog';
+import { SharedLinkBanner } from './components/shared/SharedLinkBanner';
 import { OnboardingHub } from './components/onboarding/OnboardingHub';
 import { Toast } from './components/shared/Toast';
 import { tagSpecLibraryRelease, tagSpecLibraryCheckIn } from './api/checkout';
 import { tagSpecLibrarySave } from './api/tagSpecSave';
+import { parseShareParams, storeShareParams, consumeStoredShareParams, clearShareParamsFromUrl } from './utils/shareLink';
+import type { ShareParams } from './utils/shareLink';
 import type { CheckoutState } from './types';
 import type { TepHeaders } from './api/transactions';
 import { getContextValue } from './types/tagSpec';
@@ -34,6 +37,19 @@ function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps
   const [activeCheckout, setActiveCheckout] = useState<CheckoutState | null>(null);
   const [undoTarget, setUndoTarget] = useState<{ bank: string; side: string } | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [shareData, setShareData] = useState<ShareParams | null>(null);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+
+  // On mount, consume share params stored before login
+  useEffect(() => {
+    const stored = consumeStoredShareParams();
+    if (stored) {
+      setActiveCheckout({ bank: stored.bank, side: stored.side });
+      setActiveTab(1);
+      setShareData(stored);
+      clearShareParamsFromUrl();
+    }
+  }, []);
 
   const { libraries, refetchTagSpecs } = useTagSpecs();
   const { clearChanges, getChangeSummary, hasChanges } = useLocalChanges(activeCheckout?.bank, activeCheckout?.side);
@@ -134,7 +150,7 @@ function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps
           onTabChange={setActiveTab}
           tabs={[
             { label: 'Backlog', content: <StatsTab onViewTransactions={handleViewTransactions} onViewAllTransactions={handleViewAllTransactions} onCheckoutComplete={handleCheckoutComplete} authToken={authToken} tepHeaders={tepHeaders} /> },
-            { label: 'Transactions', content: <TransactionsTab activeCheckout={activeCheckout} onClearPendingDefinition={() => setActiveCheckout(prev => prev ? { ...prev, pendingDefinitionId: undefined } : prev)} /> },
+            { label: 'Transactions', content: <TransactionsTab activeCheckout={activeCheckout} onClearPendingDefinition={() => setActiveCheckout(prev => prev ? { ...prev, pendingDefinitionId: undefined } : prev)} initialShareFilters={shareData?.filters} initialShareToggles={shareData?.toggles} operatorName={operatorName} shareDialogOpen={shareDialogOpen} onShareDialogClose={() => setShareDialogOpen(false)} /> },
             { label: 'Settings', content: <SettingsTab /> },
           ]}
           checkout={activeCheckout ? {
@@ -147,6 +163,7 @@ function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps
             onRequestUndo: handleRequestUndo,
           } : undefined}
           onOpenOnboarding={() => setOnboardingOpen(true)}
+          onShare={activeCheckout ? () => setShareDialogOpen(true) : undefined}
         />
       </div>
       <UndoChangesDialog
@@ -162,6 +179,7 @@ function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps
         onClose={() => setOnboardingOpen(false)}
         onTabChange={setActiveTab}
       />
+      {shareData && <SharedLinkBanner share={shareData} onDismiss={() => setShareData(null)} />}
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </>
   );
@@ -188,6 +206,15 @@ function AppContent() {
   }, [userId, tepConfig]);
 
   const operatorName = displayName ?? username ?? undefined;
+
+  // Capture share params from URL before auth gate — store so AppShell can consume after login
+  useEffect(() => {
+    const share = parseShareParams();
+    if (share) {
+      storeShareParams(share);
+      clearShareParamsFromUrl();
+    }
+  }, []);
 
   if (!isAuthenticated) return <LoginPage />;
 
