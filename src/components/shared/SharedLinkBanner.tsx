@@ -1,14 +1,18 @@
 import { Button } from './Button';
-import { ToggleBadge } from './ShareLinkDialog';
+// import { ToggleBadge } from './ShareLinkDialog';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
 import type { ShareParams } from '../../utils/shareLink';
+import { useTransactionData } from '../../hooks/useTransactionData';
+import type { FilterDefinition } from '../../api/transactions';
 
 interface SharedLinkBannerProps {
   share: ShareParams;
   onDismiss: () => void;
 }
 
-function formatFilterKey(key: string): string {
+function formatFilterKey(key: string, defs: FilterDefinition[]): string {
+  const defLabel = defs.find((d) => d.Tag === key)?.Label;
+  if (defLabel) return defLabel;
   if (key.startsWith('data:')) return humanizeFieldName(key.slice(5));
   if (key === '__dates') return 'Dates';
   if (key === '__debit') return 'Debit Amount';
@@ -19,7 +23,20 @@ function formatFilterKey(key: string): string {
   return humanizeFieldName(key);
 }
 
+/** Resolve a stored filter value to the human-readable Label used in the filter UI. Falls back to the raw value. */
+function resolveValueLabel(key: string, value: string, defs: FilterDefinition[]): string {
+  if (!defs.length) return value;
+  if (key.startsWith('__') || key.endsWith('_GTE') || key.endsWith('_LTE')) return value;
+  const column = key.startsWith('data:') ? key.slice(5) : key;
+  const def = defs.find(
+    (d) => d.Tag === key || d.Tag === column || d.Values.some((v) => v.Column === column),
+  );
+  const match = def?.Values.find((v) => v.Column === value || v.Value === value);
+  return match?.Label ?? value;
+}
+
 export function SharedLinkBanner({ share, onDismiss }: SharedLinkBannerProps) {
+  const { filterDefinitions } = useTransactionData();
   const filterEntries = Object.entries(share.filters).filter(([, v]) => v.size > 0);
 
   return (
@@ -62,8 +79,10 @@ export function SharedLinkBanner({ share, onDismiss }: SharedLinkBannerProps) {
                     key={key}
                     className="inline-flex items-center gap-1.5 bg-primary/10 border border-primary/30 text-primary-dark text-xs px-2.5 py-1 rounded-lg max-w-full"
                   >
-                    <span className="font-medium shrink-0">{formatFilterKey(key)}:</span>
-                    <span className="truncate">{[...values].join(', ')}</span>
+                    <span className="font-medium shrink-0">{formatFilterKey(key, filterDefinitions)}:</span>
+                    <span className="truncate">
+                      {[...values].map((v) => resolveValueLabel(key, v, filterDefinitions)).join(', ')}
+                    </span>
                   </span>
                 ))}
               </div>
@@ -71,7 +90,7 @@ export function SharedLinkBanner({ share, onDismiss }: SharedLinkBannerProps) {
           )}
 
           {/* View settings */}
-          {share.toggles && (
+          {/* {share.toggles && (
             <div className="border-t border-border-subtle pt-3 space-y-2">
               <p className="text-xs font-semibold text-primary uppercase tracking-wide">View settings</p>
               <div className="flex flex-wrap gap-1.5">
@@ -80,7 +99,7 @@ export function SharedLinkBanner({ share, onDismiss }: SharedLinkBannerProps) {
                 <ToggleBadge label="Show attributes" checked={share.toggles.showAttributes} />
               </div>
             </div>
-          )}
+          )} */}
         </div>
 
         {/* Footer */}
