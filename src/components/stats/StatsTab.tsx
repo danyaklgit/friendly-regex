@@ -46,7 +46,7 @@ interface DisplayRow {
 }
 
 export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckoutComplete, authToken, tepHeaders }: StatsTabProps) {
-  const { libraries, tagDefinitions, loading, refetchTagSpecs, dispatch, taggingProgress, isPairBeingTagged, getTaggingFirstSeen } = useTagSpecs();
+  const { libraries, tagDefinitions, loading, refetchTagSpecs, refetchLibraries, dispatch, taggingProgress, isPairBeingTagged, getTaggingFirstSeen } = useTagSpecs();
   const { usersMap, useDummyData, userId } = useAuth();
   const { clearChanges } = useLocalChanges(undefined, undefined);
   const { filterDefinitions, filterDefinitionsLoading, fetchFilterDefinitions, isLiveMode } = useTransactionData();
@@ -95,36 +95,36 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
     }
   }, [authToken, tepHeaders]);
 
-  // Full refresh after a write action: pulls libraries, TaggingProgress, and backlog stats.
-  // The delayed second pass at ~2.5s catches backend state that lags one request.
-  // Used for checkout (no tagging trigger — the light schedule is enough).
+  // Refresh after a write action: pulls libraries + TaggingProgress (lightweight — no
+  // hierarchy) and backlog stats. The delayed second pass at ~2.5s catches backend state
+  // that lags one request. Used for checkout (no tagging trigger — the light schedule is enough).
   const refreshAfterAction = useCallback(() => {
-    refetchTagSpecs();
+    refetchLibraries();
     refetchBacklogStats();
     const id = setTimeout(() => {
-      refetchTagSpecs();
+      refetchLibraries();
       refetchBacklogStats();
     }, 2500);
     return () => clearTimeout(id);
-  }, [refetchTagSpecs, refetchBacklogStats]);
+  }, [refetchLibraries, refetchBacklogStats]);
 
   // Aggressive post-action refresh for checkin/rollback — these trigger a backend tagging
   // job whose creation latency varies (sometimes immediate, sometimes 10-20s). We fire
-  // GetTagSpecLibraries at a staggered schedule covering a 30-second window so the new
-  // TaggingProgress entry appears without the user needing to manually refresh the page.
+  // GetTagSpecLibraries (lightweight) at a staggered schedule covering a 30-second window
+  // so the new TaggingProgress entry appears without the user needing to manually refresh.
   // Intentionally NOT an idle timer — only runs when the user clicks Checkin or Rollback.
   const refreshAfterTaggingTrigger = useCallback(() => {
-    refetchTagSpecs();
+    refetchLibraries();
     refetchBacklogStats();
     const delays = [2_500, 7_000, 15_000, 30_000];
     const timers = delays.map((d) =>
       setTimeout(() => {
-        refetchTagSpecs();
+        refetchLibraries();
         refetchBacklogStats();
       }, d),
     );
     return () => timers.forEach(clearTimeout);
-  }, [refetchTagSpecs, refetchBacklogStats]);
+  }, [refetchLibraries, refetchBacklogStats]);
 
   // Background refetch on mount (fires each time user navigates to Backlog tab)
   useEffect(() => {

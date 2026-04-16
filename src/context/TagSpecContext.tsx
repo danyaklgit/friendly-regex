@@ -209,7 +209,10 @@ export interface TagSpecContextValue {
   originalDefinitionIds: Set<string>;
   dispatch: Dispatch<TagSpecAction>;
   loading: boolean;
+  /** Full refetch: libraries + TaggingProgress + hierarchy. Use on mount or after hierarchy edits. */
   refetchTagSpecs: () => Promise<void>;
+  /** Lightweight refetch: only libraries + TaggingProgress. Use for polling and post-action refreshes. */
+  refetchLibraries: () => Promise<void>;
   refetchHierarchy: () => Promise<void>;
   tagsHierarchy: TagTreeNode[];
   tagsHierarchyLoading: boolean;
@@ -288,6 +291,56 @@ export function TagSpecProvider({ children, useDummyData, authToken, tepHeaders 
   ).current;
 
   const isFetchingRef = useRef(false);
+  const isFetchingLibsRef = useRef(false);
+
+  // Lightweight: only libraries + TaggingProgress. Skips hierarchy entirely.
+  // Used by polling and post-action refreshes where hierarchy data doesn't change.
+  const fetchLibrariesOnly = useCallback(async () => {
+    if (useDummyData || !authToken || !tepHeaders) return;
+    if (isFetchingLibsRef.current) return;
+    isFetchingLibsRef.current = true;
+    try {
+      const libsResult = await getTagSpecLibraries(authToken, tepHeaders);
+      const libsData = libsResult.libraries;
+      setTaggingProgress(libsResult.taggingProgress);
+      // Record first-seen timestamps for newly-observed tagging entries; prune removed ones.
+      const observedAt = Date.now();
+      const currentIds = new Set(Object.keys(libsResult.taggingProgress));
+      for (const libId of currentIds) {
+        if (!firstSeenRef.current.has(libId)) {
+          firstSeenRef.current.set(libId, observedAt);
+        }
+      }
+      for (const libId of Array.from(firstSeenRef.current.keys())) {
+        if (!currentIds.has(libId)) {
+          firstSeenRef.current.delete(libId);
+        }
+      }
+      // Merge localStorage overrides for checked-out pairs
+      const mergedLibs = libsData.map((lib) => {
+        if (lib.StatusTag !== 'INPROGRESS' || !lib.OperatorId) return lib;
+        const bank = getContextValue(lib.Context, 'BankSwiftCode') ?? '';
+        const side = getContextValue(lib.Context, 'Side') ?? '';
+        const localKey = `tep:current:${bank}:${side}`;
+        try {
+          const raw = localStorage.getItem(localKey);
+          if (raw) {
+            const localLib = JSON.parse(raw) as TagSpecLibrary;
+            return { ...lib, TagSpecDefinitions: localLib.TagSpecDefinitions };
+          }
+        } catch { /* ignore parse errors */ }
+        return lib;
+      });
+      dispatch({ type: 'REPLACE_ALL', payload: mergedLibs });
+      const ids = flattenDefinitions(mergedLibs).map((d) => d.Id);
+      for (const id of ids) originalDefinitionIds.add(id);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      console.error('Failed to fetch libraries:', err);
+    } finally {
+      isFetchingLibsRef.current = false;
+    }
+  }, [useDummyData, authToken, tepHeaders, originalDefinitionIds]);
 
   const fetchTagSpecs = useCallback(async (signal?: AbortSignal) => {
     if (useDummyData || !authToken || !tepHeaders) return;
@@ -358,15 +411,20 @@ export function TagSpecProvider({ children, useDummyData, authToken, tepHeaders 
     return fetchTagSpecs();
   }, [fetchTagSpecs]);
 
-  // Background polling: while ANY tagging job is IN_PROGRESS, refetch every 6 seconds
-  // so ProcessedTransactions updates live. Polling stops automatically when no jobs remain.
+  const refetchLibraries = useCallback(() => {
+    return fetchLibrariesOnly();
+  }, [fetchLibrariesOnly]);
+
+  // Background polling: while ANY tagging job is IN_PROGRESS, refetch libraries every
+  // 6 seconds so ProcessedTransactions updates live. Uses the lightweight path — no
+  // hierarchy fetch — since the tag tree doesn't change during tagging.
   useEffect(() => {
     if (useDummyData) return;
     const hasActive = Object.values(taggingProgress).some((e) => e.Status === 'IN_PROGRESS');
     if (!hasActive) return;
-    const id = setInterval(() => { refetchTagSpecs(); }, 6000);
+    const id = setInterval(() => { refetchLibraries(); }, 6000);
     return () => clearInterval(id);
-  }, [taggingProgress, useDummyData, refetchTagSpecs]);
+  }, [taggingProgress, useDummyData, refetchLibraries]);
 
   const isLibraryBeingTagged = useCallback(
     (libraryId: string | null | undefined): boolean => {
@@ -415,12 +473,12 @@ export function TagSpecProvider({ children, useDummyData, authToken, tepHeaders 
   }, [useDummyData, authToken, tepHeaders]);
 
   const value = useMemo<TagSpecContextValue>(() => ({
-    libraries, tagDefinitions, originalDefinitionIds, dispatch, loading, refetchTagSpecs, refetchHierarchy,
+    libraries, tagDefinitions, originalDefinitionIds, dispatch, loading, refetchTagSpecs, refetchLibraries, refetchHierarchy,
     tagsHierarchy, tagsHierarchyLoading,
     rawHierarchyNodes, hierarchyWrapper, originalRawNodes, hierarchyDispatch,
     setOriginalRawNodes, setHierarchyWrapper,
     taggingProgress, isLibraryBeingTagged, isPairBeingTagged, getTaggingFirstSeen,
-  }), [libraries, tagDefinitions, originalDefinitionIds, loading, refetchTagSpecs, refetchHierarchy, tagsHierarchy, tagsHierarchyLoading, rawHierarchyNodes, hierarchyWrapper, originalRawNodes, taggingProgress, isLibraryBeingTagged, isPairBeingTagged, getTaggingFirstSeen]);
+  }), [libraries, tagDefinitions, originalDefinitionIds, loading, refetchTagSpecs, refetchLibraries, refetchHierarchy, tagsHierarchy, tagsHierarchyLoading, rawHierarchyNodes, hierarchyWrapper, originalRawNodes, taggingProgress, isLibraryBeingTagged, isPairBeingTagged, getTaggingFirstSeen]);
 
   return (
     <TagSpecContext.Provider value={value}>
