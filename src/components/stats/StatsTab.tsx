@@ -96,15 +96,12 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
   }, [authToken, tepHeaders]);
 
   // Refresh after a write action: pulls libraries + TaggingProgress (lightweight — no
-  // hierarchy) and backlog stats. The delayed second pass at ~2.5s catches backend state
-  // that lags one request. Used for checkout (no tagging trigger — the light schedule is enough).
+  // hierarchy) and backlog stats once. The delayed retry at ~2.5s only pulls libraries
+  // since backlog stats don't change that fast. Used for checkout.
   const refreshAfterAction = useCallback(() => {
     refetchLibraries();
     refetchBacklogStats();
-    const id = setTimeout(() => {
-      refetchLibraries();
-      refetchBacklogStats();
-    }, 2500);
+    const id = setTimeout(() => { refetchLibraries(); }, 2500);
     return () => clearTimeout(id);
   }, [refetchLibraries, refetchBacklogStats]);
 
@@ -112,16 +109,15 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
   // job whose creation latency varies (sometimes immediate, sometimes 10-20s). We fire
   // GetTagSpecLibraries (lightweight) at a staggered schedule covering a 30-second window
   // so the new TaggingProgress entry appears without the user needing to manually refresh.
-  // Intentionally NOT an idle timer — only runs when the user clicks Checkin or Rollback.
+  // Backlog stats are fetched once up front; the delayed retries only pull libraries +
+  // TaggingProgress since Clean/Issues/Untagged counts don't change while we're waiting
+  // for the tagging entry to appear.
   const refreshAfterTaggingTrigger = useCallback(() => {
     refetchLibraries();
     refetchBacklogStats();
     const delays = [2_500, 7_000, 15_000, 30_000];
     const timers = delays.map((d) =>
-      setTimeout(() => {
-        refetchLibraries();
-        refetchBacklogStats();
-      }, d),
+      setTimeout(() => { refetchLibraries(); }, d),
     );
     return () => timers.forEach(clearTimeout);
   }, [refetchLibraries, refetchBacklogStats]);
@@ -146,6 +142,17 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // When tagging finishes (all IN_PROGRESS entries disappear), refresh backlog stats
+  // so the Clean/Issues/Untagged counts reflect the newly tagged transactions.
+  const hadActiveTaggingRef = useRef(false);
+  useEffect(() => {
+    const hasActive = Object.values(taggingProgress).some((e) => e.Status === 'IN_PROGRESS');
+    if (hadActiveTaggingRef.current && !hasActive) {
+      refetchBacklogStats();
+    }
+    hadActiveTaggingRef.current = hasActive;
+  }, [taggingProgress, refetchBacklogStats]);
 
   const rows = useMemo<DisplayRow[]>(() => {
     const referencedIds = new Set(
