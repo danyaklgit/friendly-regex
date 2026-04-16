@@ -112,6 +112,24 @@ export interface TagSpecLibrary {
   TagSpecDefinitions: TagSpecDefinition[];
 }
 
+// --- Background tagging progress (sibling field of TagSpecLibs in the GetTagSpecLibraries response) ---
+
+export type TaggingProgressStatus = 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
+
+export interface TaggingProgressEntry {
+  Id: string;
+  TagSpecLibraryId: string;
+  DataSetType: string;
+  TotalTransactions: number;
+  ProcessedTransactions: number;
+  Status: TaggingProgressStatus;
+  StartedAt: string;
+  CompletedAt: string | null;
+  ErrorMessage: string | null;
+}
+
+export type TaggingProgressMap = Record<string, TaggingProgressEntry>;
+
 // --- Analysis Results ---
 
 export interface RowAnalysisResult {

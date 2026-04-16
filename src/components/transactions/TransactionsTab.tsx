@@ -153,7 +153,7 @@ function buildRulesetFilters(formState: WizardFormState): FilterProperty[] {
 }
 
 export function TransactionsTab({ activeCheckout, onClearPendingDefinition, initialShareFilters, initialShareToggles, operatorName, shareDialogOpen: shareDialogOpenProp, onShareDialogClose }: TransactionsTabProps) {
-  const { libraries, tagDefinitions, originalDefinitionIds, dispatch } = useTagSpecs();
+  const { libraries, tagDefinitions, originalDefinitionIds, dispatch, isPairBeingTagged } = useTagSpecs();
   const { userId, usersMap, getAuthHeaders, refreshIfNeeded } = useAuth();
   const tepConfig = useTepConfig();
   const { saveBaseline, updateCurrent } = useLocalChanges(activeCheckout?.bank, activeCheckout?.side);
@@ -168,10 +168,16 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         getContextValue(l.Context, 'Side') === activeCheckout.side
     );
     if (!inProgressLib || !inProgressLib.OperatorId) return { isReadOnly: true, ownerName: null };
+    // A background tagging job locks the whole pair regardless of ownership.
+    if (isPairBeingTagged(inProgressLib)) {
+      const owned = inProgressLib.OperatorId === userId;
+      const name = !owned ? (usersMap.get(inProgressLib.OperatorId) ?? inProgressLib.OperatorId) : null;
+      return { isReadOnly: true, ownerName: name };
+    }
     const owned = inProgressLib.OperatorId === userId;
     const name = !owned ? (usersMap.get(inProgressLib.OperatorId) ?? inProgressLib.OperatorId) : null;
     return { isReadOnly: !owned, ownerName: name };
-  }, [activeCheckout, libraries, userId, usersMap]);
+  }, [activeCheckout, libraries, userId, usersMap, isPairBeingTagged]);
 
   // Persist INPROGRESS library to localStorage whenever definitions change
   const inProgressLib = useMemo(() => {

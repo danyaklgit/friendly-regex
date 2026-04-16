@@ -11,6 +11,7 @@ import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { Toast } from '../shared/Toast';
 import { Tooltip } from '../shared/Tooltip';
 import { ComparisonModal } from './ComparisonModal';
+import { TaggingStatsCell } from './TaggingStatsCell';
 import { TagRuleCard } from '../tagRules/TagRuleCard';
 import type { TepHeaders, BacklogStatEntry } from '../../api/transactions';
 import { getBacklogStats } from '../../api/transactions';
@@ -45,7 +46,7 @@ interface DisplayRow {
 }
 
 export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckoutComplete, authToken, tepHeaders }: StatsTabProps) {
-  const { libraries, tagDefinitions, loading, refetchTagSpecs, dispatch } = useTagSpecs();
+  const { libraries, tagDefinitions, loading, refetchTagSpecs, dispatch, taggingProgress, isPairBeingTagged, getTaggingFirstSeen } = useTagSpecs();
   const { usersMap, useDummyData, userId } = useAuth();
   const { clearChanges } = useLocalChanges(undefined, undefined);
   const { filterDefinitions, filterDefinitionsLoading, fetchFilterDefinitions, isLiveMode } = useTransactionData();
@@ -81,6 +82,49 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
 
   const [backlogStats, setBacklogStats] = useState<Map<string, BacklogStatEntry>>(new Map());
   const [statsLoading, setStatsLoading] = useState(false);
+
+  const refetchBacklogStats = useCallback(async () => {
+    if (!authToken || !tepHeaders) return;
+    try {
+      const stats = await getBacklogStats('MT940', authToken, tepHeaders);
+      const map = new Map<string, BacklogStatEntry>();
+      for (const s of stats) map.set(s.TagSpecLibraryId, s);
+      setBacklogStats(map);
+    } catch (err) {
+      console.error('Failed to refetch backlog stats:', err);
+    }
+  }, [authToken, tepHeaders]);
+
+  // Full refresh after a write action: pulls libraries, TaggingProgress, and backlog stats.
+  // The delayed second pass at ~2.5s catches backend state that lags one request.
+  // Used for checkout (no tagging trigger — the light schedule is enough).
+  const refreshAfterAction = useCallback(() => {
+    refetchTagSpecs();
+    refetchBacklogStats();
+    const id = setTimeout(() => {
+      refetchTagSpecs();
+      refetchBacklogStats();
+    }, 2500);
+    return () => clearTimeout(id);
+  }, [refetchTagSpecs, refetchBacklogStats]);
+
+  // Aggressive post-action refresh for checkin/rollback — these trigger a backend tagging
+  // job whose creation latency varies (sometimes immediate, sometimes 10-20s). We fire
+  // GetTagSpecLibraries at a staggered schedule covering a 30-second window so the new
+  // TaggingProgress entry appears without the user needing to manually refresh the page.
+  // Intentionally NOT an idle timer — only runs when the user clicks Checkin or Rollback.
+  const refreshAfterTaggingTrigger = useCallback(() => {
+    refetchTagSpecs();
+    refetchBacklogStats();
+    const delays = [2_500, 7_000, 15_000, 30_000];
+    const timers = delays.map((d) =>
+      setTimeout(() => {
+        refetchTagSpecs();
+        refetchBacklogStats();
+      }, d),
+    );
+    return () => timers.forEach(clearTimeout);
+  }, [refetchTagSpecs, refetchBacklogStats]);
 
   // Background refetch on mount (fires each time user navigates to Backlog tab)
   useEffect(() => {
@@ -143,6 +187,21 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
     });
   }, [libraries, usersMap, userId]);
 
+  // Order-stable list of library Ids that currently have a tagging job (IN_PROGRESS or FAILED).
+  // Used to show a "1 of N" position pill on each TaggingStatsCell.
+  const taggingJobOrder = useMemo(() => {
+    return Object.values(taggingProgress)
+      .filter((e) => e.Status === 'IN_PROGRESS' || e.Status === 'FAILED')
+      .sort((a, b) => new Date(a.StartedAt).getTime() - new Date(b.StartedAt).getTime())
+      .map((e) => e.TagSpecLibraryId);
+  }, [taggingProgress]);
+
+  const handleRetryTagging = useCallback(() => {
+    // Retry endpoint isn't wired on the backend yet — surface a friendly message for now so
+    // the UI is testable. Swap this for a real API call once the endpoint is available.
+    setToast({ message: 'Retry is not yet supported by the backend. Please contact support.', type: 'error' });
+  }, []);
+
   const toggleExpand = useCallback((key: string) => {
     setExpandedRows(prev => {
       const next = new Set(prev);
@@ -158,7 +217,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
     setActionLoading(row.library.Id!);
     try {
       await tagSpecLibraryCheckOut(checkoutId, authToken, tepHeaders);
-      await refetchTagSpecs();
+      refreshAfterAction();
       setToast({ message: `Checked out ${row.bank} / ${row.side}`, type: 'success' });
       onCheckoutComplete(row.bank, row.side);
     } catch (err) {
@@ -166,7 +225,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
     } finally {
       setActionLoading(null);
     }
-  }, [authToken, tepHeaders, refetchTagSpecs, onCheckoutComplete]);
+  }, [authToken, tepHeaders, refreshAfterAction, onCheckoutComplete]);
 
   const handleCheckin = useCallback(async (row: DisplayRow) => {
     if (!authToken || !tepHeaders || !row.inProgressLib?.Id) return;
@@ -175,14 +234,14 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
       await tagSpecLibrarySave(row.inProgressLib, authToken, tepHeaders);
       await tagSpecLibraryCheckIn(row.inProgressLib.Id, authToken, tepHeaders);
       clearChanges(row.bank, row.side);
-      await refetchTagSpecs();
+      refreshAfterTaggingTrigger();
       setToast({ message: `Checked in ${row.bank} / ${row.side}`, type: 'success' });
     } catch (err) {
       setToast({ message: err instanceof Error ? err.message : 'Check-in failed', type: 'error' });
     } finally {
       setActionLoading(null);
     }
-  }, [authToken, tepHeaders, refetchTagSpecs, clearChanges]);
+  }, [authToken, tepHeaders, refreshAfterTaggingTrigger, clearChanges]);
 
   const handleRollbackConfirm = useCallback(async () => {
     if (!authToken || !tepHeaders || !rollbackTarget?.inProgressLib?.Id) return;
@@ -190,7 +249,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
     try {
       await tagSpecLibraryRollback(rollbackTarget.inProgressLib.Id, authToken, tepHeaders);
       clearChanges(rollbackTarget.bank, rollbackTarget.side);
-      refetchTagSpecs();
+      refreshAfterTaggingTrigger();
       setToast({ message: `Rolled back ${rollbackTarget.bank} / ${rollbackTarget.side}`, type: 'success' });
     } catch (err) {
       setToast({ message: err instanceof Error ? err.message : 'Rollback failed', type: 'error' });
@@ -198,7 +257,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
       setActionLoading(null);
       setRollbackTarget(null);
     }
-  }, [authToken, tepHeaders, rollbackTarget, refetchTagSpecs, clearChanges]);
+  }, [authToken, tepHeaders, rollbackTarget, refreshAfterTaggingTrigger, clearChanges]);
 
   // --- Tag rule CRUD ---
 
@@ -336,6 +395,12 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                 const displayLib = getDisplayLib(row);
                 const definitions = displayLib.TagSpecDefinitions;
                 const stats = getStats(row);
+                const isBeingTagged = isPairBeingTagged(row.library) || isPairBeingTagged(row.inProgressLib);
+                const taggingEntry =
+                  (row.library.Id ? taggingProgress[row.library.Id] : undefined) ??
+                  (row.inProgressLib?.Id ? taggingProgress[row.inProgressLib.Id] : undefined) ??
+                  (row.inProgressLib?.ActiveTagSpecLibId ? taggingProgress[row.inProgressLib.ActiveTagSpecLibId] : undefined);
+                const taggingLockTitle = isBeingTagged ? 'Tagging in progress' : undefined;
                 return (
                   <tr key={row.library.Id} className="group">
                     <td colSpan={8} className="p-0">
@@ -371,7 +436,20 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                         </div>
                         {/* Statistics */}
                         <div data-tour="backlog-statistics" className="px-4 py-2 flex-1 min-w-72 min-h-16">
-                          {statsLoading ? (
+                          {taggingEntry && (taggingEntry.Status === 'IN_PROGRESS' || taggingEntry.Status === 'FAILED') ? (
+                            (() => {
+                              const position = taggingJobOrder.indexOf(taggingEntry.TagSpecLibraryId);
+                              return (
+                                <TaggingStatsCell
+                                  entry={taggingEntry}
+                                  firstSeenAt={getTaggingFirstSeen(taggingEntry.TagSpecLibraryId)}
+                                  jobPosition={position >= 0 ? position + 1 : undefined}
+                                  jobCount={taggingJobOrder.length}
+                                  onRetry={taggingEntry.Status === 'FAILED' ? handleRetryTagging : undefined}
+                                />
+                              );
+                            })()
+                          ) : statsLoading ? (
                             <div className="space-y-1.5">
                               <div className="h-2 w-full rounded-full bg-surface-tertiary animate-pulse" />
                               <div className="flex gap-3">
@@ -463,12 +541,12 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                         <div className="px-4 py-2.5 text-end flex-1">
                           <div className="flex items-center justify-end gap-2">
                             {row.isOwnedByMe && (
-                              <Button data-tour="backlog-rollback-button" variant="danger_ghost" size="xs" onClick={() => setRollbackTarget(row)} disabled={isLoading}>
+                              <Button data-tour="backlog-rollback-button" variant="danger_ghost" size="xs" onClick={() => setRollbackTarget(row)} disabled={isLoading || isBeingTagged} title={taggingLockTitle}>
                                 Rollback
                               </Button>
                             )}
                             {row.isOwnedByMe && (
-                              <Button data-tour="backlog-checkin-button" variant="primary" size="xs" onClick={() => handleCheckin(row)} disabled={isLoading}>
+                              <Button data-tour="backlog-checkin-button" variant="primary" size="xs" onClick={() => handleCheckin(row)} disabled={isLoading || isBeingTagged} title={taggingLockTitle}>
                                 Checkin
                               </Button>
                             )}
@@ -478,13 +556,14 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                                 variant="primary"
                                 size="xs"
                                 onClick={() => handleCheckout(row)}
-                                disabled={!canAct || isLoading}
+                                disabled={!canAct || isLoading || isBeingTagged}
+                                title={taggingLockTitle}
                               >
                                 Checkout
                               </Button>
                             )}
                             {row.isInProgress && (
-                              <Button data-tour="backlog-compare-button" variant="outline" size="xs" onClick={() => setCompareTarget(row)} disabled={isLoading}>
+                              <Button data-tour="backlog-compare-button" variant="outline" size="xs" onClick={() => setCompareTarget(row)} disabled={isLoading || isBeingTagged} title={taggingLockTitle}>
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
                                   <path d="M2 10a8 8 0 018-8v16a8 8 0 01-8-8z" opacity="0.4" />
                                   <path d="M10 2a8 8 0 018 8 8 8 0 01-8 8V2z" />
@@ -524,7 +603,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                                       onDelete={handleDeleteTag}
                                       onExport={handleExportSingle}
                                       onViewTransactions={handleEditTag}
-                                      readOnly={!row.isOwnedByMe}
+                                      readOnly={!row.isOwnedByMe || isBeingTagged}
                                     />
                                   </div>
                                 ))}
