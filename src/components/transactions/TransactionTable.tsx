@@ -1,5 +1,5 @@
 import { useMemo, useLayoutEffect, useEffect, useRef, useState, useCallback, type ReactNode } from 'react';
-import type { AnalyzedTransaction, TagSpecDefinition, RuleExpression } from '../../types';
+import type { AnalyzedTransaction, TagSpecDefinition, RuleExpression, TransactionRow } from '../../types';
 import { useTransactionData } from '../../hooks/useTransactionData';
 import { useLovAttributes } from '../../context/LovAttributesContext';
 import { PREDEFINED_PATTERNS } from '../../constants/operations';
@@ -24,9 +24,11 @@ interface TransactionTableProps {
   hiddenColumns?: Set<string>;
   columnOrder?: string[];
   onColumnsReady?: (columns: ColumnDef[]) => void;
+  onVisibleColumnsReady?: (columns: ColumnDef[]) => void;
   builderHeight?: number;
   loading?: boolean;
   accentHue?: number;
+  onRowContextMenu?: (row: TransactionRow, x: number, y: number) => void;
 }
 
 type ColumnDef =
@@ -410,7 +412,7 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
 
 export type { ColumnDef };
 
-export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, definitionSourceMap, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady, builderHeight = 0, loading = false, accentHue = 190 }: TransactionTableProps) {
+export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, definitionSourceMap, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, accentHue = 190, onRowContextMenu }: TransactionTableProps) {
   const { fieldMeta } = useTransactionData();
   const { lovLookup } = useLovAttributes();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -715,6 +717,10 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
 
     return final;
   }, [columns, showAttributes, hiddenColumns, columnOrder, attrSourceMap]);
+
+  useEffect(() => {
+    onVisibleColumnsReady?.(visibleColumns);
+  }, [visibleColumns, onVisibleColumnsReady]);
 
   // Determine which column indices should be sticky, split into left/right groups
   const { leftIndices, rightIndices } = useMemo(() => {
@@ -1316,7 +1322,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                 const isSelected = selectedIds.has(rowId);
                 const isDeadEnd = item.row['IsDeadEnd'] === true;
                 return (
-                  <tr key={i} className={`group transition-colors ${isDeadEnd ? 'bg-red-100/60 dark:bg-red-950/30 text-red-400 dark:text-red-500/70' : 'hover:bg-surface-hover'} ${isSelected ? 'bg-primary/10!' : ''}`}>
+                  <tr key={i} className={`group transition-colors ${isDeadEnd ? 'bg-red-100/60 dark:bg-red-950/30 text-red-400 dark:text-red-500/70' : 'hover:bg-surface-hover'} ${isSelected ? 'bg-primary/10!' : ''}`} onContextMenu={onRowContextMenu ? (e) => { e.preventDefault(); onRowContextMenu(item.row, e.clientX, e.clientY); } : undefined}>
                     {visibleColumns.map((col, colIdx) => {
                       const isStickyCol = stickyLefts.has(colIdx) || stickyRights.has(colIdx);
                       const stickyBg = isStickyCol ? 'bg-surface group-hover:bg-surface-hover' : '';

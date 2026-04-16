@@ -1,5 +1,5 @@
 import { createContext, useReducer, useMemo, useRef, useEffect, useCallback, useState, type ReactNode, type Dispatch } from 'react';
-import type { TagSpecDefinition, TagSpecLibrary, ContextEntry } from '../types';
+import type { TagSpecDefinition, TagSpecLibrary, ContextEntry, TaggingProgressMap } from '../types';
 import type { TepHeaders } from '../api/transactions';
 import type { TagTreeNode, TagHierarchyRawNode, TagsHierarchyWrapper } from '../api/tagsHierarchy';
 import { getTagSpecLibraries } from '../api/tagSpecs';
@@ -219,6 +219,18 @@ export interface TagSpecContextValue {
   hierarchyDispatch: Dispatch<HierarchyAction>;
   setOriginalRawNodes: (nodes: TagHierarchyRawNode[]) => void;
   setHierarchyWrapper: (wrapper: TagsHierarchyWrapper | null) => void;
+  // Background tagging progress (see GetTagSpecLibraries response `TaggingProgress` field)
+  taggingProgress: TaggingProgressMap;
+  /** Returns true when the given library Id has a tagging job in IN_PROGRESS status. */
+  isLibraryBeingTagged: (libraryId: string | null | undefined) => boolean;
+  /** Convenience: true when either Id or ActiveTagSpecLibId of the library is being tagged. */
+  isPairBeingTagged: (lib: TagSpecLibrary | null | undefined) => boolean;
+  /**
+   * Returns the client-side timestamp (Date.now()) when this library's tagging entry
+   * was first observed in a GetTagSpecLibraries response. Used to anchor "Elapsed"
+   * counters to when WE started watching, not the backend's StartedAt (which can be far older).
+   */
+  getTaggingFirstSeen: (libraryId: string | null | undefined) => number | undefined;
 }
 
 interface TagSpecProviderProps {
@@ -242,6 +254,10 @@ export function TagSpecProvider({ children, useDummyData, authToken, tepHeaders 
   const tagDefinitions = useMemo(() => flattenDefinitions(libraries), [libraries]);
   const [loading, setLoading] = useState(!useDummyData);
   const [tagsHierarchyLoading, setTagsHierarchyLoading] = useState(!useDummyData);
+  const [taggingProgress, setTaggingProgress] = useState<TaggingProgressMap>({});
+  // Client-side first-seen timestamps, keyed by TagSpecLibraryId. Populated on every poll;
+  // entries for libraries that leave the TaggingProgress map get pruned on the same pass.
+  const firstSeenRef = useRef<Map<string, number>>(new Map());
 
   // Raw hierarchy state
   const initialRawNodes = useMemo(() => {
@@ -280,10 +296,25 @@ export function TagSpecProvider({ children, useDummyData, authToken, tepHeaders 
     setLoading(true);
     setTagsHierarchyLoading(true);
     try {
-      const [libsData, wrapperData] = await Promise.all([
+      const [libsResult, wrapperData] = await Promise.all([
         getTagSpecLibraries(authToken, tepHeaders, signal),
         getRawTagsHierarchy(authToken, tepHeaders, signal),
       ]);
+      const libsData = libsResult.libraries;
+      setTaggingProgress(libsResult.taggingProgress);
+      // Record first-seen timestamps for newly-observed tagging entries; prune removed ones.
+      const observedAt = Date.now();
+      const currentIds = new Set(Object.keys(libsResult.taggingProgress));
+      for (const libId of currentIds) {
+        if (!firstSeenRef.current.has(libId)) {
+          firstSeenRef.current.set(libId, observedAt);
+        }
+      }
+      for (const libId of Array.from(firstSeenRef.current.keys())) {
+        if (!currentIds.has(libId)) {
+          firstSeenRef.current.delete(libId);
+        }
+      }
       // Merge localStorage overrides for checked-out pairs
       const mergedLibs = libsData.map((lib) => {
         if (lib.StatusTag !== 'INPROGRESS' || !lib.OperatorId) return lib;
@@ -327,6 +358,40 @@ export function TagSpecProvider({ children, useDummyData, authToken, tepHeaders 
     return fetchTagSpecs();
   }, [fetchTagSpecs]);
 
+  // Background polling: while ANY tagging job is IN_PROGRESS, refetch every 6 seconds
+  // so ProcessedTransactions updates live. Polling stops automatically when no jobs remain.
+  useEffect(() => {
+    if (useDummyData) return;
+    const hasActive = Object.values(taggingProgress).some((e) => e.Status === 'IN_PROGRESS');
+    if (!hasActive) return;
+    const id = setInterval(() => { refetchTagSpecs(); }, 6000);
+    return () => clearInterval(id);
+  }, [taggingProgress, useDummyData, refetchTagSpecs]);
+
+  const isLibraryBeingTagged = useCallback(
+    (libraryId: string | null | undefined): boolean => {
+      if (!libraryId) return false;
+      return taggingProgress[libraryId]?.Status === 'IN_PROGRESS';
+    },
+    [taggingProgress],
+  );
+
+  const isPairBeingTagged = useCallback(
+    (lib: TagSpecLibrary | null | undefined): boolean => {
+      if (!lib) return false;
+      return isLibraryBeingTagged(lib.Id) || isLibraryBeingTagged(lib.ActiveTagSpecLibId);
+    },
+    [isLibraryBeingTagged],
+  );
+
+  const getTaggingFirstSeen = useCallback(
+    (libraryId: string | null | undefined): number | undefined => {
+      if (!libraryId) return undefined;
+      return firstSeenRef.current.get(libraryId);
+    },
+    [],
+  );
+
   const refetchHierarchy = useCallback(async () => {
     if (useDummyData) {
       // In dummy mode, reset to sample data
@@ -354,7 +419,8 @@ export function TagSpecProvider({ children, useDummyData, authToken, tepHeaders 
     tagsHierarchy, tagsHierarchyLoading,
     rawHierarchyNodes, hierarchyWrapper, originalRawNodes, hierarchyDispatch,
     setOriginalRawNodes, setHierarchyWrapper,
-  }), [libraries, tagDefinitions, originalDefinitionIds, loading, refetchTagSpecs, tagsHierarchy, tagsHierarchyLoading, rawHierarchyNodes, hierarchyWrapper, originalRawNodes]);
+    taggingProgress, isLibraryBeingTagged, isPairBeingTagged, getTaggingFirstSeen,
+  }), [libraries, tagDefinitions, originalDefinitionIds, loading, refetchTagSpecs, refetchHierarchy, tagsHierarchy, tagsHierarchyLoading, rawHierarchyNodes, hierarchyWrapper, originalRawNodes, taggingProgress, isLibraryBeingTagged, isPairBeingTagged, getTaggingFirstSeen]);
 
   return (
     <TagSpecContext.Provider value={value}>

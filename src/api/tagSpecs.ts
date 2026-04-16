@@ -1,14 +1,19 @@
 import type { TepHeaders } from './transactions';
-import type { TagSpecLibrary } from '../types';
+import type { TagSpecLibrary, TaggingProgressMap } from '../types';
 import { throwIfNotOk } from './apiError';
 
 const BASE = '/api/tep/api/v1/TEP';
+
+export interface TagSpecLibrariesResult {
+  libraries: TagSpecLibrary[];
+  taggingProgress: TaggingProgressMap;
+}
 
 export async function getTagSpecLibraries(
   authToken: string,
   tepHeaders: TepHeaders,
   signal?: AbortSignal,
-): Promise<TagSpecLibrary[]> {
+): Promise<TagSpecLibrariesResult> {
   const res = await fetch(`${BASE}/GetTagSpecLibraries`, {
     method: 'POST',
     headers: {
@@ -28,6 +33,9 @@ export async function getTagSpecLibraries(
   });
 
   await throwIfNotOk(res, 'Failed to fetch tag spec libraries');
-  const json: { TagSpecLibs: TagSpecLibrary[] } = await res.json();
-  return json.TagSpecLibs;
+  const json: { TagSpecLibs: TagSpecLibrary[]; TaggingProgress?: TaggingProgressMap } = await res.json();
+  return {
+    libraries: json.TagSpecLibs,
+    taggingProgress: json.TaggingProgress ?? {},
+  };
 }

@@ -57,7 +57,7 @@ function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps
     }
   }, []);
 
-  const { libraries, refetchTagSpecs } = useTagSpecs();
+  const { libraries, refetchTagSpecs, isPairBeingTagged } = useTagSpecs();
   const { clearChanges, getChangeSummary, hasChanges } = useLocalChanges(activeCheckout?.bank, activeCheckout?.side);
 
   const isCheckoutReadOnly = useMemo(() => {
@@ -69,8 +69,10 @@ function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps
         getContextValue(l.Context, 'Side') === activeCheckout.side
     );
     if (!inProgressLib?.OperatorId) return true;
+    // Lock the UI while a background tagging job is running on this library.
+    if (isPairBeingTagged(inProgressLib)) return true;
     return inProgressLib.OperatorId !== userId;
-  }, [activeCheckout, libraries, userId]);
+  }, [activeCheckout, libraries, userId, isPairBeingTagged]);
 
   const findInProgressLib = useCallback((bank: string, side: string) => {
     return libraries.find(

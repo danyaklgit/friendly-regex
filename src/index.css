@@ -220,3 +220,28 @@ input[type="checkbox"]:hover:not(:checked) {
 .animate-shake {
   animation: shake 0.5s ease-in-out;
 }
+
+/* Diagonal stripes that slide — used on the live tagging progress bar
+   to convey directional movement ("work is flowing through"). */
+@keyframes stripes-slide {
+  from { background-position: 0 0; }
+  to { background-position: 1rem 0; }
+}
+
+.stripes-live {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(255, 255, 255, 0.18) 0,
+    rgba(255, 255, 255, 0.18) 4px,
+    transparent 4px,
+    transparent 8px
+  );
+  background-size: 1rem 1rem;
+  animation: stripes-slide 0.9s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stripes-live {
+    animation: none;
+  }
+}

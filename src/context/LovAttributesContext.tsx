@@ -167,10 +167,14 @@ export function LovAttributesProvider({ authToken, tepHeaders, children }: LovAt
     return map;
   }, [lovLists]);
 
-  // Derived: LOV options for dropdown (exclude ATTRIBUTES tag)
+  // Derived: LOV options for dropdown.
+  // Exclude internal LOV tags that aren't meant to surface as attribute value sources:
+  //   - ATTRIBUTES: the list of available attribute names (used elsewhere).
+  //   - ATTRIBUTE_TRANSFORMATON: the transformation method catalog (used by the transformation picker).
   const lovOptions = useMemo(() => {
+    const HIDDEN_LOV_TAGS = new Set(['ATTRIBUTES', 'ATTRIBUTE_TRANSFORMATON']);
     return lovLists
-      .filter((l) => l.Tag !== 'ATTRIBUTES')
+      .filter((l) => !HIDDEN_LOV_TAGS.has(l.Tag))
       .map((l) => ({ value: l.Tag, label: l.Name }));
   }, [lovLists]);
 
