@@ -126,6 +126,7 @@ export interface TaggingProgressEntry {
   StartedAt: string;
   CompletedAt: string | null;
   ErrorMessage: string | null;
+  PhaseMessage: string | null;
 }
 
 export type TaggingProgressMap = Record<string, TaggingProgressEntry>;

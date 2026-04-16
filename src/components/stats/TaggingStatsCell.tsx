@@ -223,6 +223,13 @@ export function TaggingStatsCell({ entry, firstSeenAt, jobPosition, jobCount, on
         </span>
       </div>
 
+      {/* Phase message — a backend-supplied status hint like "Matching rules…" or "Extracting attributes…" */}
+      {entry.PhaseMessage && (
+        <p className={`text-[10px] italic truncate ${isFailed ? tone.text : 'text-body-secondary'}`}>
+          {entry.PhaseMessage}
+        </p>
+      )}
+
       {/* IN_PROGRESS metrics — Processed + Started + Elapsed on one flex-wrap row that
           starts flush with the status pill and fills left-to-right. */}
       {isInProgress && (
