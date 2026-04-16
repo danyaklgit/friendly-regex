@@ -57,7 +57,7 @@ function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps
     }
   }, []);
 
-  const { libraries, refetchTagSpecs, isPairBeingTagged } = useTagSpecs();
+  const { libraries, refetchLibraries, isPairBeingTagged } = useTagSpecs();
   const { clearChanges, getChangeSummary, hasChanges } = useLocalChanges(activeCheckout?.bank, activeCheckout?.side);
 
   const isCheckoutReadOnly = useMemo(() => {
@@ -107,7 +107,7 @@ function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps
       await tagSpecLibrarySave(inProgressLib, authToken, tepHeaders);
       await tagSpecLibraryRelease(inProgressLib.Id, authToken, tepHeaders);
       clearChanges(bank, side);
-      await refetchTagSpecs();
+      await refetchLibraries();
       setActiveCheckout((prev) =>
         prev && prev.bank === bank && prev.side === side ? null : prev
       );
@@ -116,7 +116,7 @@ function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps
     } catch (err) {
       setToast({ message: err instanceof Error ? err.message : 'Release failed', type: 'error' });
     }
-  }, [authToken, tepHeaders, findInProgressLib, refetchTagSpecs, clearChanges]);
+  }, [authToken, tepHeaders, findInProgressLib, refetchLibraries, clearChanges]);
 
   const handleCheckinWithSave = useCallback(async (bank: string, side: string) => {
     if (!authToken || !tepHeaders) return;
@@ -127,7 +127,7 @@ function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps
       await tagSpecLibrarySave(inProgressLib, authToken, tepHeaders);
       await tagSpecLibraryCheckIn(inProgressLib.Id, authToken, tepHeaders);
       clearChanges(bank, side);
-      await refetchTagSpecs();
+      await refetchLibraries();
       setActiveCheckout((prev) =>
         prev && prev.bank === bank && prev.side === side ? null : prev
       );
@@ -136,7 +136,7 @@ function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps
     } catch (err) {
       setToast({ message: err instanceof Error ? err.message : 'Check-in failed', type: 'error' });
     }
-  }, [authToken, tepHeaders, findInProgressLib, refetchTagSpecs, clearChanges]);
+  }, [authToken, tepHeaders, findInProgressLib, refetchLibraries, clearChanges]);
 
   const handleRequestUndo = useCallback((bank: string, side: string) => {
     setUndoTarget({ bank, side });
@@ -145,9 +145,9 @@ function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps
   const handleUndoConfirm = useCallback(async () => {
     if (!undoTarget) return;
     clearChanges(undoTarget.bank, undoTarget.side);
-    await refetchTagSpecs();
+    await refetchLibraries();
     setUndoTarget(null);
-  }, [undoTarget, clearChanges, refetchTagSpecs]);
+  }, [undoTarget, clearChanges, refetchLibraries]);
 
   return (
     <>
