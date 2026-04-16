@@ -73,7 +73,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [rollbackTarget, setRollbackTarget] = useState<DisplayRow | null>(null);
   const [compareTarget, setCompareTarget] = useState<DisplayRow | null>(null);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info'; duration?: number } | null>(null);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
   // Tag rule management state
@@ -237,6 +237,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
   const handleCheckin = useCallback(async (row: DisplayRow) => {
     if (!authToken || !tepHeaders || !row.inProgressLib?.Id) return;
     setActionLoading(row.library.Id!);
+    setToast({ message: `Checking in ${row.bank} / ${row.side}…`, type: 'info', duration: 60_000 });
     try {
       await tagSpecLibrarySave(row.inProgressLib, authToken, tepHeaders);
       await tagSpecLibraryCheckIn(row.inProgressLib.Id, authToken, tepHeaders);
@@ -253,6 +254,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
   const handleRollbackConfirm = useCallback(async () => {
     if (!authToken || !tepHeaders || !rollbackTarget?.inProgressLib?.Id) return;
     setActionLoading(rollbackTarget.library.Id!);
+    setToast({ message: `Rolling back ${rollbackTarget.bank} / ${rollbackTarget.side}…`, type: 'info', duration: 60_000 });
     try {
       await tagSpecLibraryRollback(rollbackTarget.inProgressLib.Id, authToken, tepHeaders);
       clearChanges(rollbackTarget.bank, rollbackTarget.side);
@@ -658,7 +660,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
       )}
 
       {toast && (
-        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
+        <Toast message={toast.message} type={toast.type} duration={toast.duration} onClose={() => setToast(null)} />
       )}
     </div>
   );
