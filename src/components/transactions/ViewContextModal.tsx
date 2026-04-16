@@ -65,8 +65,9 @@ export function ViewContextModal({ open, onClose, transaction, authToken, tepHea
   const [error, setError] = useState<string | null>(null);
   const highlightRef = useRef<HTMLTableRowElement>(null);
 
-  // Derive context table columns from the main table's visible columns (skip tags/attributes)
+  // Derive context table columns from the main table's visible columns (skip tags; attributes go last)
   type ContextCol = Extract<ColumnDef, { type: 'data' | 'dates' | 'debit' | 'credit' }>;
+  type AttrCol = Extract<ColumnDef, { type: 'attribute' }>;
   const contextColumns = useMemo(() => {
     const cols = visibleColumns.filter((col): col is ContextCol => col.type !== 'tags' && col.type !== 'attribute');
     // Sequence always first, then the rest in their original order
@@ -77,6 +78,19 @@ export function ViewContextModal({ open, onClose, transaction, authToken, tepHea
     }
     return cols;
   }, [visibleColumns]);
+
+  // Attribute columns — appended at the end, color-coded like the main table
+  const attributeColumns = useMemo(() => {
+    return visibleColumns.filter((col): col is AttrCol => col.type === 'attribute');
+  }, [visibleColumns]);
+
+  // Helper: find attribute value across tag→attrs map
+  const getAttrValue = (item: AnalyzedTransaction, attrName: string): string | null => {
+    for (const tagAttrs of Object.values(item.analysis.attributes)) {
+      if (attrName in tagAttrs && tagAttrs[attrName] !== null) return tagAttrs[attrName];
+    }
+    return null;
+  };
 
   const bankName = useMemo(() => {
     const code = String(transaction['BankSwiftCode'] ?? '');
@@ -202,6 +216,11 @@ export function ViewContextModal({ open, onClose, transaction, authToken, tepHea
                   if (colIdx === 0) return [th(col.key), th('__ctx_tags')];
                   return [th(col.key)];
                 })}
+                {attributeColumns.map((col) => (
+                  <th key={col.key} className="px-3 py-2.5 bg-white dark:bg-slate-800 sticky top-0 z-1">
+                    <div className="h-2.5 w-18 rounded bg-primary/15 animate-pulse" />
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -218,6 +237,11 @@ export function ViewContextModal({ open, onClose, transaction, authToken, tepHea
                     if (colIdx === 0) return [td(col.key, w), td('__ctx_tags', 'w-16')];
                     return [td(col.key, w)];
                   })}
+                  {attributeColumns.map((col, ai) => (
+                    <td key={col.key} className="px-3 py-2.5 bg-primary/5">
+                      <div className="h-3 w-20 rounded bg-primary/15 animate-pulse" style={{ animationDelay: `${(i * 50) + ((contextColumns.length + ai) * 30)}ms` }} />
+                    </td>
+                  ))}
                 </tr>
               ))}
             </tbody>
@@ -257,6 +281,14 @@ export function ViewContextModal({ open, onClose, transaction, authToken, tepHea
                   if (colIdx === 0) return [header, th('__ctx_tags', 'Tags')];
                   return [header];
                 })}
+                {attributeColumns.map((col) => (
+                  <th
+                    key={col.key}
+                    className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap text-primary-dark bg-white dark:bg-slate-800 sticky top-0 z-1"
+                  >
+                    {humanizeFieldName(col.name)}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -325,6 +357,18 @@ export function ViewContextModal({ open, onClose, transaction, authToken, tepHea
                           break;
                       }
                       return tagCell ? [dataCell, tagCell] : [dataCell];
+                    })}
+                    {attributeColumns.map((col) => {
+                      const hasTags = item.analysis.tags.length > 0;
+                      const val = hasTags ? getAttrValue(item, col.name) : null;
+                      return (
+                        <td
+                          key={col.key}
+                          className={`px-3 py-1.5 text-xs whitespace-nowrap bg-primary/5 ${hasTags && val ? 'text-primary-dark' : ''}`}
+                        >
+                          {hasTags && val ? val : <span className="text-faint">-</span>}
+                        </td>
+                      );
                     })}
                   </tr>
                 );
