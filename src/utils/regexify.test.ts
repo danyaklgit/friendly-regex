@@ -161,6 +161,11 @@ describe('regexifyExtraction', () => {
     expect(regexifyExtraction('extract_substring', {}))
       .toBe('(.*)');
   });
+
+  it('extract_substring: toStart with fromPosition captures first N chars', () => {
+    expect(regexifyExtraction('extract_substring', { toStart: true, fromPosition: 8 }))
+      .toBe('(.{8})');
+  });
 });
 
 describe('generateExpressionPrompt', () => {

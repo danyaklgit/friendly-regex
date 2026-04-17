@@ -36,7 +36,8 @@ function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [activeCheckout, setActiveCheckout] = useState<CheckoutState | null>(null);
   const [undoTarget, setUndoTarget] = useState<{ bank: string; side: string } | null>(null);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [headerActionLoading, setHeaderActionLoading] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info'; duration?: number } | null>(null);
   // shareData drives the banner popup; shareFilters/shareToggles are passed to
   // TransactionsTab and must persist after the banner is dismissed.
   const [shareData, setShareData] = useState<ShareParams | null>(null);
@@ -102,6 +103,8 @@ function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps
     if (!authToken || !tepHeaders) return;
     const inProgressLib = findInProgressLib(bank, side);
     if (!inProgressLib?.Id) return;
+    setHeaderActionLoading(true);
+    setToast({ message: `Releasing ${bank} / ${side}…`, type: 'info', duration: 60_000 });
     try {
       // Always save the current in-memory state (reflects adds, edits, and deletes)
       await tagSpecLibrarySave(inProgressLib, authToken, tepHeaders);
@@ -115,6 +118,8 @@ function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps
       setActiveTab(0);
     } catch (err) {
       setToast({ message: err instanceof Error ? err.message : 'Release failed', type: 'error' });
+    } finally {
+      setHeaderActionLoading(false);
     }
   }, [authToken, tepHeaders, findInProgressLib, refetchLibraries, clearChanges]);
 
@@ -122,6 +127,8 @@ function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps
     if (!authToken || !tepHeaders) return;
     const inProgressLib = findInProgressLib(bank, side);
     if (!inProgressLib?.Id) return;
+    setHeaderActionLoading(true);
+    setToast({ message: `Checking in ${bank} / ${side}…`, type: 'info', duration: 60_000 });
     try {
       // Always save the current in-memory state (reflects adds, edits, and deletes)
       await tagSpecLibrarySave(inProgressLib, authToken, tepHeaders);
@@ -135,6 +142,8 @@ function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps
       setActiveTab(0);
     } catch (err) {
       setToast({ message: err instanceof Error ? err.message : 'Check-in failed', type: 'error' });
+    } finally {
+      setHeaderActionLoading(false);
     }
   }, [authToken, tepHeaders, findInProgressLib, refetchLibraries, clearChanges]);
 
@@ -166,6 +175,7 @@ function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps
             side: activeCheckout.side,
             hasChanges: hasChanges ?? false,
             isReadOnly: isCheckoutReadOnly,
+            actionLoading: headerActionLoading,
             onRelease: handleRelease,
             onCheckin: handleCheckinWithSave,
             onRequestUndo: handleRequestUndo,
@@ -188,7 +198,7 @@ function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps
         onTabChange={setActiveTab}
       />
       {shareData && <SharedLinkBanner share={shareData} onDismiss={() => setShareData(null)} />}
-      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      {toast && <Toast message={toast.message} type={toast.type} duration={toast.duration} onClose={() => setToast(null)} />}
     </>
   );
 }
