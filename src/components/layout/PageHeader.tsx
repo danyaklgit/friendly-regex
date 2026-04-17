@@ -9,6 +9,7 @@ interface CheckoutInfo {
   side: string;
   hasChanges: boolean;
   isReadOnly?: boolean;
+  actionLoading?: boolean;
   onRelease: (bank: string, side: string) => void;
   onCheckin: (bank: string, side: string) => void;
   onRequestUndo?: (bank: string, side: string) => void;
@@ -56,15 +57,15 @@ export function PageHeader({ tabs, activeIndex, onTabChange, checkout, onOpenOnb
             {!checkout.isReadOnly && (
               <>
                 {checkout.onRequestUndo && checkout.hasChanges && (
-                  <Button variant="secondary" size="xs" onClick={() => checkout.onRequestUndo!(checkout.bank, checkout.side)}>
+                  <Button variant="secondary" size="xs" onClick={() => checkout.onRequestUndo!(checkout.bank, checkout.side)} disabled={checkout.actionLoading}>
                     Review Changes
                   </Button>
                 )}
                 <span data-tour="checkout-actions" className="flex items-center gap-2">
-                  <Button variant="primary" size="xs" onClick={() => checkout.onRelease(checkout.bank, checkout.side)}>
+                  <Button variant="primary" size="xs" onClick={() => checkout.onRelease(checkout.bank, checkout.side)} disabled={checkout.actionLoading}>
                     {checkout.hasChanges ? 'Save and Release' : 'Release'}
                   </Button>
-                  <Button variant="primary" size="xs" onClick={() => checkout.onCheckin(checkout.bank, checkout.side)}>
+                  <Button variant="primary" size="xs" onClick={() => checkout.onCheckin(checkout.bank, checkout.side)} disabled={checkout.actionLoading}>
                     {checkout.hasChanges ? 'Save and Check In' : 'Check In'}
                   </Button>
                 </span>

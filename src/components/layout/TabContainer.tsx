@@ -11,6 +11,7 @@ interface CheckoutInfo {
   side: string;
   hasChanges: boolean;
   isReadOnly?: boolean;
+  actionLoading?: boolean;
   onRelease: (bank: string, side: string) => void;
   onCheckin: (bank: string, side: string) => void;
   onRequestUndo?: (bank: string, side: string) => void;
