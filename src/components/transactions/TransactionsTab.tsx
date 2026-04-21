@@ -134,8 +134,10 @@ function buildRulesetFilters(formState: WizardFormState): FilterProperty[] {
   const filters: FilterProperty[] = [
     { ColumnName: 'BankSwiftCode', Value: formState.bankSwiftCode, Operand: 'IN' },
     { ColumnName: 'Side', Value: formState.side, Operand: 'IN' },
-    { ColumnName: 'TransactionTypeCode', Value: formState.transactionTypeCode, Operand: 'EQ' },
   ];
+  if (formState.transactionTypeCode) {
+    filters.push({ ColumnName: 'TransactionTypeCode', Value: formState.transactionTypeCode, Operand: 'EQ' });
+  }
 
   const regexGroups = formState.ruleGroups
     .map(group =>
@@ -777,8 +779,10 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         // Background: fetch count by tag name + transaction type to detect other rules producing this tag
         const tagNameFilter: FilterProperty[] = [
           { ColumnName: 'OpsTag|OpsMultiTags.Tag', Value: tagName, Operand: 'IN' },
-          { ColumnName: 'TransactionTypeCode', Value: formState.transactionTypeCode, Operand: 'EQ' },
         ];
+        if (formState.transactionTypeCode) {
+          tagNameFilter.push({ ColumnName: 'TransactionTypeCode', Value: formState.transactionTypeCode, Operand: 'EQ' });
+        }
         fetchCount(filters, tagNameFilter).then((count) => {
           setTagClickState((prev) => prev ? { ...prev, tagNameCount: count } : prev);
         });

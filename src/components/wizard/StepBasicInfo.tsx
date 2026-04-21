@@ -56,6 +56,7 @@ export function StepBasicInfo({ formState, onUpdate, fromCheckoutContext }: Step
               onChange={(e) => { onUpdate({ transactionTypeCode: e.target.value }); markTouched('transactionTypeCode'); }}
               onBlur={() => markTouched('transactionTypeCode')}
               options={TXN_TYPE_OPTIONS.map((s) => ({ value: s, label: s }))}
+              placeholder="Select transaction type"
               disabled={fromCheckoutContext}
             />
           </div>
