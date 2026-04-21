@@ -476,12 +476,13 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // Flat definitions including preview (for table column ordering + LOV resolution)
   const allDefinitions = useMemo(() => {
     if (!tempDefinition) return tagDefinitions;
+    // Put tempDefinition FIRST so maps built with first-write-wins logic
+    // (e.g. attrSourceMap in TransactionTable) pick up the live builder
+    // values for attributes whose name also exists in saved rules.
     if (editingDef) {
-      // Replace the edited definition with the live temp version so the table
-      // picks up LOV tag changes (isLovBased toggle) for real-time resolution.
-      return [...tagDefinitions.filter(d => d.Id !== editingDef.Id), tempDefinition];
+      return [tempDefinition, ...tagDefinitions.filter(d => d.Id !== editingDef.Id)];
     }
-    return [...tagDefinitions, tempDefinition];
+    return [tempDefinition, ...tagDefinitions];
   }, [tagDefinitions, tempDefinition, editingDef]);
 
   // Map definition ID → source label for tag tooltip
