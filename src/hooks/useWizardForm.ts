@@ -125,7 +125,7 @@ export function useWizardForm(
       tag: '',
       side: 'CR',
       bankSwiftCode: 'ARNBSARI',
-      transactionTypeCode: 'TRF',
+      transactionTypeCode: '',
       statusTag: 'ACTIVE',
       certaintyLevelTag: 'HIGH',
       validity: {

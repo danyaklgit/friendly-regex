@@ -134,8 +134,10 @@ function buildRulesetFilters(formState: WizardFormState): FilterProperty[] {
   const filters: FilterProperty[] = [
     { ColumnName: 'BankSwiftCode', Value: formState.bankSwiftCode, Operand: 'IN' },
     { ColumnName: 'Side', Value: formState.side, Operand: 'IN' },
-    { ColumnName: 'TransactionTypeCode', Value: formState.transactionTypeCode, Operand: 'EQ' },
   ];
+  if (formState.transactionTypeCode) {
+    filters.push({ ColumnName: 'TransactionTypeCode', Value: formState.transactionTypeCode, Operand: 'EQ' });
+  }
 
   const regexGroups = formState.ruleGroups
     .map(group =>
@@ -474,12 +476,13 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // Flat definitions including preview (for table column ordering + LOV resolution)
   const allDefinitions = useMemo(() => {
     if (!tempDefinition) return tagDefinitions;
+    // Put tempDefinition FIRST so maps built with first-write-wins logic
+    // (e.g. attrSourceMap in TransactionTable) pick up the live builder
+    // values for attributes whose name also exists in saved rules.
     if (editingDef) {
-      // Replace the edited definition with the live temp version so the table
-      // picks up LOV tag changes (isLovBased toggle) for real-time resolution.
-      return [...tagDefinitions.filter(d => d.Id !== editingDef.Id), tempDefinition];
+      return [tempDefinition, ...tagDefinitions.filter(d => d.Id !== editingDef.Id)];
     }
-    return [...tagDefinitions, tempDefinition];
+    return [tempDefinition, ...tagDefinitions];
   }, [tagDefinitions, tempDefinition, editingDef]);
 
   // Map definition ID → source label for tag tooltip
@@ -498,6 +501,10 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const builderHasContent = builder.formState.ruleGroups.some((g) =>
     g.conditions.some((c) => c.value.trim().length > 0)
   ) || builder.formState.attributes.some((a) => a.attributeTag.trim().length > 0);
+
+  // Rule creation / Apply Rules requires a transaction type selection
+  const builderHasTransactionType = builder.formState.transactionTypeCode.trim().length > 0;
+  const canSubmitBuilder = builderHasContent && builderHasTransactionType;
 
 
 
@@ -777,8 +784,10 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         // Background: fetch count by tag name + transaction type to detect other rules producing this tag
         const tagNameFilter: FilterProperty[] = [
           { ColumnName: 'OpsTag|OpsMultiTags.Tag', Value: tagName, Operand: 'IN' },
-          { ColumnName: 'TransactionTypeCode', Value: formState.transactionTypeCode, Operand: 'EQ' },
         ];
+        if (formState.transactionTypeCode) {
+          tagNameFilter.push({ ColumnName: 'TransactionTypeCode', Value: formState.transactionTypeCode, Operand: 'EQ' });
+        }
         fetchCount(filters, tagNameFilter).then((count) => {
           setTagClickState((prev) => prev ? { ...prev, tagNameCount: count } : prev);
         });
@@ -979,24 +988,51 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                 {isReadOnly ? 'Close' : 'Discard'}
               </Button>
               {!isReadOnly && tagClickState && (
-                <Button
-                  variant="outline"
-                  size="xs"
-                  onClick={() => handleApplyRules()}
-                  disabled={!builderHasContent}
-                >
-                  Apply Rules
-                </Button>
+                !builderHasTransactionType ? (
+                  <Tooltip content="Select a Transaction Type first" placement="bottom">
+                    <span>
+                      <Button variant="outline" size="xs" disabled>
+                        Apply Rules
+                      </Button>
+                    </span>
+                  </Tooltip>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    onClick={() => handleApplyRules()}
+                    disabled={!canSubmitBuilder}
+                  >
+                    Apply Rules
+                  </Button>
+                )
               )}
-              {!isReadOnly && <Button
-                data-tour="create-tag-button"
-                variant="primary"
-                size="xs"
-                onClick={handleCreateFromBuilder}
-                disabled={!builderHasContent}
-              >
-                {editingDef ? `Save changes for "${editingDef.Tag}"` : 'Create Rule with current settings'}
-              </Button>}
+              {!isReadOnly && (
+                !builderHasTransactionType ? (
+                  <Tooltip content="Select a Transaction Type first" placement="bottom">
+                    <span>
+                      <Button
+                        data-tour="create-tag-button"
+                        variant="primary"
+                        size="xs"
+                        disabled
+                      >
+                        {editingDef ? `Save changes for "${editingDef.Tag}"` : 'Create Rule with current settings'}
+                      </Button>
+                    </span>
+                  </Tooltip>
+                ) : (
+                  <Button
+                    data-tour="create-tag-button"
+                    variant="primary"
+                    size="xs"
+                    onClick={handleCreateFromBuilder}
+                    disabled={!canSubmitBuilder}
+                  >
+                    {editingDef ? `Save changes for "${editingDef.Tag}"` : 'Create Rule with current settings'}
+                  </Button>
+                )
+              )}
             </div>
           </div>
 
