@@ -501,6 +501,10 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     g.conditions.some((c) => c.value.trim().length > 0)
   ) || builder.formState.attributes.some((a) => a.attributeTag.trim().length > 0);
 
+  // Rule creation / Apply Rules requires a transaction type selection
+  const builderHasTransactionType = builder.formState.transactionTypeCode.trim().length > 0;
+  const canSubmitBuilder = builderHasContent && builderHasTransactionType;
+
 
 
   // Analyze all rows
@@ -983,24 +987,51 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                 {isReadOnly ? 'Close' : 'Discard'}
               </Button>
               {!isReadOnly && tagClickState && (
-                <Button
-                  variant="outline"
-                  size="xs"
-                  onClick={() => handleApplyRules()}
-                  disabled={!builderHasContent}
-                >
-                  Apply Rules
-                </Button>
+                !builderHasTransactionType ? (
+                  <Tooltip content="Select a Transaction Type first" placement="bottom">
+                    <span>
+                      <Button variant="outline" size="xs" disabled>
+                        Apply Rules
+                      </Button>
+                    </span>
+                  </Tooltip>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    onClick={() => handleApplyRules()}
+                    disabled={!canSubmitBuilder}
+                  >
+                    Apply Rules
+                  </Button>
+                )
               )}
-              {!isReadOnly && <Button
-                data-tour="create-tag-button"
-                variant="primary"
-                size="xs"
-                onClick={handleCreateFromBuilder}
-                disabled={!builderHasContent}
-              >
-                {editingDef ? `Save changes for "${editingDef.Tag}"` : 'Create Rule with current settings'}
-              </Button>}
+              {!isReadOnly && (
+                !builderHasTransactionType ? (
+                  <Tooltip content="Select a Transaction Type first" placement="bottom">
+                    <span>
+                      <Button
+                        data-tour="create-tag-button"
+                        variant="primary"
+                        size="xs"
+                        disabled
+                      >
+                        {editingDef ? `Save changes for "${editingDef.Tag}"` : 'Create Rule with current settings'}
+                      </Button>
+                    </span>
+                  </Tooltip>
+                ) : (
+                  <Button
+                    data-tour="create-tag-button"
+                    variant="primary"
+                    size="xs"
+                    onClick={handleCreateFromBuilder}
+                    disabled={!canSubmitBuilder}
+                  >
+                    {editingDef ? `Save changes for "${editingDef.Tag}"` : 'Create Rule with current settings'}
+                  </Button>
+                )
+              )}
             </div>
           </div>
 
