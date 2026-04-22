@@ -8,22 +8,24 @@ import { extractAttributes } from './extractAttributes';
  * First checks the library's parent context, then each definition's child context.
  * Returns matched tags and their extracted attributes.
  *
- * When isPreview is true, definitions with no rules match unconditionally
- * (used for rule builder preview). Otherwise, definitions with no rules are skipped.
+ * A library with an empty Context is treated as the rule-builder preview library —
+ * its empty-rule definitions match unconditionally (so the user can preview an
+ * attribute-only draft). Real saved libraries (always scoped by bank/side via
+ * Context) never match empty-rule definitions; those are skipped.
  */
 export function analyzeRow(
   row: TransactionRow,
-  libraries: TagSpecLibrary[],
-  isPreview = false
+  libraries: TagSpecLibrary[]
 ): RowAnalysisResult {
   const tags: string[] = [];
   const attributes: Record<string, Record<string, string | null>> = {};
   const matchedDefinitions: TagSpecDefinition[] = [];
 
   for (const lib of libraries) {
-    // Level 1: Check parent context (e.g. Side + BankSwiftCode)
-    // Empty parent context means match all rows (used for preview)
-    if (lib.Context.length > 0 && !contextMatchesRow(lib.Context, row)) continue;
+    // Level 1: Check parent context (e.g. Side + BankSwiftCode).
+    // Empty parent context means this is the preview library (matches all rows).
+    const isPreviewLib = lib.Context.length === 0;
+    if (!isPreviewLib && !contextMatchesRow(lib.Context, row)) continue;
 
     for (const def of lib.TagSpecDefinitions) {
       if (def.StatusTag !== 'ACTIVE') continue;
@@ -35,11 +37,12 @@ export function analyzeRow(
       // Level 2: Check child context (e.g. TransactionTypeCode)
       if (def.Context.length > 0 && !contextMatchesRow(def.Context, row)) continue;
 
-      // Skip definitions with no rules unless in preview mode
-      if (def.TagRuleExpressions.length === 0 && !isPreview) continue;
+      // Definitions with no rules are only meaningful in the preview library.
+      // In real libraries, skip them — they'd otherwise produce phantom tag matches.
+      if (def.TagRuleExpressions.length === 0 && !isPreviewLib) continue;
 
-      // OR logic: any AND group matching is sufficient
-      // Empty rule expressions = unconditional match (only in preview mode)
+      // OR logic: any AND group matching is sufficient.
+      // Empty rule expressions = unconditional match (only reachable for the preview lib above).
       const matches = def.TagRuleExpressions.length === 0 ||
         def.TagRuleExpressions.some((andGroup) =>
           evaluateRuleSet(andGroup, row)

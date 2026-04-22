@@ -120,19 +120,26 @@ describe('analyzeRow', () => {
     expect(result.tags).toEqual([]);
   });
 
-  it('skips definitions with no rules when not in preview mode', () => {
+  it('skips definitions with no rules in real (non-preview) libraries', () => {
+    // A saved lib always has a non-empty Context (scoped by bank/side, etc.).
+    // An empty-rule definition inside such a lib must not match — it would
+    // otherwise produce phantom tag matches like MiscDebit with no rules.
     const lib = makeLib({
+      Context: [{ Key: 'Side', Value: 'DEBIT' }],
       TagSpecDefinitions: [makeDef('TAG1', { TagRuleExpressions: [] })],
     });
-    const result = analyzeRow(row, [lib], false);
+    const result = analyzeRow(row, [lib]);
     expect(result.tags).toEqual([]);
   });
 
-  it('matches definitions with no rules when in preview mode', () => {
+  it('matches definitions with no rules when library has empty Context (rule-builder preview)', () => {
+    // Empty parent Context marks this as the rule-builder preview library.
+    // Its empty-rule definition matches unconditionally so the user can preview
+    // an attribute-only draft.
     const lib = makeLib({
       TagSpecDefinitions: [makeDef('TAG1', { TagRuleExpressions: [] })],
     });
-    const result = analyzeRow(row, [lib], true);
+    const result = analyzeRow(row, [lib]);
     expect(result.tags).toEqual(['TAG1']);
   });
 

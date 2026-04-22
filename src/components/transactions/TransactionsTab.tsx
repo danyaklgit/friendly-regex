@@ -542,7 +542,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     () =>
       transactions.map((row) => ({
         row,
-        analysis: analyzeRow(row, allLibraries, !!tempDefinition && !editingDef),
+        analysis: analyzeRow(row, allLibraries),
       })).filter(item => {
         if (!builderOpen || !builderHasContent) return true;
         // When tag click applied a server-side tag filter, skip client-side
