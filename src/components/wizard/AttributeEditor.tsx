@@ -471,10 +471,9 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                         : 'bg-input-bg border-input-border text-body hover:bg-surface-hover'
                       }`}
                   >
-                    <span className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors shrink-0 ${attribute.toStart ? 'bg-primary' : 'bg-border-strong dark:bg-faint'}`}>
-                      <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${attribute.toStart ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+                    <span className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors shrink-0 ${attribute.toStart ? 'bg-primary' : 'bg-border-strong dark:bg-faint'}`}>
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${attribute.toStart ? 'translate-x-4.5' : 'translate-x-0.5'}`} />
                     </span>
-                    {attribute.toStart ? 'On' : 'Off'}
                   </button>
                 </div>
               )}

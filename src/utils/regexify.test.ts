@@ -82,14 +82,31 @@ describe('regexifyExtraction', () => {
       .toBe('/ORDP/(.*?)/');
   });
 
-  it('extract_after: prefix(.*)', () => {
+  it('extract_after: default captures everything after the prefix', () => {
     expect(regexifyExtraction('extract_after', { prefix: 'REF:' }))
       .toBe('REF:(.*)');
   });
 
-  it('extract_before: (.*?)suffix', () => {
-    expect(regexifyExtraction('extract_before', { suffix: '/END' }))
-      .toBe('(.*?)/END');
+  it('extract_after: captures up to the first toStr occurrence when provided', () => {
+    expect(regexifyExtraction('extract_after', { prefix: 'REF:', toStr: ' ' }))
+      .toBe('REF:(.*?) ');
+  });
+
+  it('extract_before: default captures everything before the suffix', () => {
+    expect(regexifyExtraction('extract_before', { suffix: 'Bill for' }))
+      .toBe('(.*?)Bill for');
+  });
+
+  it('extract_before: with toStr anchors to the LAST toStr before the suffix', () => {
+    // "...NAR3/2 /EXCH/1..." with suffix="/1" and toStr=" " should capture "/EXCH",
+    // not everything from the first space onwards.
+    expect(regexifyExtraction('extract_before', { suffix: '/1', toStr: ' ' }))
+      .toBe('.* (.*?)/1');
+  });
+
+  it('extract_before: with numChars captures fixed-length window before the suffix', () => {
+    expect(regexifyExtraction('extract_before', { suffix: '/1', numChars: 5 }))
+      .toBe('(.{5})/1');
   });
 
   it('extract_matching: wraps pattern in group', () => {
@@ -127,12 +144,12 @@ describe('regexifyExtraction', () => {
       .toBe('(.*?)');
   });
 
-  it('extract_after with missing prefix defaults to empty', () => {
+  it('extract_after with missing prefix captures the entire string', () => {
     expect(regexifyExtraction('extract_after', {}))
       .toBe('(.*)');
   });
 
-  it('extract_before with missing suffix defaults to empty', () => {
+  it('extract_before with missing suffix defaults to lazy capture', () => {
     expect(regexifyExtraction('extract_before', {}))
       .toBe('(.*?)');
   });

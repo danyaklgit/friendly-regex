@@ -65,9 +65,12 @@ function buildCapture(numChars?: number, toStr?: string): string {
 function buildCaptureBefore(numChars?: number, toStr?: string): string {
   const hasN = numChars && numChars > 0;
   const hasTo = !!toStr;
-  if (hasN && hasTo) return `${escapeRegex(toStr)}(.{0,${numChars}}?)`;
+  // Use greedy .* before toStr so backtracking anchors to the LAST occurrence
+  // of toStr before the suffix (e.g. "...NAR3/2 /EXCH/1" with toStr=" " and
+  // suffix="/1" → capture "/EXCH", not "FOR INFORMATION ... /EXCH").
+  if (hasN && hasTo) return `.*${escapeRegex(toStr)}(.{0,${numChars}}?)`;
   if (hasN) return `(.{${numChars}})`;
-  if (hasTo) return `${escapeRegex(toStr)}(.*?)`;
+  if (hasTo) return `.*${escapeRegex(toStr)}(.*?)`;
   return '(.*?)';
 }
 
@@ -98,11 +101,18 @@ export function regexifyExtraction(
     case 'extract_after': {
       const pre = escapeRegex(params.prefix ?? '');
       const skip = occ ? `(?:.*?${pre}){${occ - 1}}.*?` : '';
+      // Default: capture everything after the prefix (all remaining content).
+      // With numChars → fixed-length capture; with toStr → lazy capture up to
+      // the first occurrence of toStr.
       return `${skip}${pre}${buildCapture(params.numChars, params.toStr)}`;
     }
     case 'extract_before': {
       const suf = escapeRegex(params.suffix ?? '');
       const skip = occ ? `(?:.*?${suf}){${occ - 1}}.*?` : '';
+      // Default: capture everything before the suffix (lazy, so we stop at the
+      // first occurrence of the suffix). With toStr → capture between the
+      // first toStr and the suffix; with numChars → the N chars directly
+      // before the suffix.
       return `${skip}${buildCaptureBefore(params.numChars, params.toStr)}${suf}`;
     }
     case 'extract_matching': {
