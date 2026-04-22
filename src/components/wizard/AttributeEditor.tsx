@@ -154,22 +154,54 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
       const regexStr = attribute._originalRegex || rebuilt;
       const regex = regexStr ? new RegExp(regexStr) : null;
       const values = new Set<string>();
-      for (const row of transactions) {
-        const fieldValue = row[attribute.sourceField];
-        if (fieldValue === undefined || fieldValue === null) continue;
-        const str = String(fieldValue);
-        if (regex) {
-          const match = str.match(regex);
-          if (match?.[1]) values.add(match[1]);
-        } else if (str.trim()) {
-          values.add(str);
+
+      const scanServer = (list: unknown): string | null => {
+        if (!Array.isArray(list)) return null;
+        for (const entry of list) {
+          if (entry && typeof entry === 'object') {
+            const e = entry as { Key?: unknown; Value?: unknown };
+            if (e.Key === attribute.attributeTag && e.Value != null && e.Value !== '') {
+              return String(e.Value);
+            }
+          }
         }
+        return null;
+      };
+
+      for (const row of transactions) {
+        // 1) Try the (possibly drafted) regex client-side.
+        const fieldValue = row[attribute.sourceField];
+        const str = fieldValue !== undefined && fieldValue !== null ? String(fieldValue) : '';
+        let captured: string | undefined;
+        if (regex && str) {
+          const match = str.match(regex);
+          // Fall back to match[0] for lookahead-style patterns without an explicit capture group.
+          captured = match ? (match[1] ?? match[0]) : undefined;
+        } else if (!regex && str.trim()) {
+          captured = str;
+        }
+        if (captured) {
+          values.add(captured);
+          continue;
+        }
+        // 2) Server-provided fallback from OpsAttributes / OpsMultiTags[*].Attributes.
+        const r = row as unknown as Record<string, unknown>;
+        let serverVal = scanServer(r.OpsAttributes);
+        if (serverVal === null && Array.isArray(r.OpsMultiTags)) {
+          for (const mt of r.OpsMultiTags) {
+            if (mt && typeof mt === 'object') {
+              const v = scanServer((mt as { Attributes?: unknown }).Attributes);
+              if (v !== null) { serverVal = v; break; }
+            }
+          }
+        }
+        if (serverVal !== null) values.add(serverVal);
       }
       return Array.from(values).sort();
     } catch {
       return [];
     }
-  }, [transactions, attribute.sourceField, attribute.extractionOperation, attribute.prefix, attribute.suffix, attribute.pattern, attribute.verifyValue, attribute._originalRegex, extractionParams]);
+  }, [transactions, attribute.sourceField, attribute.attributeTag, attribute.extractionOperation, attribute.prefix, attribute.suffix, attribute.pattern, attribute.verifyValue, attribute._originalRegex, extractionParams]);
 
   // Sample value for transformation preview:
   // If extraction method is set, use the first extracted value; otherwise use the raw source field value
@@ -187,6 +219,44 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
   const validationSummary = useMemo(() => {
     if (!transactions) return null;
 
+    // Lookup the server-computed value for this attribute on a row, so
+    // validation counts stay correct even when the client-side regex can't
+    // reproduce the extraction (e.g. a suffix containing regex metachars
+    // that the rule builder escapes as literals).
+    const scanServer = (list: unknown): string | null => {
+      if (!Array.isArray(list)) return null;
+      for (const entry of list) {
+        if (entry && typeof entry === 'object') {
+          const e = entry as { Key?: unknown; Value?: unknown };
+          if (e.Key === attribute.attributeTag && e.Value != null && e.Value !== '') {
+            return String(e.Value);
+          }
+        }
+      }
+      return null;
+    };
+    const readServerValue = (row: TransactionRow): string | null => {
+      const r = row as unknown as Record<string, unknown>;
+      const primary = scanServer(r.OpsAttributes);
+      if (primary !== null) return primary;
+      if (Array.isArray(r.OpsMultiTags)) {
+        for (const mt of r.OpsMultiTags) {
+          if (mt && typeof mt === 'object') {
+            const v = scanServer((mt as { Attributes?: unknown }).Attributes);
+            if (v !== null) return v;
+          }
+        }
+      }
+      return null;
+    };
+    const extractClientValue = (row: TransactionRow, regex: RegExp): string | null => {
+      const fieldValue = row[attribute.sourceField];
+      if (fieldValue === undefined || fieldValue === null) return null;
+      const match = String(fieldValue).match(regex);
+      // Fall back to match[0] for patterns without an explicit capture group.
+      return match ? (match[1] ?? match[0] ?? null) : null;
+    };
+
     // Handle extract_between_and_verify
     if (attribute.extractionOperation === 'extract_between_and_verify' && attribute.verifyValue) {
       try {
@@ -198,8 +268,8 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
           const fieldValue = row[attribute.sourceField];
           if (fieldValue === undefined || fieldValue === null) continue;
           total++;
-          const match = String(fieldValue).match(regex);
-          if (match?.[1] === attribute.verifyValue) {
+          const extracted = extractClientValue(row, regex) ?? readServerValue(row);
+          if (extracted === attribute.verifyValue) {
             passed++
           } else {
             notPassed++
@@ -240,19 +310,18 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
         let total = 0;
         let passed = 0;
         for (const row of transactions) {
-          const fieldValue = row[attribute.sourceField];
-          if (fieldValue === undefined || fieldValue === null) continue;
-          const match = String(fieldValue).match(extractionRegex);
-          if (!match?.[1]) continue;
+          // Try the client regex first, fall back to the server-provided value.
+          const extracted = extractClientValue(row, extractionRegex) ?? readServerValue(row);
+          if (!extracted) continue;
           total++;
-          if (vcRegex.test(match[1])) passed++;
+          if (vcRegex.test(extracted)) passed++;
         }
         if (total > 0) return { allValid: passed === total, passed, total, notPassed: total - passed };
       } catch { /* skip */ }
     }
 
     return null;
-  }, [transactions, attribute.sourceField, attribute.extractionOperation, attribute.prefix, attribute.suffix, attribute.verifyValue, attribute.validationRuleTag, validationClasses]);
+  }, [transactions, attribute.sourceField, attribute.attributeTag, attribute.extractionOperation, attribute.prefix, attribute.suffix, attribute.verifyValue, attribute.validationRuleTag, validationClasses, extractionParams]);
 
   return (
     <div className="border border-border rounded-lg bg-surface">

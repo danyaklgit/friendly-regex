@@ -241,14 +241,37 @@ export function decomposeExtractionRegex(regex: string): {
   }
 
   // Extract matching: (pattern)
-  const extractMatchingMatch = regex.match(/^\((.+)\)$/);
-  if (extractMatchingMatch) {
+  // Only strip outer parens when they actually pair — i.e. the `(` at index 0
+  // matches the `)` at the last index. Otherwise a regex like `(?:.*?-){2}(-)`
+  // (which starts with `(?:` and ends with `)` from its final capture group)
+  // would get mangled into `?:.*?-){2}(-`.
+  if (outerParensPair(regex)) {
     return {
       operation: 'extract_matching',
-      pattern: extractMatchingMatch[1],
+      pattern: regex.slice(1, -1),
     };
   }
 
-  // Fallback
+  // Fallback — preserve the full regex as the pattern so users still see it.
   return { operation: 'extract_matching', pattern: regex };
+}
+
+/**
+ * Returns true when `str` begins with `(` and ends with `)` AND that opening
+ * paren's matching close is the very last character — i.e. the outer parens
+ * wrap the entire regex as a single group. Ignores escaped parens (`\(`, `\)`).
+ */
+function outerParensPair(str: string): boolean {
+  if (str.length < 2 || str[0] !== '(' || str[str.length - 1] !== ')') return false;
+  let depth = 0;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i];
+    if (ch === '\\') { i++; continue; }
+    if (ch === '(') depth++;
+    else if (ch === ')') {
+      depth--;
+      if (depth === 0) return i === str.length - 1;
+    }
+  }
+  return false;
 }

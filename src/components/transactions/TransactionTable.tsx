@@ -942,9 +942,38 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
   // --- end minimap ---
 
   const getAttributeValue = (item: AnalyzedTransaction, attrName: string): string | null => {
+    // 1) Client-computed value (reflects live rule-builder drafts/edits).
     for (const tagAttrs of Object.values(item.analysis.attributes)) {
       if (attrName in tagAttrs && tagAttrs[attrName] !== null) {
         return tagAttrs[attrName];
+      }
+    }
+    // 2) Server-provided fallback — the API response carries pre-computed values
+    // in OpsAttributes (single-tag rows) or OpsMultiTags[*].Attributes (multi-tag
+    // rows). Use them when the client couldn't extract (e.g. regex has no capture
+    // group, or the source field on this row is empty).
+    const row = item.row as unknown as Record<string, unknown>;
+    const scan = (list: unknown): string | null => {
+      if (!Array.isArray(list)) return null;
+      for (const entry of list) {
+        if (entry && typeof entry === 'object') {
+          const e = entry as { Key?: unknown; Value?: unknown };
+          if (e.Key === attrName && e.Value != null && e.Value !== '') {
+            return String(e.Value);
+          }
+        }
+      }
+      return null;
+    };
+    const primary = scan(row.OpsAttributes);
+    if (primary !== null) return primary;
+    const multi = row.OpsMultiTags;
+    if (Array.isArray(multi)) {
+      for (const mt of multi) {
+        if (mt && typeof mt === 'object') {
+          const v = scan((mt as { Attributes?: unknown }).Attributes);
+          if (v !== null) return v;
+        }
       }
     }
     return null;

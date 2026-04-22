@@ -515,10 +515,31 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   }, [libraries]);
 
   // Combine real libraries + temp definition for analysis.
-  // When editing an existing def, skip the preview — the original is already in libraries.
+  // When editing an existing def, swap the saved def's rules/attributes with the
+  // draft ones in place, so the live preview reflects in-progress edits (new
+  // attributes, tweaked regex, modified conditions).
   // When creating a new def, append a synthetic preview library.
   const allLibraries: TagSpecLibrary[] = useMemo(() => {
-    if (!tempDefinition || editingDef) return effectiveLibraries;
+    if (!tempDefinition) return effectiveLibraries;
+
+    if (editingDef) {
+      return effectiveLibraries.map((lib) => {
+        const hasDef = lib.TagSpecDefinitions.some((d) => d.Id === editingDef.Id);
+        if (!hasDef) return lib;
+        return {
+          ...lib,
+          TagSpecDefinitions: lib.TagSpecDefinitions.map((d) =>
+            d.Id === editingDef.Id
+              ? {
+                  ...d,
+                  TagRuleExpressions: tempDefinition.TagRuleExpressions,
+                  Attributes: tempDefinition.Attributes,
+                }
+              : d
+          ),
+        };
+      });
+    }
 
     const previewLib: TagSpecLibrary = {
       Id: 'preview-lib',
@@ -773,13 +794,16 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
               : [...currentLib.TagSpecDefinitions, result.definition];
             const libToSave = { ...currentLib, TagSpecDefinitions: updatedDefs };
             await tagSpecLibrarySave(libToSave, token, tepHeaders);
+            // Re-baseline the local cache so baseline + current both reflect what's now on the server,
+            // preventing stale draft state from overriding fresh API responses on future fetches.
+            saveBaseline(libToSave);
           }
         }
       } catch (err) {
         console.error('Failed to save tag spec library:', err);
       }
     }
-  }, [dispatch, builder, editingDef, tagClickState, baseFilters, activeCheckout, libraries, refreshIfNeeded, getAuthHeaders, userId, tepConfig]);
+  }, [dispatch, builder, editingDef, tagClickState, baseFilters, activeCheckout, libraries, refreshIfNeeded, getAuthHeaders, userId, tepConfig, saveBaseline]);
 
   const handleWizardClose = useCallback(() => {
     setWizardOpen(false);

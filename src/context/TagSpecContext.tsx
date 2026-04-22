@@ -10,6 +10,65 @@ import sampleHierarchyData from '../data/sampleHiearchy.json';
 
 // --- Helpers ---
 
+/**
+ * Merge localStorage draft (`tep:current:${bank}:${side}`) over the API lib ONLY when
+ * the cached draft is still anchored to the same server version we just fetched.
+ *
+ * The cache is a user's in-progress edits; it must not silently shadow a backend
+ * that has moved on (e.g. someone else saved, or this user saved from another
+ * machine). We detect that by comparing Id + VersionDate. If they diverge, the
+ * cache is stale — drop it and surface the fresh API data.
+ */
+function applyLocalDraftOrInvalidate(apiLib: TagSpecLibrary): TagSpecLibrary {
+  if (apiLib.StatusTag !== 'INPROGRESS' || !apiLib.OperatorId) return apiLib;
+  const bank = getContextValue(apiLib.Context, 'BankSwiftCode') ?? '';
+  const side = getContextValue(apiLib.Context, 'Side') ?? '';
+  if (!bank || !side) return apiLib;
+  const currentKey = `tep:current:${bank}:${side}`;
+  const baselineKey = `tep:baseline:${bank}:${side}`;
+  try {
+    const raw = localStorage.getItem(currentKey);
+    if (!raw) return apiLib;
+    const cached = JSON.parse(raw) as TagSpecLibrary;
+    const stale =
+      cached.Id !== apiLib.Id ||
+      (apiLib.VersionDate && cached.VersionDate && cached.VersionDate < apiLib.VersionDate);
+    if (stale) {
+      localStorage.removeItem(currentKey);
+      localStorage.removeItem(baselineKey);
+      return apiLib;
+    }
+    return { ...apiLib, TagSpecDefinitions: cached.TagSpecDefinitions };
+  } catch {
+    return apiLib;
+  }
+}
+
+/**
+ * One-time migration: older builds could persist stale `tep:current:*` drafts that
+ * silently shadowed fresh API data (see applyLocalDraftOrInvalidate above). The
+ * version-aware merge only heals caches on a server-side VersionDate bump, so
+ * existing stale drafts on users' browsers need a one-shot purge. Guarded by a
+ * versioned flag so it runs exactly once per browser per bump.
+ */
+const CACHE_PURGE_FLAG = 'tep:cacheMigration:v1';
+function runOneTimeCachePurge(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (localStorage.getItem(CACHE_PURGE_FLAG)) return;
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && (k.startsWith('tep:current:') || k.startsWith('tep:baseline:'))) {
+        keysToRemove.push(k);
+      }
+    }
+    for (const k of keysToRemove) localStorage.removeItem(k);
+    localStorage.setItem(CACHE_PURGE_FLAG, '1');
+  } catch { /* localStorage unavailable — skip */ }
+}
+runOneTimeCachePurge();
+
 /** Compare two ContextEntry[] arrays for equality (order-insensitive) */
 export function contextsMatch(a: ContextEntry[], b: ContextEntry[]): boolean {
   if (a.length !== b.length) return false;
@@ -316,21 +375,9 @@ export function TagSpecProvider({ children, useDummyData, authToken, tepHeaders 
           firstSeenRef.current.delete(libId);
         }
       }
-      // Merge localStorage overrides for checked-out pairs
-      const mergedLibs = libsData.map((lib) => {
-        if (lib.StatusTag !== 'INPROGRESS' || !lib.OperatorId) return lib;
-        const bank = getContextValue(lib.Context, 'BankSwiftCode') ?? '';
-        const side = getContextValue(lib.Context, 'Side') ?? '';
-        const localKey = `tep:current:${bank}:${side}`;
-        try {
-          const raw = localStorage.getItem(localKey);
-          if (raw) {
-            const localLib = JSON.parse(raw) as TagSpecLibrary;
-            return { ...lib, TagSpecDefinitions: localLib.TagSpecDefinitions };
-          }
-        } catch { /* ignore parse errors */ }
-        return lib;
-      });
+      // Merge localStorage draft overrides for checked-out pairs, but only when the
+      // cached draft is still anchored to the server version we just fetched.
+      const mergedLibs = libsData.map(applyLocalDraftOrInvalidate);
       dispatch({ type: 'REPLACE_ALL', payload: mergedLibs });
       const ids = flattenDefinitions(mergedLibs).map((d) => d.Id);
       for (const id of ids) originalDefinitionIds.add(id);
@@ -368,21 +415,9 @@ export function TagSpecProvider({ children, useDummyData, authToken, tepHeaders 
           firstSeenRef.current.delete(libId);
         }
       }
-      // Merge localStorage overrides for checked-out pairs
-      const mergedLibs = libsData.map((lib) => {
-        if (lib.StatusTag !== 'INPROGRESS' || !lib.OperatorId) return lib;
-        const bank = getContextValue(lib.Context, 'BankSwiftCode') ?? '';
-        const side = getContextValue(lib.Context, 'Side') ?? '';
-        const localKey = `tep:current:${bank}:${side}`;
-        try {
-          const raw = localStorage.getItem(localKey);
-          if (raw) {
-            const localLib = JSON.parse(raw) as TagSpecLibrary;
-            return { ...lib, TagSpecDefinitions: localLib.TagSpecDefinitions };
-          }
-        } catch { /* ignore parse errors */ }
-        return lib;
-      });
+      // Merge localStorage draft overrides for checked-out pairs, but only when the
+      // cached draft is still anchored to the server version we just fetched.
+      const mergedLibs = libsData.map(applyLocalDraftOrInvalidate);
       dispatch({ type: 'REPLACE_ALL', payload: mergedLibs });
       const ids = flattenDefinitions(mergedLibs).map((d) => d.Id);
       for (const id of ids) originalDefinitionIds.add(id);
