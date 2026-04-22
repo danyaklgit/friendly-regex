@@ -108,11 +108,12 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
     if (!attribute.extractionOperation || attribute.extractionOperation.trim().length === 0) {
       missing.push('Extraction Method');
     } else if (selectedOp) {
+      // Allow space-only values (e.g. prefix=' ' is a valid delimiter); reject only empty strings.
       for (const field of selectedOp.fields) {
-        if (field === 'prefix' && !(attribute.prefix ?? '').trim()) missing.push('Prefix');
-        if (field === 'suffix' && !(attribute.suffix ?? '').trim()) missing.push('Suffix');
-        if (field === 'pattern' && !(attribute.pattern ?? '').trim()) missing.push('Pattern');
-        if (field === 'verifyValue' && !(attribute.verifyValue ?? '').trim()) missing.push('Verify Value');
+        if (field === 'prefix' && (attribute.prefix ?? '').length === 0) missing.push('Prefix');
+        if (field === 'suffix' && (attribute.suffix ?? '').length === 0) missing.push('Suffix');
+        if (field === 'pattern' && (attribute.pattern ?? '').length === 0) missing.push('Pattern');
+        if (field === 'verifyValue' && (attribute.verifyValue ?? '').length === 0) missing.push('Verify Value');
       }
     }
     return missing;
