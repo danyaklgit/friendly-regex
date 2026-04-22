@@ -61,16 +61,18 @@ export function TransformationItem({
     return !usedNoArgMethods.has(opt.value);
   });
 
+  const hasArgs = !!methodDef && methodDef.args.length > 0;
+
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className="flex items-center gap-1.5 group"
+      className={`flex ${hasArgs ? 'items-end' : 'items-center'} gap-1.5 group`}
     >
       {/* Drag handle */}
       <button
         type="button"
-        className={`shrink-0 p-0.5 rounded transition-colors ${reorderDisabled ? 'text-faint/30 cursor-not-allowed' : 'cursor-grab active:cursor-grabbing text-faint hover:text-body'}`}
+        className={`shrink-0 p-0.5 rounded transition-colors ${hasArgs ? 'mb-2' : ''} ${reorderDisabled ? 'text-faint/30 cursor-not-allowed' : 'cursor-grab active:cursor-grabbing text-faint hover:text-body'}`}
         {...(reorderDisabled ? {} : { ...attributes, ...listeners })}
         title="Drag to reorder"
       >
@@ -78,7 +80,7 @@ export function TransformationItem({
       </button>
 
       {/* Step number */}
-      <span className="shrink-0 w-4 text-right text-xs font-mono text-faint">{index + 1}.</span>
+      <span className={`shrink-0 w-4 text-right text-xs font-mono text-faint ${hasArgs ? 'mb-2' : ''}`}>{index + 1}.</span>
 
       {/* Method selector */}
       <div className="w-44 shrink-0">
@@ -101,15 +103,17 @@ export function TransformationItem({
       </div>
 
       {/* Dynamic args */}
-      {methodDef && methodDef.args.length > 0 && (
+      {hasArgs && (
         <div className="flex gap-1.5 flex-1 min-w-0">
-          {methodDef.args.map((argDef) => (
+          {methodDef!.args.map((argDef) => (
             <div key={argDef.key} className="flex-1 min-w-0">
               <Input
+                label={argDef.label}
                 placeholder={argDef.placeholder}
                 type={argDef.type}
                 value={transformation.args[argDef.key] ?? ''}
                 disabled={readOnly}
+                required={argDef.required}
                 onChange={(e) =>
                   onUpdate({ args: { ...transformation.args, [argDef.key]: e.target.value } })
                 }
@@ -120,7 +124,7 @@ export function TransformationItem({
       )}
 
       {/* Up/Down arrows + Remove */}
-      <div className="flex items-center shrink-0 w-8 justify-center">
+      <div className={`flex items-center shrink-0 w-8 justify-center ${hasArgs ? 'mb-1' : ''}`}>
         <button
           type="button"
           onClick={onMoveUp}
@@ -146,7 +150,7 @@ export function TransformationItem({
           variant="ghost"
           size="xs"
           onClick={onRemove}
-          className="shrink-0 text-red-400 hover:text-red-500"
+          className={`shrink-0 text-red-400 hover:text-red-500 ${hasArgs ? 'mb-1' : ''}`}
         >
           Remove Transformation
         </Button>

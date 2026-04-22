@@ -4,6 +4,7 @@ import { Input } from '../shared/Input';
 import { SearchableSelect } from '../shared/SearchableSelect';
 import { Toggle } from '../shared/Toggle';
 import { Button } from '../shared/Button';
+import { Tooltip } from '../shared/Tooltip';
 import { Modal } from '../shared/Modal';
 import { VALIDATION_RULE_TAG_OPTIONS } from '../../constants/fields';
 import { useLovAttributes } from '../../context/LovAttributesContext';
@@ -98,6 +99,34 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
 
   const selectedOp = EXTRACTION_OPERATIONS.find((op) => op.key === attribute.extractionOperation);
   const filteredOp = FILTERED_EXTRACTION_OPERATIONS.find((op) => op.key === attribute.extractionOperation);
+
+  // Required-field validation for the Save button
+  const missingSaveFields = useMemo(() => {
+    const missing: string[] = [];
+    if (attribute.attributeTag.trim().length === 0) missing.push('Attribute Name');
+    if (!attribute.sourceField || attribute.sourceField.trim().length === 0) missing.push('Source Field');
+    if (!attribute.extractionOperation || attribute.extractionOperation.trim().length === 0) {
+      missing.push('Extraction Method');
+    } else if (selectedOp) {
+      for (const field of selectedOp.fields) {
+        if (field === 'prefix' && !(attribute.prefix ?? '').trim()) missing.push('Prefix');
+        if (field === 'suffix' && !(attribute.suffix ?? '').trim()) missing.push('Suffix');
+        if (field === 'pattern' && !(attribute.pattern ?? '').trim()) missing.push('Pattern');
+        if (field === 'verifyValue' && !(attribute.verifyValue ?? '').trim()) missing.push('Verify Value');
+      }
+    }
+    return missing;
+  }, [
+    attribute.attributeTag,
+    attribute.sourceField,
+    attribute.extractionOperation,
+    attribute.prefix,
+    attribute.suffix,
+    attribute.pattern,
+    attribute.verifyValue,
+    selectedOp,
+  ]);
+  const canSaveAttribute = missingSaveFields.length === 0;
   const extractionParams = useMemo(() => ({
     prefix: attribute.prefix,
     suffix: attribute.suffix,
@@ -552,9 +581,29 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                   <Button variant="secondary" size="xs" onClick={handleDiscard} className="min-w-16 text-center shrink-0">
                     Discard
                   </Button>
-                  <Button variant="primary" size="xs" onClick={() => { setHasSaved(true); setEditing(false); }} className="min-w-16 text-center shrink-0">
-                    Save
-                  </Button>
+                  {canSaveAttribute ? (
+                    <Button
+                      variant="primary"
+                      size="xs"
+                      onClick={() => { setHasSaved(true); setEditing(false); }}
+                      className="min-w-16 text-center shrink-0"
+                    >
+                      Save
+                    </Button>
+                  ) : (
+                    <Tooltip content={`Missing: ${missingSaveFields.join(', ')}`} placement="top">
+                      <span>
+                        <Button
+                          variant="primary"
+                          size="xs"
+                          disabled
+                          className="min-w-16 text-center shrink-0"
+                        >
+                          Save
+                        </Button>
+                      </span>
+                    </Tooltip>
+                  )}
                 </>
               )}
             </div>
