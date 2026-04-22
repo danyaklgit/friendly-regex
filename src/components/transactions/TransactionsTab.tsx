@@ -128,6 +128,10 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
 }
 
 const BATCH_SIZE = 50;
+// Stable empty filter sentinel — used when a fetch is scoped only by an extra filter
+// (e.g. TagSpecDefinitionId) and we want to drop bank/side from the payload. A
+// shared constant keeps identity stable across renders so dependent effects don't re-fire.
+const EMPTY_FILTERS: Record<string, Set<string>> = {};
 
 /** Build the FilterProperty[] payload for Call 3 (Apply Rules) from the builder form state. */
 function buildRulesetFilters(formState: WizardFormState): FilterProperty[] {
@@ -215,11 +219,15 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       fetchFilterDefinitions();
     }
   }, [isLiveMode, fetchFilterDefinitions, filterDefinitions.length]);
-  // Probe the true max value for each DECIMAL filter once definitions are loaded
+  // Probe the true max value for each DECIMAL filter once definitions are loaded.
+  // Skip entirely when the user arrived via a Backlog "edit tag" navigation —
+  // they're going straight into the rule builder; amount-range sliders aren't
+  // in play, so the probe is pure noise. DynamicFilters falls back to a
+  // data-derived max for DECIMAL bounds when no probed value is present.
   useEffect(() => {
-    if (isLiveMode && filterDefinitions.length > 0) {
-      fetchDecimalMaxValues(filterDefinitions);
-    }
+    if (!isLiveMode || filterDefinitions.length === 0) return;
+    if (activeCheckout?.pendingDefinitionId) return;
+    fetchDecimalMaxValues(filterDefinitions);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLiveMode, filterDefinitions.length]);
 
@@ -282,25 +290,30 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     originalFormState: WizardFormState;       // builder state at tag-click time (for discard)
   } | null>(null);
 
-  // Extra filters injected into API calls (definition-ID scoping, REGEX ruleset, or transaction type from builder)
+  // Extra filters injected into API calls (definition-ID scoping, REGEX ruleset, or transaction type from builder).
+  // Narrow the deps to the exact fields of tagClickState we read, so downstream
+  // updates (e.g. tagNameCount from the background count fetch) don't churn the
+  // memo identity and trigger a duplicate page fetch.
+  const tagClickDefinitionId = tagClickState?.definitionId;
+  const tagClickRulesetApplied = tagClickState?.rulesetApplied ?? false;
+  const tagClickShowingAll = tagClickState?.showingAll ?? false;
+  const tagClickRulesetFilters = tagClickState?.rulesetFilters;
   const activeExtraFilters: FilterProperty[] = useMemo(() => {
-    if (tagClickState) {
+    if (tagClickDefinitionId != null) {
       // After "Apply Rules": use REGEX-based filters (Call 3)
-      if (tagClickState.rulesetApplied) {
-        return tagClickState.rulesetFilters;
+      if (tagClickRulesetApplied) {
+        return tagClickRulesetFilters ?? [];
       }
       // Default tag-click mode: scope by definition ID (Call 2)
-      if (!tagClickState.showingAll) {
+      if (!tagClickShowingAll) {
         return [{
           ColumnName: 'OpsTagSpecDefinitionId|OpsMultiTags.TagSpecDefinitionId',
-          Value: tagClickState.definitionId,
+          Value: tagClickDefinitionId,
           Operand: 'IN',
         }];
       }
-      // "Show all" mode: keep TransactionTypeCode so the scope stays correct
-      if (tagClickState.originalFormState.transactionTypeCode) {
-        return [{ ColumnName: 'TransactionTypeCode', Value: tagClickState.originalFormState.transactionTypeCode, Operand: 'EQ' }];
-      }
+      // "Show all" mode: don't scope by TransactionTypeCode — the tag name filter
+      // (applied via `filters`) is what the user wants to broaden to.
       return [];
     }
     const extra: FilterProperty[] = [];
@@ -308,7 +321,18 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       extra.push({ ColumnName: 'TransactionTypeCode', Value: builder.formState.transactionTypeCode, Operand: 'EQ' });
     }
     return extra;
-  }, [tagClickState, builderOpen, builder.formState.transactionTypeCode]);
+  }, [tagClickDefinitionId, tagClickRulesetApplied, tagClickShowingAll, tagClickRulesetFilters, builderOpen, builder.formState.transactionTypeCode]);
+
+  // When the API call is scoped by TagSpecDefinitionId, the definition itself
+  // implies bank/side via its parent library — don't also send bank/side filters.
+  // Use a stable sentinel so its identity doesn't churn across renders when the
+  // call stays scoped (avoids re-firing the live-fetch effect unnecessarily).
+  const outgoingFilters = useMemo(() => {
+    const scopedByDefinitionId = activeExtraFilters.some(
+      (f) => 'ColumnName' in f && f.ColumnName === 'OpsTagSpecDefinitionId|OpsMultiTags.TagSpecDefinitionId'
+    );
+    return scopedByDefinitionId ? EMPTY_FILTERS : filters;
+  }, [activeExtraFilters, filters]);
 
   // Persist settings to localStorage
   useEffect(() => { try { localStorage.setItem('tep:showAttributes', String(showAttributes)); } catch { /* ignore */ } }, [showAttributes]);
@@ -393,15 +417,19 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [baseFilters]);
 
-  // Live mode: fetch from API when filters or extraFilters change
+  // Live mode: fetch from API when filters or extraFilters change.
+  // While a Backlog "edit" navigation is pending, skip auto-fetch — handleTagClick
+  // will set tagClickState and this effect will re-fire with the scoped extra filter,
+  // avoiding a broad fetch that would just be aborted.
   useEffect(() => {
     if (!isLiveMode) return;
+    if (activeCheckout?.pendingDefinitionId) return;
     const timer = setTimeout(() => {
-      fetchPage(filters, false, incrementalPagination ? undefined : 0, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined);
+      fetchPage(outgoingFilters, false, incrementalPagination ? undefined : 0, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined);
       if (!incrementalPagination) { setCurrentPage(0); setPageInputValue('1'); }
     }, 50);
     return () => clearTimeout(timer);
-  }, [isLiveMode, filters, fetchPage, incrementalPagination, activeExtraFilters]);
+  }, [isLiveMode, outgoingFilters, fetchPage, incrementalPagination, activeExtraFilters, activeCheckout?.pendingDefinitionId]);
 
   // Capture Call 2 total count (definition-based) before Call 3 can overwrite it
   useEffect(() => {
@@ -758,9 +786,12 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         );
         const tagFilterKey = tagFilterDef?.Tag ?? '';
 
-        // Save pre-click filters and set tag click state (don't modify filters — extraFilters handles the definition ID scoping)
+        // Save pre-click filters and set tag click state (don't modify filters — extraFilters handles the definition ID scoping).
+        // Seed preFilters from baseFilters (not `filters`) so bank/side are always correct —
+        // when this fires on Backlog-edit navigation, `filters` may still be stale from before
+        // filterDefinitions loaded, but `baseFilters` is always the memoised current bank/side map.
         setTagClickState({
-          preFilters: { ...filters },
+          preFilters: { ...(baseFilters ?? {}) },
           tagName,
           definitionId: foundDef.Id,
           tagNameCount: null, // loading
@@ -773,34 +804,34 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
           originalFormState: formState,
         });
 
-        // Primary: immediately fetch by definition ID (don't wait for the useEffect cycle)
-        const defIdFilter: FilterProperty[] = [{
-          ColumnName: 'OpsTagSpecDefinitionId|OpsMultiTags.TagSpecDefinitionId',
-          Value: foundDef.Id,
-          Operand: 'IN',
-        }];
-        fetchPage(filters, false, 0, undefined, defIdFilter);
+        // The live-mode fetch effect will pick up the new activeExtraFilters
+        // (scoped by definition ID) after state settles — no need to fire the
+        // page fetch directly here (it would just be aborted by the effect).
 
-        // Background: fetch count by tag name + transaction type to detect other rules producing this tag
+        // Background: fetch count by tag name, scoped to the current bank/side.
+        // Use `baseFilters` directly (not `filters`) because when this effect
+        // fires on Backlog edit navigation right after filterDefinitions load,
+        // `filters` may still hold the stale pre-live-mode column-name keys
+        // (translateFilters drops those). TransactionTypeCode is intentionally
+        // excluded so we see all rows carrying this tag for the pair.
         const tagNameFilter: FilterProperty[] = [
           { ColumnName: 'OpsTag|OpsMultiTags.Tag', Value: tagName, Operand: 'IN' },
         ];
-        if (formState.transactionTypeCode) {
-          tagNameFilter.push({ ColumnName: 'TransactionTypeCode', Value: formState.transactionTypeCode, Operand: 'EQ' });
-        }
-        fetchCount(filters, tagNameFilter).then((count) => {
+        fetchCount(baseFilters ?? {}, tagNameFilter).then((count) => {
           setTagClickState((prev) => prev ? { ...prev, tagNameCount: count } : prev);
         });
       }
     }
-  }, [libraries, builder, isLiveMode, filterDefinitions, filters, fetchPage, fetchCount]);
+  }, [libraries, builder, isLiveMode, filterDefinitions, filters, baseFilters, fetchPage, fetchCount]);
 
-  // Auto-open a definition's rule builder when navigating from the Backlog with a pendingDefinitionId
+  // Auto-open a definition's rule builder when navigating from the Backlog with a pendingDefinitionId.
+  // Wait for both libraries and (in live mode) filter definitions to load so handleTagClick
+  // can set up the scoped API fetch on its first pass.
   useEffect(() => {
     if (!pendingDefIdRef.current || libraries.length === 0) return;
+    if (isLiveMode && filterDefinitions.length === 0) return;
     const defId = pendingDefIdRef.current;
     pendingDefIdRef.current = null;
-    onClearPendingDefinition?.();
 
     let tagName: string | undefined;
     for (const lib of libraries) {
@@ -808,10 +839,11 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       if (def) { tagName = def.Tag; break; }
     }
     if (tagName) {
-      setTimeout(() => handleTagClick(tagName!, defId), 300);
+      handleTagClick(tagName, defId);
     }
+    onClearPendingDefinition?.();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [libraries]);
+  }, [libraries, filterDefinitions, isLiveMode]);
 
   const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -857,7 +889,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
               setCurrentPage(0);
               setPageInputValue('1');
               setVisibleCount(BATCH_SIZE);
-              if (!v && isLiveMode) fetchPage(filters, false, 0, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined);
+              if (!v && isLiveMode) fetchPage(outgoingFilters, false, 0, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined);
             }} />
             <span data-tour="show-attributes-toggle"><Toggle label="Show attributes" checked={showAttributes} onChange={setShowAttributes} /></span>
           </div>
@@ -1222,7 +1254,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                     {batches.map((size) => (
                       <Button key={size} variant="outline" size="xs" onClick={() => {
                         if (isLiveMode) {
-                          fetchPage(filters, true, undefined, size, activeExtraFilters.length > 0 ? activeExtraFilters : undefined);
+                          fetchPage(outgoingFilters, true, undefined, size, activeExtraFilters.length > 0 ? activeExtraFilters : undefined);
                         } else {
                           setVisibleCount((c) => c + size);
                         }
@@ -1240,7 +1272,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                 const newPage = currentPage - 1;
                 setCurrentPage(newPage);
                 setPageInputValue(String(newPage + 1));
-                if (isLiveMode) fetchPage(filters, false, newPage, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined);
+                if (isLiveMode) fetchPage(outgoingFilters, false, newPage, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined);
               }}>
                 &larr; Previous
               </Button>
@@ -1256,7 +1288,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                     const num = parseInt(pageInputValue, 10);
                     if (!isNaN(num) && num >= 1 && num <= classicTotalPages) {
                       setCurrentPage(num - 1);
-                      if (isLiveMode) fetchPage(filters, false, num - 1, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined);
+                      if (isLiveMode) fetchPage(outgoingFilters, false, num - 1, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined);
                     }
                     setPageInputValue(String(currentPage + 1));
                   }}
@@ -1266,7 +1298,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                       if (!isNaN(num) && num >= 1 && num <= classicTotalPages) {
                         setCurrentPage(num - 1);
                         setPageInputValue(String(num));
-                        if (isLiveMode) fetchPage(filters, false, num - 1, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined);
+                        if (isLiveMode) fetchPage(outgoingFilters, false, num - 1, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined);
                       } else {
                         setPageInputValue(String(currentPage + 1));
                       }
@@ -1279,7 +1311,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                 const newPage = currentPage + 1;
                 setCurrentPage(newPage);
                 setPageInputValue(String(newPage + 1));
-                if (isLiveMode) fetchPage(filters, false, newPage, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined);
+                if (isLiveMode) fetchPage(outgoingFilters, false, newPage, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined);
               }}>
                 Next &rarr;
               </Button>
