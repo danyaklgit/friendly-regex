@@ -10,7 +10,7 @@ import { analyzeRow } from '../../utils/analyzeRow';
 import { regexify, regexifyExtraction, generateExpressionPrompt, generateExtractionPrompt } from '../../utils/regexify';
 import { generateExpressionId } from '../../utils/uuid';
 import { getContextValue } from '../../types/tagSpec';
-import { TransactionTable, ColumnPicker, ALLOWED_COLUMN_KEYS, type ColumnDef } from './TransactionTable';
+import { TransactionTable, ColumnPicker, ALLOWED_COLUMN_KEYS, DEFAULT_VISIBLE_COLUMN_KEYS, type ColumnDef } from './TransactionTable';
 import { StepRuleExpressions } from '../wizard/StepRuleExpressions';
 import { StepAttributes } from '../wizard/StepAttributes';
 import { TagWizardModal } from '../wizard/TagWizardModal';
@@ -261,7 +261,15 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const [columnOrder, setColumnOrder] = useState<string[]>(() => {
     try {
       const stored = localStorage.getItem('tep:columnOrder');
-      return stored ? JSON.parse(stored) as string[] : [];
+      if (!stored) return [];
+      const parsed = JSON.parse(stored) as string[];
+      // Migrate legacy '__dates' grouped-column key → three separate date columns.
+      if (parsed.includes('__dates')) {
+        return parsed.flatMap((k) =>
+          k === '__dates' ? ['data:StatementDate', 'data:EntryDate', 'data:ValueDate'] : [k]
+        );
+      }
+      return parsed;
     } catch { return []; }
   });
   const [tableColumns, setTableColumns] = useState<ColumnDef[]>([]);
@@ -352,15 +360,33 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
 
 
   const defaultHiddenColumns = useMemo(() => {
+    // Show the debit column only when the checked-out side produces debit rows,
+    // and the credit column only when it produces credit rows. When no checkout
+    // is active, keep both visible as a safe fallback.
+    const side = activeCheckout?.side;
+    const debitSide = side === 'DR' || side === 'RC';
+    const creditSide = side === 'CR' || side === 'RD';
+    const showDebit = !side || debitSide;
+    const showCredit = !side || creditSide;
+
     const s = new Set<string>();
     for (const col of tableColumns) {
       if (col.type === 'tags') continue;
       if (col.type === 'attribute') continue;
-      if (ALLOWED_COLUMN_KEYS.has(col.key)) continue;
+      if (col.key === '__debit') {
+        if (!showDebit) s.add(col.key);
+        continue;
+      }
+      if (col.key === '__credit') {
+        if (!showCredit) s.add(col.key);
+        continue;
+      }
+      // Anything allowed but not in the default-visible set starts hidden.
+      if (ALLOWED_COLUMN_KEYS.has(col.key) && DEFAULT_VISIBLE_COLUMN_KEYS.has(col.key)) continue;
       s.add(col.key);
     }
     return s;
-  }, [tableColumns]);
+  }, [tableColumns, activeCheckout?.side]);
 
   // When hiddenColumns is null (no stored preference), use defaults
   const effectiveHiddenColumns = useMemo(() => hiddenColumns ?? defaultHiddenColumns, [hiddenColumns, defaultHiddenColumns]);

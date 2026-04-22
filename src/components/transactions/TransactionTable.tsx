@@ -42,7 +42,9 @@ type ColumnDef =
 const DEFAULT_COLUMN_ORDER = [
   'data:Sequence',
   'data:BankSwiftCode',
-  '__dates',
+  'data:StatementDate',
+  'data:EntryDate',
+  'data:ValueDate',
   'data:TransactionTypeCode',
   'data:IBAN',
   'data:FundsCode',
@@ -59,7 +61,9 @@ const DEFAULT_COLUMN_ORDER = [
 
 export const ALLOWED_COLUMN_KEYS = new Set([
   'data:Sequence',
-  '__dates',
+  'data:StatementDate',
+  'data:EntryDate',
+  'data:ValueDate',
   '__debit',
   '__credit',
   'data:CurrencyCode',
@@ -74,17 +78,37 @@ export const ALLOWED_COLUMN_KEYS = new Set([
   'data:Description1',
   'data:Description2',
 ]);
+
+/**
+ * Columns shown by default on first load. Anything not in this set (and not in
+ * the per-side debit/credit rule applied by the caller) starts hidden; users
+ * can toggle it on via the column picker.
+ * Note: EntryDate, ValueDate, Sequence, BankSwiftCode, FundsCode,
+ * TransactionStatusIndicator, and TransactionDetails are intentionally hidden
+ * by default.
+ */
+export const DEFAULT_VISIBLE_COLUMN_KEYS = new Set([
+  'data:StatementDate',
+  'data:TransactionTypeCode',
+  'data:IBAN',
+  'data:CurrencyCode',
+  'data:BankReference',
+  'data:Description1',
+  'data:Description2',
+  'data:AdditionalInformation',
+  // __debit / __credit are added conditionally by the caller based on checkout side.
+]);
 const SIDE_AMOUNT_FIELDS = new Set(['Side', 'Amount']);
-const DATE_GROUP_FIELDS = ['StatementDate', 'EntryDate', 'ValueDate'];
-const DATE_GROUP_LABELS: Record<string, string> = {
+const DATE_FIELDS = new Set(['StatementDate', 'EntryDate', 'ValueDate']);
+const DATE_COLUMN_LABELS: Record<string, string> = {
+  StatementDate: 'Statement Date',
   EntryDate: 'Entry',
-  StatementDate: 'Statement',
   ValueDate: 'Value',
 };
 
 function getColumnLabel(col: ColumnDef): string {
   switch (col.type) {
-    case 'data': return humanizeFieldName(col.field);
+    case 'data': return DATE_COLUMN_LABELS[col.field] ?? humanizeFieldName(col.field);
     case 'attribute': return humanizeFieldName(col.name);
     case 'tags': return 'Tags';
     case 'dates': return 'Dates';
@@ -615,25 +639,12 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
 
     const cols: ColumnDef[] = [];
     const placedAttrs = new Set<string>();
-    const dateGroupSet = new Set(DATE_GROUP_FIELDS);
-    let dateGroupInserted = false;
     let debitCreditInserted = false;
 
     // Tags column first (sticky left)
     cols.push({ type: 'tags', key: '__tags' });
 
     for (const field of fieldMeta.dataFields) {
-      // Group date fields into a single "Dates" column
-      if (dateGroupSet.has(field)) {
-        if (!dateGroupInserted) {
-          const presentDateFields = DATE_GROUP_FIELDS
-            .filter((f) => fieldMeta.dataFields.includes(f))
-            .map((f) => ({ key: f, label: DATE_GROUP_LABELS[f] }));
-          cols.push({ type: 'dates', key: '__dates', fields: presentDateFields });
-          dateGroupInserted = true;
-        }
-        continue;
-      }
       // Combine Side + Amount into Debit/Credit columns
       if (SIDE_AMOUNT_FIELDS.has(field)) {
         if (!debitCreditInserted) {
@@ -978,7 +989,9 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
 
   const renderCellContent = (field: string, value: string | number | boolean | null) => {
     if (value == null) return <span className="text-faint">-</span>;
-    const text = String(value);
+    // Dates come back as ISO strings — strip the time portion for display.
+    const raw = String(value);
+    const text = DATE_FIELDS.has(field) ? raw.split('T')[0] : raw;
     const regexes = [
       ...(highlightMap?.get(field) ?? []),
       ...(searchHighlightMap?.get(field) ?? []),
