@@ -20,18 +20,21 @@ export function regexify(
     case 'contains':
       return escaped;
     case 'does_not_contain':
-      return `^(?!.*${escaped})`;
+      // Anchor the whole string so the lookahead is evaluated against it all.
+      return `^(?!.*${escaped}).*$`;
     case 'equals':
       return `^${escaped}$`;
     case 'does_not_equal':
-      return `^(?!${escaped}$)`;
+      return `^(?!${escaped}$).*$`;
     case 'does_not_start_with':
-      return `^(?!${escaped})`;
+      return `^(?!${escaped}).*$`;
     case 'does_not_end_with':
-      return `(?<!${escaped})$`;
+      // Use negative lookahead at start (anchored), not variable-length lookbehind,
+      // for broader regex-engine compatibility.
+      return `^(?!.*${escaped}$).*$`;
     case 'matches_pattern': {
       const vals = values && values.length > 0 ? values : [value];
-      return vals.map(escapeRegex).join('|');
+      return `^(${vals.map(escapeRegex).join('|')})$`;
     }
     case 'match_regex':
       return value;

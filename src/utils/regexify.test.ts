@@ -14,36 +14,36 @@ describe('regexify', () => {
     expect(regexify('contains', 'PAYMENT')).toBe('PAYMENT');
   });
 
-  it('does_not_contain: negative lookahead', () => {
-    expect(regexify('does_not_contain', 'VOID')).toBe('^(?!.*VOID)');
+  it('does_not_contain: negative lookahead anchored to the full string', () => {
+    expect(regexify('does_not_contain', 'VOID')).toBe('^(?!.*VOID).*$');
   });
 
   it('equals: anchored both ends', () => {
     expect(regexify('equals', 'EXACT')).toBe('^EXACT$');
   });
 
-  it('does_not_equal: negative lookahead anchored', () => {
-    expect(regexify('does_not_equal', 'BAD')).toBe('^(?!BAD$)');
+  it('does_not_equal: anchored negative lookahead over the whole string', () => {
+    expect(regexify('does_not_equal', 'BAD')).toBe('^(?!BAD$).*$');
   });
 
-  it('matches_pattern: joins values with pipe', () => {
-    expect(regexify('matches_pattern', '', ['USD', 'EUR', 'SAR'])).toBe('USD|EUR|SAR');
+  it('matches_pattern: anchored alternation of escaped values', () => {
+    expect(regexify('matches_pattern', '', ['USD', 'EUR', 'SAR'])).toBe('^(USD|EUR|SAR)$');
   });
 
-  it('matches_pattern: falls back to single value', () => {
-    expect(regexify('matches_pattern', 'USD')).toBe('USD');
+  it('matches_pattern: falls back to single value, still anchored', () => {
+    expect(regexify('matches_pattern', 'USD')).toBe('^(USD)$');
   });
 
   it('match_regex: passes through raw regex', () => {
     expect(regexify('match_regex', '\\d{3}')).toBe('\\d{3}');
   });
 
-  it('does_not_start_with: negative lookahead at start', () => {
-    expect(regexify('does_not_start_with', 'CFT')).toBe('^(?!CFT)');
+  it('does_not_start_with: anchored negative lookahead at start', () => {
+    expect(regexify('does_not_start_with', 'CFT')).toBe('^(?!CFT).*$');
   });
 
-  it('does_not_end_with: negative lookbehind at end', () => {
-    expect(regexify('does_not_end_with', 'USD')).toBe('(?<!USD)$');
+  it('does_not_end_with: anchored negative lookahead instead of lookbehind', () => {
+    expect(regexify('does_not_end_with', 'USD')).toBe('^(?!.*USD$).*$');
   });
 
   it('greater_than: numeric prefix', () => {

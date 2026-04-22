@@ -147,7 +147,15 @@ function buildRulesetFilters(formState: WizardFormState): FilterProperty[] {
     .map(group =>
       group.conditions
         .filter(c => c.value.trim().length > 0)
-        .map(c => ({ ColumnName: c.sourceField, Value: c.value, Options: '' }))
+        // Numeric operators are not regex — skip them here. They're currently
+        // marked with a `__NUMERIC_*` sentinel in regexify and would not match
+        // anything server-side inside a REGEX payload.
+        .filter(c => !c.operation.startsWith('greater_than') && !c.operation.startsWith('less_than'))
+        .map(c => ({
+          ColumnName: c.sourceField,
+          Value: regexify(c.operation, c.value, c.values),
+          Options: '',
+        }))
     )
     .filter(group => group.length > 0);
 
