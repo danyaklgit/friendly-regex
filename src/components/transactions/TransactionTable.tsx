@@ -1,5 +1,5 @@
 import { useMemo, useLayoutEffect, useEffect, useRef, useState, useCallback, type ReactNode } from 'react';
-import type { AnalyzedTransaction, TagSpecDefinition, RuleExpression, TransactionRow } from '../../types';
+import type { AnalyzedTransaction, TagSpecDefinition, TagAttribute, RuleExpression, TransactionRow } from '../../types';
 import { useTransactionData } from '../../hooks/useTransactionData';
 import { useLovAttributes } from '../../context/LovAttributesContext';
 import { PREDEFINED_PATTERNS } from '../../constants/operations';
@@ -8,6 +8,9 @@ import { Badge } from '../shared/Badge';
 import { Tooltip } from '../shared/Tooltip';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
 import { decomposeExtractionRegex } from '../../utils/engregxify';
+import { regexifyExtraction } from '../../utils/regexify';
+import { extractAttributes } from '../../utils/extractAttributes';
+import { diffStrings } from '../../utils/textDiff';
 import { DropdownBackdrop } from '../shared/DropdownBackdrop';
 
 interface TransactionTableProps {
@@ -29,6 +32,8 @@ interface TransactionTableProps {
   loading?: boolean;
   accentHue?: number;
   onRowContextMenu?: (row: TransactionRow, x: number, y: number) => void;
+  /** The saved definition being edited, if any. Enables Before/After diff tooltips on attribute cells whose rule has changed. */
+  originalEditingDef?: TagSpecDefinition;
 }
 
 type ColumnDef =
@@ -436,7 +441,7 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
 
 export type { ColumnDef };
 
-export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, definitionSourceMap, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, accentHue = 190, onRowContextMenu }: TransactionTableProps) {
+export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, definitionSourceMap, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, accentHue = 190, onRowContextMenu, originalEditingDef }: TransactionTableProps) {
   const { fieldMeta } = useTransactionData();
   const { lovLookup } = useLovAttributes();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -941,6 +946,76 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
 
   // --- end minimap ---
 
+  // Build a human description of an attribute's extraction rule. Prefers the
+  // RegexDetails[].Description saved on the attribute (which includes optional
+  // modifiers like occurrence/numChars/toStr), falling back to a reverse-parse
+  // of the regex when that's absent.
+  const ruleDescription = (attr: TagAttribute): string => {
+    const expr = attr.AttributeRuleExpression;
+    const stored = expr.RegexDetails?.find((d) => d.LanguageCode === 'en')?.Description;
+    if (stored) return stored;
+    const decomposed = decomposeExtractionRegex(expr.Regex);
+    switch (decomposed.operation) {
+      case 'extract_between':
+        return `Extract between '${decomposed.prefix ?? ''}' and '${decomposed.suffix ?? ''}'`;
+      case 'extract_after':
+        return `Extract after '${decomposed.prefix ?? ''}'`;
+      case 'extract_before':
+        return `Extract before '${decomposed.suffix ?? ''}'`;
+      case 'extract_matching':
+      default:
+        return `Extract matching '${decomposed.pattern || expr.Regex}'`;
+    }
+  };
+
+  // Normalize a regex string to the form the wizard's form round-trip
+  // produces. The form loads a saved regex via decomposeExtractionRegex (which
+  // keeps only operation + prefix/suffix/pattern) and re-emits it via
+  // regexifyExtraction. That round-trip isn't byte-identical — e.g. a raw
+  // leading `^` in the saved regex gets escaped to `\^`. To decide whether
+  // the user actually edited an attribute, compare both sides through this
+  // same pipeline so cosmetic round-trip differences don't register as edits.
+  const normalizeRegex = (regex: string): string => {
+    const decomposed = decomposeExtractionRegex(regex);
+    return regexifyExtraction(decomposed.operation, decomposed);
+  };
+
+  // Compare two attribute rules for semantic equality — source field,
+  // normalized regex, and transformation pipeline.
+  const attrRulesEqual = (a: TagAttribute, b: TagAttribute): boolean => {
+    if (a.AttributeRuleExpression.SourceField !== b.AttributeRuleExpression.SourceField) return false;
+    if (normalizeRegex(a.AttributeRuleExpression.Regex) !== normalizeRegex(b.AttributeRuleExpression.Regex)) return false;
+    const ta = a.Transformations ?? [];
+    const tb = b.Transformations ?? [];
+    if (ta.length !== tb.length) return false;
+    for (let i = 0; i < ta.length; i++) {
+      if (ta[i].Method !== tb[i].Method) return false;
+      const aa = ta[i].Args ?? [];
+      const bb = tb[i].Args ?? [];
+      if (aa.length !== bb.length) return false;
+      for (let j = 0; j < aa.length; j++) {
+        if (aa[j].Key !== bb[j].Key || aa[j].Value !== bb[j].Value) return false;
+      }
+    }
+    return true;
+  };
+
+  // Returns true when this attribute's rule is currently being edited in the
+  // rule builder AND the draft rule differs from the saved one. Used to
+  // suppress the server-side fallback in getAttributeValue — otherwise a
+  // non-matching draft would show the old (saved) value, giving a false
+  // impression that the draft still works.
+  const isAttributeBeingEdited = (item: AnalyzedTransaction, attrName: string): boolean => {
+    if (!originalEditingDef) return false;
+    for (const def of item.analysis.matchedDefinitions) {
+      if (def.Id !== originalEditingDef.Id) continue;
+      const currentAttr = def.Attributes.find((a) => a.AttributeTag === attrName);
+      const originalAttr = originalEditingDef.Attributes.find((a) => a.AttributeTag === attrName);
+      if (currentAttr && originalAttr && !attrRulesEqual(originalAttr, currentAttr)) return true;
+    }
+    return false;
+  };
+
   const getAttributeValue = (item: AnalyzedTransaction, attrName: string): string | null => {
     // 1) Client-computed value (reflects live rule-builder drafts/edits).
     for (const tagAttrs of Object.values(item.analysis.attributes)) {
@@ -948,6 +1023,10 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
         return tagAttrs[attrName];
       }
     }
+    // When the user is actively editing this attribute's rule and the draft
+    // didn't match, stop here — falling back to server-computed values would
+    // display the pre-edit result and falsely suggest the draft still works.
+    if (isAttributeBeingEdited(item, attrName)) return null;
     // 2) Server-provided fallback — the API response carries pre-computed values
     // in OpsAttributes (single-tag rows) or OpsMultiTags[*].Attributes (multi-tag
     // rows). Use them when the client couldn't extract (e.g. regex has no capture
@@ -979,26 +1058,67 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     return null;
   };
 
-  // Get tooltip for an attribute cell based on the tag that produced it for this row
-  const getAttributeTooltip = (item: AnalyzedTransaction, attrName: string): string | null => {
+  // Render a string with the differing slice wrapped in <mark>, using the
+  // shared highlight style from highlightText above.
+  const renderDiffed = (value: string, otherValue: string, side: 'old' | 'new'): ReactNode => {
+    const diff = diffStrings(side === 'old' ? value : otherValue, side === 'old' ? otherValue : value);
+    const middle = side === 'old' ? diff.oldMiddle : diff.newMiddle;
+    if (!middle && diff.head === value) return value;
+    return (
+      <>
+        {diff.head}
+        {middle && (
+          <mark className="bg-primary/20 dark:bg-primary/40 rounded-sm text-heading dark:text-primary-light font-medium px-0.5 ring-1 ring-primary/40 dark:ring-primary/70">
+            {middle}
+          </mark>
+        )}
+        {diff.tail}
+      </>
+    );
+  };
+
+  // Get tooltip for an attribute cell. Returns a ReactNode so we can render
+  // the Before/After diff when the rule builder is editing an existing def
+  // and this attribute's rule has actually changed.
+  const getAttributeTooltip = (item: AnalyzedTransaction, attrName: string): ReactNode | null => {
     for (const def of item.analysis.matchedDefinitions) {
-      const attr = def.Attributes.find((a) => a.AttributeTag === attrName);
-      if (attr) {
-        const expr = attr.AttributeRuleExpression;
-        const source = humanizeFieldName(expr.SourceField);
-        const decomposed = decomposeExtractionRegex(expr.Regex);
-        switch (decomposed.operation) {
-          case 'extract_between':
-            return `Extracted from ${source} between '${decomposed.prefix}' and '${decomposed.suffix}'`;
-          case 'extract_after':
-            return `Extracted from ${source} after '${decomposed.prefix}'`;
-          case 'extract_before':
-            return `Extracted from ${source} before '${decomposed.suffix}'`;
-          case 'extract_matching':
-          default:
-            return `Extracted from ${source} matching '${decomposed.pattern || expr.Regex}'`;
-        }
+      const currentAttr = def.Attributes.find((a) => a.AttributeTag === attrName);
+      if (!currentAttr) continue;
+
+      const currentSource = humanizeFieldName(currentAttr.AttributeRuleExpression.SourceField);
+      const currentRule = ruleDescription(currentAttr);
+
+      const isEditingThisDef = originalEditingDef && def.Id === originalEditingDef.Id;
+      const originalAttr = isEditingThisDef
+        ? originalEditingDef.Attributes.find((a) => a.AttributeTag === attrName)
+        : undefined;
+      const shouldDiff = originalAttr && !attrRulesEqual(originalAttr, currentAttr);
+
+      if (!shouldDiff) {
+        return `Extracted from ${currentSource} — ${currentRule}`;
       }
+
+      const oldValueRaw = extractAttributes([originalAttr], item.row)[originalAttr.AttributeTag];
+      const newValueRaw = extractAttributes([currentAttr], item.row)[currentAttr.AttributeTag];
+      const oldValue = oldValueRaw ?? '';
+      const newValue = newValueRaw ?? '';
+
+      return (
+        <div className="text-xs leading-snug space-y-1.5 py-0.5">
+          <div>
+            <div className="text-[9px] uppercase tracking-wider text-faint font-semibold">Before</div>
+            <div className="font-mono text-primary-dark">
+              {oldValueRaw === null ? <span className="text-faint italic">no match</span> : <>"{renderDiffed(oldValue, newValue, 'old')}"</>}
+            </div>
+          </div>
+          <div>
+            <div className="text-[9px] uppercase tracking-wider text-primary font-semibold">After</div>
+            <div className="font-mono text-primary-dark">
+              {newValueRaw === null ? <span className="text-faint italic">no match</span> : <>"{renderDiffed(newValue, oldValue, 'new')}"</>}
+            </div>
+          </div>
+        </div>
+      );
     }
     return null;
   };

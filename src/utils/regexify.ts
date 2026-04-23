@@ -5,6 +5,33 @@ function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/**
+ * Returns true if the pattern already contains an unescaped capturing group —
+ * i.e. `(...)` or `(?<name>...)`, but not `(?:...)`, `(?=...)`, `(?!...)`,
+ * `(?<=...)`, `(?<!...)`, or a literal `\(`. Used to avoid double-wrapping a
+ * user pattern that already provides the group we want to extract.
+ */
+function hasUserCaptureGroup(pattern: string): boolean {
+  for (let i = 0; i < pattern.length; i++) {
+    const ch = pattern[i];
+    if (ch === '\\') { i++; continue; }
+    if (ch === '[') {
+      i++;
+      while (i < pattern.length && pattern[i] !== ']') {
+        if (pattern[i] === '\\') i++;
+        i++;
+      }
+      continue;
+    }
+    if (ch === '(') {
+      const rest = pattern.slice(i + 1);
+      if (/^\?(?::|=|!|<=|<!)/.test(rest)) continue;
+      return true;
+    }
+  }
+  return false;
+}
+
 export function regexify(
   operation: MatchOperation,
   value: string,
@@ -95,8 +122,11 @@ export function regexifyExtraction(
       const preOcc = params.prefixOccurrence && params.prefixOccurrence > 1 ? params.prefixOccurrence : 0;
       const sufOcc = params.suffixOccurrence && params.suffixOccurrence > 1 ? params.suffixOccurrence : 0;
       const preSkip = preOcc ? `(?:.*?${pre}){${preOcc - 1}}.*?` : '';
-      const sufSkip = sufOcc ? `(?:.*?${suf}){${sufOcc - 1}}.*?` : '';
-      return `${preSkip}${pre}${sufSkip}(.*?)${suf}`;
+      // For suffixOccurrence N, the capture must span from prefix to the Nth
+      // suffix. Fold the skip for earlier suffixes into the capture group so
+      // the engine captures everything up to (but not including) the Nth suffix.
+      const sufRepeat = sufOcc ? `(?:.*?${suf}){${sufOcc - 1}}` : '';
+      return `${preSkip}${pre}(${sufRepeat}.*?)${suf}`;
     }
     case 'extract_after': {
       const pre = escapeRegex(params.prefix ?? '');
@@ -119,7 +149,11 @@ export function regexifyExtraction(
       const pat = params.pattern ?? '.*';
       const posSkip = params.startingPosition && params.startingPosition > 0 ? `.{${params.startingPosition}}` : '';
       const occSkip = occ ? `(?:.*?(?:${pat})){${occ - 1}}.*?` : '';
-      return `${posSkip}${occSkip}(${pat})`;
+      // If the user's pattern already has its own capture group, don't wrap
+      // in another — otherwise group 1 becomes the full match instead of
+      // the user's intended capture (backend uses the user's group).
+      const body = hasUserCaptureGroup(pat) ? pat : `(${pat})`;
+      return `${posSkip}${occSkip}${body}`;
     }
     case 'extract_substring': {
       if (params.toStart && params.fromPosition && params.fromPosition > 0) {

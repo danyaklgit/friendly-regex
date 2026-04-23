@@ -1277,6 +1277,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
 // 30 — orange
 // 140 — green
         onRowContextMenu={(row, x, y) => setContextMenu({ row, x, y })}
+        originalEditingDef={editingDef}
       />
       )}
 

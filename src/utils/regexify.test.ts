@@ -119,6 +119,27 @@ describe('regexifyExtraction', () => {
       .toBe('(.*)');
   });
 
+  it('extract_matching: does not wrap when pattern already has a capture group', () => {
+    // User supplies their own `(.{2})` — the outer wrapper would bump group 1
+    // to the full match, diverging from the backend.
+    expect(regexifyExtraction('extract_matching', { pattern: 'IBAN/SA\\d{2}(.{2})' }))
+      .toBe('IBAN/SA\\d{2}(.{2})');
+  });
+
+  it('extract_matching: treats non-capturing/lookaround groups as not captures', () => {
+    expect(regexifyExtraction('extract_matching', { pattern: '(?:foo)\\d+' }))
+      .toBe('((?:foo)\\d+)');
+    expect(regexifyExtraction('extract_matching', { pattern: '(?=foo)\\d+' }))
+      .toBe('((?=foo)\\d+)');
+  });
+
+  it('extract_matching: ignores escaped parens and parens inside character classes', () => {
+    expect(regexifyExtraction('extract_matching', { pattern: '\\(\\d+\\)' }))
+      .toBe('(\\(\\d+\\))');
+    expect(regexifyExtraction('extract_matching', { pattern: '[()]+' }))
+      .toBe('([()]+)');
+  });
+
   it('extract_between_and_verify: same as extract_between', () => {
     expect(regexifyExtraction('extract_between_and_verify', { prefix: 'A', suffix: 'B' }))
       .toBe('A(.*?)B');
