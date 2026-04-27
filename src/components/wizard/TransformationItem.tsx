@@ -83,7 +83,10 @@ export function TransformationItem({
       <span className={`shrink-0 w-4 text-right text-xs font-mono text-faint ${hasArgs ? 'mb-2' : ''}`}>{index + 1}.</span>
 
       {/* Method selector */}
-      <div className="w-44 shrink-0">
+      <div className="w-44 shrink-0 flex flex-col gap-1">
+        {hasArgs && (
+          <span className="text-xs font-medium text-body pl-1">Method</span>
+        )}
         <SearchableSelect
           placeholder="Select method…"
           value={transformation.method}
@@ -105,21 +108,76 @@ export function TransformationItem({
       {/* Dynamic args */}
       {hasArgs && (
         <div className="flex gap-1.5 flex-1 min-w-0">
-          {methodDef!.args.map((argDef) => (
-            <div key={argDef.key} className="flex-1 min-w-0">
-              <Input
-                label={argDef.label}
-                placeholder={argDef.placeholder}
-                type={argDef.type}
-                value={transformation.args[argDef.key] ?? ''}
-                disabled={readOnly}
-                required={argDef.required}
-                onChange={(e) =>
-                  onUpdate({ args: { ...transformation.args, [argDef.key]: e.target.value } })
-                }
-              />
-            </div>
-          ))}
+          {methodDef!.args.map((argDef) => {
+            const isCheckbox = argDef.type === 'checkbox';
+            const checked = transformation.args[argDef.key] === 'true';
+            return (
+              <div
+                key={argDef.key}
+                // Checkbox cells size to their label so the in-control text
+                // never truncates; sibling text/number inputs share the
+                // remaining row width equally.
+                className={isCheckbox ? 'shrink-0' : 'flex-1 min-w-0'}
+              >
+                {isCheckbox ? (
+                  // Boolean args ride the Record<string,string> form-state as
+                  // 'true' / 'false' so the existing {Key, Value} wire format
+                  // stays untouched. Label sits above the toggle to match the
+                  // sibling Input components, and the toggle box mirrors the
+                  // Input's px-3 py-2 + text-sm + rounded-lg border so the row
+                  // reads as a single rhythm of equal-height fields.
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs font-medium text-body pl-1 whitespace-nowrap">
+                      {argDef.label}
+                      {argDef.required && <span className="text-red-500 ml-0.5">*</span>}
+                    </span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={checked}
+                      aria-label={argDef.label}
+                      disabled={readOnly}
+                      onClick={() =>
+                        onUpdate({
+                          args: { ...transformation.args, [argDef.key]: checked ? 'false' : 'true' },
+                        })
+                      }
+                      className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors w-full
+                        ${readOnly ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
+                        ${checked
+                          ? 'border-primary/40 bg-primary/10 text-primary-dark dark:text-primary'
+                          : 'border-input-border bg-input-bg text-body hover:bg-surface-hover'}`}
+                    >
+                      <span
+                        className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors shrink-0
+                          ${checked ? 'bg-primary' : 'bg-border-strong dark:bg-faint'}`}
+                      >
+                        <span
+                          className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform
+                            ${checked ? 'translate-x-3.5' : 'translate-x-0.5'}`}
+                        />
+                      </span>
+                      <span className="whitespace-nowrap text-left font-normal text-faint">
+                        {checked ? 'On' : 'Off'}
+                      </span>
+                    </button>
+                  </div>
+                ) : (
+                  <Input
+                    label={argDef.label}
+                    placeholder={argDef.placeholder}
+                    type={argDef.type}
+                    value={transformation.args[argDef.key] ?? ''}
+                    disabled={readOnly}
+                    required={argDef.required}
+                    onChange={(e) =>
+                      onUpdate({ args: { ...transformation.args, [argDef.key]: e.target.value } })
+                    }
+                  />
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -295,3 +353,4 @@ function ChevronDownIcon() {
     </svg>
   );
 }
+

@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import type { FilterDefinition } from '../../api/transactions';
 import { TXN_TYPE_OPTIONS } from '../../constants/fields';
 import { DropdownBackdrop } from './DropdownBackdrop';
@@ -14,16 +15,74 @@ export function TransactionTypePicker({ value, onChange, filterDefinitions, disa
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
 
-  // Close on outside click
+  // Close on outside click — must check both anchor and portal-rendered menu.
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (ref.current?.contains(target)) return;
+      if (menuRef.current?.contains(target)) return;
+      setOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  // Position the portal menu under the trigger; recompute on scroll/resize.
+  // Clamps left so a wide menu near the right edge never overflows the viewport
+  // (which would otherwise force the page into horizontal scroll).
+  useLayoutEffect(() => {
+    if (!open) {
+      setMenuPos(null);
+      return;
+    }
+    const update = () => {
+      const rect = triggerRef.current?.getBoundingClientRect();
+      const menuWidth = menuRef.current?.offsetWidth ?? 256; // matches min-w-64
+      if (!rect) return;
+      const margin = 8;
+      const maxLeft = window.innerWidth - menuWidth - margin;
+      const left = Math.max(margin, Math.min(rect.left, maxLeft));
+      setMenuPos({ top: rect.bottom + 4, left });
+    };
+    update();
+    window.addEventListener('scroll', update, true);
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('scroll', update, true);
+      window.removeEventListener('resize', update);
+    };
+  }, [open]);
+
+  // Lock page scroll (both axes) while the menu is open so the user can't
+  // scroll the trigger out from under the portal-rendered menu. We compensate
+  // for the disappearing vertical scrollbar with paddingRight to avoid layout
+  // shift, and restore prior inline styles on close.
+  useEffect(() => {
+    if (!open) return;
+    const html = document.documentElement;
+    const body = document.body;
+    const scrollbarWidth = window.innerWidth - html.clientWidth;
+    const prev = {
+      htmlOverflow: html.style.overflow,
+      bodyOverflow: body.style.overflow,
+      bodyPaddingRight: body.style.paddingRight,
+    };
+    html.style.overflow = 'hidden';
+    body.style.overflow = 'hidden';
+    if (scrollbarWidth > 0) {
+      body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+    return () => {
+      html.style.overflow = prev.htmlOverflow;
+      body.style.overflow = prev.bodyOverflow;
+      body.style.paddingRight = prev.bodyPaddingRight;
+    };
+  }, [open]);
 
   // Focus search when opened
   useEffect(() => {
@@ -67,6 +126,7 @@ export function TransactionTypePicker({ value, onChange, filterDefinitions, disa
   return (
     <div ref={ref} className="relative">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => !disabled && setOpen(!open)}
         disabled={disabled}
@@ -77,10 +137,13 @@ export function TransactionTypePicker({ value, onChange, filterDefinitions, disa
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
-      {open && !disabled && (
+      {open && !disabled && menuPos && createPortal(
         <>
         <DropdownBackdrop onClick={() => setOpen(false)} />
-        <div className="absolute z-50 top-full mt-1 left-0 min-w-64 bg-surface border border-border rounded-lg shadow-lg">
+        <div
+          ref={menuRef}
+          style={{ position: 'fixed', top: menuPos.top, left: menuPos.left }}
+          className="z-50 min-w-64 bg-surface border border-border rounded-lg shadow-lg">
           {/* Search */}
           <div className="p-2 border-b border-border-subtle">
             <div className="relative">
@@ -125,7 +188,8 @@ export function TransactionTypePicker({ value, onChange, filterDefinitions, disa
             )}
           </div>
         </div>
-        </>
+        </>,
+        document.body,
       )}
     </div>
   );

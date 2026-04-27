@@ -152,6 +152,51 @@ describe('applyTransformation', () => {
     expect(applyTransformation('split_and_pick', { delimiter: '/', index: '' }, 'A/B/C')).toBe('A');
   });
 
+  // --- Maximum Characters ---
+  it('max_char_limit truncates to length when no special chars and flag off', () => {
+    expect(applyTransformation('max_char_limit', { length: '15', breakAtSpecial: 'false' }, 'ABCDEFGHIJKLMNOPQRST')).toBe('ABCDEFGHIJKLMNO');
+  });
+
+  it('max_char_limit ignores special chars when flag is off', () => {
+    // Space at index 7 — should still take the first 15 chars verbatim.
+    expect(applyTransformation('max_char_limit', { length: '15', breakAtSpecial: 'false' }, 'ABCDEFG HIJKLMNOPQRST')).toBe('ABCDEFG HIJKLMN');
+  });
+
+  it('max_char_limit cuts at first space when breakAtSpecial is true', () => {
+    expect(applyTransformation('max_char_limit', { length: '15', breakAtSpecial: 'true' }, 'ABCDEFG HIJKLMNOPQRST')).toBe('ABCDEFG');
+  });
+
+  it('max_char_limit cuts at first non-alphanumeric (slash) when breakAtSpecial is true', () => {
+    expect(applyTransformation('max_char_limit', { length: '15', breakAtSpecial: 'true' }, 'ABCD/EFGHIJ')).toBe('ABCD');
+  });
+
+  it('max_char_limit takes first N chars when breakAtSpecial is true and no specials in window', () => {
+    expect(applyTransformation('max_char_limit', { length: '15', breakAtSpecial: 'true' }, 'ABCDEFGHIJKLMNOPQRST')).toBe('ABCDEFGHIJKLMNO');
+  });
+
+  it('max_char_limit returns full value when shorter than length and no specials', () => {
+    expect(applyTransformation('max_char_limit', { length: '15', breakAtSpecial: 'true' }, 'ABC')).toBe('ABC');
+  });
+
+  it('max_char_limit returns empty string when value starts with a special char and flag is true', () => {
+    expect(applyTransformation('max_char_limit', { length: '15', breakAtSpecial: 'true' }, '/ABCDEF')).toBe('');
+  });
+
+  it('max_char_limit returns original value when length is 0', () => {
+    expect(applyTransformation('max_char_limit', { length: '0', breakAtSpecial: 'true' }, 'ABCDEF')).toBe('ABCDEF');
+  });
+
+  it('max_char_limit returns original value when length is missing or non-numeric', () => {
+    expect(applyTransformation('max_char_limit', { length: '', breakAtSpecial: 'false' }, 'ABCDEF')).toBe('ABCDEF');
+    expect(applyTransformation('max_char_limit', { length: 'abc', breakAtSpecial: 'false' }, 'ABCDEF')).toBe('ABCDEF');
+  });
+
+  it('max_char_limit defaults breakAtSpecial to off when not "true"', () => {
+    // Anything other than the literal string "true" is treated as off.
+    expect(applyTransformation('max_char_limit', { length: '15' }, 'ABC/DEFGHIJKLMNOPQ')).toBe('ABC/DEFGHIJKLMN');
+    expect(applyTransformation('max_char_limit', { length: '15', breakAtSpecial: '1' }, 'ABC/DEFGHIJKLMNOPQ')).toBe('ABC/DEFGHIJKLMN');
+  });
+
   // --- Unknown method ---
   it('returns original value for unknown method', () => {
     expect(applyTransformation('nonexistent', {}, 'hello')).toBe('hello');
@@ -180,5 +225,15 @@ describe('applyTransformationPipeline', () => {
     const transformations = [{ id: '1', method: 'to_uppercase', args: {} }];
     const steps = applyTransformationPipeline(transformations, 'hello');
     expect(steps[0]).toEqual({ index: 0, method: 'to_uppercase', label: 'to_uppercase', result: 'HELLO' });
+  });
+
+  it('composes max_char_limit with other transformations', () => {
+    const transformations = [
+      { id: '1', method: 'to_uppercase', args: {} },
+      { id: '2', method: 'max_char_limit', args: { length: '5', breakAtSpecial: 'true' } },
+    ];
+    const steps = applyTransformationPipeline(transformations, 'hello world');
+    expect(steps[0].result).toBe('HELLO WORLD');
+    expect(steps[1].result).toBe('HELLO');
   });
 });

@@ -174,11 +174,11 @@ describe('TransactionTypePicker', () => {
         ],
       },
     ];
-    const { container } = render(
+    render(
       <TransactionTypePicker value="TRF" onChange={noop} filterDefinitions={defs} />
     );
     await user.click(screen.getByRole('button'));
-    const buttons = container.querySelectorAll('.max-h-60 button');
+    const buttons = document.querySelectorAll('.max-h-60 button');
     expect((buttons[0] as HTMLElement).className).toContain('bg-primary/5');
     expect((buttons[0] as HTMLElement).className).not.toContain('hover:bg-surface-hover');
   });

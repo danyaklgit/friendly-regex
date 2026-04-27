@@ -131,13 +131,6 @@ export function TransformationList({
             items={transformations.map((t) => t.id)}
             strategy={verticalListSortingStrategy}
           >
-            {/* Column header — outside sortable items so it won't get dragged */}
-            <div className="flex items-center gap-1.5 mb-1">
-              {/* Spacer matching drag handle + step number widths */}
-              <span className="shrink-0 w-3" />
-              <span className="shrink-0 w-4" />
-              <span className="w-44 shrink-0 text-xs font-medium text-body pl-1">Method</span>
-            </div>
             <div className="space-y-1">
               {transformations.map((t, i) => (
                 <TransformationItem

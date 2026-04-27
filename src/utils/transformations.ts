@@ -77,6 +77,22 @@ export function applyTransformation(
       return parts[idx] ?? '';
     }
 
+    case 'max_char_limit': {
+      const len = Number(args.length);
+      if (!Number.isFinite(len) || len <= 0) return value;
+      const breakAtSpecial = args.breakAtSpecial === 'true';
+      if (!breakAtSpecial) return value.slice(0, len);
+      // Walk the first `len` chars; cut at the first non-alphanumeric
+      // (space, slash, dash, comma, etc.) encountered before the cap.
+      const limit = Math.min(len, value.length);
+      for (let i = 0; i < limit; i++) {
+        if (!/[a-zA-Z0-9]/.test(value[i])) {
+          return value.slice(0, i);
+        }
+      }
+      return value.slice(0, limit);
+    }
+
     default:
       return value;
   }

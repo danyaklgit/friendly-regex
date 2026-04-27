@@ -2,7 +2,7 @@ export interface TransformationArgDef {
   key: string;
   label: string;
   placeholder: string;
-  type: 'text' | 'number';
+  type: 'text' | 'number' | 'checkbox';
   required: boolean;
 }
 
@@ -108,6 +108,18 @@ export const TRANSFORMATION_METHODS: TransformationMethodDef[] = [
     args: [
       { key: 'delimiter', label: 'Delimiter', placeholder: 'e.g., /', type: 'text', required: true },
       { key: 'index', label: 'Pick Index (0-based)', placeholder: 'e.g., 0', type: 'number', required: true },
+    ],
+  },
+  {
+    // Key matches the backend LOV entry (`max_char_limit`) — the dropdown is
+    // populated from the backend list, so the local `args` are looked up by
+    // this exact key. Don't rename without coordinating with backend.
+    key: 'max_char_limit',
+    label: 'Maximum Characters',
+    category: 'Extraction Refinement',
+    args: [
+      { key: 'length', label: 'Max Characters', placeholder: 'e.g., 15', type: 'number', required: true },
+      { key: 'breakAtSpecial', label: 'Break at special character', placeholder: '', type: 'checkbox', required: false },
     ],
   },
 ];
