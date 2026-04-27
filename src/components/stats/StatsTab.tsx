@@ -490,6 +490,23 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                                 <div className="flex items-center justify-start pl-27 gap-2 flex-wrap">
                                   <div className='flex items-center gap-2'>
                                   <Badge variant="emerald" size="xs" className="items-baseline!"><span className="text-xs font-medium">{stats.FullyTaggedCount.toLocaleString()}</span> Clean</Badge>
+                                  {stats.TaggedWithMissingOptionalAttrCount > 0 && (
+                                    <Tooltip
+                                      placement="bottom"
+                                      content={
+                                        <div className="space-y-1.5 min-w-48">
+                                          <div className="flex justify-between gap-4">
+                                            <span>Missing Optional Att</span>
+                                            <span className="font-semibold">{stats.TaggedWithMissingOptionalAttrCount.toLocaleString()}</span>
+                                          </div>
+                                        </div>
+                                      }
+                                    >
+                                      <span className="cursor-help inline-flex">
+                                        <Badge variant="success" size="xs" className="items-baseline!"><span className="text-xs font-medium">{stats.TaggedWithMissingOptionalAttrCount.toLocaleString()}</span> Near-Clean</Badge>
+                                      </span>
+                                    </Tooltip>
+                                  )}
                                   {stats.IssuesCount > 0 && (
                                     <Tooltip
                                       placement="bottom"
@@ -498,10 +515,6 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                                           <div className="flex justify-between gap-4">
                                             <span>Missing Mandatory Attr</span>
                                             <span className="font-semibold">{stats.TaggedWithMissingMandatoryAttrCount.toLocaleString()}</span>
-                                          </div>
-                                          <div className="flex justify-between gap-4">
-                                            <span>Missing Optional Attr</span>
-                                            <span className="font-semibold">{stats.TaggedWithMissingOptionalAttrCount.toLocaleString()}</span>
                                           </div>
                                           <div className="flex justify-between gap-4">
                                             <span>Invalid Attr</span>
@@ -518,7 +531,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                                       }
                                     >
                                       <span className="cursor-help inline-flex">
-                                        <Badge variant="amber" size="xs" className="items-baseline!"><span className="text-xs font-medium">{stats.IssuesCount.toLocaleString()}</span> Issues</Badge>
+                                        <Badge variant="amber" size="xs" className="items-baseline!"><span className="text-xs font-medium">{stats.IssuesCount.toLocaleString()}</span> Problematic</Badge>
                                       </span>
                                     </Tooltip>
                                   )}
