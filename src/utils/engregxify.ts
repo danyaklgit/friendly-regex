@@ -1,5 +1,362 @@
 import type { MatchOperation, ExtractionOperation } from '../types';
 
+/**
+ * Returns true when the input contains active regex syntax (quantifiers,
+ * groups, classes, alternation, anchors). Conservative — `.` and `\` count
+ * even though they're sometimes typed as literals, because the boundary
+ * fields can contain real regex (e.g. `(?:/|$)`).
+ */
+function looksLikeRegex(text: string): boolean {
+  if (/\\[dDwWsSbBntrfv0]/.test(text)) return true; // shorthand classes
+  if (/\\\\/.test(text)) return true; // escaped backslash → clearly regex
+  const stripped = text.replace(/\\./g, '');
+  // eslint-disable-next-line no-useless-escape
+  return /[.*+?^${}()|[\]]/.test(stripped);
+}
+
+// ── Regex narrator ────────────────────────────────────────────────────────
+// A small recursive-descent narrator that walks a regex pattern, splits it into
+// atoms (anchors, literals, character classes, shorthands, groups, lookarounds),
+// and produces a plain-English description. Unsupported constructs degrade to
+// showing the raw pattern fragment.
+
+type Atom =
+  | { kind: 'anchor'; which: '^' | '$' }
+  | { kind: 'literal'; text: string }
+  | { kind: 'shorthand'; cls: 'd' | 'D' | 'w' | 'W' | 's' | 'S' | '.'; quantifier?: string }
+  | { kind: 'charclass'; raw: string; quantifier?: string }
+  | { kind: 'lookaround'; direction: 'before' | 'after'; positive: boolean; inner: string }
+  | { kind: 'group'; capturing: boolean; inner: string; quantifier?: string };
+
+function findMatchingClose(s: string, openIdx: number): number {
+  let depth = 0;
+  for (let i = openIdx; i < s.length; i++) {
+    if (s[i] === '\\') { i++; continue; }
+    if (s[i] === '(') depth++;
+    else if (s[i] === ')') {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+function readQuantifier(s: string, i: number): { q?: string; advance: number } {
+  const m = s.slice(i).match(/^(\{\d+(?:,\d*)?\}\??|[*+?]\??)/);
+  return m ? { q: m[1], advance: m[1].length } : { advance: 0 };
+}
+
+function tokenize(pattern: string): Atom[] {
+  const out: Atom[] = [];
+  let buf = '';
+  const flush = () => { if (buf) { out.push({ kind: 'literal', text: buf }); buf = ''; } };
+  let i = 0;
+  while (i < pattern.length) {
+    const ch = pattern[i];
+    if (ch === '\\') {
+      const next = pattern[i + 1];
+      if (next && /[dDwWsS]/.test(next)) {
+        flush();
+        const q = readQuantifier(pattern, i + 2);
+        out.push({ kind: 'shorthand', cls: next as Atom & { kind: 'shorthand' } extends infer T ? (T extends { cls: infer C } ? C : never) : never, quantifier: q.q });
+        i += 2 + q.advance;
+        continue;
+      }
+      // Escaped literal
+      if (next !== undefined) { buf += next; i += 2; continue; }
+      buf += ch; i++; continue;
+    }
+    if (ch === '.') {
+      flush();
+      const q = readQuantifier(pattern, i + 1);
+      out.push({ kind: 'shorthand', cls: '.', quantifier: q.q });
+      i += 1 + q.advance;
+      continue;
+    }
+    if (ch === '^' || ch === '$') {
+      flush();
+      out.push({ kind: 'anchor', which: ch });
+      i++; continue;
+    }
+    if (ch === '[') {
+      flush();
+      let j = i + 1;
+      while (j < pattern.length && pattern[j] !== ']') {
+        if (pattern[j] === '\\') j++;
+        j++;
+      }
+      const raw = pattern.slice(i, j + 1);
+      i = j + 1;
+      const q = readQuantifier(pattern, i);
+      out.push({ kind: 'charclass', raw, quantifier: q.q });
+      i += q.advance;
+      continue;
+    }
+    if (ch === '(') {
+      flush();
+      const close = findMatchingClose(pattern, i);
+      if (close === -1) { buf += pattern.slice(i); break; }
+      const head4 = pattern.slice(i + 1, i + 4);
+      const head3 = pattern.slice(i + 1, i + 3);
+      let kind: 'lookaround' | 'group';
+      let direction: 'before' | 'after' = 'after';
+      let positive = true;
+      let capturing = true;
+      let innerStart = i + 1;
+      if (head4 === '?<=') { kind = 'lookaround'; direction = 'before'; positive = true; innerStart = i + 4; }
+      else if (head4 === '?<!') { kind = 'lookaround'; direction = 'before'; positive = false; innerStart = i + 4; }
+      else if (head3 === '?=') { kind = 'lookaround'; direction = 'after'; positive = true; innerStart = i + 3; }
+      else if (head3 === '?!') { kind = 'lookaround'; direction = 'after'; positive = false; innerStart = i + 3; }
+      else if (head3 === '?:') { kind = 'group'; capturing = false; innerStart = i + 3; }
+      else { kind = 'group'; capturing = true; innerStart = i + 1; }
+      const inner = pattern.slice(innerStart, close);
+      i = close + 1;
+      const q = readQuantifier(pattern, i);
+      i += q.advance;
+      if (kind === 'lookaround') out.push({ kind, direction, positive, inner });
+      else out.push({ kind: 'group', capturing, inner, quantifier: q.q });
+      continue;
+    }
+    buf += ch; i++;
+  }
+  flush();
+  return out;
+}
+
+function splitTopLevelAlternation(pattern: string): string[] {
+  const parts: string[] = [];
+  let depth = 0, classDepth = 0;
+  let current = '';
+  for (let i = 0; i < pattern.length; i++) {
+    const ch = pattern[i];
+    if (ch === '\\') { current += ch + (pattern[i + 1] ?? ''); i++; continue; }
+    if (classDepth === 0 && ch === '(') depth++;
+    else if (classDepth === 0 && ch === ')') depth--;
+    if (depth === 0 && ch === '[') classDepth++;
+    else if (classDepth > 0 && ch === ']') classDepth--;
+    if (ch === '|' && depth === 0 && classDepth === 0) { parts.push(current); current = ''; continue; }
+    current += ch;
+  }
+  parts.push(current);
+  return parts;
+}
+
+function nounForShorthand(cls: string): string {
+  switch (cls) {
+    case 'd': return 'digit';
+    case 'D': return 'non-digit';
+    case 'w': return 'word character';
+    case 'W': return 'non-word character';
+    case 's': return 'whitespace character';
+    case 'S': return 'non-whitespace character';
+    case '.': return 'character';
+    default: return cls;
+  }
+}
+
+function nounForCharClass(raw: string): { noun: string; generic: false } | { phrase: string; generic: true } {
+  const m = raw.match(/^\[(\^?)(.*)\]$/);
+  if (!m) return { phrase: raw, generic: true };
+  const negated = m[1] === '^';
+  const inner = m[2];
+
+  // Common pre-named classes
+  const map: Record<string, [string, string]> = {
+    'A-Z': ['uppercase letter', 'non-uppercase letter'],
+    'a-z': ['lowercase letter', 'non-lowercase letter'],
+    'A-Za-z': ['letter', 'non-letter'],
+    'a-zA-Z': ['letter', 'non-letter'],
+    '0-9': ['digit', 'non-digit'],
+    'A-Za-z0-9': ['alphanumeric character', 'non-alphanumeric character'],
+    'a-zA-Z0-9': ['alphanumeric character', 'non-alphanumeric character'],
+    '0-9A-Za-z': ['alphanumeric character', 'non-alphanumeric character'],
+  };
+  const known = map[inner];
+  if (known) return { noun: negated ? known[1] : known[0], generic: false };
+
+  // Single range like [0-3] or [a-f]: pick a friendly noun head based on endpoint type.
+  const rangeMatch = inner.match(/^(.)-(.)$/);
+  if (rangeMatch) {
+    const a = rangeMatch[1], b = rangeMatch[2];
+    let head = 'character';
+    if (/[0-9]/.test(a) && /[0-9]/.test(b)) head = 'digit';
+    else if (/[a-z]/.test(a) && /[a-z]/.test(b)) head = 'lowercase letter';
+    else if (/[A-Z]/.test(a) && /[A-Z]/.test(b)) head = 'uppercase letter';
+    const modifier = `from ${a} to ${b}`;
+    if (negated) return { noun: `non-${head} (outside ${modifier})`, generic: false };
+    return { noun: `${head} ${modifier}`, generic: false };
+  }
+
+  // Literal-list like [01] or [abc]: render as "X or Y" (or "X, Y, or Z").
+  // Restrict to printable ASCII without metacharacters to avoid surprises.
+  if (/^[A-Za-z0-9 _!@#%&,;:'"/]+$/.test(inner) && inner.length >= 1) {
+    const chars = [...inner];
+    const quoted = chars.map((c) => `"${c}"`);
+    let phrase: string;
+    if (quoted.length === 1) phrase = quoted[0];
+    else if (quoted.length === 2) phrase = quoted.join(' or ');
+    else phrase = quoted.slice(0, -1).join(', ') + ', or ' + quoted[quoted.length - 1];
+    return {
+      phrase: negated ? `any character that isn't ${phrase}` : phrase,
+      generic: true,
+    };
+  }
+
+  return {
+    phrase: negated ? `any character not in [${inner}]` : `any character in [${inner}]`,
+    generic: true,
+  };
+}
+
+/**
+ * Pluralize a noun phrase by pluralizing its head word. For known head nouns
+ * (letter, character, digit, etc.) we pluralize at the head so modifiers like
+ * "from 0 to 3" stay in place. Otherwise append 's' to the last word.
+ */
+function pluralize(noun: string): string {
+  const words = noun.split(' ');
+  const HEADS = /^(letters?|characters?|digits?|positions?|occurrences?|matches)$/;
+  for (let i = words.length - 1; i >= 0; i--) {
+    if (HEADS.test(words[i])) {
+      if (!words[i].endsWith('s')) words[i] = words[i] + 's';
+      return words.join(' ');
+    }
+  }
+  words[words.length - 1] = words[words.length - 1] + 's';
+  return words.join(' ');
+}
+
+function formatQuantifiedNoun(noun: string, q: string | undefined): string {
+  if (!q) return `a ${noun}`;
+  const lazy = q.endsWith('?') && q.length > 1 && q !== '??' && q !== '?';
+  // Strip trailing ? for lazy quantifier (rendering is the same, lazy is implementation detail)
+  const base = lazy ? q.slice(0, -1) : q;
+  if (base === '*') return `zero or more ${pluralize(noun)}`;
+  if (base === '+') return `one or more ${pluralize(noun)}`;
+  if (base === '?' || q === '??') return `an optional ${noun}`;
+  const m = base.match(/^\{(\d+)(?:,(\d*))?\}$/);
+  if (m) {
+    const a = m[1], b = m[2];
+    if (b === undefined) return +a === 1 ? `a ${noun}` : `${a} ${pluralize(noun)}`;
+    if (b === '') return `${a} or more ${pluralize(noun)}`;
+    return `${a} to ${b} ${pluralize(noun)}`;
+  }
+  return `${noun} (${q})`;
+}
+
+function formatQuantifiedPhrase(phrase: string, q: string | undefined): string {
+  if (!q) return phrase;
+  const lazy = q.endsWith('?') && q.length > 1 && q !== '??';
+  const base = lazy ? q.slice(0, -1) : q;
+  if (base === '*') return `zero or more occurrences of ${phrase}`;
+  if (base === '+') return `one or more occurrences of ${phrase}`;
+  if (base === '?') return `an optional ${phrase}`;
+  const m = base.match(/^\{(\d+)(?:,(\d*))?\}$/);
+  if (m) {
+    const a = m[1], b = m[2];
+    if (b === undefined) return +a === 1 ? phrase : `${a} occurrences of ${phrase}`;
+    if (b === '') return `${a} or more occurrences of ${phrase}`;
+    return `${a} to ${b} occurrences of ${phrase}`;
+  }
+  return `${phrase} (${q})`;
+}
+
+function describeAtom(atom: Atom): string {
+  switch (atom.kind) {
+    case 'anchor': return atom.which === '^' ? 'start of input' : 'end of input';
+    case 'literal': return `"${atom.text}"`;
+    case 'shorthand': return formatQuantifiedNoun(nounForShorthand(atom.cls), atom.quantifier);
+    case 'charclass': {
+      const cls = nounForCharClass(atom.raw);
+      return cls.generic
+        ? formatQuantifiedPhrase(cls.phrase, atom.quantifier)
+        : formatQuantifiedNoun(cls.noun, atom.quantifier);
+    }
+    case 'lookaround': {
+      const inner = narratePattern(atom.inner);
+      const conj = atom.direction === 'before'
+        ? (atom.positive ? 'preceded by' : 'not preceded by')
+        : (atom.positive ? 'followed by' : 'not followed by');
+      return `${conj} ${inner}`;
+    }
+    case 'group': {
+      const inner = narratePattern(atom.inner);
+      // A group without a quantifier adds no narrative value — narrate its
+      // contents directly. The role-specific tail sentence ("The matched
+      // text is extracted." / "Extraction starts after this match.") tells
+      // the user what's captured; redundant parens just create visual noise.
+      if (!atom.quantifier) return inner;
+      return formatQuantifiedPhrase(`(${inner})`, atom.quantifier);
+    }
+  }
+}
+
+function narrateAtoms(atoms: Atom[]): string {
+  // Pull lookarounds out as constraint clauses; render the rest as a sequence.
+  const main: Atom[] = [];
+  const constraints: string[] = [];
+  for (const a of atoms) {
+    if (a.kind === 'lookaround') constraints.push(describeAtom(a));
+    else main.push(a);
+  }
+  const core = main.length === 0 ? '' : main.map(describeAtom).join(', then ');
+  if (constraints.length === 0) return core;
+  const constraintStr = constraints.join(', and ');
+  return core ? `${core} (${constraintStr})` : `a position ${constraintStr}`;
+}
+
+/**
+ * Plain-English narration of an arbitrary regex pattern. Walks the pattern
+ * structurally so long, composite patterns get a real explanation rather
+ * than a "Regex pattern: ..." fallback.
+ */
+export function narratePattern(pattern: string): string {
+  if (!pattern) return '';
+  const branches = splitTopLevelAlternation(pattern);
+  if (branches.length > 1) return branches.map(narratePattern).join(' or ');
+  const atoms = tokenize(pattern);
+  return narrateAtoms(atoms);
+}
+
+/**
+ * Plain-English description of how an extraction field's value will be
+ * matched, paired with a sentence about its role in the extraction. Handles
+ * literal text and regex content for three field roles:
+ *
+ *   prefix  — marks the start of extraction; extracted text begins after it
+ *   suffix  — marks the end of extraction; extracted text ends before it
+ *   pattern — for `extract_matching`, the matched text is itself extracted
+ *
+ * Examples:
+ *   "/ORDP/" as prefix → 'Looks for the literal text "/ORDP/". Extraction starts after this text.'
+ *   "(?:/|$)" as suffix → 'Looks for "/" or end of input. Extraction stops before this match.'
+ *   "\d{2}" as pattern → 'Matches exactly 2 digits. The matched text is extracted.'
+ */
+export function describeLiteralBoundary(
+  text: string,
+  role: 'prefix' | 'suffix' | 'pattern' = 'prefix',
+): string {
+  if (text.length === 0) {
+    if (role === 'prefix') return 'Empty — extraction starts at the beginning of the source field.';
+    if (role === 'suffix') return 'Empty — extraction continues to the end of the source field.';
+    return 'Empty — no pattern set.';
+  }
+
+  if (role === 'pattern') {
+    if (!looksLikeRegex(text)) {
+      return `Looks for the literal text "${text}". The matched text is extracted.`;
+    }
+    return `Matches ${narratePattern(text)}. The matched text is extracted.`;
+  }
+
+  const tail = role === 'prefix' ? 'Extraction starts after this' : 'Extraction stops before this';
+
+  if (!looksLikeRegex(text)) {
+    return `Looks for the literal text "${text}". ${tail} text.`;
+  }
+  return `Looks for ${narratePattern(text)}. ${tail} match.`;
+}
+
 function unescapeRegex(str: string): string {
   // Unescape backslash sequences EXCEPT regex shorthand classes (\d, \w, \s, \b, \n, \t, \r, etc.)
   // This correctly handles escaped spaces (\ ) and escaped literals (\., \*, etc.)

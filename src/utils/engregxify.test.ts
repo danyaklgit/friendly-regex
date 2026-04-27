@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { engregxify, decomposeRegex, decomposeExtractionRegex } from './engregxify';
+import { engregxify, decomposeRegex, decomposeExtractionRegex, describeLiteralBoundary } from './engregxify';
 
 describe('engregxify', () => {
   // Numeric comparisons
@@ -245,5 +245,118 @@ describe('decomposeExtractionRegex', () => {
       operation: 'extract_matching',
       pattern: 'plain',
     });
+  });
+});
+
+describe('describeLiteralBoundary', () => {
+  it('reports empty prefix', () => {
+    expect(describeLiteralBoundary('', 'prefix')).toBe(
+      'Empty — extraction starts at the beginning of the source field.',
+    );
+  });
+
+  it('reports empty suffix', () => {
+    expect(describeLiteralBoundary('', 'suffix')).toBe(
+      'Empty — extraction continues to the end of the source field.',
+    );
+  });
+
+  it('describes a plain literal prefix', () => {
+    expect(describeLiteralBoundary('/ORDP/', 'prefix')).toBe(
+      'Looks for the literal text "/ORDP/". Extraction starts after this text.',
+    );
+  });
+
+  it('describes a plain literal suffix', () => {
+    expect(describeLiteralBoundary('/END', 'suffix')).toBe(
+      'Looks for the literal text "/END". Extraction stops before this text.',
+    );
+  });
+
+  it('treats whitespace-only values as visible literals', () => {
+    expect(describeLiteralBoundary(' ', 'suffix')).toBe(
+      'Looks for the literal text " ". Extraction stops before this text.',
+    );
+  });
+
+  it('describes alternation with end-of-input anchor as suffix', () => {
+    expect(describeLiteralBoundary('(?:/|$)', 'suffix')).toBe(
+      'Looks for "/" or end of input. Extraction stops before this match.',
+    );
+  });
+
+  it('describes alternation with multiple literal branches', () => {
+    expect(describeLiteralBoundary('(?:/|;|\\|)', 'suffix')).toBe(
+      'Looks for "/" or ";" or "|". Extraction stops before this match.',
+    );
+  });
+
+  it('describes shorthand digit class', () => {
+    expect(describeLiteralBoundary('\\d+', 'prefix')).toBe(
+      'Looks for one or more digits. Extraction starts after this match.',
+    );
+  });
+
+  it('describes fixed-count digit class', () => {
+    expect(describeLiteralBoundary('\\d{4}', 'prefix')).toBe(
+      'Looks for 4 digits. Extraction starts after this match.',
+    );
+  });
+
+  it('narrates compositions of anchors, literals, and char classes', () => {
+    expect(describeLiteralBoundary('^TNXT[A-Z]+', 'prefix')).toBe(
+      'Looks for start of input, then "TNXT", then one or more uppercase letters. Extraction starts after this match.',
+    );
+  });
+
+  it('defaults role to prefix when not specified', () => {
+    expect(describeLiteralBoundary('/X/')).toContain('Extraction starts after');
+  });
+
+  // ── pattern role (extract_matching) ──
+  it('describes empty pattern', () => {
+    expect(describeLiteralBoundary('', 'pattern')).toBe('Empty — no pattern set.');
+  });
+
+  it('describes a literal pattern', () => {
+    expect(describeLiteralBoundary('PAYMENT', 'pattern')).toBe(
+      'Looks for the literal text "PAYMENT". The matched text is extracted.',
+    );
+  });
+
+  it('describes a digit-shorthand pattern', () => {
+    expect(describeLiteralBoundary('\\d{2}', 'pattern')).toBe(
+      'Matches 2 digits. The matched text is extracted.',
+    );
+  });
+
+  it('describes alternation in pattern role', () => {
+    expect(describeLiteralBoundary('(?:USD|EUR|SAR)', 'pattern')).toBe(
+      'Matches "USD" or "EUR" or "SAR". The matched text is extracted.',
+    );
+  });
+
+  it('narrates a lookbehind followed by a digit class', () => {
+    expect(describeLiteralBoundary('(?<=IBAN/SA.{2})\\d{2}', 'pattern')).toBe(
+      'Matches 2 digits (preceded by "IBAN/SA", then 2 characters). The matched text is extracted.',
+    );
+  });
+
+  it('narrates a sequence of literal, shorthand, and capturing group', () => {
+    expect(describeLiteralBoundary('IBAN/SA\\d{2}(.{2})', 'pattern')).toBe(
+      'Matches "IBAN/SA", then 2 digits, then 2 characters. The matched text is extracted.',
+    );
+  });
+
+  it('narrates a date-style lookbehind with literal-list and range char classes', () => {
+    expect(describeLiteralBoundary('(?<=20\\d{2}[01][0-9][0-3][0-9]SA)(.{4})', 'pattern')).toBe(
+      'Matches 4 characters (preceded by "20", then 2 digits, then "0" or "1", then a digit, then a digit from 0 to 3, then a digit, then "SA"). The matched text is extracted.',
+    );
+  });
+
+  it('narrates a negative lookahead', () => {
+    expect(describeLiteralBoundary('\\d+(?!USD)', 'pattern')).toBe(
+      'Matches one or more digits (not followed by "USD"). The matched text is extracted.',
+    );
   });
 });

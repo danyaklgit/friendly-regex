@@ -1,11 +1,13 @@
-import type { InputHTMLAttributes } from 'react';
+import type { InputHTMLAttributes, ReactNode } from 'react';
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: boolean;
+  /** Optional element rendered inline to the right of the label text (e.g. an info-icon tooltip). */
+  labelAdornment?: ReactNode;
 }
 
-export function Input({ label, className = '', id, error, ...props }: InputProps) {
+export function Input({ label, className = '', id, error, labelAdornment, ...props }: InputProps) {
   const inputId = id ?? label?.toLowerCase().replace(/\s+/g, '-');
   const borderClass = error
     ? 'border-red-400 focus:border-red-500 focus:ring-red-500'
@@ -13,9 +15,12 @@ export function Input({ label, className = '', id, error, ...props }: InputProps
   return (
     <div className="flex flex-col gap-1">
       {label && (
-        <label htmlFor={inputId} className="text-xs font-medium text-body pl-1">
-          {label}{props.required && <span className="text-red-500 ml-0.5">*</span>}
-        </label>
+        <div className="flex items-center gap-1 pl-1">
+          <label htmlFor={inputId} className="text-xs font-medium text-body">
+            {label}{props.required && <span className="text-red-500 ml-0.5">*</span>}
+          </label>
+          {labelAdornment}
+        </div>
       )}
       <input
         id={inputId}

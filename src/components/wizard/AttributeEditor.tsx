@@ -12,6 +12,7 @@ import { useTransactionData } from '../../hooks/useTransactionData';
 import { EXTRACTION_OPERATIONS, PREDEFINED_PATTERNS } from '../../constants/operations';
 import { generateExtractionPrompt, regexifyExtraction } from '../../utils/regexify';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
+import { describeLiteralBoundary } from '../../utils/engregxify';
 import { AttributeFormModal } from '../attributes/AttributeFormModal';
 import { TransformationList } from './TransformationList';
 
@@ -33,6 +34,44 @@ interface AttributeEditorProps {
   transactions?: TransactionRow[];
   startCollapsed?: boolean;
   readOnly?: boolean;
+}
+
+/**
+ * Small info icon shown next to extraction-rule fields (Prefix, Suffix,
+ * Pattern). On hover, the tooltip explains how the current field value
+ * will be matched and how it shapes the extracted span. Content is built
+ * from `text` on every render, so it stays in sync as the user types.
+ */
+function BoundaryHintIcon({
+  text,
+  role,
+  ariaLabel,
+}: {
+  text: string;
+  role: 'prefix' | 'suffix' | 'pattern';
+  ariaLabel: string;
+}) {
+  // Cap the tooltip width and let long narrations wrap onto multiple lines.
+  // The cap is wide enough for a typical phrase but narrow enough to avoid
+  // sprawling across the whole screen for complex regex patterns.
+  const content = (
+    <div className="max-w-xs whitespace-normal leading-snug">
+      {describeLiteralBoundary(text, role)}
+    </div>
+  );
+  return (
+    <Tooltip placement="top" content={content}>
+      <button
+        type="button"
+        aria-label={ariaLabel}
+        className="inline-flex items-center justify-center w-4 h-4 rounded-full text-faint hover:text-body-secondary hover:bg-surface-tertiary transition-colors cursor-help"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      </button>
+    </Tooltip>
+  );
 }
 
 export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, startCollapsed, readOnly }: AttributeEditorProps) {
@@ -472,6 +511,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                   value={attribute.prefix ?? ''}
                   onChange={(e) => onUpdate({ prefix: e.target.value })}
                   disabled={readOnly}
+                  labelAdornment={<BoundaryHintIcon text={attribute.prefix ?? ''} role="prefix" ariaLabel="Prefix matching details" />}
                 />
               )}
               {selectedOp.fields.includes('suffix') && (
@@ -481,6 +521,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                   value={attribute.suffix ?? ''}
                   onChange={(e) => onUpdate({ suffix: e.target.value })}
                   disabled={readOnly}
+                  labelAdornment={<BoundaryHintIcon text={attribute.suffix ?? ''} role="suffix" ariaLabel="Suffix matching details" />}
                 />
               )}
               {selectedOp.fields.includes('pattern') && (
@@ -490,6 +531,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                   value={attribute.pattern ?? ''}
                   onChange={(e) => onUpdate({ pattern: e.target.value })}
                   disabled={readOnly}
+                  labelAdornment={<BoundaryHintIcon text={attribute.pattern ?? ''} role="pattern" ariaLabel="Pattern matching details" />}
                 />
               )}
               {selectedOp.fields.includes('verifyValue') && (
