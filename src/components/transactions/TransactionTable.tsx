@@ -34,6 +34,14 @@ interface TransactionTableProps {
   onRowContextMenu?: (row: TransactionRow, x: number, y: number) => void;
   /** The saved definition being edited, if any. Enables Before/After diff tooltips on attribute cells whose rule has changed. */
   originalEditingDef?: TagSpecDefinition;
+  /**
+   * The definition currently scoping the table (e.g. when the user clicked a
+   * tag to drill into one definition's matches, or is editing a definition).
+   * When set, attribute cells prefer values from this definition over other
+   * matched ones — important for multi-tagged rows where two defs share an
+   * attribute name but extract different values.
+   */
+  activeDefinitionId?: string;
 }
 
 type ColumnDef =
@@ -441,7 +449,7 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
 
 export type { ColumnDef };
 
-export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, definitionSourceMap, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, accentHue = 190, onRowContextMenu, originalEditingDef }: TransactionTableProps) {
+export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, definitionSourceMap, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, accentHue = 190, onRowContextMenu, originalEditingDef, activeDefinitionId }: TransactionTableProps) {
   const { fieldMeta } = useTransactionData();
   const { lovLookup } = useLovAttributes();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -1018,15 +1026,22 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
 
   const getAttributeValue = (item: AnalyzedTransaction, attrName: string): string | null => {
     // 1) Client-computed value (reflects live rule-builder drafts/edits).
+    // analysis.attributes is keyed by def.Id. When activeDefinitionId is set
+    // (e.g. the user clicked into a tag's matches, or is editing a def), prefer
+    // that def's value — important for multi-tagged rows where two defs share
+    // an attribute name but extract different values.
+    if (activeDefinitionId) {
+      const tagAttrs = item.analysis.attributes[activeDefinitionId];
+      if (tagAttrs && attrName in tagAttrs && tagAttrs[attrName] !== null) {
+        return tagAttrs[attrName];
+      }
+    }
     // Iterate in tagDefinitions order (which puts the rule-builder draft / temp
-    // definition FIRST) instead of analysis.attributes insertion order. This
-    // lets a draft attribute with a post-extraction transformation override
-    // the same attribute name in other matched saved defs that don't carry
-    // that transformation. Without this, a saved def matched earlier in
-    // library iteration order would always win and the table would never
-    // reflect the draft's transformation.
+    // definition FIRST) so a draft attribute with a post-extraction
+    // transformation overrides the same attribute name in other matched saved
+    // defs that don't carry that transformation.
     for (const def of tagDefinitions) {
-      const tagAttrs = item.analysis.attributes[def.Tag];
+      const tagAttrs = item.analysis.attributes[def.Id];
       if (tagAttrs && attrName in tagAttrs && tagAttrs[attrName] !== null) {
         return tagAttrs[attrName];
       }
@@ -1062,6 +1077,19 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     if (primary !== null) return primary;
     const multi = row.OpsMultiTags;
     if (Array.isArray(multi)) {
+      // When activeDefinitionId is set, find that specific entry first.
+      // Otherwise fall back to the first non-empty across all entries.
+      if (activeDefinitionId) {
+        for (const mt of multi) {
+          if (mt && typeof mt === 'object') {
+            const m = mt as { TagSpecDefinitionId?: unknown; Attributes?: unknown };
+            if (m.TagSpecDefinitionId === activeDefinitionId) {
+              const v = scan(m.Attributes);
+              if (v !== null) return v;
+            }
+          }
+        }
+      }
       for (const mt of multi) {
         if (mt && typeof mt === 'object') {
           const v = scan((mt as { Attributes?: unknown }).Attributes);

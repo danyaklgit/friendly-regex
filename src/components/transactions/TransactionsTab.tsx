@@ -1304,6 +1304,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
 // 140 — green
         onRowContextMenu={(row, x, y) => setContextMenu({ row, x, y })}
         originalEditingDef={editingDef}
+        activeDefinitionId={tagClickDefinitionId ?? editingDef?.Id}
       />
       )}
 

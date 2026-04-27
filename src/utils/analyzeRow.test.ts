@@ -178,6 +178,8 @@ describe('analyzeRow', () => {
     const lib = makeLib({ TagSpecDefinitions: [def] });
     const result = analyzeRow(row, [lib]);
     expect(result.matchedDefinitions).toHaveLength(1);
-    expect(result.attributes['TAG1']).toBeDefined();
+    // Attributes are keyed by definition Id (so multiple matched defs sharing
+    // a tag don't overwrite each other), not by Tag.
+    expect(result.attributes['def-TAG1']).toBeDefined();
   });
 });

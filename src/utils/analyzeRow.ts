@@ -51,7 +51,12 @@ export function analyzeRow(
       if (matches) {
         tags.push(def.Tag);
         matchedDefinitions.push(def);
-        attributes[def.Tag] = extractAttributes(def.Attributes, row);
+        // Key by def.Id, NOT def.Tag — multiple matched defs can share a tag
+        // name (e.g. two "TransferInDom" definitions covering different sender
+        // patterns). Tag-keyed storage would have the last matched def silently
+        // overwrite the first, so the table couldn't display attributes scoped
+        // to the definition the user is currently filtering by.
+        attributes[def.Id] = extractAttributes(def.Attributes, row);
       }
     }
   }
