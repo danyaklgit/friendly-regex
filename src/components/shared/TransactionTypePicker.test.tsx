@@ -7,9 +7,9 @@ import type { FilterDefinition } from '../../api/transactions';
 const noop = () => {};
 
 describe('TransactionTypePicker', () => {
-  it('renders the trigger button with "All types" when no value', () => {
+  it('renders the trigger button with "Select a type" when no value', () => {
     render(<TransactionTypePicker value="" onChange={noop} />);
-    expect(screen.getByRole('button').textContent).toContain('All types');
+    expect(screen.getByRole('button').textContent).toContain('Select a type');
   });
 
   it('shows the selected label when a value matches an option', () => {
@@ -229,8 +229,8 @@ describe('TransactionTypePicker', () => {
       },
     ];
     render(<TransactionTypePicker value="" onChange={noop} filterDefinitions={defs} />);
-    // Both null → '' which matches value="" → selectedLabel = '' → falls back to 'All types'
-    expect(screen.getByRole('button').textContent).toContain('All types');
+    // Both null → '' which matches value="" → selectedLabel = '' → falls back to placeholder
+    expect(screen.getByRole('button').textContent).toContain('Select a type');
   });
 
   it('closes the dropdown when the DropdownBackdrop is clicked', async () => {

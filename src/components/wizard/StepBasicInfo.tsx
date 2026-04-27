@@ -58,6 +58,7 @@ export function StepBasicInfo({ formState, onUpdate, fromCheckoutContext }: Step
               options={TXN_TYPE_OPTIONS.map((s) => ({ value: s, label: s }))}
               placeholder="Select transaction type"
               disabled={fromCheckoutContext}
+              required
             />
           </div>
         </div>

@@ -26,21 +26,19 @@ export function TagWizardModal({ existingDef, parentLib, initialFormState, initi
 
   const isStepValid = (step: WizardStep): boolean => {
     switch (step) {
-      case 1: {
-        const base =
+      case 1:
+        // Transaction type is always required: a tag with only a transaction
+        // type is a valid rule (matches every row of that type), so it must
+        // be set even when the rest of the wizard is empty.
+        return (
           wizard.formState.tag.trim().length > 0 &&
           wizard.formState.side.trim().length > 0 &&
-          wizard.formState.bankSwiftCode.trim().length > 0;
-        if (fromCheckoutContext) {
-          return base &&
-            wizard.formState.transactionTypeCode.trim().length > 0;
-        }
-        return base;
-      }
-      case 2:
-        return wizard.formState.ruleGroups.some((g) =>
-          g.conditions.some((c) => c.value.trim().length > 0)
+          wizard.formState.bankSwiftCode.trim().length > 0 &&
+          wizard.formState.transactionTypeCode.trim().length > 0
         );
+      case 2:
+        // Rule expressions are optional. A transaction-type-only tag is valid.
+        return true;
       case 3:
         return true; // Attributes are optional
       case 4:

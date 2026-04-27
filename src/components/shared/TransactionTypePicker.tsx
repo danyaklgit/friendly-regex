@@ -57,7 +57,7 @@ export function TransactionTypePicker({ value, onChange, filterDefinitions, disa
   const selectedDisplay = selectedOption
     ? (selectedOption.value !== selectedOption.label && selectedOption.label ? `${selectedOption.value} — ${selectedOption.label}` : selectedOption.label)
     : null;
-  const selectedLabel = selectedDisplay || value || 'All types';
+  const selectedLabel = selectedDisplay || value || 'Select a type';
 
   const handleSelect = (val: string) => {
     onChange(val);

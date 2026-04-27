@@ -58,7 +58,10 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
     g.conditions.some((c) => c.value.trim().length > 0)
   );
   const hasAttribute = formState.attributes.some((a) => a.attributeTag.trim().length > 0);
-  if (!hasCondition && !hasAttribute) return null;
+  // A transaction type alone is a valid rule: the resulting tag matches every
+  // row of that type, no further rule expressions or attributes required.
+  const hasTransactionType = formState.transactionTypeCode.trim().length > 0;
+  if (!hasCondition && !hasAttribute && !hasTransactionType) return null;
 
   const id = 'preview-temp';
   return {
@@ -604,9 +607,11 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     g.conditions.some((c) => c.value.trim().length > 0)
   ) || builder.formState.attributes.some((a) => a.attributeTag.trim().length > 0);
 
-  // Rule creation / Apply Rules requires a transaction type selection
+  // Rule creation only requires a transaction type. Rule expressions and
+  // attributes are optional — a tag with only a transaction type matches
+  // every row of that type, which is a valid use case.
   const builderHasTransactionType = builder.formState.transactionTypeCode.trim().length > 0;
-  const canSubmitBuilder = builderHasContent && builderHasTransactionType;
+  const canSubmitBuilder = builderHasTransactionType;
 
 
 
@@ -1084,7 +1089,9 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
               </p>
             </div>
             <div data-tour="builder-transaction-type" className="flex items-center gap-2">
-              <label className="text-xs font-medium text-primary-dark whitespace-nowrap">Transaction Type</label>
+              <label className="text-xs font-medium text-primary-dark whitespace-nowrap">
+                Transaction Type<span className="text-red-500 ml-0.5" aria-hidden>*</span>
+              </label>
               <TransactionTypePicker
                 value={builder.formState.transactionTypeCode}
                 onChange={(val) => builder.updateBasicInfo({ transactionTypeCode: val })}
