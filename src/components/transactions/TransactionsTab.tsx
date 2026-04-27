@@ -102,6 +102,15 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
           suffixOccurrence: attr.suffixOccurrence,
         };
         const prompt = generateExtractionPrompt(attr.extractionOperation, params);
+        // Prefer the backend's original regex when the user hasn't edited
+        // extraction. Round-tripping form params through regexifyExtraction is
+        // lossy for some ops (e.g. extract_after with prefix '^'), and the
+        // resulting rebuilt regex would silently fail to match — making the
+        // table fall back to server values without the draft's transformations.
+        // updateAttribute clears _originalRegex when extraction fields change,
+        // so this fallback only kicks in when the user is editing, say, a
+        // transformation or validation rule.
+        const regex = attr._originalRegex ?? regexifyExtraction(attr.extractionOperation, params);
         return {
           AttributeTag: attr.attributeTag,
           IsMandatory: attr.isMandatory,
@@ -111,7 +120,7 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
             SourceField: attr.sourceField,
             ExpressionPrompt: null,
             ExpressionId: generateExpressionId(id, 'attr', index),
-            Regex: regexifyExtraction(attr.extractionOperation, params),
+            Regex: regex,
             RegexDetails: [{ LanguageCode: 'en', Description: prompt }],
           },
           ...((attr.transformations && attr.transformations.length > 0)
@@ -559,11 +568,21 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // Flat definitions including preview (for table column ordering + LOV resolution)
   const allDefinitions = useMemo(() => {
     if (!tempDefinition) return tagDefinitions;
-    // Put tempDefinition FIRST so maps built with first-write-wins logic
+    // Put the draft FIRST so maps built with first-write-wins logic
     // (e.g. attrSourceMap in TransactionTable) pick up the live builder
     // values for attributes whose name also exists in saved rules.
     if (editingDef) {
-      return [tempDefinition, ...tagDefinitions.filter(d => d.Id !== editingDef.Id)];
+      // When editing, keep the editingDef's original Tag/Id but swap in the
+      // draft's rules and attributes (including Transformations). Otherwise
+      // analysis.attributes — keyed by the original Tag — and tagDefinitions —
+      // keyed under 'Preview' — would diverge, and getAttributeValue would
+      // miss the draft's transformed value when looking up by def.Tag.
+      const merged: TagSpecDefinition = {
+        ...editingDef,
+        TagRuleExpressions: tempDefinition.TagRuleExpressions,
+        Attributes: tempDefinition.Attributes,
+      };
+      return [merged, ...tagDefinitions.filter(d => d.Id !== editingDef.Id)];
     }
     return [tempDefinition, ...tagDefinitions];
   }, [tagDefinitions, tempDefinition, editingDef]);

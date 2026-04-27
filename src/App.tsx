@@ -95,8 +95,10 @@ function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps
   }, []);
 
   const handleCheckoutComplete = useCallback((bank: string, side: string) => {
+    // Record the checkout so the Transactions tab is pre-filtered when the
+    // operator navigates there, but stay on Backlog so they can see the
+    // "In Progress" state and decide their next action.
     setActiveCheckout({ bank, side, operatorName });
-    setActiveTab(1);
   }, [operatorName]);
 
   const handleRelease = useCallback(async (bank: string, side: string) => {

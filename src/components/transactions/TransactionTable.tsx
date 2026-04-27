@@ -1018,6 +1018,20 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
 
   const getAttributeValue = (item: AnalyzedTransaction, attrName: string): string | null => {
     // 1) Client-computed value (reflects live rule-builder drafts/edits).
+    // Iterate in tagDefinitions order (which puts the rule-builder draft / temp
+    // definition FIRST) instead of analysis.attributes insertion order. This
+    // lets a draft attribute with a post-extraction transformation override
+    // the same attribute name in other matched saved defs that don't carry
+    // that transformation. Without this, a saved def matched earlier in
+    // library iteration order would always win and the table would never
+    // reflect the draft's transformation.
+    for (const def of tagDefinitions) {
+      const tagAttrs = item.analysis.attributes[def.Tag];
+      if (tagAttrs && attrName in tagAttrs && tagAttrs[attrName] !== null) {
+        return tagAttrs[attrName];
+      }
+    }
+    // Fallback for any matched defs not present in tagDefinitions (defensive).
     for (const tagAttrs of Object.values(item.analysis.attributes)) {
       if (attrName in tagAttrs && tagAttrs[attrName] !== null) {
         return tagAttrs[attrName];

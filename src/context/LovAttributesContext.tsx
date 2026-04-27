@@ -157,7 +157,19 @@ export function LovAttributesProvider({ authToken, tepHeaders, children }: LovAt
     for (const list of lovLists) {
       const inner = new Map<string, string>();
       for (const item of list.Items) {
-        inner.set(item.Value.trim(), item.Name);
+        // Primary key: canonical Value (e.g. "SABBSARI" for BANKS).
+        const primary = item.Value.trim();
+        inner.set(primary, item.Name);
+        // Also key by every entry in Tags (e.g. ["SABBSARI", "SABB", "45"])
+        // so attributes that extract a shorter / alternate code (e.g. the
+        // 4-char SWIFT prefix "SABB") still resolve to the friendly name.
+        // Don't clobber an existing primary key.
+        if (Array.isArray(item.Tags)) {
+          for (const tag of item.Tags) {
+            const t = String(tag).trim();
+            if (t && !inner.has(t)) inner.set(t, item.Name);
+          }
+        }
       }
       map.set(list.Tag, inner);                  // "SADAD_BILLERS"
       if (!map.has(list.Name)) map.set(list.Name, inner);  // "SADAD Billers"

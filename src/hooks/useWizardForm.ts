@@ -247,9 +247,26 @@ export function useWizardForm(
     (attrId: string, updates: Partial<AttributeFormValue>) => {
       setFormState((prev) => ({
         ...prev,
-        attributes: prev.attributes.map((a) =>
-          a.id === attrId ? { ...a, ...updates } : a
-        ),
+        attributes: prev.attributes.map((a) => {
+          if (a.id !== attrId) return a;
+          // _originalRegex captures the backend's stored regex on load. For
+          // operations whose form-state round-trip is lossy (e.g. extract_after
+          // with prefix '^'), the rebuilt regex won't match the source field
+          // and live previews silently fall back to server values without the
+          // draft's transformations. Keep _originalRegex when the user edits
+          // anything OTHER than extraction (e.g. just adds a transformation),
+          // and clear it as soon as they touch any extraction parameter so
+          // genuine extraction edits do preview.
+          const extractionFields: (keyof AttributeFormValue)[] = [
+            'sourceField', 'extractionOperation', 'prefix', 'suffix', 'pattern',
+            'numChars', 'toStr', 'toStart', 'occurrence', 'startingPosition',
+            'fromPosition', 'prefixOccurrence', 'suffixOccurrence', 'verifyValue',
+          ];
+          const extractionChanged = extractionFields.some((f) => f in updates);
+          return extractionChanged
+            ? { ...a, ...updates, _originalRegex: undefined }
+            : { ...a, ...updates };
+        }),
       }));
     },
     []
@@ -306,6 +323,11 @@ export function useWizardForm(
           suffixOccurrence: attr.suffixOccurrence,
         };
         const prompt = generateExtractionPrompt(attr.extractionOperation, extractionParams);
+        // Prefer the backend's original regex when the user hasn't edited
+        // extraction (updateAttribute clears _originalRegex on any extraction
+        // change). Avoids a no-op edit silently overwriting a backend regex
+        // whose form-state round-trip is lossy (e.g. extract_after '^').
+        const regex = attr._originalRegex ?? regexifyExtraction(attr.extractionOperation, extractionParams);
         return {
           AttributeTag: attr.attributeTag,
           IsMandatory: attr.isMandatory,
@@ -315,7 +337,7 @@ export function useWizardForm(
             SourceField: attr.sourceField,
             ExpressionPrompt: null,
             ExpressionId: generateExpressionId(id, 'attr', index),
-            Regex: regexifyExtraction(attr.extractionOperation, extractionParams),
+            Regex: regex,
             RegexDetails: [{ LanguageCode: 'en', Description: prompt }],
             ...(attr.verifyValue ? { VerifyValue: attr.verifyValue } : {}),
           },

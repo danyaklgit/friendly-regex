@@ -13,6 +13,7 @@ import { EXTRACTION_OPERATIONS, PREDEFINED_PATTERNS } from '../../constants/oper
 import { generateExtractionPrompt, regexifyExtraction } from '../../utils/regexify';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
 import { describeLiteralBoundary } from '../../utils/engregxify';
+import { applyTransformation } from '../../utils/transformations';
 import { AttributeFormModal } from '../attributes/AttributeFormModal';
 import { TransformationList } from './TransformationList';
 
@@ -183,7 +184,12 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
   }), [attribute.prefix, attribute.suffix, attribute.pattern, attribute.verifyValue, attribute.numChars, attribute.toStr, attribute.toStart, attribute.occurrence, attribute.startingPosition, attribute.fromPosition, attribute.prefixOccurrence, attribute.suffixOccurrence]);
   const preview = generateExtractionPrompt(attribute.extractionOperation, extractionParams);
 
-  const distinctValues = useMemo(() => {
+  // Raw extracted values, BEFORE the post-extraction transformation pipeline.
+  // The transformation preview's "Extracted" line and the transformation
+  // sample feed off this — they must show what the regex captured, not what
+  // the pipeline produced (otherwise "Extracted" and "To Lowercase" both show
+  // the same string, hiding the diff the preview is meant to surface).
+  const rawDistinctValues = useMemo(() => {
     if (!transactions || !attribute.sourceField) return [];
     try {
       // Prefer the original backend regex (lossless) over re-built one (escaping may differ)
@@ -242,17 +248,35 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
     }
   }, [transactions, attribute.sourceField, attribute.attributeTag, attribute.extractionOperation, attribute.prefix, attribute.suffix, attribute.pattern, attribute.verifyValue, attribute._originalRegex, extractionParams]);
 
+  // Distinct values WITH the transformation pipeline applied. Used by the
+  // "See all distinct values" popup so it matches what the table renders.
+  // Deduped after transformation so two raw values that map to the same
+  // output collapse to one row.
+  const distinctValues = useMemo(() => {
+    const transformations = attribute.transformations ?? [];
+    if (transformations.length === 0) return rawDistinctValues;
+    const apply = (input: string): string => {
+      let v = input;
+      for (const t of transformations) {
+        v = applyTransformation(t.method, t.args, v);
+      }
+      return v;
+    };
+    return Array.from(new Set(rawDistinctValues.map(apply))).sort();
+  }, [rawDistinctValues, attribute.transformations]);
+
   // Sample value for transformation preview:
-  // If extraction method is set, use the first extracted value; otherwise use the raw source field value
+  // The preview must show the RAW extracted value on the "Extracted" line,
+  // so use rawDistinctValues here, NOT the post-pipeline distinctValues.
   const transformationSample = useMemo(() => {
-    if (distinctValues.length > 0) return distinctValues[0];
+    if (rawDistinctValues.length > 0) return rawDistinctValues[0];
     if (!transactions || !attribute.sourceField) return undefined;
     for (const row of transactions) {
       const val = row[attribute.sourceField];
       if (val !== undefined && val !== null && String(val).trim()) return String(val);
     }
     return undefined;
-  }, [distinctValues, transactions, attribute.sourceField]);
+  }, [rawDistinctValues, transactions, attribute.sourceField]);
 
   // For predefined patterns with validate: true or extract_between_and_verify, check if all rows pass
   const validationSummary = useMemo(() => {
