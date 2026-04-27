@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useLovAttributes } from '../../context/LovAttributesContext';
+import { useAuth } from '../../context/AuthContext';
 import { Button } from '../shared/Button';
 import { Toast } from '../shared/Toast';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
@@ -13,6 +14,7 @@ export function AttributesPage() {
     createNewAttribute,
     deleteExistingAttribute,
   } = useLovAttributes();
+  const { isAudit } = useAuth();
 
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
@@ -78,9 +80,11 @@ export function AttributesPage() {
           />
         </div>
         <div className="flex items-center gap-2 ml-auto">
-          <Button variant="primary" size="sm" onClick={handleCreate}>
-            + Create Attribute
-          </Button>
+          {!isAudit && (
+            <Button variant="primary" size="sm" onClick={handleCreate}>
+              + Create Attribute
+            </Button>
+          )}
         </div>
       </div>
 
@@ -112,16 +116,18 @@ export function AttributesPage() {
                     <td className="px-4 py-2.5 text-xs text-body-secondary">{en?.ShortDescription ?? '—'}</td>
                     <td className="px-4 py-2.5 text-xs text-body-secondary">{attr.PossibleLOVTag ?? '—'}</td>
                     <td className="px-4 py-2.5 text-right">
-                      <button
-                        type="button"
-                        onClick={() => setDeleteTarget(attr)}
-                        className="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/20 text-muted hover:text-red-600 transition-colors cursor-pointer"
-                        title="Delete"
-                      >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
+                      {!isAudit && (
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTarget(attr)}
+                          className="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/20 text-muted hover:text-red-600 transition-colors cursor-pointer"
+                          title="Delete"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );

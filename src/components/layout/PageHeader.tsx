@@ -3,6 +3,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useTimeRemaining } from '../../hooks/useTimeRemaining';
 import { Tooltip } from '../shared/Tooltip';
 import { Button } from '../shared/Button';
+import { Badge } from '../shared/Badge';
 
 interface CheckoutInfo {
   bank: string;
@@ -25,7 +26,7 @@ interface PageHeaderProps {
 }
 
 export function PageHeader({ tabs, activeIndex, onTabChange, checkout, onOpenOnboarding, onShare }: PageHeaderProps) {
-  const { logout, username, displayName, expiresAt } = useAuth();
+  const { logout, username, displayName, expiresAt, isAudit } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const timeRemaining = useTimeRemaining(expiresAt);
 
@@ -54,7 +55,7 @@ export function PageHeader({ tabs, activeIndex, onTabChange, checkout, onOpenOnb
             <span className="text-sm text-primary-dark">
               <span className="font-semibold">{checkout.isReadOnly ? "You're viewing" : "You're working on"}</span> {checkout.bank} - {checkout.side}
             </span>
-            {!checkout.isReadOnly && (
+            {!checkout.isReadOnly && !isAudit && (
               <>
                 {checkout.onRequestUndo && checkout.hasChanges && (
                   <Button variant="secondary" size="xs" onClick={() => checkout.onRequestUndo!(checkout.bank, checkout.side)} disabled={checkout.actionLoading}>
@@ -77,6 +78,11 @@ export function PageHeader({ tabs, activeIndex, onTabChange, checkout, onOpenOnb
           <Tooltip content={timeRemaining} placement="bottom">
             <span className="text-xs text-body">{displayName ?? username}</span>
           </Tooltip>
+          {isAudit && (
+            <Tooltip content="Read-only audit access" placement="bottom">
+              <Badge variant="gray" size="xs">Audit</Badge>
+            </Tooltip>
+          )}
           {onShare && (
             <Tooltip content="Share current view" placement="bottom">
               <button

@@ -32,6 +32,7 @@ interface AppShellProps {
 }
 
 function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps) {
+  const { isAudit } = useAuth();
   const [activeTab, setActiveTab] = useState(0);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [activeCheckout, setActiveCheckout] = useState<CheckoutState | null>(null);
@@ -102,6 +103,7 @@ function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps
   }, [operatorName]);
 
   const handleRelease = useCallback(async (bank: string, side: string) => {
+    if (isAudit) return;
     if (!authToken || !tepHeaders) return;
     const inProgressLib = findInProgressLib(bank, side);
     if (!inProgressLib?.Id) return;
@@ -123,9 +125,10 @@ function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps
     } finally {
       setHeaderActionLoading(false);
     }
-  }, [authToken, tepHeaders, findInProgressLib, refetchLibraries, clearChanges]);
+  }, [isAudit, authToken, tepHeaders, findInProgressLib, refetchLibraries, clearChanges]);
 
   const handleCheckinWithSave = useCallback(async (bank: string, side: string) => {
+    if (isAudit) return;
     if (!authToken || !tepHeaders) return;
     const inProgressLib = findInProgressLib(bank, side);
     if (!inProgressLib?.Id) return;
@@ -147,18 +150,20 @@ function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps
     } finally {
       setHeaderActionLoading(false);
     }
-  }, [authToken, tepHeaders, findInProgressLib, refetchLibraries, clearChanges]);
+  }, [isAudit, authToken, tepHeaders, findInProgressLib, refetchLibraries, clearChanges]);
 
   const handleRequestUndo = useCallback((bank: string, side: string) => {
+    if (isAudit) return;
     setUndoTarget({ bank, side });
-  }, []);
+  }, [isAudit]);
 
   const handleUndoConfirm = useCallback(async () => {
+    if (isAudit) return;
     if (!undoTarget) return;
     clearChanges(undoTarget.bank, undoTarget.side);
     await refetchLibraries();
     setUndoTarget(null);
-  }, [undoTarget, clearChanges, refetchLibraries]);
+  }, [isAudit, undoTarget, clearChanges, refetchLibraries]);
 
   return (
     <>

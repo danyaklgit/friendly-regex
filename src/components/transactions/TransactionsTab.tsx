@@ -180,12 +180,13 @@ function buildRulesetFilters(formState: WizardFormState): FilterProperty[] {
 
 export function TransactionsTab({ activeCheckout, onClearPendingDefinition, initialShareFilters, initialShareToggles, operatorName, shareDialogOpen: shareDialogOpenProp, onShareDialogClose }: TransactionsTabProps) {
   const { libraries, tagDefinitions, originalDefinitionIds, dispatch, isPairBeingTagged } = useTagSpecs();
-  const { userId, usersMap, getAuthHeaders, refreshIfNeeded } = useAuth();
+  const { userId, usersMap, getAuthHeaders, refreshIfNeeded, isAudit } = useAuth();
   const tepConfig = useTepConfig();
   const { saveBaseline, updateCurrent } = useLocalChanges(activeCheckout?.bank, activeCheckout?.side);
 
   // Determine if the current user is NOT the checkout owner (read-only mode)
   const { isReadOnly, ownerName } = useMemo(() => {
+    if (isAudit) return { isReadOnly: true, ownerName: null };
     if (!activeCheckout) return { isReadOnly: true, ownerName: null };
     const inProgressLib = libraries.find(
       (l) =>
@@ -203,7 +204,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     const owned = inProgressLib.OperatorId === userId;
     const name = !owned ? (usersMap.get(inProgressLib.OperatorId) ?? inProgressLib.OperatorId) : null;
     return { isReadOnly: !owned, ownerName: name };
-  }, [activeCheckout, libraries, userId, usersMap, isPairBeingTagged]);
+  }, [activeCheckout, libraries, userId, usersMap, isPairBeingTagged, isAudit]);
 
   // Persist INPROGRESS library to localStorage whenever definitions change
   const inProgressLib = useMemo(() => {
@@ -1000,17 +1001,17 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
             className="hidden"
             onChange={handleFileUpload}
           />
-          {!builderOpen && !isLiveMode && <Button variant="primary" size="xs" onClick={() => {
+          {!builderOpen && !isLiveMode && !isAudit && <Button variant="primary" size="xs" onClick={() => {
             fileInputRef.current?.click()
           }}>
             Upload Data
           </Button>}
-          {isCustomData && !isLiveMode && (
+          {isCustomData && !isLiveMode && !isAudit && (
             <Button variant="danger" size="xs" onClick={resetToSample}>
               Reset to Sample
             </Button>
           )}
-          {!builderOpen && (
+          {!builderOpen && !isAudit && (
             activeCheckout && !isReadOnly ? (
               <Button
                 data-tour="open-rule-builder"

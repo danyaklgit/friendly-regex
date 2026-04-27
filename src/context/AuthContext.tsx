@@ -7,6 +7,10 @@ interface AuthContextValue {
   username: string | null;
   displayName: string | null;
   userId: string | null;
+  /** Raw role string from the user-info payload, or null if absent. */
+  role: string | null;
+  /** True when the user holds the audit role — UI must render fully read-only. */
+  isAudit: boolean;
   useDummyData: boolean;
   expiresAt: number | null;
   showSessionWarning: boolean;
@@ -26,7 +30,13 @@ interface StoredAuth {
   username: string;
   displayName: string | null;
   userId: string | null;
+  /** Persisted so the audit pill / read-only state survives a page reload. */
+  role: string | null;
   useDummyData: boolean;
+}
+
+function isAuditRole(role: string | null | undefined): boolean {
+  return (role ?? '').trim().toLowerCase() === 'audit';
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -70,6 +80,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const username = session?.username ?? null;
   const displayName = session?.displayName ?? null;
   const userId = session?.userId ?? null;
+  const role = session?.role ?? null;
+  const isAudit = isAuditRole(role);
   const useDummyData = session?.useDummyData ?? false;
   const expiresAt = session?.expiresAt ?? null;
 
@@ -113,15 +125,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (!data.accessToken) return false;
 
-      // Fetch user info to get display name and userId
+      // Fetch user info to get display name, userId, and role.
       let name: string | null = null;
       let uid: string | null = null;
+      let userRole: string | null = null;
       try {
         const info = await getUserInfo(data.accessToken);
         name = [info.firstName, info.lastName].filter(Boolean).join(' ') || null;
         uid = info.id || null;
+        userRole = info.role ?? null;
       } catch {
-        // getUserInfo failed — proceed with email as fallback
+        // getUserInfo failed — proceed with email as fallback. role stays null,
+        // which is the safe default (= no audit lock).
       }
 
       // Fetch all users for OperatorId → name resolution
@@ -141,6 +156,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         username: user,
         displayName: name,
         userId: uid,
+        role: userRole,
         useDummyData: useDummy,
       };
 
@@ -183,6 +199,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         username: s.username,
         displayName: s.displayName,
         userId: s.userId,
+        role: s.role,
         useDummyData: s.useDummyData,
       };
 
@@ -221,7 +238,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={{
-      isAuthenticated, username, displayName, userId, useDummyData, expiresAt, showSessionWarning, usersMap,
+      isAuthenticated, username, displayName, userId, role, isAudit, useDummyData, expiresAt, showSessionWarning, usersMap,
       login, logout, refreshSession, dismissWarning, getAuthHeaders, refreshIfNeeded,
     }}>
       {children}

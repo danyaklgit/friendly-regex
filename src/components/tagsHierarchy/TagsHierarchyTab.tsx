@@ -48,7 +48,7 @@ export function TagsHierarchyTab() {
     hierarchyDispatch, setOriginalRawNodes, setHierarchyWrapper,
     tagsHierarchyLoading, refetchHierarchy,
   } = useTagSpecs();
-  const { getAuthHeaders, userId, useDummyData } = useAuth();
+  const { getAuthHeaders, userId, useDummyData, isAudit } = useAuth();
   const tepConfig = useTepConfig();
 
   const [search, setSearch] = useState('');
@@ -329,7 +329,7 @@ export function TagsHierarchyTab() {
       <EmptyState
         title="No Tags"
         description="No tags hierarchy available."
-        action={<Button variant="primary" onClick={handleCreate}>Create Tag</Button>}
+        action={!isAudit ? <Button variant="primary" onClick={handleCreate}>Create Tag</Button> : undefined}
       />
     );
   }
@@ -361,10 +361,12 @@ export function TagsHierarchyTab() {
             </svg>
             {refreshing ? 'Refreshing...' : 'Refresh'}
           </Button>
-          <Button data-tour="new-tag-button" variant="primary" size="sm" onClick={handleCreate}>
-            + New Tag
-          </Button>
-          {hasChanges && (
+          {!isAudit && (
+            <Button data-tour="new-tag-button" variant="primary" size="sm" onClick={handleCreate}>
+              + New Tag
+            </Button>
+          )}
+          {hasChanges && !isAudit && (
             <Button data-tour="sync-tags-button" variant="secondary" size="sm" onClick={() => setSyncModalOpen(true)}>
               Sync Tags
             </Button>
@@ -409,18 +411,20 @@ export function TagsHierarchyTab() {
                       {isGroupNew && <Badge variant="info">NEW</Badge>}
                       {isGroupModified && !isGroupNew && <Badge variant="warning">EDITED</Badge>}
                       <span className="ml-1 flex gap-1" data-tour="tag-row-actions" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          type="button"
-                          onClick={() => handleEdit(group.groupNode!)}
-                          className="p-1.5 rounded hover:bg-surface-active text-muted hover:text-heading transition-colors cursor-pointer"
-                          title="Edit group"
-                        >
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
-                        </button>
+                        {!isAudit && (
+                          <button
+                            type="button"
+                            onClick={() => handleEdit(group.groupNode!)}
+                            className="p-1.5 rounded hover:bg-surface-active text-muted hover:text-heading transition-colors cursor-pointer"
+                            title="Edit group"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </button>
+                        )}
 
-                        {groupActions.includes('Archive') && group.groupNode!.StatusTag === 'ACTIVE' && (
+                        {!isAudit && groupActions.includes('Archive') && group.groupNode!.StatusTag === 'ACTIVE' && (
                           <button
                             data-tour="tag-group-archive-button"
                             type="button"
@@ -434,7 +438,7 @@ export function TagsHierarchyTab() {
                           </button>
                         )}
 
-                        {groupActions.includes('Activate') && group.groupNode!.StatusTag !== 'ACTIVE' && (
+                        {!isAudit && groupActions.includes('Activate') && group.groupNode!.StatusTag !== 'ACTIVE' && (
                           <button
                             type="button"
                             onClick={() => handleActivate(group.groupNode!)}
@@ -447,7 +451,7 @@ export function TagsHierarchyTab() {
                           </button>
                         )}
 
-                        {groupActions.includes('Delete') && (
+                        {!isAudit && groupActions.includes('Delete') && (
                           <button
                             data-tour="tag-group-delete-button"
                             type="button"
@@ -491,18 +495,20 @@ export function TagsHierarchyTab() {
                             </Badge>
 
                             <span className="flex gap-1" data-tour="tag-leaf-row-actions">
-                              <button
-                                type="button"
-                                onClick={() => handleEdit(leaf)}
-                                className="p-1.5 rounded hover:bg-surface-active text-muted hover:text-heading transition-colors cursor-pointer"
-                                title="Edit"
-                              >
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
-                              </button>
+                              {!isAudit && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleEdit(leaf)}
+                                  className="p-1.5 rounded hover:bg-surface-active text-muted hover:text-heading transition-colors cursor-pointer"
+                                  title="Edit"
+                                >
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                </button>
+                              )}
 
-                              {actions.includes('Archive') && leaf.StatusTag === 'ACTIVE' && (
+                              {!isAudit && actions.includes('Archive') && leaf.StatusTag === 'ACTIVE' && (
                                 <button
                                   data-tour="tag-leaf-archive-button"
                                   type="button"
@@ -516,7 +522,7 @@ export function TagsHierarchyTab() {
                                 </button>
                               )}
 
-                              {actions.includes('Activate') && leaf.StatusTag !== 'ACTIVE' && (
+                              {!isAudit && actions.includes('Activate') && leaf.StatusTag !== 'ACTIVE' && (
                                 <button
                                   type="button"
                                   onClick={() => handleActivate(leaf)}
@@ -529,7 +535,7 @@ export function TagsHierarchyTab() {
                                 </button>
                               )}
 
-                              {actions.includes('Delete') && (
+                              {!isAudit && actions.includes('Delete') && (
                                 <button
                                   data-tour="tag-leaf-delete-button"
                                   type="button"

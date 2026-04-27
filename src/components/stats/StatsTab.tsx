@@ -47,7 +47,7 @@ interface DisplayRow {
 
 export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckoutComplete, authToken, tepHeaders }: StatsTabProps) {
   const { libraries, tagDefinitions, loading, refetchTagSpecs, refetchLibraries, dispatch, taggingProgress, isPairBeingTagged, getTaggingFirstSeen } = useTagSpecs();
-  const { usersMap, useDummyData, userId } = useAuth();
+  const { usersMap, useDummyData, userId, isAudit } = useAuth();
   const { clearChanges } = useLocalChanges(undefined, undefined);
   const { filterDefinitions, filterDefinitionsLoading, fetchFilterDefinitions, isLiveMode } = useTransactionData();
 
@@ -359,9 +359,11 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
             className="hidden"
             onChange={handleImport}
           />
-          <Button data-tour="backlog-import-button" variant="ghost" size="xs" onClick={() => fileInputRef.current?.click()}>
-            Import
-          </Button>
+          {!isAudit && (
+            <Button data-tour="backlog-import-button" variant="ghost" size="xs" onClick={() => fileInputRef.current?.click()}>
+              Import
+            </Button>
+          )}
           <Button
             data-tour="backlog-export-all-button"
             variant="secondary"
@@ -549,17 +551,17 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                         {/* Actions */}
                         <div className="px-4 py-2.5 text-end flex-1">
                           <div className="flex items-center justify-end gap-2">
-                            {row.isOwnedByMe && (
+                            {row.isOwnedByMe && !isAudit && (
                               <Button data-tour="backlog-rollback-button" variant="danger_ghost" size="xs" onClick={() => setRollbackTarget(row)} disabled={isLoading || isBeingTagged} title={taggingLockTitle}>
                                 Rollback
                               </Button>
                             )}
-                            {row.isOwnedByMe && (
+                            {row.isOwnedByMe && !isAudit && (
                               <Button data-tour="backlog-checkin-button" variant="primary" size="xs" onClick={() => handleCheckin(row)} disabled={isLoading || isBeingTagged} title={taggingLockTitle}>
                                 Checkin
                               </Button>
                             )}
-                            {(!row.isInProgress || (row.isInProgress && !row.hasOperator)) && (
+                            {(!row.isInProgress || (row.isInProgress && !row.hasOperator)) && !isAudit && (
                               <Button
                                 data-tour="checkout-button"
                                 variant="primary"

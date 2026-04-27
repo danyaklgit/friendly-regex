@@ -19,6 +19,12 @@ export interface UserInfo {
   firstName: string;
   lastName: string;
   email: string;
+  /**
+   * Optional role tag. The only role currently honored by the UI is "audit",
+   * which puts the entire app into read-only mode. Empty string, null, or
+   * missing means the user has the standard operator role.
+   */
+  role?: string | null;
 }
 
 function authHeader(token: string): Record<string, string> {
