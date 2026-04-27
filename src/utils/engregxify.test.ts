@@ -234,6 +234,12 @@ describe('decomposeExtractionRegex', () => {
     });
   });
 
+  it('extract_full_field round-trips from anchored capture-all', () => {
+    expect(decomposeExtractionRegex('^([\\s\\S]*)$')).toEqual({
+      operation: 'extract_full_field',
+    });
+  });
+
   it('fallback for unrecognized pattern', () => {
     expect(decomposeExtractionRegex('plain')).toEqual({
       operation: 'extract_matching',

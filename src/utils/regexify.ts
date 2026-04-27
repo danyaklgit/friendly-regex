@@ -164,6 +164,10 @@ export function regexifyExtraction(
     }
     case 'extract_between_and_verify':
       return `${escapeRegex(params.prefix ?? '')}(.*?)${escapeRegex(params.suffix ?? '')}`;
+    case 'extract_full_field':
+      // Capture the entire source field, including newlines. Anchored so the
+      // pattern is unambiguous on round-trip via decomposeExtractionRegex.
+      return '^([\\s\\S]*)$';
     default:
       return '(.*)';
   }
@@ -253,6 +257,8 @@ export function generateExtractionPrompt(
     }
     case 'extract_between_and_verify':
       return `Extract between '${params.prefix ?? ''}' and '${params.suffix ?? ''}', verify = '${params.verifyValue ?? ''}'`;
+    case 'extract_full_field':
+      return 'Extract full field';
     default:
       return 'Extract value';
   }

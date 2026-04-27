@@ -212,6 +212,11 @@ export function decomposeExtractionRegex(regex: string): {
   suffix?: string;
   pattern?: string;
 } {
+  // Extract full field: anchored capture-all (handles single-line and multi-line content).
+  if (regex === '^([\\s\\S]*)$') {
+    return { operation: 'extract_full_field' };
+  }
+
   // Extract between: prefix(.*?)suffix
   const extractBetweenMatch = regex.match(/^(.+?)\(\.\*\?\)(.+)$/);
   if (extractBetweenMatch) {

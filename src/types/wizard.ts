@@ -27,6 +27,7 @@ export type ExtractionOperation =
   | 'extract_matching'
   | 'extract_substring'
   | 'extract_between_and_verify'
+  | 'extract_full_field'
   | `predefined:${string}`;
 
 export interface ConditionFormValue {

@@ -173,6 +173,26 @@ describe('extraction end-to-end: extract_between_and_verify', () => {
   });
 });
 
+describe('extraction end-to-end: extract_full_field', () => {
+  it('captures the entire source field as-is', () => {
+    const row: TransactionRow = { BankReference: 'NOLE00049240129' };
+    const a = attr({ sourceField: 'BankReference', operation: 'extract_full_field' });
+    expect(extract(row, a)).toBe('NOLE00049240129');
+  });
+
+  it('captures multi-line content (no newline blind spot)', () => {
+    const row: TransactionRow = { AdditionalInformation: 'line one\nline two\nline three' };
+    const a = attr({ sourceField: 'AdditionalInformation', operation: 'extract_full_field' });
+    expect(extract(row, a)).toBe('line one\nline two\nline three');
+  });
+
+  it('returns null when the source field is missing', () => {
+    const row: TransactionRow = {};
+    const a = attr({ sourceField: 'BankReference', operation: 'extract_full_field' });
+    expect(extract(row, a)).toBeNull();
+  });
+});
+
 describe('extraction end-to-end: transformations pipeline after extraction', () => {
   it('applies transformations in order after regex extraction', () => {
     const row: TransactionRow = { Description: '  hello WORLD  ' };

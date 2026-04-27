@@ -140,6 +140,11 @@ describe('regexifyExtraction', () => {
       .toBe('([()]+)');
   });
 
+  it('extract_full_field: anchored capture-all (handles newlines)', () => {
+    expect(regexifyExtraction('extract_full_field', {}))
+      .toBe('^([\\s\\S]*)$');
+  });
+
   it('extract_between_and_verify: same as extract_between', () => {
     expect(regexifyExtraction('extract_between_and_verify', { prefix: 'A', suffix: 'B' }))
       .toBe('A(.*?)B');
@@ -301,6 +306,10 @@ describe('generateExtractionPrompt', () => {
   it('extract_between_and_verify', () => {
     expect(generateExtractionPrompt('extract_between_and_verify', { prefix: 'A', suffix: 'B', verifyValue: 'V' }))
       .toBe("Extract between 'A' and 'B', verify = 'V'");
+  });
+
+  it('extract_full_field', () => {
+    expect(generateExtractionPrompt('extract_full_field', {})).toBe('Extract full field');
   });
 
   it('predefined pattern', () => {
