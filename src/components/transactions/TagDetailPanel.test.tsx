@@ -1,8 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import type { TagSpecDefinition } from '../../types';
+import type { TagSpecDefinition, TransactionRow } from '../../types';
 
-const mockUseTagSampleTransactions = vi.fn(() => ({
+interface MockResult {
+  rows: TransactionRow[] | null;
+  loading: boolean;
+  error: Error | null;
+}
+
+const mockUseTagSampleTransactions = vi.fn<() => MockResult>(() => ({
   rows: [],
   loading: false,
   error: null,

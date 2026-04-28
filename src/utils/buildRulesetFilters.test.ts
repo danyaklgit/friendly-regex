@@ -10,7 +10,7 @@ function makeFormState(overrides: Partial<WizardFormState> = {}): WizardFormStat
     transactionTypeCode: '',
     statusTag: 'ACTIVE',
     certaintyLevelTag: 'HIGH',
-    validity: { Start: '2026-01-01', End: null },
+    validity: { StartDate: '2026-01-01', EndDate: null },
     ruleGroups: [],
     attributes: [],
     ...overrides,
