@@ -2,6 +2,11 @@ import { createContext, useContext, useState, useCallback, useEffect, useRef, ty
 import { sha256 } from '../utils/sha256';
 import { loginApi, refreshTokenApi, logoutApi, getUserInfo, getUsersInfo } from '../api/identity';
 
+type LoginResult =
+  | { status: 'success' }
+  | { status: 'failed'; message?: string }
+  | { status: '2fa_required'; isSetupRequired: boolean; tempToken?: string; username: string; hashedPassword: string };
+
 interface AuthContextValue {
   isAuthenticated: boolean;
   username: string | null;
@@ -15,7 +20,8 @@ interface AuthContextValue {
   expiresAt: number | null;
   showSessionWarning: boolean;
   usersMap: Map<string, string>;
-  login: (username: string, password: string, useDummy?: boolean) => Promise<boolean>;
+  login: (username: string, password: string, useDummy?: boolean) => Promise<LoginResult>;
+  loginWith2fa: (username: string, hashedPassword: string, code: string) => Promise<LoginResult>;
   logout: () => void;
   refreshSession: () => Promise<boolean>;
   dismissWarning: () => void;
@@ -118,19 +124,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => timers.forEach(clearTimeout);
   }, [session]);
 
-  const login = useCallback(async (user: string, pass: string, useDummy = true): Promise<boolean> => {
+  const login = useCallback(async (user: string, pass: string, useDummy = true): Promise<LoginResult> => {
     try {
       const hashedPassword = await sha256(pass);
       const data = await loginApi({ Username: user, Password: hashedPassword });
 
-      if (!data.accessToken) return false;
+      // Check if 2FA is required
+      if ('requiresTwoFactor' in data && data.requiresTwoFactor) {
+        return {
+          status: '2fa_required',
+          isSetupRequired: data.isSetupRequired,
+          tempToken: data.accessToken,
+          username: user,
+          hashedPassword,
+        };
+      }
+
+      // Normal login (no 2FA)
+      const tokenData = data as { accessToken: string; refreshToken: string; expiresIn: number };
+      if (!tokenData.accessToken) return { status: 'failed', message: 'No access token received' };
 
       // Fetch user info to get display name, userId, and role.
       let name: string | null = null;
       let uid: string | null = null;
       let userRole: string | null = null;
       try {
-        const info = await getUserInfo(data.accessToken);
+        const info = await getUserInfo(tokenData.accessToken);
         name = [info.firstName, info.lastName].filter(Boolean).join(' ') || null;
         uid = info.id || null;
         userRole = info.role ?? null;
@@ -141,7 +160,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Fetch all users for OperatorId → name resolution
       try {
-        const allUsers = await getUsersInfo(data.accessToken);
+        const allUsers = await getUsersInfo(tokenData.accessToken);
         const entries: [string, string][] = allUsers.map(u => [u.id, `${u.firstName} ${u.lastName}`.trim()]);
         setUsersMap(new Map(entries));
         localStorage.setItem(USERS_MAP_KEY, JSON.stringify(entries));
@@ -150,9 +169,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const newSession: StoredAuth = {
-        accessToken: data.accessToken,
-        refreshToken: data.refreshToken,
-        expiresAt: Date.now() + data.expiresIn * 1000,
+        accessToken: tokenData.accessToken,
+        refreshToken: tokenData.refreshToken,
+        expiresAt: Date.now() + tokenData.expiresIn * 1000,
         username: user,
         displayName: name,
         userId: uid,
@@ -162,9 +181,63 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newSession));
       setSession(newSession);
-      return true;
-    } catch {
-      return false;
+      return { status: 'success' };
+    } catch (err) {
+      return { status: 'failed', message: err instanceof Error ? err.message : 'Login failed' };
+    }
+  }, []);
+
+  const loginWith2fa = useCallback(async (user: string, hashedPassword: string, code: string): Promise<LoginResult> => {
+    try {
+      const data = await loginApi({ Username: user, Password: hashedPassword, TwoFactorCode: code });
+
+      // Should not get 2FA required after providing code
+      if ('requiresTwoFactor' in data && data.requiresTwoFactor) {
+        return { status: 'failed', message: 'Unexpected 2FA required response' };
+      }
+
+      const tokenData = data as { accessToken: string; refreshToken: string; expiresIn: number };
+      if (!tokenData.accessToken) return { status: 'failed', message: 'No access token received' };
+
+      // Fetch user info to get display name, userId, and role.
+      let name: string | null = null;
+      let uid: string | null = null;
+      let userRole: string | null = null;
+      try {
+        const info = await getUserInfo(tokenData.accessToken);
+        name = [info.firstName, info.lastName].filter(Boolean).join(' ') || null;
+        uid = info.id || null;
+        userRole = info.role ?? null;
+      } catch {
+        // getUserInfo failed — proceed with email as fallback.
+      }
+
+      // Fetch all users for OperatorId → name resolution
+      try {
+        const allUsers = await getUsersInfo(tokenData.accessToken);
+        const entries: [string, string][] = allUsers.map(u => [u.id, `${u.firstName} ${u.lastName}`.trim()]);
+        setUsersMap(new Map(entries));
+        localStorage.setItem(USERS_MAP_KEY, JSON.stringify(entries));
+      } catch {
+        // getUsersInfo failed — usersMap stays empty
+      }
+
+      const newSession: StoredAuth = {
+        accessToken: tokenData.accessToken,
+        refreshToken: tokenData.refreshToken,
+        expiresAt: Date.now() + tokenData.expiresIn * 1000,
+        username: user,
+        displayName: name,
+        userId: uid,
+        role: userRole,
+        useDummyData: false,
+      };
+
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newSession));
+      setSession(newSession);
+      return { status: 'success' };
+    } catch (err) {
+      return { status: 'failed', message: err instanceof Error ? err.message : '2FA login failed' };
     }
   }, []);
 
@@ -239,7 +312,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{
       isAuthenticated, username, displayName, userId, role, isAudit, useDummyData, expiresAt, showSessionWarning, usersMap,
-      login, logout, refreshSession, dismissWarning, getAuthHeaders, refreshIfNeeded,
+      login, loginWith2fa, logout, refreshSession, dismissWarning, getAuthHeaders, refreshIfNeeded,
     }}>
       {children}
     </AuthContext.Provider>

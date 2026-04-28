@@ -5,6 +5,7 @@ const BASE = '/api/identity/auth';
 interface LoginRequest {
   Username: string;
   Password: string;
+  TwoFactorCode?: string;
 }
 
 interface TokenResponse {
@@ -13,6 +14,15 @@ interface TokenResponse {
   expiresIn: number;
   refreshToken: string;
 }
+
+interface TwoFactorRequired {
+  requiresTwoFactor: true;
+  isSetupRequired: boolean;
+  message: string;
+  accessToken?: string;
+}
+
+type LoginResponse = TokenResponse | TwoFactorRequired;
 
 export interface UserInfo {
   id: string;
@@ -31,12 +41,13 @@ function authHeader(token: string): Record<string, string> {
   return { Authorization: `Bearer ${token}` };
 }
 
-export async function loginApi(payload: LoginRequest): Promise<TokenResponse> {
+export async function loginApi(payload: LoginRequest): Promise<LoginResponse> {
   const res = await fetch(`${BASE}/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
+  // Note: 2FA responses return 200 with requiresTwoFactor flag, not errors
   await throwIfNotOk(res, 'Login failed');
   return res.json();
 }
@@ -72,4 +83,21 @@ export async function getUsersInfo(accessToken: string): Promise<UserInfo[]> {
   });
   await throwIfNotOk(res, 'Failed to fetch users info');
   return res.json();
+}
+
+export async function get2faSetup(tempToken: string): Promise<{ sharedKey: string; authenticatorUri: string }> {
+  const res = await fetch(`${BASE}/2fa/setup`, {
+    headers: authHeader(tempToken),
+  });
+  await throwIfNotOk(res, 'Failed to fetch 2FA setup');
+  return res.json();
+}
+
+export async function enable2fa(tempToken: string, code: string): Promise<void> {
+  const res = await fetch(`${BASE}/2fa/enable`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeader(tempToken) },
+    body: JSON.stringify({ code }),
+  });
+  await throwIfNotOk(res, 'Failed to enable 2FA');
 }
