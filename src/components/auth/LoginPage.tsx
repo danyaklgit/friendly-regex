@@ -321,9 +321,9 @@ export function LoginPage() {
             <>
               {/* Header */}
               <div className="text-center mb-8">
-                <img src="https://swittle.com/swittle%20logo.png" alt="Swittle" className="h-8 mx-auto mb-7" />
-                <h1 className="text-xl font-semibold text-heading dark:text-white">Transactions Enrichment Program</h1>
-                <p className="text-sm text-muted dark:text-slate-400 mt-1">Sign in to continue</p>
+                <img src="https://swittle.com/swittle%20logo.png" alt="Swittle" className="h-8 mx-auto mb-6" />
+                <h1 className="text-2xl font-semibold text-heading dark:text-white">Welcome</h1>
+                <p className="text-sm text-muted dark:text-slate-400 mt-2">Enter your credentials to access the Transactions Enrichment Program</p>
               </div>
 
               {/* Form */}
@@ -422,18 +422,33 @@ export function LoginPage() {
           {currentStep.step === 'totp_verify' && (
             <>
               <div className="text-center mb-8">
-                <h1 className="text-xl font-semibold text-heading dark:text-white">Two-Factor Authentication</h1>
-                <p className="text-sm text-muted dark:text-slate-400 mt-1">Enter the 6-digit code from your authenticator app</p>
+                <h1 className="text-2xl font-semibold text-heading dark:text-white">Verify Your Identity</h1>
+                <p className="text-sm text-muted dark:text-slate-400 mt-3">Your organization requires an extra security step. Open your authenticator app and enter the 6-digit code below.</p>
               </div>
 
               <div className="space-y-6">
-                <TotpInput
-                  value={totpCode}
-                  onChange={setTotpCode}
-                  onSubmit={() => handleTotpVerify(totpCode)}
-                  isLoading={loading}
-                  error={error}
-                />
+                {/* Guidance box */}
+                <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 rounded-lg p-4">
+                  <p className="text-xs font-medium text-blue-900 dark:text-blue-300 mb-2">Where to find your code:</p>
+                  <ul className="text-xs text-blue-800 dark:text-blue-200 space-y-1">
+                    <li>• Open your authenticator app (Google Authenticator, Microsoft Authenticator, Authy, etc.)</li>
+                    <li>• Look for your organization or account name</li>
+                    <li>• Copy the 6-digit number shown next to it</li>
+                  </ul>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-body-secondary dark:text-slate-300 pl-1 mb-3">
+                    Enter your 6-digit code
+                  </label>
+                  <TotpInput
+                    value={totpCode}
+                    onChange={setTotpCode}
+                    onSubmit={() => handleTotpVerify(totpCode)}
+                    isLoading={loading}
+                    error={error}
+                  />
+                </div>
 
                 <button
                   type="button"
@@ -444,7 +459,7 @@ export function LoginPage() {
                   }}
                   className="w-full text-sm text-primary hover:underline dark:text-primary"
                 >
-                  Use a different account
+                  ← Back to login
                 </button>
               </div>
             </>
@@ -453,48 +468,85 @@ export function LoginPage() {
           {currentStep.step === 'totp_setup' && (
             <>
               <div className="text-center mb-8">
-                <h1 className="text-xl font-semibold text-heading dark:text-white">Set Up Two-Factor Authentication</h1>
-                <p className="text-sm text-muted dark:text-slate-400 mt-2">Your administrator requires two-factor authentication. Scan the QR code with your authenticator app.</p>
+                <div className="inline-flex items-center justify-center w-12 h-12 bg-blue-100 dark:bg-blue-500/20 rounded-full mb-4">
+                  <svg className="w-6 h-6 text-primary" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2zm10-10V7a4 4 0 0 0-8 0v4h8z" />
+                  </svg>
+                </div>
+                <h1 className="text-2xl font-semibold text-heading dark:text-white">Set Up Security</h1>
+                <p className="text-sm text-muted dark:text-slate-400 mt-3">Your organization requires an extra security layer. Let's set up your authenticator app in 2 minutes.</p>
               </div>
 
               <div className="space-y-6">
-                {/* QR Code */}
-                <div className="flex justify-center">
-                  <div className="bg-white p-4 rounded-lg">
-                    <QRCodeSVG value={currentStep.qrUri} size={200} level="H" marginSize={4} />
+                {/* Step 1: Download/Install */}
+                <div className="border border-gray-200 dark:border-white/10 rounded-lg p-4 bg-gray-50/50 dark:bg-white/5">
+                  <div className="flex items-start gap-3">
+                    <div className="shrink-0 w-6 h-6 rounded-full bg-primary text-white text-xs font-semibold flex items-center justify-center mt-0.5">1</div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-semibold text-heading dark:text-white">Get an authenticator app</h3>
+                      <p className="text-xs text-muted dark:text-slate-400 mt-1">Choose one (they all work the same way):</p>
+                      <div className="mt-2 space-y-1.5 text-xs text-body dark:text-slate-300">
+                        <p>• <strong>Google Authenticator</strong> — Most common, works great</p>
+                        <p>• <strong>Microsoft Authenticator</strong> — If you use Microsoft 365</p>
+                        <p>• <strong>Authy</strong> — User-friendly, backup codes included</p>
+                      </div>
+                      <p className="text-xs text-muted dark:text-slate-400 mt-2">If you already have one, skip to step 2.</p>
+                    </div>
                   </div>
                 </div>
 
-                {/* Shared Key Fallback */}
-                <div className="border border-gray-300 dark:border-white/10 rounded-lg p-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowSharedKey(!showSharedKey)}
-                    className="w-full text-left text-sm font-medium text-heading dark:text-white hover:text-primary dark:hover:text-primary flex items-center gap-2"
-                  >
-                    <span>{showSharedKey ? '▼' : '▶'}</span>
-                    Can't scan? Enter this key manually
-                  </button>
-                  {showSharedKey && (
-                    <div className="mt-3 p-3 bg-gray-50 dark:bg-white/5 rounded font-mono text-sm text-center text-body dark:text-slate-300 break-all">
-                      {currentStep.sharedKey}
+                {/* Step 2: Scan QR Code */}
+                <div className="border border-gray-200 dark:border-white/10 rounded-lg p-4 bg-gray-50/50 dark:bg-white/5">
+                  <div className="flex items-start gap-3">
+                    <div className="shrink-0 w-6 h-6 rounded-full bg-primary text-white text-xs font-semibold flex items-center justify-center mt-0.5">2</div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-semibold text-heading dark:text-white">Scan this code</h3>
+                      <p className="text-xs text-muted dark:text-slate-400 mt-1">Open your authenticator app and select "Scan code" or "+". Point your camera at this:</p>
+                      <div className="flex justify-center mt-4">
+                        <div className="bg-white p-3 rounded-lg">
+                          <QRCodeSVG value={currentStep.qrUri} size={160} level="H" marginSize={3} />
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted dark:text-slate-400 mt-3">Having trouble scanning? <button
+                        type="button"
+                        onClick={() => setShowSharedKey(!showSharedKey)}
+                        className="text-primary hover:underline font-medium"
+                      >
+                        Enter the code manually instead
+                      </button></p>
+                      {showSharedKey && (
+                        <div className="mt-3 p-3 bg-white dark:bg-white/10 rounded border border-gray-200 dark:border-white/20">
+                          <p className="text-xs text-muted dark:text-slate-400 mb-2">Paste this code into your app:</p>
+                          <code className="text-sm font-mono text-heading dark:text-white block text-center select-all cursor-pointer p-2 bg-gray-50 dark:bg-white/5 rounded">
+                            {currentStep.sharedKey}
+                          </code>
+                        </div>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </div>
 
-                {/* TOTP Code Entry */}
-                <div>
-                  <label className="block text-xs font-medium text-body-secondary dark:text-slate-300 pl-1 mb-3">
-                    6-digit code from your app
-                  </label>
-                  <TotpInput
-                    value={totpCode}
-                    onChange={setTotpCode}
-                    onSubmit={() => handleTotpSetupEnable(totpCode)}
-                    isLoading={loading}
-                    error={error}
-                  />
+                {/* Step 3: Enter Code */}
+                <div className="border border-gray-200 dark:border-white/10 rounded-lg p-4 bg-gray-50/50 dark:bg-white/5">
+                  <div className="flex items-start gap-3">
+                    <div className="shrink-0 w-6 h-6 rounded-full bg-primary text-white text-xs font-semibold flex items-center justify-center mt-0.5">3</div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-semibold text-heading dark:text-white">Verify the code</h3>
+                      <p className="text-xs text-muted dark:text-slate-400 mt-1">Your app should now show a 6-digit code. Enter it below to finish setup:</p>
+                      <div className="mt-3">
+                        <TotpInput
+                          value={totpCode}
+                          onChange={setTotpCode}
+                          onSubmit={() => handleTotpSetupEnable(totpCode)}
+                          isLoading={loading}
+                          error={error}
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
+
+                <p className="text-xs text-muted dark:text-slate-500 text-center">Once you complete this, you'll use your authenticator app every time you log in.</p>
               </div>
             </>
           )}
