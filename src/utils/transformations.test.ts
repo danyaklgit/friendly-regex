@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { applyTransformation, applyTransformationPipeline } from './transformations';
+import type { TransformationFormValue } from '../types';
 
 describe('applyTransformation', () => {
   // --- Text Case ---
@@ -228,7 +229,7 @@ describe('applyTransformationPipeline', () => {
   });
 
   it('composes max_char_limit with other transformations', () => {
-    const transformations = [
+    const transformations: TransformationFormValue[] = [
       { id: '1', method: 'to_uppercase', args: {} },
       { id: '2', method: 'max_char_limit', args: { length: '5', breakAtSpecial: 'true' } },
     ];
