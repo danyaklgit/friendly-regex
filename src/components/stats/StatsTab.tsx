@@ -384,7 +384,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
       ) : rows.length === 0 ? (
         <div className="text-center py-12 text-body-secondary text-sm">No active libraries found.</div>
       ) : (
-        <div data-tour="backlog-table" className="overflow-clip border border-border rounded-lg">
+        <div data-tour="backlog-table" className="overflow-x-auto overflow-y-clip border border-border rounded-lg custom-scrollbar">
           <table className="min-w-full divide-y divide-divide">
             <thead className="bg-surface-secondary sticky top-0 z-20">
               <tr className="flex items-center">
@@ -395,7 +395,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                 <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary flex-1 min-w-72 whitespace-nowrap">Statistics</th>
                 <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary w-40 shrink-0 whitespace-nowrap">Operator</th>
                 <th className="px-4 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wider text-body-secondary w-24 shrink-0 whitespace-nowrap">Status</th>
-                <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-body-secondary flex-1 whitespace-nowrap">Action</th>
+                <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-body-secondary flex-1 min-w-96 whitespace-nowrap">Action</th>
               </tr>
             </thead>
             <tbody className="bg-surface divide-y divide-divide">
@@ -487,8 +487,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                                   </span>
                                 </div>
                                 {/* Badges */}
-                                <div className="flex items-center justify-start pl-27 gap-2 flex-wrap">
-                                  <div className='flex items-center gap-2'>
+                                <div className="flex items-center justify-start pl-27 gap-2 flex-wrap min-w-0">
                                   <Badge variant="emerald" size="xs" className="items-baseline!"><span className="text-xs font-medium">{stats.FullyTaggedCount.toLocaleString()}</span> Clean</Badge>
                                   {stats.TaggedWithMissingOptionalAttrCount > 0 && (
                                     <Tooltip
@@ -541,7 +540,6 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                                   {stats.DeadEndCount > 0 && (
                                     <Badge variant="gray" size="xs" className="items-baseline!"><span className="text-xs font-medium">{stats.DeadEndCount.toLocaleString()}</span> Dead End</Badge>
                                   )}
-                                  </div>
                                 </div>
                               </div>
                             );
@@ -562,7 +560,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                           </Badge>
                         </div>
                         {/* Actions */}
-                        <div className="px-4 py-2.5 text-end flex-1">
+                        <div className="px-4 py-2.5 text-end flex-1 min-w-96">
                           <div className="flex items-center justify-end gap-2">
                             {row.isOwnedByMe && !isAudit && (
                               <Button data-tour="backlog-rollback-button" variant="danger_ghost" size="xs" onClick={() => setRollbackTarget(row)} disabled={isLoading || isBeingTagged} title={taggingLockTitle}>
