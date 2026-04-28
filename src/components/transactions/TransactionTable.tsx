@@ -7,7 +7,8 @@ import { TagBadge } from './TagBadge';
 import { Badge } from '../shared/Badge';
 import { Tooltip } from '../shared/Tooltip';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
-import { decomposeExtractionRegex } from '../../utils/engregxify';
+import { decomposeExtractionRegex, engregxify } from '../../utils/engregxify';
+import { getRegexDescription } from '../../types/tagSpec';
 import { regexifyExtraction } from '../../utils/regexify';
 import { extractAttributes } from '../../utils/extractAttributes';
 import { diffStrings } from '../../utils/textDiff';
@@ -1680,7 +1681,8 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                                         <Badge variant="none" size="sm" className="border border-red-200 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800 px-2.5 shrink-0">Dead End</Badge>
                                       )}
                                       {item.analysis.tags.map((tag, ti) => {
-                                        const defId = item.analysis.matchedDefinitions[ti]?.Id;
+                                        const matchedDef = item.analysis.matchedDefinitions[ti];
+                                        const defId = matchedDef?.Id;
                                         const isUserCreated = defId ? !(originalDefinitionIds?.has(defId)) : false;
                                         const source = isUserCreated ? 'Frontend' : (defId ? (definitionSourceMap?.get(defId) ?? null) : null);
                                         const badge = (
@@ -1691,9 +1693,9 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                                             onClick={onTagClick ? () => onTagClick(tag, defId) : undefined}
                                           />
                                         );
-                                        if (!source) return <span key={tag}>{badge}</span>;
+                                        if (!source && !matchedDef) return <span key={tag}>{badge}</span>;
                                         return (
-                                          <Tooltip key={tag} content={`Source: ${source}`} placement="top">
+                                          <Tooltip key={tag} content={renderTagTooltip(source, matchedDef, !!onTagClick)} placement="top">
                                             <span>{badge}</span>
                                           </Tooltip>
                                         );
@@ -1720,6 +1722,84 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Tag-badge hover tooltip — shows the source, certainty, and matching rules.
+ * Attributes are intentionally omitted; this is a "why did this tag match?"
+ * affordance, not a full definition viewer.
+ */
+function renderTagTooltip(
+  source: string | null,
+  def: TagSpecDefinition | undefined,
+  clickable: boolean,
+): ReactNode {
+  const groups = def?.TagRuleExpressions ?? [];
+  const hasRules = groups.some((g) => g.length > 0);
+  const certainty = def?.CertaintyLevelTag;
+  return (
+    <div className="space-y-1.5 max-w-xs">
+      {(source || certainty) && (
+        <div className="text-[11px]">
+          {source && (
+            <>
+              <span className="text-faint">Source:</span>{' '}
+              <span className="font-semibold">{source}</span>
+            </>
+          )}
+          {source && certainty && <span className="text-faint"> · </span>}
+          {certainty && (
+            <>
+              <span className="font-semibold">{certainty}</span>
+              <span className="text-faint"> certainty</span>
+            </>
+          )}
+        </div>
+      )}
+      {def && (
+        <div className="space-y-0.5 pt-1.5 border-t border-border/60">
+          <div className="text-[10px] uppercase tracking-wide text-faint">Rules</div>
+          {hasRules ? (
+            groups.map((group, gi) => (
+              <div key={gi}>
+                {gi > 0 && (
+                  <div className="text-[9px] font-bold text-purple-500 my-0.5">OR</div>
+                )}
+                <div className="space-y-0.5">
+                  {group.map((cond, ci) => {
+                    const text =
+                      getRegexDescription(cond.RegexDetails) ||
+                      cond.ExpressionPrompt ||
+                      engregxify(cond.Regex);
+                    return (
+                      <div key={ci} className="flex flex-wrap items-baseline gap-x-1.5 leading-snug">
+                        {ci > 0 && (
+                          <span className="text-[9px] font-bold text-amber-600">AND</span>
+                        )}
+                        <span className="font-mono text-[10px] font-semibold text-primary-dark">
+                          {humanizeFieldName(cond.SourceField)}
+                        </span>
+                        <span className="text-[11px]">{text}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="text-[11px] italic text-faint">
+              (no conditions — matches by context only)
+            </div>
+          )}
+        </div>
+      )}
+      {clickable && (
+        <div className="pt-1.5 border-t border-border/60 text-[10px] text-faint italic">
+          Click tag to open rule
+        </div>
+      )}
     </div>
   );
 }
