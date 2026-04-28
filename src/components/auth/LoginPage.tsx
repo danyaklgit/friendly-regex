@@ -11,6 +11,8 @@ type LoginStep =
   | { step: 'totp_verify'; username: string; hashedPassword: string }
   | { step: 'totp_setup'; username: string; hashedPassword: string; tempToken: string; qrUri: string; sharedKey: string };
 
+type SetupWizardStep = 'app' | 'qrcode' | 'verify';
+
 const ParticlesBackground = React.memo(({ isDark }: { isDark: boolean }) => {
   const [init, setInit] = useState(false);
 
@@ -185,6 +187,7 @@ export function LoginPage() {
   const { theme, toggleTheme } = useTheme();
 
   const [currentStep, setCurrentStep] = useState<LoginStep>({ step: 'credentials' });
+  const [wizardStep, setWizardStep] = useState<SetupWizardStep>('app');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -219,6 +222,9 @@ export function LoginPage() {
               qrUri: setupData.authenticatorUri,
               sharedKey: setupData.sharedKey,
             });
+            setWizardStep('app');
+            setTotpCode('');
+            setShowSharedKey(false);
           } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to load 2FA setup');
           }
@@ -314,7 +320,7 @@ export function LoginPage() {
       {/* Particles background */}
       <ParticlesBackground isDark={theme === 'dark'} />
 
-      <div className="relative w-full max-w-sm mx-4">
+      <div className="relative w-full mx-4 max-w-sm">
         {/* Card */}
         <div key={shakeKey} className={`border border-gray-200 dark:bg-black/20 bg-white/50 dark:border-gray-700 shadow-xl dark:shadow-[0_24px_64px_-16px_rgba(18,189,206,0.12),0_8px_24px_-8px_rgba(0,0,0,0.3)] rounded-2xl p-8 transition-transform duration-300 ${error && currentStep.step === 'credentials' ? 'animate-shake' : ''}`}>
           {currentStep.step === 'credentials' && (
@@ -467,86 +473,192 @@ export function LoginPage() {
 
           {currentStep.step === 'totp_setup' && (
             <>
-              <div className="text-center mb-8">
+              {/* Shared header */}
+              <div className="text-center mb-6">
                 <div className="inline-flex items-center justify-center w-12 h-12 bg-blue-100 dark:bg-blue-500/20 rounded-full mb-4">
                   <svg className="w-6 h-6 text-primary" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2zm10-10V7a4 4 0 0 0-8 0v4h8z" />
                   </svg>
                 </div>
                 <h1 className="text-2xl font-semibold text-heading dark:text-white">Set Up Security</h1>
-                <p className="text-sm text-muted dark:text-slate-400 mt-3">Your organization requires an extra security layer. Let's set up your authenticator app in 2 minutes.</p>
+                <p className="text-sm text-muted dark:text-slate-400 mt-3">Your organization requires an extra security step. Let's do it in 3 minutes.</p>
+
+                {/* Progress indicator */}
+                <div className="flex items-center justify-center gap-2 mt-5">
+                  {(['app', 'qrcode', 'verify'] as const).map((step, i) => {
+                    const stepIndex = (['app', 'qrcode', 'verify'] as const).indexOf(wizardStep);
+                    const isCompleted = i < stepIndex;
+                    const isCurrent = step === wizardStep;
+                    return (
+                      <React.Fragment key={step}>
+                        {i > 0 && (
+                          <div className={`h-px w-6 transition-colors ${isCompleted ? 'bg-primary' : 'bg-gray-200 dark:bg-white/10'}`} />
+                        )}
+                        <div className={`w-7 h-7 rounded-full text-xs font-semibold flex items-center justify-center transition-colors ${
+                          isCurrent ? 'bg-primary text-white' : isCompleted ? 'bg-primary/20 text-primary dark:bg-primary/30' : 'bg-gray-100 dark:bg-white/10 text-muted dark:text-slate-500'
+                        }`}>
+                          {isCompleted ? (
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                            </svg>
+                          ) : (
+                            i + 1
+                          )}
+                        </div>
+                      </React.Fragment>
+                    );
+                  })}
+                </div>
               </div>
 
-              <div className="space-y-6">
-                {/* Step 1: Download/Install */}
-                <div className="border border-gray-200 dark:border-white/10 rounded-lg p-4 bg-gray-50/50 dark:bg-white/5">
-                  <div className="flex items-start gap-3">
-                    <div className="shrink-0 w-6 h-6 rounded-full bg-primary text-white text-xs font-semibold flex items-center justify-center mt-0.5">1</div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-semibold text-heading dark:text-white">Get an authenticator app</h3>
-                      <p className="text-xs text-muted dark:text-slate-400 mt-1">Choose one (they all work the same way):</p>
-                      <div className="mt-2 space-y-1.5 text-xs text-body dark:text-slate-300">
-                        <p>• <strong>Google Authenticator</strong> — Most common, works great</p>
-                        <p>• <strong>Microsoft Authenticator</strong> — If you use Microsoft 365</p>
-                        <p>• <strong>Authy</strong> — User-friendly, backup codes included</p>
-                      </div>
-                      <p className="text-xs text-muted dark:text-slate-400 mt-2">If you already have one, skip to step 2.</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Step 2: Scan QR Code */}
-                <div className="border border-gray-200 dark:border-white/10 rounded-lg p-4 bg-gray-50/50 dark:bg-white/5">
-                  <div className="flex items-start gap-3">
-                    <div className="shrink-0 w-6 h-6 rounded-full bg-primary text-white text-xs font-semibold flex items-center justify-center mt-0.5">2</div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-semibold text-heading dark:text-white">Scan this code</h3>
-                      <p className="text-xs text-muted dark:text-slate-400 mt-1">Open your authenticator app and select "Scan code" or "+". Point your camera at this:</p>
-                      <div className="flex justify-center mt-4">
-                        <div className="bg-white p-3 rounded-lg">
-                          <QRCodeSVG value={currentStep.qrUri} size={160} level="H" marginSize={3} />
+              <div key={wizardStep}>
+                {/* Step 1: Get an authenticator app */}
+                {wizardStep === 'app' && (
+                  <div className="space-y-5">
+                    <div>
+                      <h3 className="text-sm font-semibold text-heading dark:text-white mb-1.5">Get an authenticator app</h3>
+                      <p className="text-xs text-muted dark:text-slate-400 mb-3">Download one (they all work the same way):</p>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-3 p-3  rounded-lg ">
+                          <div className="shrink-0 w-8 h-8 bg-linear-to-br from-blue-500 to-green-500 rounded-lg flex items-center justify-center">
+                            <span className="text-white text-xs font-bold">G</span>
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-heading dark:text-white">Google Authenticator</p>
+                            <p className="text-xs text-muted dark:text-slate-400">Most common, works great</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 p-3  rounded-lg ">
+                          <div className="shrink-0 w-8 h-8 bg-linear-to-br from-blue-600 to-blue-400 rounded-lg flex items-center justify-center">
+                            <span className="text-white text-xs font-bold">M</span>
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-heading dark:text-white">Microsoft Authenticator</p>
+                            <p className="text-xs text-muted dark:text-slate-400">If you use Microsoft 365</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 p-3  rounded-lg ">
+                          <div className="shrink-0 w-8 h-8 bg-linear-to-br from-red-500 to-red-400 rounded-lg flex items-center justify-center">
+                            <span className="text-white text-xs font-bold">A</span>
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-heading dark:text-white">Authy</p>
+                            <p className="text-xs text-muted dark:text-slate-400">User-friendly, backup codes included</p>
+                          </div>
                         </div>
                       </div>
-                      <p className="text-xs text-muted dark:text-slate-400 mt-3">Having trouble scanning? <button
+                    </div>
+
+                    <p className="text-xs text-muted dark:text-slate-400 text-center">Already have an authenticator app? Tap Next.</p>
+
+                    <button
+                      type="button"
+                      onClick={() => setWizardStep('qrcode')}
+                      className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-light hover:shadow-[0_8px_24px_-8px_rgba(18,189,206,0.4)] focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-slate-900 transition-all duration-300 cursor-pointer"
+                    >
+                      Next
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCurrentStep({ step: 'credentials' });
+                        setTotpCode('');
+                        setError(null);
+                      }}
+                      className="w-full text-sm text-primary hover:underline dark:text-primary cursor-pointer"
+                    >
+                      ← Back to login
+                    </button>
+                  </div>
+                )}
+
+                {/* Step 2: Scan the QR code */}
+                {wizardStep === 'qrcode' && (
+                  <div className="space-y-5">
+                    <p className="text-sm text-muted dark:text-slate-400 text-center">Open your authenticator app and tap <strong className="text-heading dark:text-white">+</strong>. Then scan this code.</p>
+
+                    <div className="flex justify-center">
+                      <div className="bg-white p-3 rounded-lg">
+                        <QRCodeSVG value={currentStep.qrUri} size={160} level="H" marginSize={3} />
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-muted dark:text-slate-400 text-center">
+                      Having trouble scanning?{' '}
+                      <button
                         type="button"
                         onClick={() => setShowSharedKey(!showSharedKey)}
                         className="text-primary hover:underline font-medium"
                       >
                         Enter the code manually instead
-                      </button></p>
-                      {showSharedKey && (
-                        <div className="mt-3 p-3 bg-white dark:bg-white/10 rounded border border-gray-200 dark:border-white/20">
-                          <p className="text-xs text-muted dark:text-slate-400 mb-2">Paste this code into your app:</p>
-                          <code className="text-sm font-mono text-heading dark:text-white block text-center select-all cursor-pointer p-2 bg-gray-50 dark:bg-white/5 rounded">
-                            {currentStep.sharedKey}
-                          </code>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
+                      </button>
+                    </p>
 
-                {/* Step 3: Enter Code */}
-                <div className="border border-gray-200 dark:border-white/10 rounded-lg p-4 bg-gray-50/50 dark:bg-white/5">
-                  <div className="flex items-start gap-3">
-                    <div className="shrink-0 w-6 h-6 rounded-full bg-primary text-white text-xs font-semibold flex items-center justify-center mt-0.5">3</div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-semibold text-heading dark:text-white">Verify the code</h3>
-                      <p className="text-xs text-muted dark:text-slate-400 mt-1">Your app should now show a 6-digit code. Enter it below to finish setup:</p>
-                      <div className="mt-3">
-                        <TotpInput
-                          value={totpCode}
-                          onChange={setTotpCode}
-                          onSubmit={() => handleTotpSetupEnable(totpCode)}
-                          isLoading={loading}
-                          error={error}
-                        />
+                    {showSharedKey && (
+                      <div className="p-3 bg-white dark:bg-white/10 rounded-lg border border-gray-200 dark:border-white/20">
+                        <p className="text-xs text-muted dark:text-slate-400 mb-2">Paste this code into your app:</p>
+                        <code className="text-sm font-mono text-heading dark:text-white block text-center select-all cursor-pointer p-2 bg-gray-50 dark:bg-white/5 rounded">
+                          {currentStep.sharedKey}
+                        </code>
                       </div>
-                    </div>
-                  </div>
-                </div>
+                    )}
 
-                <p className="text-xs text-muted dark:text-slate-500 text-center">Once you complete this, you'll use your authenticator app every time you log in.</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setWizardStep('verify');
+                        setTotpCode('');
+                        setError(null);
+                      }}
+                      className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-light hover:shadow-[0_8px_24px_-8px_rgba(18,189,206,0.4)] focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-slate-900 transition-all duration-300 cursor-pointer"
+                    >
+                      I scanned it, next
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setWizardStep('app')}
+                      className="w-full text-sm text-primary hover:underline dark:text-primary cursor-pointer"
+                    >
+                      ← Back
+                    </button>
+                  </div>
+                )}
+
+                {/* Step 3: Enter the verification code */}
+                {wizardStep === 'verify' && (
+                  <div className="space-y-5">
+                    <p className="text-sm text-muted dark:text-slate-400 text-center">Your app should now show a 6-digit number that changes every 30 seconds.</p>
+
+                    <div>
+                      <label className="block text-xs font-medium text-body-secondary dark:text-slate-300 pl-1 mb-3">
+                        Enter the code from your app
+                      </label>
+                      <TotpInput
+                        value={totpCode}
+                        onChange={setTotpCode}
+                        onSubmit={() => handleTotpSetupEnable(totpCode)}
+                        isLoading={loading}
+                        error={error}
+                      />
+                    </div>
+
+                    <p className="text-xs text-muted dark:text-slate-500 text-center">Once verified, you'll use your authenticator app every time you log in.</p>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setWizardStep('qrcode');
+                        setTotpCode('');
+                        setError(null);
+                      }}
+                      className="w-full text-sm text-primary hover:underline dark:text-primary cursor-pointer"
+                    >
+                      ← Back to scan
+                    </button>
+                  </div>
+                )}
               </div>
             </>
           )}
