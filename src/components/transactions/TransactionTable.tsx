@@ -1730,8 +1730,11 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
  * Tag-badge hover tooltip — shows the source, certainty, and matching rules.
  * Attributes are intentionally omitted; this is a "why did this tag match?"
  * affordance, not a full definition viewer.
+ *
+ * Exported so the rule builder's "live matching tags" preview can reuse the
+ * same tooltip the transaction table uses (consistency across surfaces).
  */
-function renderTagTooltip(
+export function renderTagTooltip(
   source: string | null,
   def: TagSpecDefinition | undefined,
   clickable: boolean,
@@ -1797,7 +1800,7 @@ function renderTagTooltip(
       )}
       {clickable && (
         <div className="pt-1.5 border-t border-border/60 text-[10px] text-faint italic">
-          Click tag to open rule
+          Click to view tag
         </div>
       )}
     </div>

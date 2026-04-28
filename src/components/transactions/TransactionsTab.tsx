@@ -2,6 +2,8 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useTagSpecs } from '../../hooks/useTagSpecs';
 import { useAuth } from '../../context/AuthContext';
 import { useTransactionData } from '../../hooks/useTransactionData';
+import { useMatchingTagIds } from '../../hooks/useMatchingTagIds';
+import { buildRulesetFilters } from '../../utils/buildRulesetFilters';
 import type { FilterProperty } from '../../api/transactions';
 import { useWizardForm, fromExistingDefinition } from '../../hooks/useWizardForm';
 import type { TagSpecDefinition, TagSpecLibrary, AnalyzedTransaction, WizardFormState, RuleExpression, CheckoutState, TransactionRow } from '../../types';
@@ -10,7 +12,8 @@ import { analyzeRow } from '../../utils/analyzeRow';
 import { regexify, regexifyExtraction, generateExpressionPrompt, generateExtractionPrompt } from '../../utils/regexify';
 import { generateExpressionId } from '../../utils/uuid';
 import { getContextValue } from '../../types/tagSpec';
-import { TransactionTable, ColumnPicker, ALLOWED_COLUMN_KEYS, DEFAULT_VISIBLE_COLUMN_KEYS, type ColumnDef } from './TransactionTable';
+import { TransactionTable, ColumnPicker, ALLOWED_COLUMN_KEYS, DEFAULT_VISIBLE_COLUMN_KEYS, renderTagTooltip, type ColumnDef } from './TransactionTable';
+import { TagBadge } from './TagBadge';
 import { StepRuleExpressions } from '../wizard/StepRuleExpressions';
 import { StepAttributes } from '../wizard/StepAttributes';
 import { TagWizardModal } from '../wizard/TagWizardModal';
@@ -26,6 +29,7 @@ import { tagSpecLibrarySave } from '../../api/tagSpecSave';
 import { ShareLinkDialog } from '../shared/ShareLinkDialog';
 import { RowContextMenu } from './RowContextMenu';
 import { ViewContextModal } from './ViewContextModal';
+import { TagDetailPanel } from './TagDetailPanel';
 import { useTepConfig } from '../../context/TepConfigContext';
 import type { TepHeaders } from '../../api/transactions';
 
@@ -145,38 +149,6 @@ const BATCH_SIZE = 50;
 // shared constant keeps identity stable across renders so dependent effects don't re-fire.
 const EMPTY_FILTERS: Record<string, Set<string>> = {};
 
-/** Build the FilterProperty[] payload for Call 3 (Apply Rules) from the builder form state. */
-function buildRulesetFilters(formState: WizardFormState): FilterProperty[] {
-  const filters: FilterProperty[] = [
-    { ColumnName: 'BankSwiftCode', Value: formState.bankSwiftCode, Operand: 'IN' },
-    { ColumnName: 'Side', Value: formState.side, Operand: 'IN' },
-  ];
-  if (formState.transactionTypeCode) {
-    filters.push({ ColumnName: 'TransactionTypeCode', Value: formState.transactionTypeCode, Operand: 'EQ' });
-  }
-
-  const regexGroups = formState.ruleGroups
-    .map(group =>
-      group.conditions
-        .filter(c => c.value.trim().length > 0)
-        // Numeric operators are not regex — skip them here. They're currently
-        // marked with a `__NUMERIC_*` sentinel in regexify and would not match
-        // anything server-side inside a REGEX payload.
-        .filter(c => !c.operation.startsWith('greater_than') && !c.operation.startsWith('less_than'))
-        .map(c => ({
-          ColumnName: c.sourceField,
-          Value: regexify(c.operation, c.value, c.values),
-          Options: '',
-        }))
-    )
-    .filter(group => group.length > 0);
-
-  if (regexGroups.length > 0) {
-    filters.push({ Operand: 'REGEX', Regex: regexGroups });
-  }
-
-  return filters;
-}
 
 export function TransactionsTab({ activeCheckout, onClearPendingDefinition, initialShareFilters, initialShareToggles, operatorName, shareDialogOpen: shareDialogOpenProp, onShareDialogClose }: TransactionsTabProps) {
   const { libraries, tagDefinitions, originalDefinitionIds, dispatch, isPairBeingTagged } = useTagSpecs();
@@ -613,6 +585,20 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // every row of that type, which is a valid use case.
   const builderHasTransactionType = builder.formState.transactionTypeCode.trim().length > 0;
   const canSubmitBuilder = builderHasTransactionType;
+
+  // Live preview: which existing tag definitions match the rule the user is
+  // currently authoring? Fired only while the builder is open. Hook owns the
+  // debouncing and abort logic.
+  const { ids: matchingTagIds, loading: matchingTagsLoading } = useMatchingTagIds(
+    builder.formState,
+    builderOpen,
+  );
+
+  // Read-only preview drawer for tags clicked in the "Existing Matching Tags"
+  // section. Distinct from `handleTagClick` (which loads a tag into the builder
+  // and would wipe in-progress draft state) — this surface must not disturb
+  // whatever the user is currently authoring.
+  const [previewDef, setPreviewDef] = useState<TagSpecDefinition | null>(null);
 
 
 
@@ -1218,6 +1204,50 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
             </div>
           </div>
 
+          {/* Existing Matching Tags — live preview from GetAllTransactionTags */}
+          {builderOpen && matchingTagIds !== null && (
+            <div className="px-5 pb-3">
+              <div className="flex items-baseline gap-2 mb-1.5">
+                <h4 className="text-xs font-semibold text-body-secondary uppercase tracking-wide">
+                  Existing Matching Tags
+                </h4>
+                {matchingTagsLoading && (
+                  <span className="text-[10px] text-faint italic">Loading…</span>
+                )}
+              </div>
+              {matchingTagIds.length === 0 ? (
+                <span className="text-[11px] text-faint italic">
+                  No existing tags match this rule yet.
+                </span>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {matchingTagIds.map((id) => {
+                    const def = tagDefinitions.find((d) => d.Id === id);
+                    if (!def) return null;
+                    const source = definitionSourceMap.get(id) ?? 'Backend';
+                    const isUserCreated = !originalDefinitionIds?.has(id);
+                    return (
+                      <Tooltip
+                        key={id}
+                        content={renderTagTooltip(source, def, true)}
+                        placement="top"
+                      >
+                        <span>
+                          <TagBadge
+                            tag={def.Tag}
+                            certainty={def.CertaintyLevelTag ?? 'HIGH'}
+                            isUserCreated={isUserCreated}
+                            onClick={() => setPreviewDef(def)}
+                          />
+                        </span>
+                      </Tooltip>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           <span className='flex flex-col items-center w-full text-slate-500 text-xs pb-2 gap-1'>
             {/* Records count — always shown */}
             <span className='flex items-baseline'>
@@ -1444,6 +1474,14 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
           onClose={() => setContextMenu(null)}
         />
       )}
+
+      <TagDetailPanel
+        open={!!previewDef}
+        definition={previewDef}
+        source={previewDef ? definitionSourceMap.get(previewDef.Id) ?? 'Backend' : 'Backend'}
+        isUserCreated={previewDef ? !originalDefinitionIds?.has(previewDef.Id) : false}
+        onClose={() => setPreviewDef(null)}
+      />
 
       {contextModalRow && (() => {
         const authHeaders = getAuthHeaders();

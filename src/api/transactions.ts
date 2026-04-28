@@ -192,6 +192,48 @@ export async function getBacklogStats(
   return data.BacklogStats;
 }
 
+// --- GetAllTransactionTags (live preview of matching tags during rule authoring) ---
+
+export interface GetAllTransactionTagsRequest {
+  FilteringProperties: FilterProperty[];
+}
+
+export interface GetAllTransactionTagsResponse {
+  OpsTagSpecIds: string[];
+  // SFM envelope is acknowledged but not validated client-side; HTTP status
+  // determines success/failure via throwIfNotOk.
+  SFM?: unknown;
+}
+
+export async function getAllTransactionTags(
+  request: GetAllTransactionTagsRequest,
+  authToken: string,
+  tepHeaders: TepHeaders,
+  signal?: AbortSignal,
+): Promise<string[]> {
+  const res = await fetch(`${BASE}/GetAllTransactionTags`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      Authorization: `Bearer ${authToken}`,
+      'x-apikey': tepHeaders.apiKey,
+      ActivityTag: 'GetAllTransactionTags',
+      LanguageCode: tepHeaders.languageCode,
+      TTPUserId: tepHeaders.userId,
+      TTPTenantCode: tepHeaders.tenantCode,
+      TTPRequestId: tepHeaders.requestId,
+      TimeZone: tepHeaders.timeZone,
+    },
+    body: JSON.stringify(request),
+    signal,
+  });
+
+  await throwIfNotOk(res, 'Failed to fetch matching transaction tags');
+  const data: GetAllTransactionTagsResponse = await res.json();
+  return data.OpsTagSpecIds ?? [];
+}
+
 export async function markTransactionsAsDeadEnd(
   ids: string[],
   authToken: string,
