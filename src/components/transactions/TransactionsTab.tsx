@@ -321,8 +321,18 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     if (builderOpen && builder.formState.transactionTypeCode) {
       extra.push({ ColumnName: 'TransactionTypeCode', Value: builder.formState.transactionTypeCode, Operand: 'EQ' });
     }
+    // While authoring a rule, also scope the live transactions fetch by the
+    // REGEX block being composed so the table reflects what the rule will
+    // catch. Bank/side come from the checkout-derived `outgoingFilters` and
+    // TransactionTypeCode is already added above, so we only pull the REGEX
+    // entry out of buildRulesetFilters and discard the rest.
+    if (builderOpen) {
+      const ruleset = buildRulesetFilters(builder.formState);
+      const regex = ruleset.find((f) => f.Operand === 'REGEX');
+      if (regex) extra.push(regex);
+    }
     return extra;
-  }, [tagClickDefinitionId, tagClickRulesetApplied, tagClickShowingAll, tagClickRulesetFilters, builderOpen, builder.formState.transactionTypeCode]);
+  }, [tagClickDefinitionId, tagClickRulesetApplied, tagClickShowingAll, tagClickRulesetFilters, builderOpen, builder.formState]);
 
   // When the API call is scoped by TagSpecDefinitionId, the definition itself
   // implies bank/side via its parent library — don't also send bank/side filters.
@@ -589,8 +599,18 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // Live preview: which existing tag definitions match the rule the user is
   // currently authoring? Fired only while the builder is open. Hook owns the
   // debouncing and abort logic.
+  // The wizard's initial state defaults bankSwiftCode/side to seed values
+  // (e.g. 'ARNBSARI'/'CR') that don't reflect the active checkout. For the
+  // live preview we always want to scope to the bank/side the user is
+  // actually checked out on, so override those two fields here. Other form
+  // fields (rules, transactionTypeCode, ...) come straight from the wizard.
+  const matchingTagsFormState = useMemo(() => (
+    activeCheckout
+      ? { ...builder.formState, bankSwiftCode: activeCheckout.bank, side: activeCheckout.side }
+      : builder.formState
+  ), [builder.formState, activeCheckout]);
   const { ids: matchingTagIds, loading: matchingTagsLoading } = useMatchingTagIds(
-    builder.formState,
+    matchingTagsFormState,
     builderOpen,
   );
 
