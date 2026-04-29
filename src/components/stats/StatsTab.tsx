@@ -73,6 +73,12 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [rollbackTarget, setRollbackTarget] = useState<DisplayRow | null>(null);
   const [compareTarget, setCompareTarget] = useState<DisplayRow | null>(null);
+
+  // Rows whose checkout state just changed — kept for 5s so the user can
+  // visually catch the transition (e.g. "Active" → "In Progress" on checkout).
+  const [recentlyChangedKeys, setRecentlyChangedKeys] = useState<Set<string>>(() => new Set());
+  const prevRowSignaturesRef = useRef<Map<string, string> | null>(null);
+  const highlightTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info'; duration?: number } | null>(null);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
@@ -193,6 +199,59 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
       return a.bank.localeCompare(b.bank);
     });
   }, [libraries, usersMap, userId]);
+
+  // Detect rows whose checkout-related state just changed (isInProgress,
+  // isOwnedByMe, hasOperator, operatorName) and highlight them for 5s. The
+  // first render seeds the snapshot without flagging anything so we don't
+  // light up every row on mount.
+  useEffect(() => {
+    const sigOf = (r: DisplayRow) =>
+      `${r.isInProgress}|${r.isOwnedByMe}|${r.hasOperator}|${r.operatorName ?? ''}`;
+    const current = new Map<string, string>();
+    for (const r of rows) current.set(`${r.bank}:${r.side}`, sigOf(r));
+
+    const prev = prevRowSignaturesRef.current;
+    prevRowSignaturesRef.current = current;
+    if (!prev) return;
+
+    const newlyChanged: string[] = [];
+    for (const [key, sig] of current) {
+      const prevSig = prev.get(key);
+      if (prevSig !== undefined && prevSig !== sig) newlyChanged.push(key);
+    }
+    if (newlyChanged.length === 0) return;
+
+    setRecentlyChangedKeys((prevSet) => {
+      const next = new Set(prevSet);
+      for (const k of newlyChanged) next.add(k);
+      return next;
+    });
+
+    for (const key of newlyChanged) {
+      // Reset the 5s window if the row changes again before it expires.
+      const existing = highlightTimersRef.current.get(key);
+      if (existing) clearTimeout(existing);
+      const timer = setTimeout(() => {
+        setRecentlyChangedKeys((prevSet) => {
+          if (!prevSet.has(key)) return prevSet;
+          const next = new Set(prevSet);
+          next.delete(key);
+          return next;
+        });
+        highlightTimersRef.current.delete(key);
+      }, 5000);
+      highlightTimersRef.current.set(key, timer);
+    }
+  }, [rows]);
+
+  // Clean up any pending highlight timers on unmount.
+  useEffect(() => {
+    const timers = highlightTimersRef.current;
+    return () => {
+      for (const t of timers.values()) clearTimeout(t);
+      timers.clear();
+    };
+  }, []);
 
   // Order-stable list of library Ids that currently have a tagging job (IN_PROGRESS or FAILED).
   // Used to show a "1 of N" position pill on each TaggingStatsCell.
@@ -412,11 +471,12 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                   (row.inProgressLib?.Id ? taggingProgress[row.inProgressLib.Id] : undefined) ??
                   (row.inProgressLib?.ActiveTagSpecLibId ? taggingProgress[row.inProgressLib.ActiveTagSpecLibId] : undefined);
                 const taggingLockTitle = isBeingTagged ? 'Tagging in progress' : undefined;
+                const isRecentlyChanged = recentlyChangedKeys.has(rowKey);
                 return (
                   <tr key={row.library.Id} className="group">
                     <td colSpan={8} className="p-0">
                       {/* Main row — sticky when expanded */}
-                      <div className={`flex items-start transition-colors ${isExpanded ? 'sticky top-8.5 z-10 shadow-sm border-b border-border bg-cyan-50 dark:bg-slate-800 ' : ''} ${row.isInProgress && !isExpanded ? 'bg-primary/5' : isExpanded ? '' : 'hover:bg-surface-hover'}`}>
+                      <div className={`flex items-start transition-colors duration-500 ${isExpanded ? 'sticky top-8.5 z-10 shadow-sm border-b border-border bg-cyan-50 dark:bg-slate-800 ' : ''} ${row.isInProgress && !isExpanded ? 'bg-primary/5' : isExpanded ? '' : 'hover:bg-surface-hover'} ${isRecentlyChanged ? 'bg-amber-100! dark:bg-amber-500/15! ring-1 ring-inset ring-amber-400/60 dark:ring-amber-500/40' : ''}`}>
                         {/* Expand toggle */}
                         <div className="px-4 py-2.5 w-10 shrink-0">
                           <button
