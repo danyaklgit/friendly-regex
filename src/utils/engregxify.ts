@@ -390,7 +390,7 @@ export function engregxify(regex: string): string {
   if (regex.startsWith('__NUMERIC_GTE:')) return `Greater than or equal to '${regex.slice('__NUMERIC_GTE:'.length)}'`;
   if (regex.startsWith('__NUMERIC_LTE:')) return `Less than or equal to '${regex.slice('__NUMERIC_LTE:'.length)}'`;
 
-  // Negative lookbehind: does not end with — (?<!value)$
+  // Negative lookbehind: does not end with — (?<!value)$ (legacy form)
   const doesNotEndWithMatch = regex.match(/^\(\?<!(.+)\)\$$/);
   if (doesNotEndWithMatch) {
     if (!hasActiveRegexSyntax(doesNotEndWithMatch[1])) {
@@ -398,8 +398,20 @@ export function engregxify(regex: string): string {
     }
   }
 
-  // Negative lookahead: does not contain — `^(?!.*value)` (frontend form)
-  const doesNotContainMatch = regex.match(/^\^\(\?!\.\*(.+)\)$/);
+  // Negative lookahead: does not end with — `^(?!.*value$).*$` (current
+  // frontend form via regexify). Checked BEFORE does_not_contain so the
+  // anchored `$` inside the lookahead isn't swallowed by the more permissive
+  // does_not_contain pattern.
+  const doesNotEndWithLAMatch = regex.match(/^\^\(\?!\.\*(.+)\$\)(?:\.\*\$)?$/);
+  if (doesNotEndWithLAMatch) {
+    if (!hasActiveRegexSyntax(doesNotEndWithLAMatch[1])) {
+      return `Does not end with '${unescapeRegex(doesNotEndWithLAMatch[1])}'`;
+    }
+  }
+
+  // Negative lookahead: does not contain — `^(?!.*value)` and the optional
+  // trailing `.*$` that regexify emits.
+  const doesNotContainMatch = regex.match(/^\^\(\?!\.\*(.+)\)(?:\.\*\$)?$/);
   if (doesNotContainMatch) {
     if (!hasActiveRegexSyntax(doesNotContainMatch[1])) {
       return `Does not contain '${unescapeRegex(doesNotContainMatch[1])}'`;
@@ -407,9 +419,7 @@ export function engregxify(regex: string): string {
   }
 
   // Negative lookahead: does not contain — `^((?!value).)*$` (alternate
-  // backend form, semantically identical). Matched separately so backend-
-  // authored rules surface as "Does not contain" in the rule builder rather
-  // than falling through to the generic "Match pattern" case.
+  // backend form, semantically identical).
   const doesNotContainAltMatch = regex.match(/^\^\(\(\?!(.+)\)\.\)\*\$$/);
   if (doesNotContainAltMatch) {
     if (!hasActiveRegexSyntax(doesNotContainAltMatch[1])) {
@@ -417,16 +427,16 @@ export function engregxify(regex: string): string {
     }
   }
 
-  // Negative lookahead: does not equal — ^(?!value$)
-  const doesNotEqualMatch = regex.match(/^\^\(\?!(.+)\$\)$/);
+  // Negative lookahead: does not equal — ^(?!value$) with optional `.*$` tail
+  const doesNotEqualMatch = regex.match(/^\^\(\?!(.+)\$\)(?:\.\*\$)?$/);
   if (doesNotEqualMatch) {
     if (!hasActiveRegexSyntax(doesNotEqualMatch[1])) {
       return `Does not equal '${unescapeRegex(doesNotEqualMatch[1])}'`;
     }
   }
 
-  // Negative lookahead: does not start with — ^(?!value)
-  const doesNotStartWithMatch = regex.match(/^\^\(\?!(.+)\)$/);
+  // Negative lookahead: does not start with — ^(?!value) with optional `.*$` tail
+  const doesNotStartWithMatch = regex.match(/^\^\(\?!(.+)\)(?:\.\*\$)?$/);
   if (doesNotStartWithMatch) {
     if (!hasActiveRegexSyntax(doesNotStartWithMatch[1])) {
       return `Does not start with '${unescapeRegex(doesNotStartWithMatch[1])}'`;
@@ -514,14 +524,22 @@ export function decomposeRegex(regex: string): {
     }
   }
 
-  // Negative lookbehind: does not end with — (?<!value)$
+  // Negative lookbehind: does not end with — (?<!value)$ (legacy form)
   const doesNotEndWithMatch = regex.match(/^\(\?<!(.+)\)\$$/);
   if (doesNotEndWithMatch && !hasActiveRegexSyntax(doesNotEndWithMatch[1])) {
     return { operation: 'does_not_end_with', value: unescapeRegex(doesNotEndWithMatch[1]) };
   }
 
-  // Negative lookahead: does not contain — ^(?!.*value)
-  const doesNotContainMatch = regex.match(/^\^\(\?!\.\*(.+)\)$/);
+  // Negative lookahead: does not end with — ^(?!.*value$).*$ (current
+  // frontend form via regexify). Checked BEFORE does_not_contain so the
+  // anchored `$` inside the lookahead isn't swallowed by the looser pattern.
+  const doesNotEndWithLAMatch = regex.match(/^\^\(\?!\.\*(.+)\$\)(?:\.\*\$)?$/);
+  if (doesNotEndWithLAMatch && !hasActiveRegexSyntax(doesNotEndWithLAMatch[1])) {
+    return { operation: 'does_not_end_with', value: unescapeRegex(doesNotEndWithLAMatch[1]) };
+  }
+
+  // Negative lookahead: does not contain — ^(?!.*value) with optional `.*$`
+  const doesNotContainMatch = regex.match(/^\^\(\?!\.\*(.+)\)(?:\.\*\$)?$/);
   if (doesNotContainMatch && !hasActiveRegexSyntax(doesNotContainMatch[1])) {
     return { operation: 'does_not_contain', value: unescapeRegex(doesNotContainMatch[1]) };
   }
@@ -535,14 +553,14 @@ export function decomposeRegex(regex: string): {
     return { operation: 'does_not_contain', value: unescapeRegex(doesNotContainAltMatch[1]) };
   }
 
-  // Negative lookahead: does not equal — ^(?!value$)
-  const doesNotEqualMatch = regex.match(/^\^\(\?!(.+)\$\)$/);
+  // Negative lookahead: does not equal — ^(?!value$) with optional `.*$`
+  const doesNotEqualMatch = regex.match(/^\^\(\?!(.+)\$\)(?:\.\*\$)?$/);
   if (doesNotEqualMatch && !hasActiveRegexSyntax(doesNotEqualMatch[1])) {
     return { operation: 'does_not_equal', value: unescapeRegex(doesNotEqualMatch[1]) };
   }
 
-  // Negative lookahead: does not start with — ^(?!value)
-  const doesNotStartWithMatch = regex.match(/^\^\(\?!(.+)\)$/);
+  // Negative lookahead: does not start with — ^(?!value) with optional `.*$`
+  const doesNotStartWithMatch = regex.match(/^\^\(\?!(.+)\)(?:\.\*\$)?$/);
   if (doesNotStartWithMatch && !hasActiveRegexSyntax(doesNotStartWithMatch[1])) {
     return { operation: 'does_not_start_with', value: unescapeRegex(doesNotStartWithMatch[1]) };
   }

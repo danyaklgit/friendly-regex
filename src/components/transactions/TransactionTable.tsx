@@ -555,8 +555,21 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     return map.size > 0 ? map : null;
   }, [searchHighlights]);
 
-  // Collect all distinct attribute names across all analyzed rows
+  // Collect distinct attribute names to render as columns. When the table is
+  // scoped to a single definition (tag-click drill-down or active edit), only
+  // show that definition's own attributes — otherwise multi-tagged rows would
+  // surface attribute columns belonging to *other* matched defs and look like
+  // they extracted values that actually came from a different tag.
   const attributeColumns = useMemo(() => {
+    if (activeDefinitionId) {
+      const activeDef = tagDefinitions.find((d) => d.Id === activeDefinitionId);
+      if (activeDef) {
+        return activeDef.Attributes
+          .map((a) => a.AttributeTag)
+          .filter((name, i, arr) => arr.indexOf(name) === i)
+          .sort();
+      }
+    }
     const names = new Set<string>();
     for (const item of data) {
       for (const tagAttrs of Object.values(item.analysis.attributes)) {
@@ -566,7 +579,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
       }
     }
     return Array.from(names).sort();
-  }, [data]);
+  }, [data, activeDefinitionId, tagDefinitions]);
 
   // Map attribute names to their source field from definitions
   const attrSourceMap = useMemo(() => {
@@ -1026,17 +1039,53 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
   };
 
   const getAttributeValue = (item: AnalyzedTransaction, attrName: string): string | null => {
-    // 1) Client-computed value (reflects live rule-builder drafts/edits).
-    // analysis.attributes is keyed by def.Id. When activeDefinitionId is set
-    // (e.g. the user clicked into a tag's matches, or is editing a def), prefer
-    // that def's value — important for multi-tagged rows where two defs share
-    // an attribute name but extract different values.
+    const row = item.row as unknown as Record<string, unknown>;
+    const scan = (list: unknown): string | null => {
+      if (!Array.isArray(list)) return null;
+      for (const entry of list) {
+        if (entry && typeof entry === 'object') {
+          const e = entry as { Key?: unknown; Value?: unknown };
+          if (e.Key === attrName && e.Value != null && e.Value !== '') {
+            return String(e.Value);
+          }
+        }
+      }
+      return null;
+    };
+
+    // ─── Scoped lookup ─────────────────────────────────────────────────────
+    // When the table is scoped to a specific definition (tag-click drill-down
+    // or active edit), only that definition's data is relevant. Falling
+    // through to other matched defs would surface another tag's extracted
+    // values for multi-tagged rows, which is wrong.
     if (activeDefinitionId) {
       const tagAttrs = item.analysis.attributes[activeDefinitionId];
-      if (tagAttrs && attrName in tagAttrs && tagAttrs[attrName] !== null) {
+      if (tagAttrs && attrName in tagAttrs) {
         return tagAttrs[attrName];
       }
+      if (isAttributeBeingEdited(item, attrName)) return null;
+      // Server-provided fallback — only the active def's entry counts.
+      const multi = row.OpsMultiTags;
+      if (Array.isArray(multi)) {
+        for (const mt of multi) {
+          if (mt && typeof mt === 'object') {
+            const m = mt as { TagSpecDefinitionId?: unknown; Attributes?: unknown };
+            if (m.TagSpecDefinitionId === activeDefinitionId) {
+              return scan(m.Attributes);
+            }
+          }
+        }
+      }
+      // OpsAttributes belongs to row.OpsTagSpecDefinitionId — only use it if
+      // the row's primary tag is the active def.
+      if (row.OpsTagSpecDefinitionId === activeDefinitionId) {
+        return scan(row.OpsAttributes);
+      }
+      return null;
     }
+
+    // ─── Unscoped lookup (whole table view) ───────────────────────────────
+    // 1) Client-computed value (reflects live rule-builder drafts/edits).
     // Iterate in tagDefinitions order (which puts the rule-builder draft / temp
     // definition FIRST) so a draft attribute with a post-extraction
     // transformation overrides the same attribute name in other matched saved
@@ -1053,44 +1102,15 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
         return tagAttrs[attrName];
       }
     }
-    // When the user is actively editing this attribute's rule and the draft
-    // didn't match, stop here — falling back to server-computed values would
-    // display the pre-edit result and falsely suggest the draft still works.
     if (isAttributeBeingEdited(item, attrName)) return null;
     // 2) Server-provided fallback — the API response carries pre-computed values
     // in OpsAttributes (single-tag rows) or OpsMultiTags[*].Attributes (multi-tag
     // rows). Use them when the client couldn't extract (e.g. regex has no capture
     // group, or the source field on this row is empty).
-    const row = item.row as unknown as Record<string, unknown>;
-    const scan = (list: unknown): string | null => {
-      if (!Array.isArray(list)) return null;
-      for (const entry of list) {
-        if (entry && typeof entry === 'object') {
-          const e = entry as { Key?: unknown; Value?: unknown };
-          if (e.Key === attrName && e.Value != null && e.Value !== '') {
-            return String(e.Value);
-          }
-        }
-      }
-      return null;
-    };
     const primary = scan(row.OpsAttributes);
     if (primary !== null) return primary;
     const multi = row.OpsMultiTags;
     if (Array.isArray(multi)) {
-      // When activeDefinitionId is set, find that specific entry first.
-      // Otherwise fall back to the first non-empty across all entries.
-      if (activeDefinitionId) {
-        for (const mt of multi) {
-          if (mt && typeof mt === 'object') {
-            const m = mt as { TagSpecDefinitionId?: unknown; Attributes?: unknown };
-            if (m.TagSpecDefinitionId === activeDefinitionId) {
-              const v = scan(m.Attributes);
-              if (v !== null) return v;
-            }
-          }
-        }
-      }
       for (const mt of multi) {
         if (mt && typeof mt === 'object') {
           const v = scan((mt as { Attributes?: unknown }).Attributes);

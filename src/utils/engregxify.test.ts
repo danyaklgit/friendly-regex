@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { engregxify, decomposeRegex, decomposeExtractionRegex, describeLiteralBoundary } from './engregxify';
+import { regexify } from './regexify';
+import type { MatchOperation } from '../types';
 
 describe('engregxify', () => {
   // Numeric comparisons
@@ -367,4 +369,30 @@ describe('describeLiteralBoundary', () => {
       'Matches one or more digits (not followed by "USD"). The matched text is extracted.',
     );
   });
+});
+
+// Round-trip: every operation that regexify can produce must decompose
+// back into the same operation + value. Inputs come straight from regexify
+// (no hardcoded regex strings) so the test stays in sync if the canonical
+// form ever changes.
+describe('regexify ↔ decomposeRegex round-trip', () => {
+  const cases: Array<{ operation: MatchOperation; value: string }> = [
+    { operation: 'begins_with', value: 'PT/SARIE' },
+    { operation: 'ends_with', value: 'XYZ' },
+    { operation: 'contains', value: 'TRANSFER' },
+    { operation: 'equals', value: 'EXACT' },
+    { operation: 'does_not_contain', value: 'REJ-/' },
+    { operation: 'does_not_equal', value: 'BAD' },
+    { operation: 'does_not_start_with', value: 'CFT' },
+    { operation: 'does_not_end_with', value: 'USD' },
+  ];
+
+  for (const { operation, value } of cases) {
+    it(`${operation} round-trips through regexify → decomposeRegex`, () => {
+      const regex = regexify(operation, value);
+      const decomposed = decomposeRegex(regex);
+      expect(decomposed.operation).toBe(operation);
+      expect(decomposed.value).toBe(value);
+    });
+  }
 });
