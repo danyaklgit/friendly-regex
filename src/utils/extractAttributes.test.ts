@@ -108,4 +108,27 @@ describe('extractAttributes', () => {
     const result = extractAttributes(attrs, row);
     expect(result).toEqual({ NoTransform: '1500.50' });
   });
+
+  it('returns the last defined capture group for multi-group regexes', () => {
+    // User-authored pattern: skip 3 slash-delimited segments and capture the
+    // 4th. Group 1 (inside the {3} repeat) captures the LAST iteration in JS,
+    // not the desired tail — taking match[1] would silently return the wrong
+    // segment. The fix is to read the last defined group.
+    const row2: TransactionRow = {
+      AdditionalInformation:
+        '/PT/Outward IPS Credit Transaction Charges 9131102300372347/ARABIC/inv settle',
+    };
+    const attrs = [
+      makeAttr('LastSegment', 'AdditionalInformation', '(?:.*?/(.*)){3}(/(.*))'),
+    ];
+    const result = extractAttributes(attrs, row2);
+    expect(result).toEqual({ LastSegment: 'inv settle' });
+  });
+
+  it('falls back to earlier groups when the last group is undefined (alternation)', () => {
+    // (foo)|(bar) — only one branch captures; the other is undefined.
+    const attrs = [makeAttr('Alt', 'Description1', '(ACME)|(BEEM)')];
+    const result = extractAttributes(attrs, row);
+    expect(result).toEqual({ Alt: 'ACME' });
+  });
 });

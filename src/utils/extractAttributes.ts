@@ -31,7 +31,23 @@ export function extractAttributes(
       try {
         const regex = new RegExp(regexStr);
         const match = String(fieldValue).match(regex);
-        extracted = match?.[1] ?? null;
+        // Pick the LAST defined capture group rather than always group 1.
+        // - regexify-generated patterns have a single capture group → unchanged
+        //   behavior (last group === group 1).
+        // - user-authored patterns like `(?:.*?/(.*)){3}(/(.*))` where the
+        //   intended value sits in a later/inner group now extract correctly.
+        //   In JS, group 1 of that pattern is the LAST iteration of the
+        //   repeated `(.*)`, not the desired tail — so always taking [1]
+        //   silently returned the wrong segment.
+        extracted = null;
+        if (match) {
+          for (let i = match.length - 1; i >= 1; i--) {
+            if (match[i] !== undefined) {
+              extracted = match[i];
+              break;
+            }
+          }
+        }
       } catch {
         extracted = null;
       }
