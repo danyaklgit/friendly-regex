@@ -33,6 +33,10 @@ describe('engregxify', () => {
     expect(engregxify('^(?!.*VOID)')).toBe("Does not contain 'VOID'");
   });
 
+  it('does not contain alt form: ^((?!REJ-/).)*$', () => {
+    expect(engregxify('^((?!REJ-/).)*$')).toBe("Does not contain 'REJ-/'");
+  });
+
   it('does not equal: ^(?!BAD$)', () => {
     expect(engregxify('^(?!BAD$)')).toBe("Does not equal 'BAD'");
   });
@@ -152,6 +156,10 @@ describe('decomposeRegex', () => {
   // Does not contain
   it('does_not_contain', () => {
     expect(decomposeRegex('^(?!.*VOID)')).toEqual({ operation: 'does_not_contain', value: 'VOID' });
+  });
+
+  it('does_not_contain alt form: ^((?!X).)*$', () => {
+    expect(decomposeRegex('^((?!REJ-/).)*$')).toEqual({ operation: 'does_not_contain', value: 'REJ-/' });
   });
 
   // Does not equal

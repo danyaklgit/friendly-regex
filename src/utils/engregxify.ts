@@ -398,11 +398,22 @@ export function engregxify(regex: string): string {
     }
   }
 
-  // Negative lookahead: does not contain
+  // Negative lookahead: does not contain — `^(?!.*value)` (frontend form)
   const doesNotContainMatch = regex.match(/^\^\(\?!\.\*(.+)\)$/);
   if (doesNotContainMatch) {
     if (!hasActiveRegexSyntax(doesNotContainMatch[1])) {
       return `Does not contain '${unescapeRegex(doesNotContainMatch[1])}'`;
+    }
+  }
+
+  // Negative lookahead: does not contain — `^((?!value).)*$` (alternate
+  // backend form, semantically identical). Matched separately so backend-
+  // authored rules surface as "Does not contain" in the rule builder rather
+  // than falling through to the generic "Match pattern" case.
+  const doesNotContainAltMatch = regex.match(/^\^\(\(\?!(.+)\)\.\)\*\$$/);
+  if (doesNotContainAltMatch) {
+    if (!hasActiveRegexSyntax(doesNotContainAltMatch[1])) {
+      return `Does not contain '${unescapeRegex(doesNotContainAltMatch[1])}'`;
     }
   }
 
@@ -513,6 +524,15 @@ export function decomposeRegex(regex: string): {
   const doesNotContainMatch = regex.match(/^\^\(\?!\.\*(.+)\)$/);
   if (doesNotContainMatch && !hasActiveRegexSyntax(doesNotContainMatch[1])) {
     return { operation: 'does_not_contain', value: unescapeRegex(doesNotContainMatch[1]) };
+  }
+
+  // Negative lookahead alt form: does not contain — ^((?!value).)*$
+  // (Same semantics as ^(?!.*value); recognized so backend-authored rules
+  // round-trip through the rule builder as "Does not contain" rather than
+  // landing on the generic "Match pattern" fallback.)
+  const doesNotContainAltMatch = regex.match(/^\^\(\(\?!(.+)\)\.\)\*\$$/);
+  if (doesNotContainAltMatch && !hasActiveRegexSyntax(doesNotContainAltMatch[1])) {
+    return { operation: 'does_not_contain', value: unescapeRegex(doesNotContainAltMatch[1]) };
   }
 
   // Negative lookahead: does not equal — ^(?!value$)
