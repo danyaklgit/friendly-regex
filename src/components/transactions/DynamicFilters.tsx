@@ -270,7 +270,9 @@ function StringFromListDropdown({
 }) {
   const { open, setOpen, ref } = useDropdown();
   const [search, setSearch] = useState('');
+  const [highlightIndex, setHighlightIndex] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const key = definition.Tag;
   const selected = filters[key] ?? new Set<string>();
   const hasActive = selected.size > 0;
@@ -292,6 +294,14 @@ function StringFromListDropdown({
     );
   }, [definition.Values, search]);
 
+  // Keyboard navigation walks the list in the same order it renders:
+  // selected items (sticky group at top) first, then unselected.
+  const navigableValues = useMemo(() => {
+    const sel = filteredValues.filter((v) => selected.has(v.Value ?? ''));
+    const unsel = filteredValues.filter((v) => !selected.has(v.Value ?? ''));
+    return [...sel, ...unsel];
+  }, [filteredValues, selected]);
+
   const handleToggle = (value: string) => {
     const next = new Set(selected);
     if (next.has(value)) next.delete(value);
@@ -301,6 +311,33 @@ function StringFromListDropdown({
     if (next.size === 0) delete updated[key];
     else updated[key] = next;
     onFiltersChange(updated);
+  };
+
+  // Reset the cursor whenever the list changes (search input or open state).
+  useEffect(() => { setHighlightIndex(0); }, [search, open]);
+
+  // Keep the highlighted row scrolled into view as the user arrows through.
+  useEffect(() => {
+    if (!open || !listRef.current) return;
+    const el = listRef.current.querySelector<HTMLElement>(`[data-opt-index="${highlightIndex}"]`);
+    el?.scrollIntoView({ block: 'nearest' });
+  }, [highlightIndex, open]);
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightIndex((i) => (navigableValues.length === 0 ? 0 : Math.min(i + 1, navigableValues.length - 1)));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightIndex((i) => Math.max(i - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const v = navigableValues[highlightIndex];
+      if (v) handleToggle(v.Value ?? '');
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setOpen(false);
+    }
   };
 
   if (locked && hasActive) {
@@ -353,25 +390,30 @@ function StringFromListDropdown({
                     placeholder={`Search ${definition.Label.toLowerCase()}...`}
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
+                    onKeyDown={handleSearchKeyDown}
                     className="w-full pl-7 pr-2 py-1.5 text-xs rounded border border-input-border bg-input-bg text-heading placeholder:text-placeholder focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors"
                   />
                 </div>
               </div>
             )}
-            <div className="max-h-60 overflow-y-auto custom-scrollbar p-1.5">
+            <div ref={listRef} className="max-h-60 overflow-y-auto custom-scrollbar p-1.5">
               {filteredValues.length === 0 ? (
                 <div className="px-2 py-3 text-xs text-faint text-center">No matches</div>
               ) : (
                 <>
                   {/* Selected items sticky at top */}
-                  {filteredValues.some((v) => selected.has(v.Value ?? '')) && (
+                  {navigableValues.some((v) => selected.has(v.Value ?? '')) && (
                     <div className="sticky top-0 z-10 bg-surface pb-0">
-                      {filteredValues.filter((v) => selected.has(v.Value ?? '')).map((v) => {
+                      {navigableValues.filter((v) => selected.has(v.Value ?? '')).map((v) => {
                         const hasDistinctLabel = v.Label && v.Label !== v.Value;
+                        const idx = navigableValues.indexOf(v);
+                        const isHighlighted = idx === highlightIndex;
                         return (
                           <label
                             key={v.Value}
-                            className="flex items-start gap-2 px-2 py-1.5 text-xs hover:bg-surface-hover rounded cursor-pointer bg-primary/5"
+                            data-opt-index={idx}
+                            onMouseEnter={() => setHighlightIndex(idx)}
+                            className={`flex items-start gap-2 px-2 py-1.5 text-xs rounded cursor-pointer ${isHighlighted ? 'bg-primary/15' : 'bg-primary/5 hover:bg-surface-hover'}`}
                           >
                             <input
                               type="checkbox"
@@ -386,19 +428,23 @@ function StringFromListDropdown({
                           </label>
                         );
                       })}
-                      {filteredValues.some((v) => !selected.has(v.Value ?? '')) && (
+                      {navigableValues.some((v) => !selected.has(v.Value ?? '')) && (
                         <div className="border-t border-border-subtle mt-1" />
                       )}
                     </div>
                   )}
                   {/* Unselected items */}
                   <div>
-                    {filteredValues.filter((v) => !selected.has(v.Value ?? '')).map((v) => {
+                    {navigableValues.filter((v) => !selected.has(v.Value ?? '')).map((v) => {
                       const hasDistinctLabel = v.Label && v.Label !== v.Value;
+                      const idx = navigableValues.indexOf(v);
+                      const isHighlighted = idx === highlightIndex;
                       return (
                         <label
                           key={v.Value}
-                          className="flex items-start gap-2 px-2 py-1.5 text-xs hover:bg-surface-hover rounded cursor-pointer"
+                          data-opt-index={idx}
+                          onMouseEnter={() => setHighlightIndex(idx)}
+                          className={`flex items-start gap-2 px-2 py-1.5 text-xs rounded cursor-pointer ${isHighlighted ? 'bg-primary/10' : 'hover:bg-surface-hover'}`}
                         >
                           <input
                             type="checkbox"

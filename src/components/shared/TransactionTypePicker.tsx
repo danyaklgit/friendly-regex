@@ -14,10 +14,12 @@ interface TransactionTypePickerProps {
 export function TransactionTypePicker({ value, onChange, filterDefinitions, disabled }: TransactionTypePickerProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [highlightIndex, setHighlightIndex] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
 
   // Close on outside click — must check both anchor and portal-rendered menu.
@@ -123,6 +125,42 @@ export function TransactionTypePicker({ value, onChange, filterDefinitions, disa
     setOpen(false);
   };
 
+  // Reset the keyboard cursor whenever the visible list changes. On open,
+  // land on the currently selected option (or 0 if none) so arrow keys feel
+  // anchored. While typing in search, drop back to the top of the results.
+  useEffect(() => {
+    if (search) {
+      setHighlightIndex(0);
+      return;
+    }
+    const idx = filtered.findIndex((o) => o.value === value);
+    setHighlightIndex(idx >= 0 ? idx : 0);
+  }, [search, open, filtered, value]);
+
+  // Keep the highlighted option scrolled into view as the user arrows through.
+  useEffect(() => {
+    if (!open || !listRef.current) return;
+    const el = listRef.current.querySelector<HTMLElement>(`[data-opt-index="${highlightIndex}"]`);
+    el?.scrollIntoView({ block: 'nearest' });
+  }, [highlightIndex, open]);
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightIndex((i) => (filtered.length === 0 ? 0 : Math.min(i + 1, filtered.length - 1)));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightIndex((i) => Math.max(i - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const opt = filtered[highlightIndex];
+      if (opt) handleSelect(opt.value);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setOpen(false);
+    }
+  };
+
   return (
     <div ref={ref} className="relative">
       <button
@@ -159,24 +197,28 @@ export function TransactionTypePicker({ value, onChange, filterDefinitions, disa
                 placeholder="Search swift mt940 transaction types..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
                 className="w-full pl-7 pr-2 py-1.5 text-xs rounded border border-input-border bg-input-bg text-heading placeholder:text-placeholder focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors"
               />
             </div>
           </div>
-          <div className="max-h-60 overflow-y-auto custom-scrollbar p-1.5">
+          <div ref={listRef} className="max-h-60 overflow-y-auto custom-scrollbar p-1.5">
             {filtered.length === 0 ? (
               <div className="px-2 py-3 text-xs text-faint text-center">No matches</div>
             ) : (
-              filtered.map((opt) => {
+              filtered.map((opt, idx) => {
                 const hasDistinctLabel = opt.value !== opt.label;
+                const isHighlighted = idx === highlightIndex;
                 return (
                   <button
                     key={opt.value}
                     type="button"
+                    data-opt-index={idx}
                     onClick={() => handleSelect(opt.value)}
+                    onMouseEnter={() => setHighlightIndex(idx)}
                     className={`w-full text-left flex items-start gap-2 px-2 py-1.5 text-xs rounded transition-colors ${
-                      value === opt.value ? 'bg-primary/5' : 'hover:bg-surface-hover'
-                    }`}
+                      value === opt.value ? 'bg-primary/5' : ''
+                    } ${isHighlighted ? 'ring-1 ring-inset ring-primary/40' : ''}`}
                   >
                     <span className="min-w-0">
                       <span className={`block font-medium truncate ${value === opt.value ? 'text-primary' : 'text-heading'}`}>{opt.value}</span>

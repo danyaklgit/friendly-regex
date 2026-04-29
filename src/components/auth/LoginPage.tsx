@@ -155,6 +155,9 @@ const TotpInput = ({ value, onChange, onSubmit, isLoading, error }: {
             onChange={(e) => handleInputChange(e, i)}
             onKeyDown={(e) => handleKeyDown(e, i)}
             disabled={isLoading}
+            // Auto-focus the first cell on mount so users can start typing
+            // their code immediately without clicking into the field.
+            autoFocus={i === 0}
             className="w-10 h-12 text-center text-lg font-mono border border-gray-300 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/50 outline-none dark:border-white/10 dark:bg-white/5 dark:text-white"
           />
         ))}
