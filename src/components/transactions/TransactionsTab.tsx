@@ -604,11 +604,19 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // live preview we always want to scope to the bank/side the user is
   // actually checked out on, so override those two fields here. Other form
   // fields (rules, transactionTypeCode, ...) come straight from the wizard.
-  const matchingTagsFormState = useMemo(() => (
-    activeCheckout
+  // When the user is in tag-click "show all" mode they have explicitly
+  // broadened past their rule's REGEX, so drop ruleGroups from the payload
+  // — that strips the REGEX block and refires the API with bank/side/type
+  // only, returning all tag definitions for that combination.
+  const matchingTagsFormState = useMemo(() => {
+    const base = activeCheckout
       ? { ...builder.formState, bankSwiftCode: activeCheckout.bank, side: activeCheckout.side }
-      : builder.formState
-  ), [builder.formState, activeCheckout]);
+      : builder.formState;
+    if (tagClickState?.showingAll) {
+      return { ...base, ruleGroups: [] };
+    }
+    return base;
+  }, [builder.formState, activeCheckout, tagClickState?.showingAll]);
   const { ids: matchingTagIds, loading: matchingTagsLoading } = useMatchingTagIds(
     matchingTagsFormState,
     builderOpen,
