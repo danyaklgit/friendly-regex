@@ -1059,19 +1059,25 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     // through to other matched defs would surface another tag's extracted
     // values for multi-tagged rows, which is wrong.
     if (activeDefinitionId) {
+      // 1) Client-computed value — but only if it actually extracted
+      // something. A null here just means the client regex didn't match this
+      // row's source field; the server may still have the value in
+      // OpsAttributes / OpsMultiTags, so fall through rather than returning.
       const tagAttrs = item.analysis.attributes[activeDefinitionId];
-      if (tagAttrs && attrName in tagAttrs) {
+      if (tagAttrs && attrName in tagAttrs && tagAttrs[attrName] !== null) {
         return tagAttrs[attrName];
       }
       if (isAttributeBeingEdited(item, attrName)) return null;
-      // Server-provided fallback — only the active def's entry counts.
+      // 2) Server-provided fallback — only the active def's entry counts.
       const multi = row.OpsMultiTags;
       if (Array.isArray(multi)) {
         for (const mt of multi) {
           if (mt && typeof mt === 'object') {
             const m = mt as { TagSpecDefinitionId?: unknown; Attributes?: unknown };
             if (m.TagSpecDefinitionId === activeDefinitionId) {
-              return scan(m.Attributes);
+              const v = scan(m.Attributes);
+              if (v !== null) return v;
+              break;
             }
           }
         }
