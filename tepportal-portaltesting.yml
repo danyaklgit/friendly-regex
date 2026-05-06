@@ -5,7 +5,7 @@ variables:
 pool:
    name: $(poolName-TEP-TESTING)
    demands:
-     - agent.name -equals TEP-TESTING-agent
+     - agent.name -equals TEPPortal-TESTING-agent
 resources:
   repositories:
     - repository: PipelineTemplates
