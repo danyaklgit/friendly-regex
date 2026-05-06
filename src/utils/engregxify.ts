@@ -600,44 +600,89 @@ export function decomposeRegex(regex: string): {
 
 /**
  * Decomposes an extraction regex into structured operation + params.
+ *
+ * Goal: structured fields (prefix, suffix) only ever hold LITERAL text. Any
+ * regex syntax in the regex falls back to `extract_matching` so the user sees
+ * the raw pattern in one box rather than fragmented across "literal" inputs.
  */
 export function decomposeExtractionRegex(regex: string): {
   operation: ExtractionOperation;
   prefix?: string;
   suffix?: string;
   pattern?: string;
+  suffixOrEndOfInput?: boolean;
 } {
-  // Extract full field: anchored capture-all (handles single-line and multi-line content).
-  if (regex === '^([\\s\\S]*)$') {
+  // 1. Lookarounds anywhere → matching pattern. Lookbehinds and lookaheads
+  //    can't be expressed as literal prefix/suffix, so the entire regex stays
+  //    raw. Covers ~50 production rules (negative lookahead "does-not-contain"
+  //    style, positive lookbehind for IBAN-prefix patterns, etc.).
+  if (/\(\?<=|\(\?<!|\(\?=|\(\?!/.test(regex)) {
+    return { operation: 'extract_matching', pattern: regex };
+  }
+
+  // 2. Multi-token alternation in a leading non-capturing group → matching
+  //    pattern. Shapes like `(?:A|B|C).*` can't be a single literal prefix.
+  if (/^\^?\(\?:[^)]*\|[^)]*\)/.test(regex)) {
+    return { operation: 'extract_matching', pattern: regex };
+  }
+
+  // 3. Extract All canonicalisation. `^(.*)`, `^(.*)$`, `^([\s\S]*)$`, and
+  //    `^([\s\S]*)` all behave identically on single-line transaction text.
+  //    Collapse them into the single `extract_full_field` method.
+  if (/^\^\((?:\.\*|\[\\s\\S\]\*)\)\$?$/.test(regex)) {
     return { operation: 'extract_full_field' };
   }
 
-  // Extract between: prefix(.*?)suffix
+  // 4. Extract between: prefix(.*?)suffix — try the suffix-with-end-of-input
+  //    form first, since the literal-suffix branch would otherwise match it.
+  //    Production patterns: `/ORDP/(.*?)(?:/|$)` (~373 rules).
+  const extractBetweenWithEoiMatch = regex.match(/^(.+?)\(\.\*\?\)\(\?:(.+?)\|\$\)$/);
+  if (extractBetweenWithEoiMatch) {
+    const prefix = unescapeRegex(extractBetweenWithEoiMatch[1]);
+    const suffix = unescapeRegex(extractBetweenWithEoiMatch[2]);
+    if (!looksLikeRegex(prefix) && !looksLikeRegex(suffix)) {
+      return { operation: 'extract_between', prefix, suffix, suffixOrEndOfInput: true };
+    }
+    return { operation: 'extract_matching', pattern: regex };
+  }
+
   const extractBetweenMatch = regex.match(/^(.+?)\(\.\*\?\)(.+)$/);
   if (extractBetweenMatch) {
-    return {
-      operation: 'extract_between',
-      prefix: unescapeRegex(extractBetweenMatch[1]),
-      suffix: unescapeRegex(extractBetweenMatch[2]),
-    };
+    const prefix = unescapeRegex(extractBetweenMatch[1]);
+    const suffix = unescapeRegex(extractBetweenMatch[2]);
+    if (!looksLikeRegex(prefix) && !looksLikeRegex(suffix)) {
+      return { operation: 'extract_between', prefix, suffix };
+    }
+    return { operation: 'extract_matching', pattern: regex };
   }
 
   // Extract after: prefix(.*)
   const extractAfterMatch = regex.match(/^(.+)\(\.\*\)$/);
   if (extractAfterMatch) {
-    return {
-      operation: 'extract_after',
-      prefix: unescapeRegex(extractAfterMatch[1]),
-    };
+    const prefix = unescapeRegex(extractAfterMatch[1]);
+    if (!looksLikeRegex(prefix)) {
+      return { operation: 'extract_after', prefix };
+    }
+    return { operation: 'extract_matching', pattern: regex };
   }
 
-  // Extract before: (.*?)suffix
+  // Extract before: (.*?)suffix — try the with-end-of-input form first.
+  const extractBeforeWithEoiMatch = regex.match(/^\(\.\*\?\)\(\?:(.+?)\|\$\)$/);
+  if (extractBeforeWithEoiMatch) {
+    const suffix = unescapeRegex(extractBeforeWithEoiMatch[1]);
+    if (!looksLikeRegex(suffix)) {
+      return { operation: 'extract_before', suffix, suffixOrEndOfInput: true };
+    }
+    return { operation: 'extract_matching', pattern: regex };
+  }
+
   const extractBeforeMatch = regex.match(/^\(\.\*\?\)(.+)$/);
   if (extractBeforeMatch) {
-    return {
-      operation: 'extract_before',
-      suffix: unescapeRegex(extractBeforeMatch[1]),
-    };
+    const suffix = unescapeRegex(extractBeforeMatch[1]);
+    if (!looksLikeRegex(suffix)) {
+      return { operation: 'extract_before', suffix };
+    }
+    return { operation: 'extract_matching', pattern: regex };
   }
 
   // Extract matching: (pattern)

@@ -447,7 +447,9 @@ export function IntegrationLogsTab() {
                 <th className="text-left px-3 py-2 whitespace-nowrap">Duration</th>
                 <th className="text-left px-3 py-2 whitespace-nowrap">Status</th>
                 <th className="text-left px-3 py-2 whitespace-nowrap">Description</th>
-                <th className="text-right px-3 py-2 whitespace-nowrap">Actions</th>
+                <th className="text-right px-3 py-2 whitespace-nowrap sticky right-0 bg-surface-secondary z-20 shadow-[-4px_0_4px_-2px_rgba(0,0,0,0.08)]">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -460,7 +462,9 @@ export function IntegrationLogsTab() {
                     <td className="px-3 py-2"><div className="h-3 w-12 rounded bg-gray-200 dark:bg-gray-700" /></td>
                     <td className="px-3 py-2"><div className="h-4 w-20 rounded bg-gray-200 dark:bg-gray-700" /></td>
                     <td className="px-3 py-2"><div className="h-3 w-48 rounded bg-gray-200 dark:bg-gray-700" /></td>
-                    <td className="px-3 py-2 text-right"><div className="h-5 w-20 rounded bg-gray-200 dark:bg-gray-700 inline-block" /></td>
+                    <td className="px-3 py-2 text-right sticky right-0 bg-surface-elevated z-10 shadow-[-4px_0_4px_-2px_rgba(0,0,0,0.08)]">
+                      <div className="h-5 w-20 rounded bg-gray-200 dark:bg-gray-700 inline-block" />
+                    </td>
                   </tr>
                 ))
               ) : error ? (
@@ -479,7 +483,7 @@ export function IntegrationLogsTab() {
                 items.map((log) => (
                   <tr
                     key={log.Id}
-                    className={`border-t border-border hover:bg-surface-hover transition-colors ${
+                    className={`group border-t border-border hover:bg-surface-hover transition-colors ${
                       loading ? 'opacity-60' : ''
                     }`}
                   >
@@ -506,7 +510,7 @@ export function IntegrationLogsTab() {
                     <td className="px-3 py-2 text-body-secondary text-xs max-w-md truncate">
                       {log.StatusDescription ?? ''}
                     </td>
-                    <td className="px-3 py-2 text-right whitespace-nowrap">
+                    <td className="px-3 py-2 text-right whitespace-nowrap sticky right-0 bg-surface-elevated group-hover:bg-surface-hover transition-colors z-10 shadow-[-4px_0_4px_-2px_rgba(0,0,0,0.08)]">
                       <div className="inline-flex items-center justify-end gap-1.5">
                         {!isAudit && log.Endpoint !== 'ProcessTransactionsForTagging' && (
                           <Button

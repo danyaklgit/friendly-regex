@@ -107,6 +107,7 @@ export function regexifyExtraction(
     prefix?: string; suffix?: string; pattern?: string; verifyValue?: string;
     numChars?: number; toStr?: string; toStart?: boolean; occurrence?: number; startingPosition?: number;
     fromPosition?: number; prefixOccurrence?: number; suffixOccurrence?: number;
+    suffixOrEndOfInput?: boolean;
   }
 ): string {
   if (operation.startsWith('predefined:')) {
@@ -114,11 +115,16 @@ export function regexifyExtraction(
     return def?.regex ?? '(.*)';
   }
   const occ = params.occurrence && params.occurrence > 1 ? params.occurrence : 0;
+  // Wrap the literal suffix as `(?:<suf>|$)` when the user opted into
+  // end-of-input as an alternative boundary. Empty suffix degrades to `$`
+  // alone (no spurious empty alternation).
+  const sufWithOptionalEoi = (escaped: string) =>
+    params.suffixOrEndOfInput ? (escaped ? `(?:${escaped}|$)` : '$') : escaped;
 
   switch (operation) {
     case 'extract_between': {
       const pre = escapeRegex(params.prefix ?? '');
-      const suf = escapeRegex(params.suffix ?? '');
+      const suf = sufWithOptionalEoi(escapeRegex(params.suffix ?? ''));
       const preOcc = params.prefixOccurrence && params.prefixOccurrence > 1 ? params.prefixOccurrence : 0;
       const sufOcc = params.suffixOccurrence && params.suffixOccurrence > 1 ? params.suffixOccurrence : 0;
       const preSkip = preOcc ? `(?:.*?${pre}){${preOcc - 1}}.*?` : '';
@@ -137,7 +143,7 @@ export function regexifyExtraction(
       return `${skip}${pre}${buildCapture(params.numChars, params.toStr)}`;
     }
     case 'extract_before': {
-      const suf = escapeRegex(params.suffix ?? '');
+      const suf = sufWithOptionalEoi(escapeRegex(params.suffix ?? ''));
       const skip = occ ? `(?:.*?${suf}){${occ - 1}}.*?` : '';
       // Default: capture everything before the suffix (lazy, so we stop at the
       // first occurrence of the suffix). With toStr → capture between the
@@ -220,6 +226,7 @@ export function generateExtractionPrompt(
     prefix?: string; suffix?: string; pattern?: string; verifyValue?: string;
     numChars?: number; toStr?: string; toStart?: boolean; occurrence?: number; startingPosition?: number;
     fromPosition?: number; prefixOccurrence?: number; suffixOccurrence?: number;
+    suffixOrEndOfInput?: boolean;
   }
 ): string {
   if (operation.startsWith('predefined:')) {
@@ -232,6 +239,9 @@ export function generateExtractionPrompt(
   if (params.occurrence && params.occurrence > 1) modifiers.push(`occurrence #${params.occurrence}`);
   if (params.startingPosition && params.startingPosition > 0) modifiers.push(`from position ${params.startingPosition}`);
   const suffix = modifiers.length > 0 ? ` (${modifiers.join(', ')})` : '';
+  const suffixDisplay = (raw: string) => params.suffixOrEndOfInput
+    ? (raw ? `'${raw}' or end of input` : 'end of input')
+    : `'${raw}'`;
 
   switch (operation) {
     case 'extract_between': {
@@ -239,12 +249,12 @@ export function generateExtractionPrompt(
       if (params.prefixOccurrence && params.prefixOccurrence > 1) betweenMods.push(`prefix #${params.prefixOccurrence}`);
       if (params.suffixOccurrence && params.suffixOccurrence > 1) betweenMods.push(`suffix #${params.suffixOccurrence}`);
       const betweenSuffix = betweenMods.length > 0 ? ` (${betweenMods.join(', ')})` : '';
-      return `Extract between '${params.prefix ?? ''}' and '${params.suffix ?? ''}'${betweenSuffix}`;
+      return `Extract between '${params.prefix ?? ''}' and ${suffixDisplay(params.suffix ?? '')}${betweenSuffix}`;
     }
     case 'extract_after':
       return `Extract after '${params.prefix ?? ''}'${suffix}`;
     case 'extract_before':
-      return `Extract before '${params.suffix ?? ''}'${suffix}`;
+      return `Extract before ${suffixDisplay(params.suffix ?? '')}${suffix}`;
     case 'extract_matching':
       return `Extract matching '${params.pattern ?? ''}'${suffix}`;
     case 'extract_substring': {

@@ -61,6 +61,7 @@ export function fromExistingDefinition(
         prefix: decomposed.prefix,
         suffix: decomposed.suffix,
         pattern: decomposed.pattern,
+        suffixOrEndOfInput: decomposed.suffixOrEndOfInput,
         verifyValue: attr.AttributeRuleExpression.VerifyValue,
         lovTag: attr.LOVTag ?? null,
         isLovBased: !!attr.LOVTag,
@@ -261,6 +262,7 @@ export function useWizardForm(
             'sourceField', 'extractionOperation', 'prefix', 'suffix', 'pattern',
             'numChars', 'toStr', 'toStart', 'occurrence', 'startingPosition',
             'fromPosition', 'prefixOccurrence', 'suffixOccurrence', 'verifyValue',
+            'suffixOrEndOfInput',
           ];
           const extractionChanged = extractionFields.some((f) => f in updates);
           return extractionChanged
@@ -321,6 +323,7 @@ export function useWizardForm(
           fromPosition: attr.fromPosition,
           prefixOccurrence: attr.prefixOccurrence,
           suffixOccurrence: attr.suffixOccurrence,
+          suffixOrEndOfInput: attr.suffixOrEndOfInput,
         };
         const prompt = generateExtractionPrompt(attr.extractionOperation, extractionParams);
         // Prefer the backend's original regex when the user hasn't edited

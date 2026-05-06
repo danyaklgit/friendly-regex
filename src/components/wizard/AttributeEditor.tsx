@@ -28,6 +28,23 @@ const FILTERED_EXTRACTION_OPERATIONS = EXTRACTION_OPERATIONS.filter(
   (op) => op.key !== 'predefined:ksa_iban' && op.key !== 'extract_between_and_verify'
 );
 
+/**
+ * If `suffix` is exactly `(?:LITERAL|$)`, returns the unescaped literal portion.
+ * Returns null when the shape doesn't match — including the "two or more
+ * alternatives" form (`(?:a|b|$)`), which is genuinely multi-token and out of
+ * scope for the literal+checkbox UI. Mirrors the same shape that
+ * decomposeExtractionRegex pulls apart on load.
+ */
+function parseEoiAlternationSuffix(suffix: string): string | null {
+  const m = suffix.match(/^\(\?:(.+?)\|\$\)$/);
+  if (!m) return null;
+  const literal = m[1];
+  // Reject if the literal still contains an unescaped `|` — that's a multi-
+  // alternative case (e.g. `(?:abc|def|$)`), which we leave as raw regex.
+  if (/(?:^|[^\\])\|/.test(literal)) return null;
+  return literal.replace(/\\([^dDwWsSbBntrfv0])/g, '$1');
+}
+
 interface AttributeEditorProps {
   attribute: AttributeFormValue;
   onUpdate: (updates: Partial<AttributeFormValue>) => void;
@@ -181,7 +198,8 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
     toStart: attribute.toStart,
     prefixOccurrence: attribute.prefixOccurrence,
     suffixOccurrence: attribute.suffixOccurrence,
-  }), [attribute.prefix, attribute.suffix, attribute.pattern, attribute.verifyValue, attribute.numChars, attribute.toStr, attribute.toStart, attribute.occurrence, attribute.startingPosition, attribute.fromPosition, attribute.prefixOccurrence, attribute.suffixOccurrence]);
+    suffixOrEndOfInput: attribute.suffixOrEndOfInput,
+  }), [attribute.prefix, attribute.suffix, attribute.pattern, attribute.verifyValue, attribute.numChars, attribute.toStr, attribute.toStart, attribute.occurrence, attribute.startingPosition, attribute.fromPosition, attribute.prefixOccurrence, attribute.suffixOccurrence, attribute.suffixOrEndOfInput]);
   const preview = generateExtractionPrompt(attribute.extractionOperation, extractionParams);
 
   // Raw extracted values, BEFORE the post-extraction transformation pipeline.
@@ -505,6 +523,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                 fromPosition: undefined,
                 prefixOccurrence: undefined,
                 suffixOccurrence: undefined,
+                suffixOrEndOfInput: undefined,
               })}
               options={FILTERED_EXTRACTION_OPERATIONS.map((op) => ({ value: op.key, label: op.label }))}
               disabled={readOnly}
@@ -529,25 +548,107 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
           {selectedOp && (
             <div className="grid grid-cols-2 gap-2" id="attribute_edit_2">
               {selectedOp.fields.includes('prefix') && (
-                <Input
-                  label="Prefix"
-                  placeholder="e.g., /ORDP/"
-                  value={attribute.prefix ?? ''}
-                  onChange={(e) => onUpdate({ prefix: e.target.value })}
-                  disabled={readOnly}
-                  labelAdornment={<BoundaryHintIcon text={attribute.prefix ?? ''} role="prefix" ariaLabel="Prefix matching details" />}
-                />
+                <div className="flex flex-col gap-1.5">
+                  <Input
+                    label="Prefix"
+                    placeholder="e.g., /ORDP/"
+                    value={attribute.prefix ?? ''}
+                    onChange={(e) => onUpdate({ prefix: e.target.value })}
+                    disabled={readOnly}
+                    labelAdornment={<BoundaryHintIcon text={attribute.prefix ?? ''} role="prefix" ariaLabel="Prefix matching details" />}
+                  />
+                  {attribute.extractionOperation === 'extract_after' &&
+                    (attribute.prefix ?? '').trim() === '^' &&
+                    !readOnly && (
+                      <div className="rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-2 flex items-start gap-2">
+                        <svg className="w-4 h-4 mt-0.5 shrink-0 text-primary-dark" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div className="flex-1 text-xs text-primary-dark">
+                          <p>
+                            Prefix <span className="font-mono">^</span> with <span className="font-medium">Extract After Prefix</span> is the same as extracting the entire source field.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => onUpdate({
+                              extractionOperation: 'extract_full_field',
+                              prefix: undefined,
+                              suffix: undefined,
+                              pattern: undefined,
+                              numChars: undefined,
+                              toStr: undefined,
+                              toStart: undefined,
+                              occurrence: undefined,
+                              startingPosition: undefined,
+                              fromPosition: undefined,
+                              prefixOccurrence: undefined,
+                              suffixOccurrence: undefined,
+                              suffixOrEndOfInput: undefined,
+                            })}
+                            className="mt-1 inline-flex items-center gap-1 font-medium underline hover:no-underline cursor-pointer"
+                          >
+                            Switch to Extract Full Field
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                </div>
               )}
-              {selectedOp.fields.includes('suffix') && (
-                <Input
-                  label="Suffix"
-                  placeholder="e.g., /"
-                  value={attribute.suffix ?? ''}
-                  onChange={(e) => onUpdate({ suffix: e.target.value })}
-                  disabled={readOnly}
-                  labelAdornment={<BoundaryHintIcon text={attribute.suffix ?? ''} role="suffix" ariaLabel="Suffix matching details" />}
-                />
-              )}
+              {selectedOp.fields.includes('suffix') && (() => {
+                const suf = attribute.suffix ?? '';
+                const eoiLiteral = !attribute.suffixOrEndOfInput
+                  ? parseEoiAlternationSuffix(suf)
+                  : null;
+                return (
+                  <div className="flex flex-col gap-1.5">
+                    <Input
+                      label="Suffix"
+                      placeholder="e.g., /"
+                      value={suf}
+                      onChange={(e) => onUpdate({ suffix: e.target.value })}
+                      disabled={readOnly}
+                      labelAdornment={<BoundaryHintIcon text={suf} role="suffix" ariaLabel="Suffix matching details" />}
+                    />
+                    {eoiLiteral !== null && !readOnly && (
+                      <div className="rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-2 flex items-start gap-2">
+                        <svg className="w-4 h-4 mt-0.5 shrink-0 text-primary-dark" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div className="flex-1 text-xs text-primary-dark">
+                          <p>
+                            This suffix is regex for "literal <span className="font-mono">{eoiLiteral || '(empty)'}</span> or end-of-input". Use the literal value with the checkbox below instead.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => onUpdate({
+                              suffix: eoiLiteral,
+                              suffixOrEndOfInput: true,
+                            })}
+                            className="mt-1 inline-flex items-center gap-1 font-medium underline hover:no-underline cursor-pointer"
+                          >
+                            Use suffix <span className="font-mono">"{eoiLiteral}"</span> + check "or end of input"
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    <label className={`flex items-center gap-1.5 text-xs text-body-secondary pl-1 select-none ${readOnly ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
+                      <input
+                        type="checkbox"
+                        checked={!!attribute.suffixOrEndOfInput}
+                        onChange={(e) => onUpdate({ suffixOrEndOfInput: e.target.checked || undefined })}
+                        disabled={readOnly}
+                      />
+                      or end of input
+                    </label>
+                  </div>
+                );
+              })()}
               {selectedOp.fields.includes('pattern') && (
                 <Input
                   label="Pattern"

@@ -72,6 +72,12 @@ export interface AttributeFormValue {
   toStart?: boolean;
   prefixOccurrence?: number;
   suffixOccurrence?: number;
+  /**
+   * For extract_between / extract_before: when true, the saved regex wraps the
+   * literal suffix as `(?:<escaped suffix>|$)` so the boundary also matches at
+   * end-of-input. Surfaced in the editor as an "or end of input" checkbox.
+   */
+  suffixOrEndOfInput?: boolean;
   transformations?: TransformationFormValue[];
   /** Original regex from backend — used for preview when round-tripping isn't lossless */
   _originalRegex?: string;

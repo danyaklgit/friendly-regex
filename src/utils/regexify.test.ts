@@ -145,6 +145,32 @@ describe('regexifyExtraction', () => {
       .toBe('^([\\s\\S]*)$');
   });
 
+  it('extract_between with suffixOrEndOfInput emits `(?:<suffix>|$)`', () => {
+    // The dominant production shape: 373 rules in the seed file use this.
+    expect(regexifyExtraction('extract_between', {
+      prefix: '/ORDP/', suffix: '/', suffixOrEndOfInput: true,
+    })).toBe('/ORDP/(.*?)(?:/|$)');
+  });
+
+  it('extract_between with suffixOrEndOfInput escapes regex metacharacters in the suffix', () => {
+    // Literal `.` should reach the regex as `\.`, not match-any.
+    expect(regexifyExtraction('extract_between', {
+      prefix: 'REF', suffix: '.', suffixOrEndOfInput: true,
+    })).toBe('REF(.*?)(?:\\.|$)');
+  });
+
+  it('extract_between with empty suffix + flag degrades to bare `$`', () => {
+    expect(regexifyExtraction('extract_between', {
+      prefix: 'REF', suffix: '', suffixOrEndOfInput: true,
+    })).toBe('REF(.*?)$');
+  });
+
+  it('extract_before with suffixOrEndOfInput emits `(?:<suffix>|$)`', () => {
+    expect(regexifyExtraction('extract_before', {
+      suffix: '/END', suffixOrEndOfInput: true,
+    })).toBe('(.*?)(?:/END|$)');
+  });
+
   it('extract_between_and_verify: same as extract_between', () => {
     expect(regexifyExtraction('extract_between_and_verify', { prefix: 'A', suffix: 'B' }))
       .toBe('A(.*?)B');

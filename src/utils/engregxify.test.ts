@@ -250,6 +250,74 @@ describe('decomposeExtractionRegex', () => {
     });
   });
 
+  // Case A: ^(.*) and ^([\s\S]*)$ both collapse to extract_full_field — they
+  // behave identically on single-line transaction text.
+  it.each([
+    '^(.*)',
+    '^(.*)$',
+    '^([\\s\\S]*)$',
+    '^([\\s\\S]*)',
+  ])('collapses %s to extract_full_field', (regex) => {
+    expect(decomposeExtractionRegex(regex)).toEqual({
+      operation: 'extract_full_field',
+    });
+  });
+
+  // Case 1: the most common production shape (~373 rules) — split the
+  // `(?:literal|$)` suffix into a literal + end-of-input flag.
+  it('extract_between with end-of-input alternation', () => {
+    expect(decomposeExtractionRegex('/ORDP/(.*?)(?:/|$)')).toEqual({
+      operation: 'extract_between',
+      prefix: '/ORDP/',
+      suffix: '/',
+      suffixOrEndOfInput: true,
+    });
+  });
+
+  it('extract_before with end-of-input alternation', () => {
+    expect(decomposeExtractionRegex('(.*?)(?:/END|$)')).toEqual({
+      operation: 'extract_before',
+      suffix: '/END',
+      suffixOrEndOfInput: true,
+    });
+  });
+
+  // Case B: lookarounds → matching pattern. Production examples:
+  //   ^((?!Fee).)*$         (negative lookahead — does not contain)
+  //   (?<=IBAN\/SA.{2})\d{2} (positive lookbehind — context-anchored)
+  it.each([
+    '^((?!Fee).)*$',
+    '^(?!Internal\\ Accounts\\ Transfer)',
+    '(?<=IBAN\\/SA.{2})\\d{2}',
+    '(?=foo)\\d+',
+    '(?<!USD)$',
+  ])('forces lookaround pattern %s to extract_matching', (regex) => {
+    expect(decomposeExtractionRegex(regex)).toEqual({
+      operation: 'extract_matching',
+      pattern: regex,
+    });
+  });
+
+  // Case D: multi-token alternation prefix → matching pattern (~8 rules).
+  it('forces leading multi-alternation to extract_matching', () => {
+    const regex = '(?:Due\\ To\\ :|Due\\ To|Due)\\s*(.*?)(?:\\s*Transaction\\ Currency\\ :|$)';
+    expect(decomposeExtractionRegex(regex)).toEqual({
+      operation: 'extract_matching',
+      pattern: regex,
+    });
+  });
+
+  // Defensive guarantee: if the decomposed prefix/suffix would still contain
+  // regex syntax, fall back to extract_matching rather than leaking syntax
+  // into the structured fields.
+  it('falls back to matching when suffix still looks like regex', () => {
+    const regex = '/TOKEN/(.*?).+';
+    expect(decomposeExtractionRegex(regex)).toEqual({
+      operation: 'extract_matching',
+      pattern: regex,
+    });
+  });
+
   it('fallback for unrecognized pattern', () => {
     expect(decomposeExtractionRegex('plain')).toEqual({
       operation: 'extract_matching',

@@ -216,3 +216,36 @@ describe('extraction end-to-end: transformations pipeline after extraction', () 
     expect(extract(row, a)).toBe('hello world');
   });
 });
+
+describe('extraction end-to-end: suffixOrEndOfInput (the "/ORDP/(.*?)(?:/|$)" shape)', () => {
+  it('captures up to the literal suffix when one is present', () => {
+    const row: TransactionRow = { AdditionalInformation: '/ORDP/John Smith/BENM/Acme' };
+    const a = attr({
+      sourceField: 'AdditionalInformation',
+      operation: 'extract_between',
+      extraction: { prefix: '/ORDP/', suffix: '/', suffixOrEndOfInput: true },
+    });
+    expect(extract(row, a)).toBe('John Smith');
+  });
+
+  it('captures up to end-of-input when the literal suffix is absent', () => {
+    // No trailing `/` — without the end-of-input alternation, this would not match.
+    const row: TransactionRow = { AdditionalInformation: '/ORDP/John Smith' };
+    const a = attr({
+      sourceField: 'AdditionalInformation',
+      operation: 'extract_between',
+      extraction: { prefix: '/ORDP/', suffix: '/', suffixOrEndOfInput: true },
+    });
+    expect(extract(row, a)).toBe('John Smith');
+  });
+
+  it('without the flag, the same pattern fails to match when the suffix is absent', () => {
+    const row: TransactionRow = { AdditionalInformation: '/ORDP/John Smith' };
+    const a = attr({
+      sourceField: 'AdditionalInformation',
+      operation: 'extract_between',
+      extraction: { prefix: '/ORDP/', suffix: '/' },
+    });
+    expect(extract(row, a)).toBeNull();
+  });
+});
