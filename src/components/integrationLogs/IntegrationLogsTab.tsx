@@ -141,68 +141,6 @@ function SearchPill({
   );
 }
 
-function StatusTypePill({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (next: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const active = value.trim() !== '';
-  const options: Array<{ value: string; label: string }> = [
-    { value: '', label: 'Any' },
-    { value: 'Success', label: 'Success' },
-    { value: 'Error', label: 'Error' },
-    { value: 'Information', label: 'Information' },
-    { value: 'Warning', label: 'Warning' },
-  ];
-  const currentLabel = options.find((o) => o.value === value)?.label ?? value;
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        onClick={() => setOpen(!open)}
-        className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
-          active
-            ? 'bg-primary/10 border-primary/30 text-primary-dark'
-            : 'bg-surface border-border-strong text-body hover:bg-surface-hover'
-        }`}
-      >
-        Status Type
-        {active && <span className="ml-1 opacity-70">({currentLabel})</span>}
-      </button>
-      {open && (
-        <>
-          <DropdownBackdrop onClick={() => setOpen(false)} />
-          <div className="absolute top-full mt-1 left-0 z-50 bg-surface border border-border rounded-lg shadow-lg p-1 min-w-40">
-            {options.map((opt) => {
-              const selected = opt.value === value;
-              return (
-                <button
-                  key={opt.value || '__any'}
-                  onClick={() => {
-                    onChange(opt.value);
-                    setOpen(false);
-                  }}
-                  className={`w-full text-left text-xs px-2 py-1.5 rounded transition-colors ${
-                    selected
-                      ? 'bg-primary/10 text-primary-dark font-medium'
-                      : 'text-body hover:bg-surface-hover'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              );
-            })}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
 function DateRangePill({
   fromValue,
   toValue,
@@ -470,9 +408,11 @@ export function IntegrationLogsTab() {
           placeholder="Statement Id"
           width="w-40"
         />
-        <StatusTypePill
+        <SearchPill
           value={filters.statusType}
           onChange={(v) => setFilters({ ...filters, statusType: v })}
+          placeholder="Status type"
+          width="w-36"
         />
         <SearchPill
           value={filters.statusCode}
@@ -501,13 +441,13 @@ export function IntegrationLogsTab() {
           <table className="min-w-full text-sm">
             <thead className="bg-surface-secondary text-[10px] font-semibold uppercase tracking-wider text-body-secondary">
               <tr>
-                <th className="text-left px-3 py-2">Endpoint</th>
-                <th className="text-left px-3 py-2">Statement Id</th>
-                <th className="text-left px-3 py-2">Start</th>
-                <th className="text-left px-3 py-2">Duration</th>
-                <th className="text-left px-3 py-2">Status</th>
-                <th className="text-left px-3 py-2">Description</th>
-                <th className="text-right px-3 py-2">Actions</th>
+                <th className="text-left px-3 py-2 whitespace-nowrap">Endpoint</th>
+                <th className="text-left px-3 py-2 whitespace-nowrap">Statement Id</th>
+                <th className="text-left px-3 py-2 whitespace-nowrap">Start</th>
+                <th className="text-left px-3 py-2 whitespace-nowrap">Duration</th>
+                <th className="text-left px-3 py-2 whitespace-nowrap">Status</th>
+                <th className="text-left px-3 py-2 whitespace-nowrap">Description</th>
+                <th className="text-right px-3 py-2 whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -567,15 +507,8 @@ export function IntegrationLogsTab() {
                       {log.StatusDescription ?? ''}
                     </td>
                     <td className="px-3 py-2 text-right whitespace-nowrap">
-                      <div className="inline-flex items-center gap-1.5">
-                        <Button
-                          variant="ghost"
-                          size="xs"
-                          onClick={() => setSelectedLog(log)}
-                        >
-                          View
-                        </Button>
-                        {!isAudit && (
+                      <div className="inline-flex items-center justify-end gap-1.5">
+                        {!isAudit && log.Endpoint !== 'ProcessTransactionsForTagging' && (
                           <Button
                             variant="outline"
                             size="xs"
@@ -584,6 +517,13 @@ export function IntegrationLogsTab() {
                             Rerun
                           </Button>
                         )}
+                        <Button
+                          variant="secondary"
+                          size="xs"
+                          onClick={() => setSelectedLog(log)}
+                        >
+                          View
+                        </Button>
                       </div>
                     </td>
                   </tr>

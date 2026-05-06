@@ -153,7 +153,7 @@ describe('IntegrationLogsTab', () => {
 
   it('confirms then re-runs and refetches', async () => {
     mockedGetLogs.mockResolvedValue({
-      Items: [makeLog({ StatusType: 'ERROR' })],
+      Items: [makeLog({ Endpoint: 'PushProcessedStatement', StatusType: 'ERROR' })],
       Total: 1,
       Page: 1,
       PageSize: 20,
@@ -173,6 +173,23 @@ describe('IntegrationLogsTab', () => {
       expect(mockedRerun).toHaveBeenCalledWith('log-1', 'test-token', expect.any(Object)),
     );
     await waitFor(() => expect(mockedGetLogs).toHaveBeenCalledTimes(2));
+  });
+
+  it('hides the Rerun button for ProcessTransactionsForTagging rows', async () => {
+    mockedGetLogs.mockResolvedValue({
+      Items: [
+        makeLog({ Id: 'p-1', Endpoint: 'ProcessTransactionsForTagging' }),
+        makeLog({ Id: 'p-2', Endpoint: 'PushProcessedStatement', StatementId: 'STMT-002' }),
+      ],
+      Total: 2,
+      Page: 1,
+      PageSize: 20,
+    });
+    render(<IntegrationLogsTab />);
+    expect(await screen.findByText('STMT-001')).not.toBeNull();
+    // Only one Rerun button — the PushProcessedStatement row.
+    const rerunButtons = screen.queryAllByRole('button', { name: /rerun/i });
+    expect(rerunButtons).toHaveLength(1);
   });
 
   it('opens the file modal when a row is viewed', async () => {
