@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type MockInstance } from 'vitest';
 import {
   getIntegrationLogs,
   getIntegrationLogFile,
@@ -26,10 +26,10 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 describe('integration log API helpers', () => {
-  let fetchSpy: ReturnType<typeof vi.spyOn>;
+  let fetchSpy: MockInstance<typeof fetch>;
 
   beforeEach(() => {
-    fetchSpy = vi.spyOn(globalThis, 'fetch');
+    fetchSpy = vi.spyOn(globalThis, 'fetch') as unknown as MockInstance<typeof fetch>;
   });
 
   afterEach(() => {
