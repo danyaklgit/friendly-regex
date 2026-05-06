@@ -16,6 +16,8 @@ interface AuthContextValue {
   role: string | null;
   /** True when the user holds the audit role — UI must render fully read-only. */
   isAudit: boolean;
+  /** True when the user holds the devops role — gates infra/diagnostics surfaces (e.g. Integration Logs). */
+  isDevops: boolean;
   useDummyData: boolean;
   expiresAt: number | null;
   showSessionWarning: boolean;
@@ -43,6 +45,10 @@ interface StoredAuth {
 
 function isAuditRole(role: string | null | undefined): boolean {
   return (role ?? '').trim().toLowerCase() === 'audit';
+}
+
+function isDevopsRole(role: string | null | undefined): boolean {
+  return (role ?? '').trim().toLowerCase() === 'devops';
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -88,6 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const userId = session?.userId ?? null;
   const role = session?.role ?? null;
   const isAudit = isAuditRole(role);
+  const isDevops = isDevopsRole(role);
   const useDummyData = session?.useDummyData ?? false;
   const expiresAt = session?.expiresAt ?? null;
 
@@ -164,6 +171,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const entries: [string, string][] = allUsers.map(u => [u.id, `${u.firstName} ${u.lastName}`.trim()]);
         setUsersMap(new Map(entries));
         localStorage.setItem(USERS_MAP_KEY, JSON.stringify(entries));
+        // BACKEND-WORKAROUND(role-from-usersinfo): the /userinfo endpoint does
+        // not currently return `role`; only /usersinfo does. Fall back to the
+        // current user's row in the users list. Remove this block once
+        // /userinfo includes `role` directly.
+        if (!userRole && uid) {
+          const me = allUsers.find((u) => u.id === uid);
+          if (me?.role) userRole = me.role;
+        }
       } catch {
         // getUsersInfo failed — usersMap stays empty
       }
@@ -218,6 +233,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const entries: [string, string][] = allUsers.map(u => [u.id, `${u.firstName} ${u.lastName}`.trim()]);
         setUsersMap(new Map(entries));
         localStorage.setItem(USERS_MAP_KEY, JSON.stringify(entries));
+        // BACKEND-WORKAROUND(role-from-usersinfo): see login() above.
+        if (!userRole && uid) {
+          const me = allUsers.find((u) => u.id === uid);
+          if (me?.role) userRole = me.role;
+        }
       } catch {
         // getUsersInfo failed — usersMap stays empty
       }
@@ -311,7 +331,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={{
-      isAuthenticated, username, displayName, userId, role, isAudit, useDummyData, expiresAt, showSessionWarning, usersMap,
+      isAuthenticated, username, displayName, userId, role, isAudit, isDevops, useDummyData, expiresAt, showSessionWarning, usersMap,
       login, loginWith2fa, logout, refreshSession, dismissWarning, getAuthHeaders, refreshIfNeeded,
     }}>
       {children}

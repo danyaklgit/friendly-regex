@@ -11,6 +11,8 @@ import { TabContainer } from './components/layout/TabContainer';
 import { StatsTab } from './components/stats/StatsTab';
 import { TransactionsTab } from './components/transactions/TransactionsTab';
 import { SettingsTab } from './components/settings/SettingsTab';
+import { IntegrationLogsTab } from './components/integrationLogs/IntegrationLogsTab';
+import { useTransactionData } from './hooks/useTransactionData';
 import { SessionWarningModal } from './components/shared/SessionWarningModal';
 import { UndoChangesDialog } from './components/shared/UndoChangesDialog';
 import { SharedLinkBanner } from './components/shared/SharedLinkBanner';
@@ -32,7 +34,8 @@ interface AppShellProps {
 }
 
 function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps) {
-  const { isAudit } = useAuth();
+  const { isAudit, isDevops } = useAuth();
+  const { isLiveMode } = useTransactionData();
   const [activeTab, setActiveTab] = useState(0);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [activeCheckout, setActiveCheckout] = useState<CheckoutState | null>(null);
@@ -175,6 +178,7 @@ function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps
           tabs={[
             { label: 'Backlog', content: <StatsTab onViewTransactions={handleViewTransactions} onViewAllTransactions={handleViewAllTransactions} onCheckoutComplete={handleCheckoutComplete} authToken={authToken} tepHeaders={tepHeaders} /> },
             { label: 'Transactions', content: <TransactionsTab activeCheckout={activeCheckout} onClearPendingDefinition={() => setActiveCheckout(prev => (prev && prev.pendingDefinitionId != null) ? { ...prev, pendingDefinitionId: undefined } : prev)} initialShareFilters={shareFilters} initialShareToggles={shareToggles} operatorName={operatorName} shareDialogOpen={shareDialogOpen} onShareDialogClose={() => setShareDialogOpen(false)} /> },
+            ...(isLiveMode && isDevops ? [{ label: 'Integration Logs', content: <IntegrationLogsTab /> }] : []),
             { label: 'Settings', content: <SettingsTab /> },
           ]}
           checkout={activeCheckout ? {

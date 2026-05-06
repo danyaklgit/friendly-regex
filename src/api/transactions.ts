@@ -285,3 +285,127 @@ export async function unmarkDeadEndTransactions(
   });
   await throwIfNotOk(res, 'Failed to unmark dead end transactions');
 }
+
+// --- Integration Logs ---------------------------------------------------------
+
+export interface IntegrationLog {
+  Id: string;
+  Endpoint: string;
+  StatementId: string;
+  RequestFilePath: string;
+  ResponseFilePath: string;
+  CallStartDate: string;
+  CallEndDate: string;
+  StatusType: string | null;
+  StatusCode: string | null;
+  StatusDescription: string | null;
+}
+
+export interface GetIntegrationLogsRequest {
+  Endpoint?: string | null;
+  StatementId?: string | null;
+  StatusType?: string | null;
+  StatusCode?: string | null;
+  /** ISO-like 'YYYY-MM-DDTHH:mm:ss', no timezone. */
+  FromDate?: string | null;
+  ToDate?: string | null;
+  Page?: number;
+  PageSize?: number;
+}
+
+export interface GetIntegrationLogsResponse {
+  Items: IntegrationLog[];
+  Total: number;
+  Page: number;
+  PageSize: number;
+  SFM?: unknown;
+}
+
+export type IntegrationLogFileType = 'REQUEST' | 'RESPONSE';
+
+export interface GetIntegrationLogFileResponse {
+  Content: string;
+  SFM?: unknown;
+}
+
+export async function getIntegrationLogs(
+  request: GetIntegrationLogsRequest,
+  authToken: string,
+  tepHeaders: TepHeaders,
+  signal?: AbortSignal,
+): Promise<GetIntegrationLogsResponse> {
+  const res = await fetch(`${BASE}/GetIntegrationLogs`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      Authorization: `Bearer ${authToken}`,
+      'x-apikey': tepHeaders.apiKey,
+      ActivityTag: 'GetIntegrationLogs',
+      LanguageCode: tepHeaders.languageCode,
+      TTPUserId: tepHeaders.userId,
+      TTPTenantCode: tepHeaders.tenantCode,
+      TTPRequestId: tepHeaders.requestId,
+      TimeZone: tepHeaders.timeZone,
+    },
+    body: JSON.stringify(request),
+    signal,
+  });
+
+  await throwIfNotOk(res, 'Failed to fetch integration logs');
+  return res.json();
+}
+
+export async function getIntegrationLogFile(
+  request: { Id: string; FileType: IntegrationLogFileType },
+  authToken: string,
+  tepHeaders: TepHeaders,
+  signal?: AbortSignal,
+): Promise<GetIntegrationLogFileResponse> {
+  const res = await fetch(`${BASE}/GetIntegrationLogFile`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      Authorization: `Bearer ${authToken}`,
+      'x-apikey': tepHeaders.apiKey,
+      ActivityTag: 'GetIntegrationLogFile',
+      LanguageCode: tepHeaders.languageCode,
+      TTPUserId: tepHeaders.userId,
+      TTPTenantCode: tepHeaders.tenantCode,
+      TTPRequestId: tepHeaders.requestId,
+      TimeZone: tepHeaders.timeZone,
+    },
+    body: JSON.stringify(request),
+    signal,
+  });
+
+  await throwIfNotOk(res, 'Failed to fetch integration log file');
+  return res.json();
+}
+
+export async function rerunIntegrationRequest(
+  id: string,
+  authToken: string,
+  tepHeaders: TepHeaders,
+  signal?: AbortSignal,
+): Promise<void> {
+  const res = await fetch(`${BASE}/RerunIntegrationRequest`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      Authorization: `Bearer ${authToken}`,
+      'x-apikey': tepHeaders.apiKey,
+      ActivityTag: 'RerunIntegrationRequest',
+      LanguageCode: tepHeaders.languageCode,
+      TTPUserId: tepHeaders.userId,
+      TTPTenantCode: tepHeaders.tenantCode,
+      TTPRequestId: tepHeaders.requestId,
+      TimeZone: tepHeaders.timeZone,
+    },
+    body: JSON.stringify({ Id: id }),
+    signal,
+  });
+  await throwIfNotOk(res, 'Failed to re-run integration request');
+}

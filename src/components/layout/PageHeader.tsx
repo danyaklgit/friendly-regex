@@ -26,7 +26,7 @@ interface PageHeaderProps {
 }
 
 export function PageHeader({ tabs, activeIndex, onTabChange, checkout, onOpenOnboarding, onShare }: PageHeaderProps) {
-  const { logout, username, displayName, expiresAt, isAudit } = useAuth();
+  const { logout, username, displayName, expiresAt, isAudit, isDevops } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const timeRemaining = useTimeRemaining(expiresAt);
 
@@ -81,6 +81,11 @@ export function PageHeader({ tabs, activeIndex, onTabChange, checkout, onOpenOnb
           {isAudit && (
             <Tooltip content="Read-only audit access" placement="bottom">
               <Badge variant="gray" size="xs">Audit</Badge>
+            </Tooltip>
+          )}
+          {isDevops && (
+            <Tooltip content="DevOps access — infrastructure and diagnostics" placement="bottom">
+              <Badge variant="info" size="xs">DevOps</Badge>
             </Tooltip>
           )}
           {onShare && (

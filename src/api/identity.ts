@@ -30,9 +30,10 @@ export interface UserInfo {
   lastName: string;
   email: string;
   /**
-   * Optional role tag. The only role currently honored by the UI is "audit",
-   * which puts the entire app into read-only mode. Empty string, null, or
-   * missing means the user has the standard operator role.
+   * Optional role tag. Roles currently honored by the UI:
+   *  - "audit" — puts the entire app into read-only mode.
+   *  - "devops" — exposes infra/diagnostics surfaces (e.g. Integration Logs).
+   * Empty string, null, or missing means the user has the standard operator role.
    */
   role?: string | null;
 }
