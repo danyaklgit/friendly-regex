@@ -153,10 +153,10 @@ function StatusTypePill({
   const active = value.trim() !== '';
   const options: Array<{ value: string; label: string }> = [
     { value: '', label: 'Any' },
-    { value: 'SUCCESS', label: 'Success' },
-    { value: 'ERROR', label: 'Error' },
+    { value: 'Success', label: 'Success' },
+    { value: 'Error', label: 'Error' },
     { value: 'Information', label: 'Information' },
-    { value: 'WARNING', label: 'Warning' },
+    { value: 'Warning', label: 'Warning' },
   ];
   const currentLabel = options.find((o) => o.value === value)?.label ?? value;
 
