@@ -3,7 +3,7 @@ variables:
   - group: SharedVariables
   - group: ViteVariables
 pool:
-   name: $(poolName-TEP-TESTING)
+   name: $(poolName-TEPPortal-TESTING)
    demands:
      - agent.name -equals TEPPortal-TESTING-agent
 resources:
