@@ -281,6 +281,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
     const checkoutId = row.inProgressLib?.Id ?? row.library.Id;
     if (!authToken || !tepHeaders || !checkoutId) return;
     setActionLoading(row.library.Id!);
+    setToast({ message: `Checking out ${row.bank} / ${row.side}…`, type: 'info', duration: 60_000 });
     try {
       await tagSpecLibraryCheckOut(checkoutId, authToken, tepHeaders);
       refreshAfterAction();
@@ -623,12 +624,12 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                         <div className="px-4 py-2.5 text-end flex-1 min-w-96">
                           <div className="flex items-center justify-end gap-2">
                             {row.isOwnedByMe && !isAudit && (
-                              <Button data-tour="backlog-rollback-button" variant="danger_ghost" size="xs" onClick={() => setRollbackTarget(row)} disabled={isLoading || isBeingTagged} title={taggingLockTitle}>
+                              <Button data-tour="backlog-rollback-button" variant="danger_ghost" size="xs" onClick={() => setRollbackTarget(row)} disabled={isBeingTagged} loading={isLoading} title={taggingLockTitle}>
                                 Rollback
                               </Button>
                             )}
                             {row.isOwnedByMe && !isAudit && (
-                              <Button data-tour="backlog-checkin-button" variant="primary" size="xs" onClick={() => handleCheckin(row)} disabled={isLoading || isBeingTagged} title={taggingLockTitle}>
+                              <Button data-tour="backlog-checkin-button" variant="primary" size="xs" onClick={() => handleCheckin(row)} disabled={isBeingTagged} loading={isLoading} title={taggingLockTitle}>
                                 Checkin
                               </Button>
                             )}
@@ -638,7 +639,8 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                                 variant="primary"
                                 size="xs"
                                 onClick={() => handleCheckout(row)}
-                                disabled={!canAct || isLoading || isBeingTagged}
+                                disabled={!canAct || isBeingTagged}
+                                loading={isLoading}
                                 title={taggingLockTitle}
                               >
                                 Checkout

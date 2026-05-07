@@ -212,7 +212,7 @@ function highlightText(text: string, regexes: RegExp[]): ReactNode {
   return <>{parts}</>;
 }
 
-export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, onColumnOrderChange, defaultHiddenColumns, onReset }: {
+export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, onColumnOrderChange, defaultHiddenColumns, onReset, lockedVisibleKeys }: {
   columns: ColumnDef[];
   hiddenColumns: Set<string>;
   onChange: (hidden: Set<string>) => void;
@@ -220,6 +220,8 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
   onColumnOrderChange?: (order: string[]) => void;
   defaultHiddenColumns?: Set<string>;
   onReset?: () => void;
+  /** Column keys that must stay visible (rendered checked + disabled in the picker). */
+  lockedVisibleKeys?: Set<string>;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -390,7 +392,8 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
             </div>
             {filtered.map((col, i) => {
               const label = getColumnLabel(col);
-              const isHidden = hiddenColumns.has(col.key);
+              const isLocked = !!lockedVisibleKeys?.has(col.key);
+              const isHidden = !isLocked && hiddenColumns.has(col.key);
               const isSearching = search.trim().length > 0;
               const isDragOver = !isSearching && overIdx === i && dragIdx !== null && dragIdx !== i;
               return (
@@ -416,15 +419,18 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
                   onDragEnd={() => { setDragIdx(null); setOverIdx(null); }}
                   className={`flex items-center gap-2 px-2 py-1.5 text-xs hover:bg-surface-hover rounded cursor-grab active:cursor-grabbing select-none transition-colors ${isDragOver ? 'border-t-2 border-primary' : 'border-t-2 border-transparent'
                     } ${dragIdx === i ? 'opacity-40' : ''}`}
+                  title={isLocked ? 'Always shown while the view is filtered to a single side.' : undefined}
                 >
                   <svg className="w-3 h-3 text-faint shrink-0" fill="currentColor" viewBox="0 0 20 20">
                     <path d="M7 2a2 2 0 10.001 4.001A2 2 0 007 2zm0 6a2 2 0 10.001 4.001A2 2 0 007 8zm0 6a2 2 0 10.001 4.001A2 2 0 007 14zm6-8a2 2 0 10-.001-4.001A2 2 0 0013 6zm0 2a2 2 0 10.001 4.001A2 2 0 0013 8zm0 6a2 2 0 10.001 4.001A2 2 0 0013 14z" />
                   </svg>
-                  <label className="flex items-center gap-2 flex-1 cursor-pointer">
+                  <label className={`flex items-center gap-2 flex-1 ${isLocked ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
                     <input
                       type="checkbox"
                       checked={!isHidden}
+                      disabled={isLocked}
                       onChange={() => {
+                        if (isLocked) return;
                         const next = new Set(hiddenColumns);
                         if (isHidden) next.delete(col.key);
                         else next.add(col.key);
