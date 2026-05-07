@@ -543,7 +543,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                                       style={{ width: `${rate}%` }}
                                     />
                                   </div>
-                                  <span className={`text-xs font-semibold whitespace-nowrap ${rate === 100 ? 'text-emerald-600' : rate >= 90 ? 'text-emerald-500' : rate >= 50 ? 'text-amber-600' : 'text-red-500'}`}>
+                                  <span className={`text-xs font-semibold whitespace-nowrap ${rate === 100 ? 'text-emerald-600 dark:text-emerald-300' : rate >= 90 ? 'text-emerald-500 dark:text-emerald-300' : rate >= 50 ? 'text-amber-600 dark:text-amber-300' : 'text-red-500 dark:text-rose-300'}`}>
                                     {rate.toFixed(1)}%
                                   </span>
                                 </div>
