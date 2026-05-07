@@ -3,6 +3,8 @@ import type { ButtonHTMLAttributes } from 'react';
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'danger' | 'danger_ghost' | 'ghost' | 'outline';
   size?:  'xs' | 'sm' | 'md';
+  /** When true, renders an inline spinner before the label and disables the button. */
+  loading?: boolean;
 }
 
 const variantClasses: Record<string, string> = {
@@ -25,17 +27,33 @@ export function Button({
   size = 'md',
   className = '',
   disabled,
+  loading,
+  children,
   ...props
 }: ButtonProps) {
+  const isDisabled = disabled || loading;
   return (
     <button
       className={`inline-flex items-center justify-center gap-1.5 rounded-lg font-medium transition-colors
         disabled:opacity-50 disabled:cursor-not-allowed
         ${variantClasses[variant]} ${sizeClasses[size]}
-        ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+        ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
         ${className}`}
-      disabled={disabled}
+      disabled={isDisabled}
       {...props}
-    />
+    >
+      {loading && (
+        <svg
+          className="w-3.5 h-3.5 animate-spin shrink-0"
+          viewBox="0 0 24 24"
+          fill="none"
+          aria-hidden="true"
+        >
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+      )}
+      {children}
+    </button>
   );
 }

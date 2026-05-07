@@ -125,15 +125,26 @@ export function TagTreePicker({ label, nodes, value, onChange, loading, required
   }, [safeNodes, query]);
 
   const borderClass = error
-    ? 'border-red-400'
+    ? 'border-red-400 dark:border-rose-400'
     : 'border-input-border';
 
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-body pl-1">
-        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
-      </label>
-      <div className={`rounded-lg border ${borderClass} bg-input-bg overflow-hidden`}>
+      <div className="flex items-center gap-1 pl-1">
+        <label className="text-xs font-medium text-body">
+          {label}{required && <span className="text-red-500 dark:text-rose-300 ml-0.5">*</span>}
+        </label>
+        {error && (
+          <span
+            aria-hidden="true"
+            className="text-red-500 dark:text-rose-300 text-xs font-bold leading-none"
+            title="Invalid value"
+          >
+            !
+          </span>
+        )}
+      </div>
+      <div className={`rounded-lg border ${borderClass} bg-input-bg overflow-hidden`} aria-invalid={error || undefined}>
         {/* Search input */}
         <div className="px-2 pt-2 pb-1">
           <div className="relative">

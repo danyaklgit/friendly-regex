@@ -50,6 +50,24 @@ describe('Input', () => {
     expect(input.className).toContain('border-input-border');
   });
 
+  it('renders a non-color error glyph when error is true', () => {
+    const { container } = render(<Input label="Bad" error />);
+    const glyph = container.querySelector('span[title="Invalid value"]');
+    expect(glyph).not.toBeNull();
+    expect(glyph?.textContent).toBe('!');
+  });
+
+  it('marks the input as aria-invalid when error is true', () => {
+    render(<Input label="Bad" error />);
+    expect(screen.getByLabelText('Bad').getAttribute('aria-invalid')).toBe('true');
+  });
+
+  it('does not render the error glyph when no error', () => {
+    const { container } = render(<Input label="Good" />);
+    expect(container.querySelector('span[title="Invalid value"]')).toBeNull();
+    expect(screen.getByLabelText('Good').getAttribute('aria-invalid')).toBeNull();
+  });
+
   it('handles typing', async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();

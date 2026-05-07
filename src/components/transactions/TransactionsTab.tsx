@@ -395,6 +395,42 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // When hiddenColumns is null (no stored preference), use defaults
   const effectiveHiddenColumns = useMemo(() => hiddenColumns ?? defaultHiddenColumns, [hiddenColumns, defaultHiddenColumns]);
 
+  // When the view is filtered to a single side — either via an active checkout
+  // or via a single-value Side filter pill — force-show the matching side
+  // amount column (CR/RD → Credit; DR/RC → Debit) regardless of the user's
+  // stored column preferences. Andre's request: that column is the most
+  // relevant signal in a single-side view, so don't let it stay hidden.
+  const forcedSideColumnKeys = useMemo(() => {
+    const sideValues: string[] = [];
+    if (activeCheckout?.side) sideValues.push(activeCheckout.side);
+    for (const value of Object.values(filters)) {
+      if (value.size !== 1) continue;
+      const v = [...value][0];
+      if (v === 'CR' || v === 'DR' || v === 'RC' || v === 'RD') sideValues.push(v);
+    }
+    if (sideValues.length === 0) return undefined;
+    // Multiple distinct sides selected (e.g. checkout=CR but filter=DR) —
+    // ambiguous, fall back to the user's preference rather than guessing.
+    const unique = new Set(sideValues);
+    if (unique.size > 1) return undefined;
+    const side = [...unique][0];
+    const key = (side === 'CR' || side === 'RD') ? '__credit' : '__debit';
+    return new Set([key]);
+  }, [activeCheckout?.side, filters]);
+
+  // Hidden set passed to the table strips out anything force-visible so the
+  // column renders even when the user's stored prefs hide it.
+  const tableHiddenColumns = useMemo(() => {
+    if (!forcedSideColumnKeys) return effectiveHiddenColumns;
+    let next: Set<string> | null = null;
+    for (const key of forcedSideColumnKeys) {
+      if (!effectiveHiddenColumns.has(key)) continue;
+      if (!next) next = new Set(effectiveHiddenColumns);
+      next.delete(key);
+    }
+    return next ?? effectiveHiddenColumns;
+  }, [effectiveHiddenColumns, forcedSideColumnKeys]);
+
   const handleColumnReset = useCallback(() => {
     setHiddenColumns(defaultHiddenColumns);
     setColumnOrder([]);
@@ -1078,7 +1114,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         decimalMaxValues={decimalMaxValues}
         disabledFilterTags={tagClickState?.showingAll && tagClickState.tagFilterKey ? new Set([tagClickState.tagFilterKey]) : undefined}
         endSlot={tableColumns.length > 0 ? (
-          <ColumnPicker columns={tableColumns} hiddenColumns={effectiveHiddenColumns} onChange={setHiddenColumns} columnOrder={columnOrder} onColumnOrderChange={setColumnOrder} defaultHiddenColumns={defaultHiddenColumns} onReset={handleColumnReset} />
+          <ColumnPicker columns={tableColumns} hiddenColumns={effectiveHiddenColumns} onChange={setHiddenColumns} columnOrder={columnOrder} onColumnOrderChange={setColumnOrder} defaultHiddenColumns={defaultHiddenColumns} onReset={handleColumnReset} lockedVisibleKeys={forcedSideColumnKeys} />
         ) : undefined}
       />
       {/* )} */}
@@ -1349,7 +1385,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         onFlagDeadEnd={!isReadOnly && !tagClickState?.showingAll && !tagClickState?.rulesetApplied ? flagDeadEnd : undefined}
         showAttributes={showAttributes}
         relaxedMode={relaxedMode}
-        hiddenColumns={effectiveHiddenColumns}
+        hiddenColumns={tableHiddenColumns}
         columnOrder={columnOrder}
         onColumnsReady={setTableColumns}
         onVisibleColumnsReady={setVisibleTableColumns}

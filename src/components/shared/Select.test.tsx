@@ -51,6 +51,19 @@ describe('Select', () => {
     expect(screen.getByLabelText('Normal').className).toContain('border-input-border');
   });
 
+  it('renders a non-color error glyph and marks aria-invalid when error is true', () => {
+    const { container } = render(<Select label="Bad" options={options} error />);
+    const glyph = container.querySelector('span[title="Invalid value"]');
+    expect(glyph?.textContent).toBe('!');
+    expect(screen.getByLabelText('Bad').getAttribute('aria-invalid')).toBe('true');
+  });
+
+  it('does not render the error glyph when no error', () => {
+    const { container } = render(<Select label="Good" options={options} />);
+    expect(container.querySelector('span[title="Invalid value"]')).toBeNull();
+    expect(screen.getByLabelText('Good').getAttribute('aria-invalid')).toBeNull();
+  });
+
   it('handles change events', async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
