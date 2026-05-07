@@ -146,16 +146,16 @@ function getMinimapColor(type: ColumnDef['type']): string {
     case 'attribute': return 'text-primary';
     case 'tags': return 'text-emerald-500';
     case 'dates': return 'text-slate-400';
-    case 'debit': return 'text-red-400';
-    case 'credit': return 'text-emerald-400';
+    case 'debit': return 'text-red-400 dark:text-rose-300';
+    case 'credit': return 'text-emerald-400 dark:text-emerald-300';
   }
 }
 
 function getMinimapBorderColor(type: ColumnDef['type']): string | null {
   switch (type) {
     case 'attribute': return '#3b82f6'; // blue-500
-    case 'debit': return '#ef4444';     // red-500
-    case 'credit': return '#10b981';    // emerald-500
+    case 'debit': return 'var(--th-debit-accent)';
+    case 'credit': return 'var(--th-credit-accent)';
     default: return null;
   }
 }
@@ -1598,11 +1598,11 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                           const isReturn = side === 'RC';
                           const amt = isDebit ? item.row['Amount'] : null;
                           return (
-                            <td key={col.key} className={`px-3 ${cellPy} text-xs text-right font-medium whitespace-nowrap ${amt != null ? 'text-red-600' : 'text-faint'} ${stickyBg} `} style={getCellStyle(colIdx, false)}>
+                            <td key={col.key} className={`px-3 ${cellPy} text-xs text-right font-medium whitespace-nowrap ${amt != null ? 'text-red-600 dark:text-rose-300' : 'text-faint'} ${stickyBg} `} style={getCellStyle(colIdx, false)}>
                               {amt != null ? (
                                 <div className="flex items-center justify-end gap-1">
                                   {isReturn && <Badge variant="amber" size="xs" className="border border-amber-200">RTN</Badge>}
-                                  <span><span className="icon-saudi_riyal">&#xea;</span> {(() => { const parts = Number(amt).toFixed(2).split('.'); return <>{Number(parts[0]).toLocaleString()}<sup className="text-[0.65em] relative -top-[0.55em]">.{parts[1]}</sup></>; })()}</span>
+                                  <span><span aria-hidden="true">&#x2212;</span><span className="icon-saudi_riyal">&#xea;</span> {(() => { const parts = Number(amt).toFixed(2).split('.'); return <>{Number(parts[0]).toLocaleString()}<sup className="text-[0.65em] relative -top-[0.55em]">.{parts[1]}</sup></>; })()}</span>
                                 </div>
                               ) : '-'}
                               {stickyEdgeShadow(colIdx)}
@@ -1615,7 +1615,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                           const isReturn = side === 'RD';
                           const amt = isCredit ? item.row['Amount'] : null;
                           return (
-                            <td key={col.key} className={`px-3 ${cellPy} text-xs text-right font-medium whitespace-nowrap ${amt != null ? 'text-emerald-500' : 'text-faint'} ${stickyBg}`} style={getCellStyle(colIdx, false)}>
+                            <td key={col.key} className={`px-3 ${cellPy} text-xs text-right font-medium whitespace-nowrap ${amt != null ? 'text-emerald-500 dark:text-emerald-300' : 'text-faint'} ${stickyBg}`} style={getCellStyle(colIdx, false)}>
                               {amt != null ? (
                                 <div className="flex items-center justify-end gap-1">
                                   {isReturn && <Badge variant="amber" size="xs" className="border border-amber-200">RTN</Badge>}
@@ -1655,8 +1655,8 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                               validationPassed = validation.regex.test(sourceVal);
                             }
                             validationIcon = validationPassed
-                              ? <span className="text-emerald-500 mr-1" title="Valid">&#10003;</span>
-                              : <span className="text-red-400 mr-1" title="Invalid">&#10007;</span>;
+                              ? <span className="text-emerald-500 dark:text-emerald-300 mr-1" title="Valid">&#10003;</span>
+                              : <span className="text-red-400 dark:text-rose-300 mr-1" title="Invalid">&#10007;</span>;
                           }
                           const rawDisplayVal = val;
                           const attrLovTag = attrLovTagMap.get(col.name);
@@ -1670,7 +1670,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                               key={col.key}
                               className={`px-3 ${cellPy} text-xs ${relaxedMode ? 'whitespace-nowrap' : ''}
                               ${validationIcon ? 'text-center' : 'text-left'}
-                              ${validationPassed === true ? 'text-emerald-500' : validationPassed === false ? 'text-red-400' : 'text-primary-dark'}
+                              ${validationPassed === true ? 'text-emerald-500 dark:text-emerald-300' : validationPassed === false ? 'text-red-400 dark:text-rose-300' : 'text-primary-dark'}
                               ${isAttrHighlighted ? 'ring-2 ring-blue-400/60 ring-inset bg-blue-50 dark:bg-blue-900/30' : isStickyCol ? 'bg-primary/10 group-hover:bg-primary/15' : 'bg-primary/5'}`}
                               style={getCellStyle(colIdx, false)}
                               onMouseEnter={() => {

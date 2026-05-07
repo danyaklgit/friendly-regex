@@ -47,7 +47,7 @@ function AmountCell({ row, type }: { row: TransactionRow; type: 'debit' | 'credi
   return (
     <div className="flex items-center justify-end gap-1">
       {isReturn && <span className="text-[9px] font-semibold px-1 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700">RTN</span>}
-      <span><span className="icon-saudi_riyal">&#xea;</span> {amt.integer}<sup className="text-[0.65em] relative -top-[0.55em]">.{amt.decimal}</sup></span>
+      <span>{isDebit && <span aria-hidden="true">&#x2212;</span>}<span className="icon-saudi_riyal">&#xea;</span> {amt.integer}<sup className="text-[0.65em] relative -top-[0.55em]">.{amt.decimal}</sup></span>
     </div>
   );
 }
@@ -320,14 +320,14 @@ export function ViewContextModal({ open, onClose, transaction, authToken, tepHea
                       switch (col.type) {
                         case 'debit':
                           dataCell = (
-                            <td key={col.key} className={`${cellCls} text-right text-red-600 font-medium ${isHighlighted ? 'font-semibold' : ''}`}>
+                            <td key={col.key} className={`${cellCls} text-right text-red-600 dark:text-rose-300 font-medium ${isHighlighted ? 'font-semibold' : ''}`}>
                               <AmountCell row={item.row} type="debit" />
                             </td>
                           );
                           break;
                         case 'credit':
                           dataCell = (
-                            <td key={col.key} className={`${cellCls} text-right text-emerald-500 font-medium ${isHighlighted ? 'font-semibold' : ''}`}>
+                            <td key={col.key} className={`${cellCls} text-right text-emerald-500 dark:text-emerald-300 font-medium ${isHighlighted ? 'font-semibold' : ''}`}>
                               <AmountCell row={item.row} type="credit" />
                             </td>
                           );
