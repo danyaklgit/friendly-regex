@@ -204,6 +204,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const {
     transactions, fieldMeta, loadTransactions, resetToSample, isCustomData, flagDeadEnd,
     isLiveMode, loading, hasMore: liveHasMore, totalTransactionsCount, fetchPage, fetchCount,
+    trimLoadedTransactions,
     filterDefinitions, filterDefinitionsLoading, fetchFilterDefinitions,
     decimalMaxValues, fetchDecimalMaxValues,
   } = useTransactionData();
@@ -1404,49 +1405,75 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       />
       )}
 
-      {(hasMore || loading || (!incrementalPagination && (isLiveMode ? (totalTransactionsCount ?? 0) > BATCH_SIZE : filteredLen > BATCH_SIZE))) && (
+      {(hasMore || loading || (incrementalPagination && (isLiveMode ? transactions.length : visibleCount) > BATCH_SIZE) || (!incrementalPagination && (isLiveMode ? (totalTransactionsCount ?? 0) > BATCH_SIZE : filteredLen > BATCH_SIZE))) && (() => {
+        // Compute backward and forward batch lists once so the skeleton placeholders
+        // mirror the actual button layout (e.g. don't draw four backward boxes when
+        // only one backward button would render).
+        const loadedNow = isLiveMode ? transactions.length : visibleCount;
+        const totalNow = isLiveMode ? (totalTransactionsCount ?? transactions.length) : filteredLen;
+        const removable = Math.max(0, loadedNow - BATCH_SIZE);
+        const backBatches = (() => {
+          const b = [500, 200, 50, 25].filter((x) => x <= removable);
+          if (b.length === 0 && removable > 0) b.unshift(removable);
+          return b;
+        })();
+        const remaining = Math.max(0, totalNow - loadedNow);
+        const fwdBatches = (() => {
+          const b = [25, 50, 200, 500].filter((x) => x <= remaining);
+          if (b.length === 0 && remaining > 0) b.push(remaining);
+          return b;
+        })();
+        return (
         <div className="flex items-center justify-center gap-3 py-2 mt-1 border border-border bg-surface-secondary rounded-lg">
           {loading ? (
             <div className="flex items-center gap-3 animate-pulse">
+              {backBatches.map((_, i) => (
+                <div key={`back-skel-${i}`} className="h-5 w-10 rounded bg-gray-200 dark:bg-gray-700" />
+              ))}
+              {backBatches.length > 0 && <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />}
               <div className="h-4 w-28 rounded bg-gray-200 dark:bg-gray-700" />
-              <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
-              <div className="h-5 w-10 rounded bg-gray-200 dark:bg-gray-700" />
-              <div className="h-5 w-10 rounded bg-gray-200 dark:bg-gray-700" />
-              <div className="h-5 w-10 rounded bg-gray-200 dark:bg-gray-700" />
-              <div className="h-5 w-10 rounded bg-gray-200 dark:bg-gray-700" />
+              {fwdBatches.length > 0 && <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />}
+              {fwdBatches.map((_, i) => (
+                <div key={`fwd-skel-${i}`} className="h-5 w-10 rounded bg-gray-200 dark:bg-gray-700" />
+              ))}
             </div>
           ) : incrementalPagination ? (
             <>
+              {backBatches.length > 0 && (
+                <>
+                  {backBatches.map((size) => (
+                    <Button key={`back-${size}`} variant="outline" size="xs" onClick={() => {
+                      if (isLiveMode) trimLoadedTransactions(size);
+                      else setVisibleCount((c) => Math.max(BATCH_SIZE, c - size));
+                    }}>
+                      &minus;{size.toLocaleString()}
+                    </Button>
+                  ))}
+                  <span className="text-border">|</span>
+                </>
+              )}
               <span className="text-xs text-muted">
-                <span className="font-medium text-heading">{(isLiveMode ? transactions.length : visibleCount).toLocaleString()}</span>
+                <span className="font-medium text-heading">{loadedNow.toLocaleString()}</span>
                 {' loaded · '}
-                <span className="font-medium text-heading">{(isLiveMode ? (totalTransactionsCount ?? transactions.length) : filteredLen).toLocaleString()}</span>
+                <span className="font-medium text-heading">{totalNow.toLocaleString()}</span>
                 {' total'}
               </span>
-              {hasMore && (() => {
-                const loaded = isLiveMode ? transactions.length : visibleCount;
-                const total = isLiveMode ? (totalTransactionsCount ?? transactions.length) : filteredLen;
-                const remaining = Math.max(0, total - loaded);
-                const batches = [25, 50, 200, 500].filter((b) => b <= remaining);
-                if (batches.length === 0 && remaining > 0) batches.push(remaining);
-                if (batches.length === 0) return null;
-                return (
-                  <>
-                    <span className="text-border">|</span>
-                    {batches.map((size) => (
-                      <Button key={size} variant="outline" size="xs" onClick={() => {
-                        if (isLiveMode) {
-                          fetchPage(outgoingFilters, true, undefined, size, activeExtraFilters.length > 0 ? activeExtraFilters : undefined);
-                        } else {
-                          setVisibleCount((c) => c + size);
-                        }
-                      }}>
-                        +{size.toLocaleString()}
-                      </Button>
-                    ))}
-                  </>
-                );
-              })()}
+              {hasMore && fwdBatches.length > 0 && (
+                <>
+                  <span className="text-border">|</span>
+                  {fwdBatches.map((size) => (
+                    <Button key={size} variant="outline" size="xs" onClick={() => {
+                      if (isLiveMode) {
+                        fetchPage(outgoingFilters, true, undefined, size, activeExtraFilters.length > 0 ? activeExtraFilters : undefined);
+                      } else {
+                        setVisibleCount((c) => c + size);
+                      }
+                    }}>
+                      +{size.toLocaleString()}
+                    </Button>
+                  ))}
+                </>
+              )}
             </>
           ) : (
             <>
@@ -1503,7 +1530,8 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
             </>
           )}
         </div>
-      )}
+        );
+      })()}
 
       {wizardOpen && (
         <TagWizardModal
