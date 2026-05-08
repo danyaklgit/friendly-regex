@@ -474,7 +474,7 @@ function SearchFilter({
         value={inputValue}
         onChange={(e) => handleChange(e.target.value)}
         placeholder={definition.Label}
-        className={`text-xs px-3 py-1.5 rounded-lg border transition-colors w-40 outline-none ${
+        className={`text-xs pl-3 ${currentValue ? 'pr-7' : 'pr-3'} py-1.5 rounded-lg border transition-colors w-40 outline-none ${
           currentValue
             ? 'bg-primary/10 border-primary/30 text-primary-dark placeholder:text-primary-dark/50'
             : 'bg-surface border-border-strong text-body placeholder:text-muted hover:bg-surface-hover'
