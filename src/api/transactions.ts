@@ -44,7 +44,6 @@ export interface GetTransactionsRequest {
 export interface TepHeaders {
   apiKey: string;
   userId: string;
-  activityTag?: string;
   tenantCode: string;
   languageCode: string;
   timeZone: string;
@@ -148,7 +147,7 @@ export async function getTransactions(
       Accept: 'application/json',
       Authorization: `Bearer ${authToken}`,
       'x-apikey': tepHeaders.apiKey,
-      ActivityTag: tepHeaders.activityTag ?? 'sit',
+      ActivityTag: 'GetMT940Transactions',
       LanguageCode: tepHeaders.languageCode,
       TTPUserId: tepHeaders.userId,
       TTPTenantCode: tepHeaders.tenantCode,
