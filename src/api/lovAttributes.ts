@@ -24,7 +24,7 @@ export async function getListsByTags(
 ): Promise<LOVList[]> {
   const res = await fetch(`${BASE}/GetListsByTags`, {
     method: 'POST',
-    headers: { ...buildHeaders(token, tepHeaders), ActivityTag: 'GetListsByTags' },
+    headers: buildHeaders(token, tepHeaders, 'GetListsByTags'),
     body: JSON.stringify({ Tags: [...LOV_TAGS] }),
     signal,
   });
@@ -40,7 +40,7 @@ export async function getValidationClasses(
 ): Promise<ValidationClass[]> {
   const res = await fetch(`${BASE}/GetValidationClasses`, {
     method: 'POST',
-    headers: { ...buildHeaders(token, tepHeaders), ActivityTag: 'GetValidationClasses' },
+    headers: buildHeaders(token, tepHeaders, 'GetValidationClasses'),
     body: JSON.stringify({}),
     signal,
   });
@@ -56,7 +56,7 @@ export async function getAttributes(
 ): Promise<BackendAttribute[]> {
   const res = await fetch(`${BASE}/GetAttributes`, {
     method: 'POST',
-    headers: { ...buildHeaders(token, tepHeaders), ActivityTag: 'GetAttributes' },
+    headers: buildHeaders(token, tepHeaders, 'GetAttributes'),
     body: JSON.stringify({}),
     signal,
   });
@@ -73,7 +73,7 @@ export async function createAttribute(
 ): Promise<string | null> {
   const res = await fetch(`${BASE}/CreateAttribute`, {
     method: 'POST',
-    headers: { ...buildHeaders(token, tepHeaders), ActivityTag: 'CreateAttribute' },
+    headers: buildHeaders(token, tepHeaders, 'CreateAttribute'),
     body: JSON.stringify(payload),
     signal,
   });
@@ -90,7 +90,7 @@ export async function updateAttribute(
 ): Promise<string | null> {
   const res = await fetch(`${BASE}/UpdateAttribute`, {
     method: 'POST',
-    headers: { ...buildHeaders(token, tepHeaders), ActivityTag: 'UpdateAttribute' },
+    headers: buildHeaders(token, tepHeaders, 'UpdateAttribute'),
     body: JSON.stringify(payload),
     signal,
   });
@@ -107,7 +107,7 @@ export async function disableAttribute(
 ): Promise<string | null> {
   const res = await fetch(`${BASE}/DisableAttribute`, {
     method: 'POST',
-    headers: { ...buildHeaders(token, tepHeaders), ActivityTag: 'DisableAttribute' },
+    headers: buildHeaders(token, tepHeaders, 'DisableAttribute'),
     body: JSON.stringify({ Id: id }),
     signal,
   });
@@ -124,7 +124,7 @@ export async function enableAttribute(
 ): Promise<string | null> {
   const res = await fetch(`${BASE}/EnableAttribute`, {
     method: 'POST',
-    headers: { ...buildHeaders(token, tepHeaders), ActivityTag: 'EnableAttribute' },
+    headers: buildHeaders(token, tepHeaders, 'EnableAttribute'),
     body: JSON.stringify({ Id: id }),
     signal,
   });
@@ -141,7 +141,7 @@ export async function deleteAttribute(
 ): Promise<string | null> {
   const res = await fetch(`${BASE}/DeleteAttribute`, {
     method: 'POST',
-    headers: { ...buildHeaders(token, tepHeaders), ActivityTag: 'DeleteAttribute' },
+    headers: buildHeaders(token, tepHeaders, 'DeleteAttribute'),
     body: JSON.stringify({ Id: id }),
     signal,
   });

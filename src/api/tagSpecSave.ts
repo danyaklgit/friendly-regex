@@ -24,7 +24,7 @@ export async function tagSpecLibrarySave(
   };
   const res = await fetch(`${BASE}/TagSpecLibrarySave`, {
     method: 'POST',
-    headers: buildHeaders(token, tepHeaders),
+    headers: buildHeaders(token, tepHeaders, 'TagSpecLibrarySave'),
     body: JSON.stringify({ TagSpecLib: sanitized }),
     signal,
   });
