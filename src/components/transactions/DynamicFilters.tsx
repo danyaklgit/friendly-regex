@@ -294,13 +294,9 @@ function StringFromListDropdown({
     );
   }, [definition.Values, search]);
 
-  // Keyboard navigation walks the list in the same order it renders:
-  // selected items (sticky group at top) first, then unselected.
-  const navigableValues = useMemo(() => {
-    const sel = filteredValues.filter((v) => selected.has(v.Value ?? ''));
-    const unsel = filteredValues.filter((v) => !selected.has(v.Value ?? ''));
-    return [...sel, ...unsel];
-  }, [filteredValues, selected]);
+  // Keyboard navigation walks the list in its natural rendered order — selected
+  // items stay where they are instead of being pulled to the top.
+  const navigableValues = filteredValues;
 
   const handleToggle = (value: string) => {
     const next = new Set(selected);
@@ -400,67 +396,34 @@ function StringFromListDropdown({
               {filteredValues.length === 0 ? (
                 <div className="px-2 py-3 text-xs text-faint text-center">No matches</div>
               ) : (
-                <>
-                  {/* Selected items sticky at top */}
-                  {navigableValues.some((v) => selected.has(v.Value ?? '')) && (
-                    <div className="sticky top-0 z-10 bg-surface pb-0">
-                      {navigableValues.filter((v) => selected.has(v.Value ?? '')).map((v) => {
-                        const hasDistinctLabel = v.Label && v.Label !== v.Value;
-                        const idx = navigableValues.indexOf(v);
-                        const isHighlighted = idx === highlightIndex;
-                        return (
-                          <label
-                            key={v.Value}
-                            data-opt-index={idx}
-                            onMouseEnter={() => setHighlightIndex(idx)}
-                            className={`flex items-start gap-2 px-2 py-1.5 text-xs rounded cursor-pointer ${isHighlighted ? 'bg-primary/15' : 'bg-primary/5 hover:bg-surface-hover'}`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked
-                              onChange={() => handleToggle(v.Value ?? '')}
-                              className="rounded border-border-strong shrink-0 mt-0.5"
-                            />
-                            <span className="min-w-0">
-                              <span className="block text-black dark:text-white font-medium truncate">{v.Value}</span>
-                              {hasDistinctLabel && <span className="block text-[10px] text-muted truncate">{v.Label}</span>}
-                            </span>
-                          </label>
-                        );
-                      })}
-                      {navigableValues.some((v) => !selected.has(v.Value ?? '')) && (
-                        <div className="border-t border-border-subtle mt-1" />
-                      )}
-                    </div>
-                  )}
-                  {/* Unselected items */}
-                  <div>
-                    {navigableValues.filter((v) => !selected.has(v.Value ?? '')).map((v) => {
-                      const hasDistinctLabel = v.Label && v.Label !== v.Value;
-                      const idx = navigableValues.indexOf(v);
-                      const isHighlighted = idx === highlightIndex;
-                      return (
-                        <label
-                          key={v.Value}
-                          data-opt-index={idx}
-                          onMouseEnter={() => setHighlightIndex(idx)}
-                          className={`flex items-start gap-2 px-2 py-1.5 text-xs rounded cursor-pointer ${isHighlighted ? 'bg-primary/10' : 'hover:bg-surface-hover'}`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={false}
-                            onChange={() => handleToggle(v.Value ?? '')}
-                            className="rounded border-border-strong shrink-0 mt-0.5"
-                          />
-                          <span className="min-w-0">
-                            <span className="block text-black dark:text-white font-medium truncate">{v.Value}</span>
-                            {hasDistinctLabel && <span className="block text-[10px] text-muted truncate">{v.Label}</span>}
-                          </span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </>
+                navigableValues.map((v, idx) => {
+                  const hasDistinctLabel = v.Label && v.Label !== v.Value;
+                  const isSelected = selected.has(v.Value ?? '');
+                  const isHighlighted = idx === highlightIndex;
+                  const baseBg = isSelected ? 'bg-primary/5' : '';
+                  const hoverBg = isHighlighted
+                    ? (isSelected ? 'bg-primary/15' : 'bg-primary/10')
+                    : 'hover:bg-surface-hover';
+                  return (
+                    <label
+                      key={v.Value}
+                      data-opt-index={idx}
+                      onMouseEnter={() => setHighlightIndex(idx)}
+                      className={`flex items-start gap-2 px-2 py-1.5 text-xs rounded cursor-pointer ${baseBg} ${hoverBg}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => handleToggle(v.Value ?? '')}
+                        className="rounded border-border-strong shrink-0 mt-0.5"
+                      />
+                      <span className="min-w-0">
+                        <span className="block text-black dark:text-white font-medium truncate">{v.Value}</span>
+                        {hasDistinctLabel && <span className="block text-[10px] text-muted truncate">{v.Label}</span>}
+                      </span>
+                    </label>
+                  );
+                })
               )}
             </div>
           </div>
