@@ -23,6 +23,7 @@ export interface TransactionDataContextValue {
   totalTransactionsCount: number | null;
   fetchPage: (filters: Record<string, Set<string>>, append: boolean, pageIndex?: number, pageSize?: number, extraFilters?: FilterProperty[]) => Promise<void>;
   fetchCount: (filters: Record<string, Set<string>>, extraFilters?: FilterProperty[]) => Promise<number | null>;
+  trimLoadedTransactions: (count: number) => void;
   filterDefinitions: FilterDefinition[];
   filterDefinitionsLoading: boolean;
   fetchFilterDefinitions: () => Promise<void>;
@@ -304,10 +305,31 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
   // Abort pending requests on unmount
   useEffect(() => () => { abortRef.current?.abort(); }, []);
 
+  // Drop the last `count` rows from the live-mode buffer (no network round-trip).
+  // Mirror of the forward-incremental "+N" load: lets the user shrink the loaded
+  // window so the table stays light. Re-enables `hasMore` so the next "+N" can
+  // refetch the rows that were just dropped. Surfaces the standard `loading`
+  // state for ~150ms so the toolbar shows the same skeleton as a forward fetch
+  // — purely cosmetic parity, the slice itself is instant.
+  const trimLoadedTransactions = useCallback((count: number) => {
+    if (!isLiveMode || count <= 0) return;
+    setLoading(true);
+    setTimeout(() => {
+      setTransactions((prev) => {
+        const next = prev.slice(0, Math.max(0, prev.length - count));
+        loadedCountRef.current = next.length;
+        return next;
+      });
+      setHasMore(true);
+      setLoading(false);
+    }, 150);
+  }, [isLiveMode]);
+
   return (
     <TransactionDataContext.Provider value={{
       transactions, fieldMeta, loadTransactions, resetToSample, isCustomData, flagDeadEnd,
       isLiveMode, loading, hasMore, totalTransactionsCount, fetchPage, fetchCount,
+      trimLoadedTransactions,
       filterDefinitions, filterDefinitionsLoading, fetchFilterDefinitions,
       decimalMaxValues, fetchDecimalMaxValues,
     }}>
