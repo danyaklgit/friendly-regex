@@ -729,6 +729,10 @@ function DateFilter({
   const hasActive = !!currentFrom || !!currentTo;
 
   const handleChange = (from: string, to: string) => {
+    // Reject ranges where From is after To. Native min/max attrs already block
+    // the date picker, but typed/pasted entry can bypass that, so we also guard
+    // here as a defensive measure.
+    if (from && to && from > to) return;
     const next = { ...filters };
     if (from) next[gteKey] = new Set([from]);
     else delete next[gteKey];
@@ -764,6 +768,7 @@ function DateFilter({
                 <input
                   type="date"
                   value={currentFrom}
+                  max={currentTo || undefined}
                   onChange={(e) => handleChange(e.target.value, currentTo)}
                   className="w-full text-xs px-2 py-1 rounded border border-border-strong bg-surface text-body outline-none"
                 />
@@ -774,6 +779,7 @@ function DateFilter({
                 <input
                   type="date"
                   value={currentTo}
+                  min={currentFrom || undefined}
                   onChange={(e) => handleChange(currentFrom, e.target.value)}
                   className="w-full text-xs px-2 py-1 rounded border border-border-strong bg-surface text-body outline-none"
                 />
