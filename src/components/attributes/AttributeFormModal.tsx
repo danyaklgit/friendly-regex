@@ -104,9 +104,9 @@ export function AttributeFormModal({ open, onClose, onSave, existing }: Attribut
     >
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
-          <div className={`rounded-lg p-3 border ${duplicateAttribute ? 'bg-red-50 dark:bg-rose-900/20 border-red-400 dark:border-rose-400' : 'bg-surface-secondary border-border'}`}>
-            <p className="text-[10px] font-semibold text-muted uppercase tracking-wider mb-2">Value (auto-generated)</p>
-            <p className="text-sm font-mono text-heading">{computedValue || '—'}</p>
+          <div className={`min-w-0 rounded-lg p-3 border ${duplicateAttribute ? 'bg-red-50 dark:bg-rose-900/20 border-red-400 dark:border-rose-400' : 'bg-surface-secondary border-border'}`}>
+            <p className="text-xs font-semibold text-muted mb-2">Value (Auto Generated)</p>
+            <p className="text-sm font-mono text-heading break-all">{computedValue || '—'}</p>
           </div>
           <Select
             label="Suggested LOV"
