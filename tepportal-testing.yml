@@ -1,0 +1,38 @@
+trigger: none
+variables:
+  - group: SharedVariables
+  - group: ViteVariables
+pool:
+   name: $(poolName-TEP-TESTING)
+   demands:
+     - agent.name -equals TEP-TESTING-agent
+resources:
+  repositories:
+    - repository: PipelineTemplates
+      type: git
+      name: Pluto/PipelineTemplates
+steps:
+- task: UseNode@1
+  displayName: 'Use Node.js 20.x'
+  inputs:
+    version: '20.x'
+- task: Npm@1
+  displayName: 'Install dependencies'
+  inputs:
+    command: 'ci'
+- task: Npm@1
+  displayName: 'npm build'
+  inputs:
+    command: 'custom'
+    customCommand: 'run build'
+- task: CopyFiles@2
+  displayName: 'Copy files to Publish folder'
+  inputs:
+    SourceFolder: '$(Build.SourcesDirectory)\dist'
+    Contents: '**'
+    TargetFolder: 'C:\DevOps\PublishedFiles\TxTEPPortal'
+    CleanTargetFolder: true
+- template: cd-pipeline.yml@PipelineTemplates
+  parameters:
+    solutionName: 'TxTEPPortal'
+    websiteName: 'TxTEPPortal'
