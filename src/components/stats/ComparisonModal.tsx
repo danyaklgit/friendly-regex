@@ -176,7 +176,7 @@ export function ComparisonModal({ open, onClose, activeLib, inProgressLib, onTag
                   const details = diffDefinition(active, inProgress);
                   const interactive = rowInteractive(inProgress);
                   return (
-                    <li key={active.Id} className={`text-sm ${interactive.className}`} {...interactive}>
+                    <li key={active.Id} {...interactive} className={`text-sm ${interactive.className}`}>
                       <div className="flex items-center gap-2 text-body">
                         <span className="text-yellow-600 dark:text-amber-300 font-medium">~</span>
                         <TagBadge tag={inProgress.Tag} />
