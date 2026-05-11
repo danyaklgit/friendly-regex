@@ -23,7 +23,7 @@ function toPascalCase(str: string): string {
 
 export function AttributeFormModal({ open, onClose, onSave, existing }: AttributeFormModalProps) {
   const isEdit = !!existing;
-  const { lovOptions } = useLovAttributes();
+  const { lovOptions, backendAttributes } = useLovAttributes();
 
   const [nameEn, setNameEn] = useState(() =>
     existing?.Details.find((d) => d.LanguageCode === 'en')?.Name ?? ''
@@ -45,12 +45,27 @@ export function AttributeFormModal({ open, onClose, onSave, existing }: Attribut
     return toPascalCase(nameEn);
   }, [isEdit, existing, nameEn]);
 
+  // Detect a duplicate `Value` against the existing attribute list. The backend
+  // enforces uniqueness on Value, so blocking client-side avoids a silent
+  // "create" round-trip that swallows the SFM-only failure. Edit mode allows
+  // the current row's own Value through.
+  const duplicateAttribute = useMemo(() => {
+    if (!computedValue) return null;
+    const needle = computedValue.toLowerCase();
+    return backendAttributes.find(
+      (a) =>
+        a.Value?.toLowerCase() === needle &&
+        (!isEdit || a.Id !== existing!.Id),
+    ) ?? null;
+  }, [computedValue, backendAttributes, isEdit, existing]);
+
   const canSave =
     nameEn.trim().length > 0 &&
     shortDescEn.trim().length > 0 &&
     nameAr.trim().length > 0 &&
     shortDescAr.trim().length > 0 &&
-    computedValue.length > 0;
+    computedValue.length > 0 &&
+    !duplicateAttribute;
 
   const handleSave = async () => {
     if (!canSave) return;
@@ -89,7 +104,7 @@ export function AttributeFormModal({ open, onClose, onSave, existing }: Attribut
     >
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
-          <div className="bg-surface-secondary rounded-lg p-3 border border-border">
+          <div className={`rounded-lg p-3 border ${duplicateAttribute ? 'bg-red-50 dark:bg-rose-900/20 border-red-400 dark:border-rose-400' : 'bg-surface-secondary border-border'}`}>
             <p className="text-[10px] font-semibold text-muted uppercase tracking-wider mb-2">Value (auto-generated)</p>
             <p className="text-sm font-mono text-heading">{computedValue || '—'}</p>
           </div>
@@ -97,15 +112,25 @@ export function AttributeFormModal({ open, onClose, onSave, existing }: Attribut
             label="Suggested LOV"
             value={possibleLovTag}
             onChange={(e) => setPossibleLovTag(e.target.value)}
-            options={lovOptions}
-            placeholder="None"
+            options={[{ value: '', label: 'None' }, ...lovOptions]}
           />
         </div>
+        {duplicateAttribute && (
+          <p
+            role="alert"
+            className="text-xs text-red-600 dark:text-rose-300 inline-flex items-start gap-1.5 -mt-2"
+          >
+            <span aria-hidden="true" className="font-bold leading-none">!</span>
+            <span>
+              An attribute named <span className="font-mono font-semibold">{duplicateAttribute.Value}</span> already exists. Pick a different name to continue.
+            </span>
+          </p>
+        )}
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-3">
             <p className="text-xs font-semibold text-body-secondary">English</p>
-            <Input label="Name" value={nameEn} onChange={(e) => setNameEn(e.target.value)} placeholder="e.g. Bank Name" required />
+            <Input label="Name" value={nameEn} onChange={(e) => setNameEn(e.target.value)} placeholder="e.g. Bank Name" required error={!!duplicateAttribute} />
             <Input label="Short Description" value={shortDescEn} onChange={(e) => setShortDescEn(e.target.value)} placeholder="Brief description" required />
           </div>
           <div className="space-y-3">
