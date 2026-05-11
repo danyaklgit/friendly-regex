@@ -100,8 +100,8 @@ export function ComparisonModal({ open, onClose, activeLib, inProgressLib, onTag
     setTimeout(() => onTagClick(def), 500);
   };
 
-  const rowInteractive = (def: TagSpecDefinition) => {
-    if (!onTagClick) return { className: '' };
+  const rowHandlers = (def: TagSpecDefinition) => {
+    if (!onTagClick) return {};
     const thisPending = pendingId === def.Id;
     return {
       role: 'button' as const,
@@ -117,14 +117,19 @@ export function ComparisonModal({ open, onClose, activeLib, inProgressLib, onTag
         }
       },
       title: thisPending ? 'Opening transactions…' : 'Open this rule’s transactions',
-      className: `rounded px-1 -mx-1 transition-colors ${
-        thisPending
-          ? 'bg-primary/10'
-          : isPending
-            ? 'opacity-50 pointer-events-none'
-            : 'cursor-pointer hover:bg-surface-hover'
-      }`,
     };
+  };
+
+  const rowClassName = (def: TagSpecDefinition, base: string) => {
+    if (!onTagClick) return base;
+    const thisPending = pendingId === def.Id;
+    return `${base} rounded px-1 -mx-1 transition-colors ${
+      thisPending
+        ? 'bg-primary/10'
+        : isPending
+          ? 'opacity-50 pointer-events-none'
+          : 'cursor-pointer hover:bg-surface-hover'
+    }`;
   };
 
   const hasChanges = diff.added.length > 0 || diff.removed.length > 0 || diff.modified.length > 0;
@@ -148,20 +153,17 @@ export function ComparisonModal({ open, onClose, activeLib, inProgressLib, onTag
                 Added ({diff.added.length})
               </h3>
               <ul className="space-y-1">
-                {diff.added.map(d => {
-                  const interactive = rowInteractive(d);
-                  return (
-                    <li
-                      key={d.Id}
-                      {...interactive}
-                      className={`flex items-center gap-2 text-sm text-body ${interactive.className}`}
-                    >
-                      <span className="text-green-600 dark:text-emerald-300 font-medium">+</span>
-                      <TagBadge tag={d.Tag} />
-                      <span className="text-body-secondary">— {d.StatusTag}</span>
-                    </li>
-                  );
-                })}
+                {diff.added.map(d => (
+                  <li
+                    key={d.Id}
+                    {...rowHandlers(d)}
+                    className={rowClassName(d, 'flex items-center gap-2 text-sm text-body')}
+                  >
+                    <span className="text-green-600 dark:text-emerald-300 font-medium">+</span>
+                    <TagBadge tag={d.Tag} />
+                    <span className="text-body-secondary">— {d.StatusTag}</span>
+                  </li>
+                ))}
               </ul>
             </section>
           )}
@@ -174,9 +176,12 @@ export function ComparisonModal({ open, onClose, activeLib, inProgressLib, onTag
               <ul className="space-y-2">
                 {diff.modified.map(({ active, inProgress }) => {
                   const details = diffDefinition(active, inProgress);
-                  const interactive = rowInteractive(inProgress);
                   return (
-                    <li key={active.Id} className={`text-sm ${interactive.className}`} {...interactive}>
+                    <li
+                      key={active.Id}
+                      {...rowHandlers(inProgress)}
+                      className={rowClassName(inProgress, 'text-sm')}
+                    >
                       <div className="flex items-center gap-2 text-body">
                         <span className="text-yellow-600 dark:text-amber-300 font-medium">~</span>
                         <TagBadge tag={inProgress.Tag} />
@@ -201,20 +206,17 @@ export function ComparisonModal({ open, onClose, activeLib, inProgressLib, onTag
                 Removed ({diff.removed.length})
               </h3>
               <ul className="space-y-1">
-                {diff.removed.map(d => {
-                  const interactive = rowInteractive(d);
-                  return (
-                    <li
-                      key={d.Id}
-                      {...interactive}
-                      className={`flex items-center gap-2 text-sm text-body ${interactive.className}`}
-                    >
-                      <span className="text-red-600 dark:text-rose-300 font-medium">-</span>
-                      <TagBadge tag={d.Tag} />
-                      <span className="text-body-secondary">— {d.StatusTag}</span>
-                    </li>
-                  );
-                })}
+                {diff.removed.map(d => (
+                  <li
+                    key={d.Id}
+                    {...rowHandlers(d)}
+                    className={rowClassName(d, 'flex items-center gap-2 text-sm text-body')}
+                  >
+                    <span className="text-red-600 dark:text-rose-300 font-medium">-</span>
+                    <TagBadge tag={d.Tag} />
+                    <span className="text-body-secondary">— {d.StatusTag}</span>
+                  </li>
+                ))}
               </ul>
             </section>
           )}
