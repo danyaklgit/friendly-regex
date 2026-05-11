@@ -37,7 +37,7 @@ export function TransformationPreview({ transformations, sampleValue }: Transfor
         return (
           <div key={step.index} className="flex items-start gap-2 text-xs">
             <span className="shrink-0 w-5 text-right text-faint font-mono">{step.index + 1}.</span>
-            <span className="text-orange-500 text-[10px] shrink-0 w-20 truncate" title={def?.label ?? step.method}>
+            <span className="text-orange-500 dark:text-orange-300 text-[10px] shrink-0 w-20 truncate" title={def?.label ?? step.method}>
               {def?.label ?? step.method}
             </span>
             <span className="text-faint">&rarr;</span>

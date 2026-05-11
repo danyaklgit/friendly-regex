@@ -84,7 +84,7 @@ export function ConditionEditor({
     <div>
       {showAnd && (
         <div className="flex items-center justify-start my-1 px-2">
-          <span className="text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border-dashed border w-fit">
+          <span className="text-xs font-semibold text-amber-600 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 px-2 py-0.5 rounded border-dashed border w-fit">
             AND
           </span>
         </div>
@@ -155,7 +155,7 @@ export function ConditionEditor({
             onClick={() => { setSnapshot({ ...condition }); setEditing(true); }}
           >
             <p className="text-xs text-primary italic">
-              {humanizeFieldName(condition.sourceField)} &rarr; <span className='text-orange-500'>{preview}</span>
+              {humanizeFieldName(condition.sourceField)} &rarr; <span className='text-orange-500 dark:text-orange-300'>{preview}</span>
             </p>
           </div>
         )}
@@ -168,7 +168,7 @@ export function ConditionEditor({
       {editing && preview && (
         <div className="mt-1 ml-3 flex items-center gap-2">
           <p className="text-xs text-primary italic text-left border-dashed border w-fit px-2 py-1">
-            {humanizeFieldName(condition.sourceField)} &rarr; <span className='text-orange-500'>{preview}</span>
+            {humanizeFieldName(condition.sourceField)} &rarr; <span className='text-orange-500 dark:text-orange-300'>{preview}</span>
           </p>
           {!readOnly && (
             <>

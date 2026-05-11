@@ -40,10 +40,10 @@ export function RulePreview({ ruleGroups, attributes }: RulePreviewProps) {
                       <div key={c.id}>
                         {ci > 0 && (
                           <div className="text-center my-0.5">
-                            <span className="text-xs font-semibold text-amber-600">AND</span>
+                            <span className="text-xs font-semibold text-amber-600 dark:text-amber-300">AND</span>
                           </div>
                         )}
-                        <p className="text-sm text-orange-500">
+                        <p className="text-sm text-orange-500 dark:text-orange-300">
                           <span className="font-mono text-xs text-primary-dark">{humanizeFieldName(c.sourceField)}</span>{' '}
                           {generateExpressionPrompt(c.operation, c.value, c.values)}
                         </p>
@@ -70,7 +70,7 @@ export function RulePreview({ ruleGroups, attributes }: RulePreviewProps) {
                   <span className="font-medium text-primary">{a.attributeTag}</span>{' '}
                   <span className="text-muted">from</span>{' '}
                   <span className="font-mono text-xs text-primary-dark">{humanizeFieldName(a.sourceField)}</span>{' '}
-                  <span className="text-orange-500">
+                  <span className="text-orange-500 dark:text-orange-300">
                     {generateExtractionPrompt(a.extractionOperation, {
                       prefix: a.prefix,
                       suffix: a.suffix,

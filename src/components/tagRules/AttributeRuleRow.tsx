@@ -21,7 +21,7 @@ export function AttributeRuleRow({ attribute }: AttributeRuleRowProps) {
           <span className="text-xs text-red-500 font-medium">Required</span>
         )}
       </div>
-      <div className="text-sm text-orange-500 flex-1">
+      <div className="text-sm text-orange-500 dark:text-orange-300 flex-1">
         <span className="font-mono text-xs text-primary-dark bg-primary/10 px-1.5 py-0.5 rounded mr-1.5">
           {humanizeFieldName(attribute.AttributeRuleExpression.SourceField)}
         </span>

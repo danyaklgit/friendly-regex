@@ -429,7 +429,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                   <>
                     <span className="text-faint mx-1.5">&mdash;</span>
                     <span className="text-primary italic">
-                      {humanizeFieldName(attribute.sourceField)} &rarr; <span className="text-orange-500">{preview}</span>
+                      {humanizeFieldName(attribute.sourceField)} &rarr; <span className="text-orange-500 dark:text-orange-300">{preview}</span>
                     </span>
                   </>
                 )}
@@ -880,7 +880,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
               <span className="font-medium text-primary-dark">{attribute.attributeTag}</span>
               <span className="text-faint mx-1.5">&mdash;</span>
               <span className="text-primary italic">
-                {humanizeFieldName(attribute.sourceField)} &rarr; <span className='text-orange-500'>{preview}</span>
+                {humanizeFieldName(attribute.sourceField)} &rarr; <span className='text-orange-500 dark:text-orange-300'>{preview}</span>
               </span>
               {(attribute.transformations?.length ?? 0) > 0 && (
                 <span className="text-purple-400 ml-1.5 text-[10px]">
