@@ -15,7 +15,7 @@ export function ConditionRow({ condition, showAnd }: ConditionRowProps) {
     <div>
       {showAnd && (
         <div className="flex items-center justify-center my-1">
-          <span className="text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded">
+          <span className="text-xs font-semibold text-amber-600 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 px-2 py-0.5 rounded">
             AND
           </span>
         </div>
@@ -24,7 +24,7 @@ export function ConditionRow({ condition, showAnd }: ConditionRowProps) {
         <span className="text-xs font-mono font-medium text-primary-dark bg-primary/10 px-1.5 py-0.5 rounded">
           {humanizeFieldName(condition.SourceField)}
         </span>
-        <span className="text-sm text-orange-500">{humanText}</span>
+        <span className="text-sm text-orange-500 dark:text-orange-300">{humanText}</span>
       </div>
     </div>
   );

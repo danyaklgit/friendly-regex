@@ -60,8 +60,8 @@ export function RuleGroupEditor({
             const rest = filled.length - 1;
             return (
               <span className="text-xs text-faint ml-1">
-                ( <span className="text-primary italic">{humanizeFieldName(first.sourceField)}</span> → <span className="text-orange-500 italic">{preview}</span>
-                {rest > 0 && <span className="ml-2 text-purple-600"> &amp; {rest} more</span>}
+                ( <span className="text-primary italic">{humanizeFieldName(first.sourceField)}</span> → <span className="text-orange-500 dark:text-orange-300 italic">{preview}</span>
+                {rest > 0 && <span className="ml-2 text-purple-600 dark:text-purple-300"> &amp; {rest} more</span>}
                 {' '})
               </span>
             );

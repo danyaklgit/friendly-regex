@@ -731,6 +731,12 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
           onClose={() => setCompareTarget(null)}
           activeLib={compareTarget.library}
           inProgressLib={compareTarget.inProgressLib}
+          onTagClick={(def) => {
+            const bank = compareTarget.bank;
+            const side = compareTarget.side;
+            setCompareTarget(null);
+            onViewTransactions(bank, side, def.Id);
+          }}
         />
       )}
 
