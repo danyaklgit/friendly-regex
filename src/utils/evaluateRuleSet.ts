@@ -26,7 +26,14 @@ export function evaluateRuleSet(andGroup: AndGroup, row: TransactionRow): boolea
 
     try {
       const regex = new RegExp(condition.Regex);
-      return regex.test(String(fieldValue).trim());
+      const fieldStr = String(fieldValue).trim();
+      // If the stored value is an ISO date-time string (YYYY-MM-DDThh:mm…),
+      // also test against just the date portion so a literal input like
+      // "2022-07-18" matches a stored value of "2022-07-18T00:00:00Z".
+      if (/^\d{4}-\d{2}-\d{2}T/.test(fieldStr)) {
+        return regex.test(fieldStr) || regex.test(fieldStr.split('T')[0]);
+      }
+      return regex.test(fieldStr);
     } catch {
       return false;
     }

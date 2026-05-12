@@ -89,4 +89,18 @@ describe('evaluateRuleSet', () => {
     const group: AndGroup = [makeCondition('Code', '^CR$')];
     expect(evaluateRuleSet(group, rowWithSpaces)).toBe(true);
   });
+
+  it('matches a literal date input against an ISO date-time stored value', () => {
+    // Rule "StatementDate equals 2022-07-18" compiles to ^2022-07-18$ but the
+    // stored value is the full ISO timestamp. The evaluator should still match.
+    const rowWithDate: TransactionRow = { StatementDate: '2022-07-18T00:00:00Z' };
+    const group: AndGroup = [makeCondition('StatementDate', '^2022-07-18$')];
+    expect(evaluateRuleSet(group, rowWithDate)).toBe(true);
+  });
+
+  it('still rejects a wrong literal date against an ISO date-time stored value', () => {
+    const rowWithDate: TransactionRow = { StatementDate: '2022-07-18T00:00:00Z' };
+    const group: AndGroup = [makeCondition('StatementDate', '^2022-07-19$')];
+    expect(evaluateRuleSet(group, rowWithDate)).toBe(false);
+  });
 });
