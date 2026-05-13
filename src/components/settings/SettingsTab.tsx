@@ -13,7 +13,7 @@ export function SettingsTab() {
   const [activeSubTab, setActiveSubTab] = useState(0);
 
   return (
-    <div className="flex gap-0 min-h-[calc(100vh-3.5rem)]">
+    <div className="flex gap-0 h-[calc(100vh-3.5rem)]">
       {/* Sidebar */}
       <div className="w-44 shrink-0 border-r border-border bg-surface-secondary/50 py-2 px-1.5">
         <p className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted mb-1">Settings</p>
