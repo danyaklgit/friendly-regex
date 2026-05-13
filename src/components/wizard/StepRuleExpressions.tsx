@@ -1,6 +1,8 @@
+import { useMemo } from 'react';
 import type { AndGroupFormValue, ConditionFormValue } from '../../types';
 import { RuleGroupEditor } from './RuleGroupEditor';
 import { Button } from '../shared/Button';
+import { computeDuplicateGroupIndexes } from '../../utils/ruleFingerprint';
 
 interface StepRuleExpressionsProps {
   ruleGroups: AndGroupFormValue[];
@@ -25,6 +27,12 @@ export function StepRuleExpressions({
   startCollapsed,
   readOnly,
 }: StepRuleExpressionsProps) {
+  // For each rule set, which OTHER rule set has the same canonical conditions
+  // (or null when unique). Computed once for all groups so every duplicate
+  // member of a pair shows the same warning simultaneously — not just the one
+  // the user happens to be editing.
+  const duplicateOfIndex = useMemo(() => computeDuplicateGroupIndexes(ruleGroups), [ruleGroups]);
+
   return (
     <div className="space-y-0 flex flex-col">
       <p data-tour="ruleset-logic-info" className="text-xs text-muted mb-2">
@@ -55,6 +63,7 @@ export function StepRuleExpressions({
               canRemoveGroup
               startCollapsed={startCollapsed}
               readOnly={readOnly}
+              duplicateOfGroupIndex={duplicateOfIndex[i]}
             />
           </div>
         ))
