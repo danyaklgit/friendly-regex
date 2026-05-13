@@ -95,7 +95,7 @@ export function AttributesPage() {
           {search ? 'No attributes match your search.' : 'No attributes found.'}
         </div>
       ) : (
-        <div className="overflow-clip border border-border rounded-lg">
+        <div className="overflow-x-auto border border-border rounded-lg">
           <table className="min-w-full divide-y divide-divide">
             <thead className="bg-surface-secondary">
               <tr>
@@ -103,19 +103,19 @@ export function AttributesPage() {
                 <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Value</th>
                 <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Description</th>
                 <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Suggested LOV</th>
-                <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Actions</th>
+                <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-body-secondary sticky right-0 z-10 bg-surface-secondary shadow-[-4px_0_4px_-2px_rgba(0,0,0,0.08)]">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-surface divide-y divide-divide">
               {filtered.map((attr) => {
                 const en = getEnDetail(attr);
                 return (
-                  <tr key={attr.Id} className="hover:bg-surface-hover transition-colors">
+                  <tr key={attr.Id} className="group hover:bg-surface-hover transition-colors">
                     <td className="px-4 py-2.5 text-xs font-medium text-heading">{en?.Name ?? attr.Value}</td>
                     <td className="px-4 py-2.5 text-xs text-body-secondary font-mono">{attr.Value}</td>
                     <td className="px-4 py-2.5 text-xs text-body-secondary">{en?.ShortDescription ?? '—'}</td>
                     <td className="px-4 py-2.5 text-xs text-body-secondary">{attr.PossibleLOVTag ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-right">
+                    <td className="px-4 py-2.5 text-right sticky right-0 z-10 bg-surface group-hover:bg-surface-hover shadow-[-4px_0_4px_-2px_rgba(0,0,0,0.08)]">
                       {!isAudit && (
                         <button
                           type="button"
