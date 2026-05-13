@@ -47,7 +47,9 @@ export function ConditionEditor({
   isGroupDuplicate,
 }: ConditionEditorProps) {
   const { fieldMeta, transactions } = useTransactionData();
-  const [editing, setEditing] = useState(!startCollapsed);
+  const [editing, setEditing] = useState(
+    !startCollapsed && condition.value.trim().length === 0,
+  );
   const [snapshot, setSnapshot] = useState<ConditionFormValue | null>(() =>
     !startCollapsed ? { ...condition } : null
   );
