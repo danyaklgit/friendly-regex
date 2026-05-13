@@ -186,27 +186,27 @@ export function generateExpressionPrompt(
 ): string {
   switch (operation) {
     case 'begins_with':
-      return `Start with '${value}'`;
+      return `Starts with '${value}'`;
     case 'ends_with':
-      return `End with '${value}'`;
+      return `Ends with '${value}'`;
     case 'contains':
-      return `Contain '${value}'`;
+      return `Contains '${value}'`;
     case 'does_not_contain':
-      return `Not contain '${value}'`;
+      return `Does not contain '${value}'`;
     case 'equals':
-      return `Equal '${value}'`;
+      return `Equals '${value}'`;
     case 'does_not_equal':
-      return `Not equal '${value}'`;
+      return `Does not equal '${value}'`;
     case 'does_not_start_with':
       return `Does not start with '${value}'`;
     case 'does_not_end_with':
       return `Does not end with '${value}'`;
     case 'matches_pattern': {
       const vals = values && values.length > 0 ? values : [value];
-      return `Match one of: ${vals.map(v => `'${v}'`).join(', ')}`;
+      return `Matches one of: ${vals.map(v => `'${v}'`).join(', ')}`;
     }
     case 'match_regex':
-      return `Match pattern '${value}'`;
+      return `Matches pattern '${value}'`;
     case 'greater_than':
       return `Greater than '${value}'`;
     case 'less_than':

@@ -130,12 +130,12 @@ export function AttributeFormModal({ open, onClose, onSave, existing }: Attribut
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-3">
             <p className="text-xs font-semibold text-body-secondary">English</p>
-            <Input label="Name" value={nameEn} onChange={(e) => setNameEn(e.target.value)} placeholder="e.g. Bank Name" required error={!!duplicateAttribute} />
+            <Input label="Name" value={nameEn} onChange={(e) => setNameEn(e.target.value)} placeholder="e.g. Bank Name" required maxLength={100} error={!!duplicateAttribute} />
             <Input label="Short Description" value={shortDescEn} onChange={(e) => setShortDescEn(e.target.value)} placeholder="Brief description" required />
           </div>
           <div className="space-y-3">
             <p className="text-xs font-semibold text-body-secondary">Arabic</p>
-            <Input label="Name" value={nameAr} onChange={(e) => setNameAr(e.target.value)} placeholder="e.g. اسم البنك" dir="rtl" required />
+            <Input label="Name" value={nameAr} onChange={(e) => setNameAr(e.target.value)} placeholder="e.g. اسم البنك" dir="rtl" required maxLength={100} />
             <Input label="Short Description" value={shortDescAr} onChange={(e) => setShortDescAr(e.target.value)} placeholder="وصف مختصر" dir="rtl" required />
           </div>
         </div>

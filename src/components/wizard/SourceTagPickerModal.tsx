@@ -3,7 +3,6 @@ import type { TagSpecDefinition } from '../../types';
 import { getContextValue } from '../../types/tagSpec';
 import { Modal } from '../shared/Modal';
 import { Button } from '../shared/Button';
-import { Input } from '../shared/Input';
 
 interface SourceTagPickerModalProps {
   open: boolean;
@@ -20,22 +19,33 @@ export function SourceTagPickerModal({ open, definitions, onClose, onSelect }: S
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const eligibleDefinitions = useMemo(
-    () => definitions.filter(hasContent),
-    [definitions],
-  );
+  // Dedupe by Id: the same definition can appear in both INPROGRESS and ACTIVE
+  // libraries (e.g. during a checkout). Duplicate <li key={def.Id}> entries
+  // produce a React duplicate-key warning AND undefined reconciliation
+  // behaviour — when the array shrinks during filtering, stale DOM is kept
+  // around. Collapsing to unique definitions fixes both.
+  const eligibleDefinitions = useMemo(() => {
+    const seen = new Set<string>();
+    const result: TagSpecDefinition[] = [];
+    for (const def of definitions) {
+      if (!hasContent(def)) continue;
+      if (seen.has(def.Id)) continue;
+      seen.add(def.Id);
+      result.push(def);
+    }
+    return result;
+  }, [definitions]);
 
-  const visibleDefinitions = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    if (!term) return eligibleDefinitions;
-    return eligibleDefinitions.filter((def) => {
-      const txnType = getContextValue(def.Context, 'TransactionTypeCode') ?? '';
-      return (
-        def.Tag.toLowerCase().includes(term) ||
-        txnType.toLowerCase().includes(term)
-      );
-    });
-  }, [eligibleDefinitions, search]);
+  const term = search.trim().toLowerCase();
+  const visibleDefinitions = term
+    ? eligibleDefinitions.filter((def) => {
+        const txnType = getContextValue(def.Context, 'TransactionTypeCode') ?? '';
+        return (
+          def.Tag.toLowerCase().includes(term) ||
+          txnType.toLowerCase().includes(term)
+        );
+      })
+    : eligibleDefinitions;
 
   const selectedDef = useMemo(
     () => (selectedId ? visibleDefinitions.find((d) => d.Id === selectedId) ?? null : null),
@@ -73,12 +83,22 @@ export function SourceTagPickerModal({ open, definitions, onClose, onSelect }: S
       }
     >
       <div className="space-y-3">
-        <Input
-          placeholder="Search by tag name or transaction type..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          autoFocus
-        />
+        <div className="relative">
+          <svg
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted pointer-events-none"
+            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            type="text"
+            placeholder="Search by tag name or transaction type..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            autoFocus
+            className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-input-border bg-input-bg text-heading placeholder:text-placeholder focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors"
+          />
+        </div>
 
         {visibleDefinitions.length === 0 ? (
           <div className="text-center py-8 text-sm text-muted">
