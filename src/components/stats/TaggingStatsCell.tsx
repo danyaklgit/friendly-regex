@@ -37,7 +37,7 @@ function formatDateShort(iso: string | null | undefined): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-/** Absolute timestamp for tooltips: "Apr 15, 2026 · 11:44:09 AM". */
+/** Absolute,timestamp for tooltips: "Apr 15, 2026 · 11:44:09 AM". */
 function formatDateTimeFull(iso: string | null | undefined): string {
   if (!iso) return '—';
   const d = new Date(iso);
