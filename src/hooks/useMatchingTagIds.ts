@@ -27,6 +27,9 @@ interface UseMatchingTagIdsResult {
  *  - `enabled` is false (e.g. builder is closed)
  *  - we are not in live mode (sample data)
  *  - bankSwiftCode or side is missing (payload would be invalid)
+ *  - the draft has no narrowing criteria yet — no transaction type and no
+ *    filled rule conditions. Without one of those, the API call would just
+ *    return every tag for the bank/side, which isn't a useful preview.
  */
 export function useMatchingTagIds(
   formState: WizardFormState,
@@ -39,13 +42,24 @@ export function useMatchingTagIds(
   const [loading, setLoading] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
+  // "Narrowing criteria" = at least one of: a transaction type code, or any
+  // filled rule condition. Without either, the GetAllTransactionTags call
+  // would echo every tag in the bank/side — not useful, and an extra round
+  // trip on every form-state churn.
+  const hasNarrowingCriteria =
+    formState.transactionTypeCode.trim().length > 0 ||
+    formState.ruleGroups.some((g) =>
+      g.conditions.some((c) => c.value.trim().length > 0),
+    );
+
   // Build the payload outside the effect so its identity is content-derived
   // and stable strings can drive the dependency array. We stringify once
   // because comparing arrays of nested objects by reference re-fires on every
   // keystroke even when the content is unchanged.
-  const payload: FilterProperty[] | null = enabled && isLiveMode && formState.bankSwiftCode && formState.side
-    ? buildRulesetFilters(formState)
-    : null;
+  const payload: FilterProperty[] | null =
+    enabled && isLiveMode && formState.bankSwiftCode && formState.side && hasNarrowingCriteria
+      ? buildRulesetFilters(formState)
+      : null;
   const payloadKey = payload ? JSON.stringify(payload) : null;
 
   useEffect(() => {

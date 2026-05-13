@@ -19,6 +19,7 @@ import { StepAttributes } from '../wizard/StepAttributes';
 import { TagWizardModal } from '../wizard/TagWizardModal';
 import { DuplicateRulesButton } from '../wizard/DuplicateRulesButton';
 import { Button } from '../shared/Button';
+import { CopyableId } from '../shared/CopyableId';
 import { Toast } from '../shared/Toast';
 import { Tooltip } from '../shared/Tooltip';
 import { DynamicFilters } from './DynamicFilters';
@@ -1136,12 +1137,38 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
             </div>
           )}
           <div className="px-5 py-3 bg-primary/15 border-b border-primary/20 flex items-center justify-between gap-4">
-            <div>
-              <h3 className="text-sm font-semibold text-primary-dark">Rule Builder</h3>
-              <p className="text-xs text-primary-dark">
-                Build rules and see their effect on the table in real time.
-              </p>
-            </div>
+            {(() => {
+              // Current tag context: edit mode wins (the user is explicitly
+              // working on this definition), otherwise fall back to the tag a
+              // user clicked in the table to drill into.
+              const currentTagName = editingDef?.Tag ?? tagClickState?.tagName ?? null;
+              const currentTagId = editingDef?.Id ?? tagClickState?.definitionId ?? null;
+              if (currentTagName) {
+                return (
+                  <div className="min-w-0">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-primary-dark/70">
+                      Rule Builder
+                    </div>
+                    <div className="flex items-center gap-2.5 flex-wrap mt-1">
+                      <span className="font-mono text-sm font-semibold text-primary-dark truncate">
+                        {currentTagName}
+                      </span>
+                      {currentTagId && (
+                        <CopyableId id={currentTagId} truncateAt={12} tone="default" />
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+              return (
+                <div className="min-w-0">
+                  <h3 className="text-sm font-semibold text-primary-dark">Rule Builder</h3>
+                  <p className="text-xs text-primary-dark">
+                    Build rules and see their effect on the table in real time.
+                  </p>
+                </div>
+              );
+            })()}
             <div data-tour="builder-transaction-type" className="flex items-center gap-2">
               <label className="text-xs font-medium text-primary-dark whitespace-nowrap">
                 Transaction Type<span className="text-red-500 ml-0.5" aria-hidden>*</span>
@@ -1294,7 +1321,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
               <div className="px-5 pb-3">
                 <div className="flex items-baseline gap-2 mb-1.5">
                   <h4 className="text-xs font-semibold text-body-secondary uppercase tracking-wide">
-                    Existing Matching Tags
+                    Tags Matching The Specified Rule Sets
                   </h4>
                   {matchingTagsLoading && (
                     <span className="text-[10px] text-faint italic">Loading…</span>

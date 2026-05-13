@@ -7,6 +7,12 @@ interface CopyableIdProps {
   truncateAt?: number;
   /** Optional class to override default text styling. */
   className?: string;
+  /**
+   * Visual prominence:
+   *  - "subtle" (default): muted faint text, blends with surrounding meta.
+   *  - "default": body-secondary text, more legible against tinted backgrounds.
+   */
+  tone?: 'subtle' | 'default';
 }
 
 /**
@@ -22,7 +28,7 @@ interface CopyableIdProps {
  * stopPropagation prevents the outer container's onClick from firing when
  * the user clicks the id.
  */
-export function CopyableId({ id, truncateAt = 8, className = '' }: CopyableIdProps) {
+export function CopyableId({ id, truncateAt = 8, className = '', tone = 'subtle' }: CopyableIdProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async (e: MouseEvent<HTMLSpanElement>) => {
@@ -50,6 +56,13 @@ export function CopyableId({ id, truncateAt = 8, className = '' }: CopyableIdPro
   };
 
   const display = id.length > truncateAt ? `${id.slice(0, truncateAt)}…` : id;
+  // Reserve the width of the longer label (the truncated id) on the OUTER
+  // pill so swapping to "Copied" doesn't make it shrink and reflow whatever
+  // sits next to it. Putting min-width on the outer (not the inner text
+  // span) keeps the icon flush against the text in both states. The 1.5rem
+  // term accounts for the icon (~12px) + gap (4px) + a small buffer so the
+  // natural content width never exceeds the reservation.
+  const outerMinWidth = `calc(${display.length}ch + 1.5rem)`;
 
   return (
     <Tooltip content={<span className="font-mono text-[10px] break-all">{id}</span>} placement="top">
@@ -58,8 +71,13 @@ export function CopyableId({ id, truncateAt = 8, className = '' }: CopyableIdPro
         tabIndex={-1}
         onClick={handleCopy}
         aria-label={copied ? 'Id copied' : `Copy id ${id}`}
+        style={{ minWidth: outerMinWidth }}
         className={`inline-flex items-center gap-1 text-[10px] font-mono leading-none transition-colors cursor-pointer select-none
-          ${copied ? 'text-emerald-500' : 'text-faint hover:text-primary'}
+          ${copied
+            ? 'text-emerald-500'
+            : tone === 'default'
+              ? 'text-body-secondary hover:text-primary'
+              : 'text-faint hover:text-primary'}
           ${className}`}
       >
         <span>{copied ? 'Copied' : display}</span>

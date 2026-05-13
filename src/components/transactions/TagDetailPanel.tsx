@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { TagSpecDefinition, TagAttribute, TransactionRow, CertaintyLevelTag } from '../../types';
 import { Badge } from '../shared/Badge';
+import { CopyableId } from '../shared/CopyableId';
 import { RuleExpressionView } from '../tagRules/RuleExpressionView';
 import { useTagSampleTransactions } from '../../hooks/useTagSampleTransactions';
 import { getRegexDescription } from '../../types/tagSpec';
@@ -97,6 +98,12 @@ export function TagDetailPanel({
                   <h2 className="font-mono text-[19px] font-semibold text-heading leading-tight break-words">
                     {definition.Tag}
                   </h2>
+                  <div className="mt-1 flex items-center gap-1.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-faint">
+                      TagSpec Id
+                    </span>
+                    <CopyableId id={definition.Id} truncateAt={12} />
+                  </div>
                   <div className="mt-2 flex items-center gap-1.5 flex-wrap">
                     <span
                       className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${accent.bg} ${accent.text}`}
