@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
-import type { LOVList, LOVListItem } from '../../types/lov';
+import type { LOVList } from '../../types/lov';
 import { humanizeLovTag } from '../../utils/humanizeLovTag';
-import { Toggle } from '../shared/Toggle';
 import { Button } from '../shared/Button';
 
 interface LovItemsPaneProps {
@@ -10,50 +9,23 @@ interface LovItemsPaneProps {
   refreshing?: boolean;
 }
 
-function isActive(item: LOVListItem): boolean {
-  // Backend marks items with explicit ACTIVE/INACTIVE/etc. A null StatusTag is
-  // treated as active (mirrors how the Attributes page interprets it).
-  return item.StatusTag == null || item.StatusTag === 'ACTIVE';
-}
-
-function StatusBadge({ item }: { item: LOVListItem }) {
-  const active = isActive(item);
-  return (
-    <span
-      className={`inline-block text-[10px] font-medium rounded-full px-2 py-0.5 border ${
-        active
-          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-300'
-          : 'bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-300'
-      }`}
-    >
-      {item.StatusName ?? item.StatusTag ?? 'ACTIVE'}
-    </span>
-  );
-}
-
 export function LovItemsPane({ list, onRefresh, refreshing }: LovItemsPaneProps) {
   const [search, setSearch] = useState('');
-  const [includeInactive, setIncludeInactive] = useState(false);
 
   const items = list?.Items ?? [];
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
+    if (!term) return items;
     return items.filter((item) => {
-      if (!includeInactive && !isActive(item)) return false;
-      if (!term) return true;
       return (
         item.Value.toLowerCase().includes(term) ||
         item.Name.toLowerCase().includes(term) ||
-        (item.Description ?? '').toLowerCase().includes(term)
+        (item.Description ?? '').toLowerCase().includes(term) ||
+        (item.Tags ?? []).some((t) => t.toLowerCase().includes(term))
       );
     });
-  }, [items, search, includeInactive]);
-
-  const inactiveHidden = useMemo(
-    () => (includeInactive ? 0 : items.filter((i) => !isActive(i)).length),
-    [items, includeInactive],
-  );
+  }, [items, search]);
 
   if (!list) {
     return (
@@ -70,9 +42,6 @@ export function LovItemsPane({ list, onRefresh, refreshing }: LovItemsPaneProps)
           <h3 className="text-sm font-semibold text-heading truncate">{humanizeLovTag(list.Tag)}</h3>
           <p className="text-xs text-muted">
             {items.length} {items.length === 1 ? 'item' : 'items'}
-            {inactiveHidden > 0 && (
-              <span className="ml-2">· {inactiveHidden} inactive hidden</span>
-            )}
           </p>
         </div>
         <Button variant="outline" size="xs" onClick={onRefresh} loading={refreshing}>
@@ -95,17 +64,12 @@ export function LovItemsPane({ list, onRefresh, refreshing }: LovItemsPaneProps)
           </svg>
           <input
             type="text"
-            placeholder="Search items..."
+            placeholder="Search items by value, name, description, or tag..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-input-border bg-input-bg text-heading placeholder:text-placeholder focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors"
           />
         </div>
-        <Toggle
-          label="Include inactive"
-          checked={includeInactive}
-          onChange={setIncludeInactive}
-        />
       </div>
 
       {items.length === 0 ? (
@@ -124,18 +88,36 @@ export function LovItemsPane({ list, onRefresh, refreshing }: LovItemsPaneProps)
                 <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Value</th>
                 <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Name</th>
                 <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Description</th>
-                <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Status</th>
+                <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Tags</th>
               </tr>
             </thead>
             <tbody className="bg-surface divide-y divide-divide">
-              {filtered.map((item) => (
-                <tr key={`${list.Tag}-${item.Value}`} className="hover:bg-surface-hover transition-colors">
-                  <td className="px-4 py-2.5 text-xs font-mono text-body-secondary">{item.Value}</td>
-                  <td className="px-4 py-2.5 text-xs font-medium text-heading">{item.Name}</td>
-                  <td className="px-4 py-2.5 text-xs text-body-secondary">{item.Description ?? '—'}</td>
-                  <td className="px-4 py-2.5 text-xs"><StatusBadge item={item} /></td>
-                </tr>
-              ))}
+              {filtered.map((item, i) => {
+                const tags = item.Tags ?? [];
+                return (
+                  <tr key={`${list.Tag}-${item.Value}-${i}`} className="hover:bg-surface-hover transition-colors">
+                    <td className="px-4 py-2.5 text-xs font-mono text-body-secondary">{item.Value}</td>
+                    <td className="px-4 py-2.5 text-xs font-medium text-heading">{item.Name}</td>
+                    <td className="px-4 py-2.5 text-xs text-body-secondary">{item.Description ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-xs">
+                      {tags.length === 0 ? (
+                        <span className="text-faint">—</span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1">
+                          {tags.map((tag) => (
+                            <span
+                              key={tag}
+                              className="inline-block text-[10px] font-medium bg-surface-secondary border border-border rounded-full px-2 py-0.5 text-body-secondary"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

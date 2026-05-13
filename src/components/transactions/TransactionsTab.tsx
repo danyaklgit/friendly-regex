@@ -1280,49 +1280,59 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
             </div>
           </div>
 
-          {/* Existing Matching Tags — live preview from GetAllTransactionTags */}
-          {builderOpen && matchingTagIds !== null && (
-            <div className="px-5 pb-3">
-              <div className="flex items-baseline gap-2 mb-1.5">
-                <h4 className="text-xs font-semibold text-body-secondary uppercase tracking-wide">
-                  Existing Matching Tags
-                </h4>
-                {matchingTagsLoading && (
-                  <span className="text-[10px] text-faint italic">Loading…</span>
+          {/* Existing Matching Tags — live preview from GetAllTransactionTags.
+              The current definition (from a tag click or an edit) is filtered
+              out so the section only surfaces OTHER tags that match the same
+              transactions — surfacing self would just echo what the user is
+              already looking at. */}
+          {builderOpen && matchingTagIds !== null && (() => {
+            const currentDefinitionId = tagClickState?.definitionId ?? editingDef?.Id;
+            const otherMatchingTagIds = currentDefinitionId
+              ? matchingTagIds.filter((id) => id !== currentDefinitionId)
+              : matchingTagIds;
+            return (
+              <div className="px-5 pb-3">
+                <div className="flex items-baseline gap-2 mb-1.5">
+                  <h4 className="text-xs font-semibold text-body-secondary uppercase tracking-wide">
+                    Existing Matching Tags
+                  </h4>
+                  {matchingTagsLoading && (
+                    <span className="text-[10px] text-faint italic">Loading…</span>
+                  )}
+                </div>
+                {otherMatchingTagIds.length === 0 ? (
+                  <span className="text-[11px] text-faint italic">
+                    No other existing tags match this rule yet.
+                  </span>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {otherMatchingTagIds.map((id) => {
+                      const def = tagDefinitions.find((d) => d.Id === id);
+                      if (!def) return null;
+                      const source = definitionSourceMap.get(id) ?? 'Backend';
+                      const isUserCreated = !originalDefinitionIds?.has(id);
+                      return (
+                        <Tooltip
+                          key={id}
+                          content={renderTagTooltip(source, def, true)}
+                          placement="top"
+                        >
+                          <span>
+                            <TagBadge
+                              tag={def.Tag}
+                              certainty={def.CertaintyLevelTag ?? 'HIGH'}
+                              isUserCreated={isUserCreated}
+                              onClick={() => setPreviewDef(def)}
+                            />
+                          </span>
+                        </Tooltip>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
-              {matchingTagIds.length === 0 ? (
-                <span className="text-[11px] text-faint italic">
-                  No existing tags match this rule yet.
-                </span>
-              ) : (
-                <div className="flex flex-wrap gap-1.5">
-                  {matchingTagIds.map((id) => {
-                    const def = tagDefinitions.find((d) => d.Id === id);
-                    if (!def) return null;
-                    const source = definitionSourceMap.get(id) ?? 'Backend';
-                    const isUserCreated = !originalDefinitionIds?.has(id);
-                    return (
-                      <Tooltip
-                        key={id}
-                        content={renderTagTooltip(source, def, true)}
-                        placement="top"
-                      >
-                        <span>
-                          <TagBadge
-                            tag={def.Tag}
-                            certainty={def.CertaintyLevelTag ?? 'HIGH'}
-                            isUserCreated={isUserCreated}
-                            onClick={() => setPreviewDef(def)}
-                          />
-                        </span>
-                      </Tooltip>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
+            );
+          })()}
 
           <span className='flex flex-col items-center w-full text-slate-500 text-xs pb-2 gap-1'>
             {/* Records count — always shown */}
