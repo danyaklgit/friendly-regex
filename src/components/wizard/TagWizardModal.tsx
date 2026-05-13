@@ -95,13 +95,7 @@ export function TagWizardModal({ existingDef, parentLib, initialFormState, initi
       <WizardStepIndicator currentStep={wizard.currentStep} onStepClick={wizard.goToStep} canReachStep={canReachStep} />
 
       {wizard.currentStep === 1 && (
-        <StepBasicInfo
-          formState={wizard.formState}
-          onUpdate={wizard.updateBasicInfo}
-          fromCheckoutContext={fromCheckoutContext}
-          isEditing={wizard.isEditing}
-          onApplyTemplate={wizard.applyTemplate}
-        />
+        <StepBasicInfo formState={wizard.formState} onUpdate={wizard.updateBasicInfo} fromCheckoutContext={fromCheckoutContext} />
       )}
 
       {wizard.currentStep === 2 && (
