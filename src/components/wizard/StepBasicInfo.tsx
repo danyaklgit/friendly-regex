@@ -1,17 +1,20 @@
 import { useState } from 'react';
-import type { WizardFormState } from '../../types';
+import type { TagSpecDefinition, WizardFormState } from '../../types';
 import { useTagSpecs } from '../../hooks/useTagSpecs';
 import { TagTreePicker } from '../shared/TagTreePicker';
 import { Select } from '../shared/Select';
+import { DuplicateRulesButton } from './DuplicateRulesButton';
 import { CERTAINTY_OPTIONS, SIDE_OPTIONS, TXN_TYPE_OPTIONS, BANK_SWIFT_CODE_OPTIONS } from '../../constants/fields';
 
 interface StepBasicInfoProps {
   formState: WizardFormState;
   onUpdate: (updates: Partial<Pick<WizardFormState, 'tag' | 'side' | 'bankSwiftCode' | 'transactionTypeCode' | 'statusTag' | 'certaintyLevelTag' | 'validity'>>) => void;
   fromCheckoutContext?: boolean;
+  isEditing?: boolean;
+  onApplyTemplate?: (def: TagSpecDefinition) => void;
 }
 
-export function StepBasicInfo({ formState, onUpdate, fromCheckoutContext }: StepBasicInfoProps) {
+export function StepBasicInfo({ formState, onUpdate, fromCheckoutContext, isEditing, onApplyTemplate }: StepBasicInfoProps) {
   const { tagsHierarchy, tagsHierarchyLoading } = useTagSpecs();
   const [touched, setTouched] = useState<Set<string>>(new Set());
   const markTouched = (field: string) => setTouched((prev) => new Set(prev).add(field));
@@ -32,6 +35,18 @@ export function StepBasicInfo({ formState, onUpdate, fromCheckoutContext }: Step
           error={isTagError}
         />
       </div>
+
+      {!isEditing && onApplyTemplate && (
+        <div>
+          <DuplicateRulesButton
+            currentRuleGroupCount={formState.ruleGroups.length}
+            currentAttributeCount={formState.attributes.length}
+            onApplyTemplate={onApplyTemplate}
+            size="sm"
+            data-tour="duplicate-rules-from-tag"
+          />
+        </div>
+      )}
 
       <div data-tour="wizard-basic-info-fields" className="space-y-4">
         <div className="grid grid-cols-3 gap-4">
@@ -72,7 +87,6 @@ export function StepBasicInfo({ formState, onUpdate, fromCheckoutContext }: Step
           />
         </div>
       </div>
-
     </div>
   );
 }

@@ -8,10 +8,8 @@ import type {
   AndGroupFormValue,
   ConditionFormValue,
   AttributeFormValue,
-  ExtractionOperation,
 } from '../types';
 import { getContextValue } from '../types/tagSpec';
-import { decomposeRegex, decomposeExtractionRegex } from '../utils/engregxify';
 import {
   regexify,
   regexifyExtraction,
@@ -19,11 +17,20 @@ import {
   generateExtractionPrompt,
 } from '../utils/regexify';
 import { generateId, generateExpressionId } from '../utils/uuid';
+import { cloneRulesAndAttributesFrom } from '../utils/cloneRulesAndAttributes';
 
 export function fromExistingDefinition(
   def: TagSpecDefinition,
   parentLib?: TagSpecLibrary
 ): WizardFormState {
+  const { ruleGroups, attributes } = cloneRulesAndAttributesFrom(def);
+  // In edit mode, preserve the backend's original regex on each attribute. The
+  // shared helper drops _originalRegex (intentional for the template case);
+  // re-attach it here so live previews don't fall back to lossy round-trips.
+  const attributesWithOriginalRegex: AttributeFormValue[] = attributes.map((attr, i) => ({
+    ...attr,
+    _originalRegex: def.Attributes[i].AttributeRuleExpression.Regex || undefined,
+  }));
   return {
     tag: def.Tag,
     side: parentLib ? (getContextValue(parentLib.Context, 'Side') ?? 'CR') : 'CR',
@@ -32,48 +39,8 @@ export function fromExistingDefinition(
     statusTag: def.StatusTag,
     certaintyLevelTag: def.CertaintyLevelTag,
     validity: { ...def.Validity },
-    ruleGroups: def.TagRuleExpressions.map((andGroup) => ({
-      id: crypto.randomUUID(),
-      conditions: andGroup.map((expr) => {
-        const decomposed = decomposeRegex(expr.Regex);
-        return {
-          id: crypto.randomUUID(),
-          sourceField: expr.SourceField,
-          operation: decomposed.operation,
-          value: decomposed.value,
-          values: decomposed.values,
-          prefix: decomposed.prefix,
-          suffix: decomposed.suffix,
-        };
-      }),
-    })),
-    attributes: def.Attributes.map((attr) => {
-      const decomposed = decomposeExtractionRegex(attr.AttributeRuleExpression.Regex);
-      return {
-        id: crypto.randomUUID(),
-        attributeTag: attr.AttributeTag,
-        isMandatory: attr.IsMandatory,
-        validationRuleTag: attr.ValidationRuleTag,
-        sourceField: attr.AttributeRuleExpression.SourceField,
-        extractionOperation: attr.AttributeRuleExpression.VerifyValue
-          ? ('extract_between_and_verify' as ExtractionOperation)
-          : decomposed.operation,
-        prefix: decomposed.prefix,
-        suffix: decomposed.suffix,
-        pattern: decomposed.pattern,
-        suffixOrEndOfInput: decomposed.suffixOrEndOfInput,
-        verifyValue: attr.AttributeRuleExpression.VerifyValue,
-        lovTag: attr.LOVTag ?? null,
-        isLovBased: !!attr.LOVTag,
-        _originalRegex: attr.AttributeRuleExpression.Regex || undefined,
-        transformations: (attr.Transformations ?? [])
-          .map((t) => ({
-            id: crypto.randomUUID(),
-            method: t.Method,
-            args: Object.fromEntries(t.Args.map((a) => [a.Key, a.Value])),
-          })),
-      };
-    }),
+    ruleGroups,
+    attributes: attributesWithOriginalRegex,
   };
 }
 
@@ -274,6 +241,14 @@ export function useWizardForm(
     []
   );
 
+  // --- Template application ---
+  const applyTemplate = useCallback((def: TagSpecDefinition) => {
+    setFormState((prev) => ({
+      ...prev,
+      ...cloneRulesAndAttributesFrom(def),
+    }));
+  }, []);
+
   // --- Convert form state to TagSpecDefinition + parentContext ---
   const toTagSpecDefinition = useCallback((): WizardFormResult => {
     const id = existingDef?.Id ?? generateId();
@@ -377,6 +352,7 @@ export function useWizardForm(
     addAttribute,
     removeAttribute,
     updateAttribute,
+    applyTemplate,
     toTagSpecDefinition,
   };
 }

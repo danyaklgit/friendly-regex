@@ -17,6 +17,7 @@ import { TagBadge } from './TagBadge';
 import { StepRuleExpressions } from '../wizard/StepRuleExpressions';
 import { StepAttributes } from '../wizard/StepAttributes';
 import { TagWizardModal } from '../wizard/TagWizardModal';
+import { DuplicateRulesButton } from '../wizard/DuplicateRulesButton';
 import { Button } from '../shared/Button';
 import { Toast } from '../shared/Toast';
 import { Tooltip } from '../shared/Tooltip';
@@ -1153,6 +1154,15 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
               />
             </div>
             <div className="flex flex-col md:flex-row items-center gap-2">
+              {!isReadOnly && !editingDef && (
+                <DuplicateRulesButton
+                  currentRuleGroupCount={builder.formState.ruleGroups.length}
+                  currentAttributeCount={builder.formState.attributes.length}
+                  onApplyTemplate={builder.applyTemplate}
+                  size="xs"
+                  data-tour="builder-duplicate-rules"
+                />
+              )}
               <Button variant="ghost" size="xs" onClick={handleDiscard}>
                 {isReadOnly ? 'Close' : 'Discard'}
               </Button>
