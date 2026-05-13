@@ -103,4 +103,25 @@ describe('evaluateRuleSet', () => {
     const group: AndGroup = [makeCondition('StatementDate', '^2022-07-19$')];
     expect(evaluateRuleSet(group, rowWithDate)).toBe(false);
   });
+
+  it('does_not_end_with on an ISO timestamp rejects rows whose date ends with the literal', () => {
+    // Regex for does_not_end_with '26' against an ISO timestamp field. Without
+    // canonicalising to the date portion, the time suffix ("00:00:00Z") would
+    // satisfy the negative lookahead and the row would incorrectly pass.
+    const rowWithDate: TransactionRow = { StatementDate: '2024-03-26T00:00:00Z' };
+    const group: AndGroup = [makeCondition('StatementDate', '^(?!.*26$).*$')];
+    expect(evaluateRuleSet(group, rowWithDate)).toBe(false);
+  });
+
+  it('does_not_end_with on an ISO timestamp passes rows whose date does not end with the literal', () => {
+    const rowWithDate: TransactionRow = { StatementDate: '2024-04-25T00:00:00Z' };
+    const group: AndGroup = [makeCondition('StatementDate', '^(?!.*26$).*$')];
+    expect(evaluateRuleSet(group, rowWithDate)).toBe(true);
+  });
+
+  it('does_not_equal on an ISO timestamp rejects the matching date', () => {
+    const rowWithDate: TransactionRow = { StatementDate: '2024-03-26T00:00:00Z' };
+    const group: AndGroup = [makeCondition('StatementDate', '^(?!2024-03-26$).*$')];
+    expect(evaluateRuleSet(group, rowWithDate)).toBe(false);
+  });
 });

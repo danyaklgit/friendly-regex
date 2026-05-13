@@ -239,41 +239,41 @@ describe('regexifyExtraction', () => {
 
 describe('generateExpressionPrompt', () => {
   it('begins_with', () => {
-    expect(generateExpressionPrompt('begins_with', 'ABC')).toBe("Start with 'ABC'");
+    expect(generateExpressionPrompt('begins_with', 'ABC')).toBe("Starts with 'ABC'");
   });
 
   it('ends_with', () => {
-    expect(generateExpressionPrompt('ends_with', 'XYZ')).toBe("End with 'XYZ'");
+    expect(generateExpressionPrompt('ends_with', 'XYZ')).toBe("Ends with 'XYZ'");
   });
 
   it('contains', () => {
-    expect(generateExpressionPrompt('contains', 'PAY')).toBe("Contain 'PAY'");
+    expect(generateExpressionPrompt('contains', 'PAY')).toBe("Contains 'PAY'");
   });
 
   it('does_not_contain', () => {
-    expect(generateExpressionPrompt('does_not_contain', 'X')).toBe("Not contain 'X'");
+    expect(generateExpressionPrompt('does_not_contain', 'X')).toBe("Does not contain 'X'");
   });
 
   it('equals', () => {
-    expect(generateExpressionPrompt('equals', 'EXACT')).toBe("Equal 'EXACT'");
+    expect(generateExpressionPrompt('equals', 'EXACT')).toBe("Equals 'EXACT'");
   });
 
   it('does_not_equal', () => {
-    expect(generateExpressionPrompt('does_not_equal', 'BAD')).toBe("Not equal 'BAD'");
+    expect(generateExpressionPrompt('does_not_equal', 'BAD')).toBe("Does not equal 'BAD'");
   });
 
   it('matches_pattern with values', () => {
     expect(generateExpressionPrompt('matches_pattern', '', ['A', 'B']))
-      .toBe("Match one of: 'A', 'B'");
+      .toBe("Matches one of: 'A', 'B'");
   });
 
   it('matches_pattern falls back to value', () => {
     expect(generateExpressionPrompt('matches_pattern', 'A'))
-      .toBe("Match one of: 'A'");
+      .toBe("Matches one of: 'A'");
   });
 
   it('match_regex', () => {
-    expect(generateExpressionPrompt('match_regex', '\\d+')).toBe("Match pattern '\\d+'");
+    expect(generateExpressionPrompt('match_regex', '\\d+')).toBe("Matches pattern '\\d+'");
   });
 
   it('does_not_start_with', () => {
