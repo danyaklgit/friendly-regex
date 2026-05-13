@@ -30,6 +30,7 @@ export function StepBasicInfo({ formState, onUpdate, fromCheckoutContext }: Step
           loading={tagsHierarchyLoading}
           required
           error={isTagError}
+          collapseOnSelect
         />
       </div>
 
@@ -72,7 +73,6 @@ export function StepBasicInfo({ formState, onUpdate, fromCheckoutContext }: Step
           />
         </div>
       </div>
-
     </div>
   );
 }

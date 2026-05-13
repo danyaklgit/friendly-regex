@@ -17,6 +17,7 @@ import { TagBadge } from './TagBadge';
 import { StepRuleExpressions } from '../wizard/StepRuleExpressions';
 import { StepAttributes } from '../wizard/StepAttributes';
 import { TagWizardModal } from '../wizard/TagWizardModal';
+import { DuplicateRulesButton } from '../wizard/DuplicateRulesButton';
 import { Button } from '../shared/Button';
 import { Toast } from '../shared/Toast';
 import { Tooltip } from '../shared/Tooltip';
@@ -1153,6 +1154,15 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
               />
             </div>
             <div className="flex flex-col md:flex-row items-center gap-2">
+              {!isReadOnly && !editingDef && (
+                <DuplicateRulesButton
+                  currentRuleGroupCount={builder.formState.ruleGroups.length}
+                  currentAttributeCount={builder.formState.attributes.length}
+                  onApplyTemplate={builder.applyTemplate}
+                  size="xs"
+                  data-tour="builder-duplicate-rules"
+                />
+              )}
               <Button variant="ghost" size="xs" onClick={handleDiscard}>
                 {isReadOnly ? 'Close' : 'Discard'}
               </Button>
@@ -1405,7 +1415,10 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       />
       )}
 
-      {(hasMore || loading || (incrementalPagination && (isLiveMode ? transactions.length : visibleCount) > BATCH_SIZE) || (!incrementalPagination && (isLiveMode ? (totalTransactionsCount ?? 0) > BATCH_SIZE : filteredLen > BATCH_SIZE))) && (() => {
+      {/* Hide the pagination strip entirely when the table is empty and we
+          aren't waiting on a fetch — "0 loaded · N total" plus +N buttons next
+          to a "No transactions found" empty state is just noise. */}
+      {!(filteredLen === 0 && !loading) && (hasMore || loading || (incrementalPagination && (isLiveMode ? transactions.length : visibleCount) > BATCH_SIZE) || (!incrementalPagination && (isLiveMode ? (totalTransactionsCount ?? 0) > BATCH_SIZE : filteredLen > BATCH_SIZE))) && (() => {
         // Compute backward and forward batch lists once so the skeleton placeholders
         // mirror the actual button layout (e.g. don't draw four backward boxes when
         // only one backward button would render).

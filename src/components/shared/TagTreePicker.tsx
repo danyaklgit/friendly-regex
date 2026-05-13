@@ -9,6 +9,12 @@ interface TagTreePickerProps {
   loading?: boolean;
   required?: boolean;
   error?: boolean;
+  /**
+   * When true and a value is already selected, the picker shows only the
+   * selected tag with an edit button instead of the full search + tree. The
+   * tree re-appears when the edit button is clicked.
+   */
+  collapseOnSelect?: boolean;
 }
 
 function TreeNode({
@@ -83,8 +89,9 @@ function TreeNode({
   );
 }
 
-export function TagTreePicker({ label, nodes, value, onChange, loading, required, error }: TagTreePickerProps) {
+export function TagTreePicker({ label, nodes, value, onChange, loading, required, error, collapseOnSelect }: TagTreePickerProps) {
   const [search, setSearch] = useState('');
+  const [pickerOpen, setPickerOpen] = useState(() => !(collapseOnSelect && value));
   const query = search.toLowerCase().trim();
 
   const safeNodes = useMemo(() => (Array.isArray(nodes) ? nodes : []), [nodes]);
@@ -100,7 +107,16 @@ export function TagTreePicker({ label, nodes, value, onChange, loading, required
     return map;
   }, [safeNodes]);
 
-
+  const handleSelect = useCallback(
+    (tag: string) => {
+      onChange(tag);
+      if (collapseOnSelect) {
+        setPickerOpen(false);
+        setSearch('');
+      }
+    },
+    [onChange, collapseOnSelect],
+  );
 
   // When searching: collect unique matching leaf tags as a flat list (no groups)
   // When not searching: show the full tree
@@ -128,6 +144,8 @@ export function TagTreePicker({ label, nodes, value, onChange, loading, required
     ? 'border-red-400 dark:border-rose-400'
     : 'border-input-border';
 
+  const showCollapsedView = collapseOnSelect && !!value && !pickerOpen;
+
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center gap-1 pl-1">
@@ -145,79 +163,105 @@ export function TagTreePicker({ label, nodes, value, onChange, loading, required
         )}
       </div>
       <div className={`rounded-lg border ${borderClass} bg-input-bg overflow-hidden`} aria-invalid={error || undefined}>
-        {/* Search input */}
-        <div className="px-2 pt-2 pb-1">
-          <div className="relative">
-            <svg
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
+        {showCollapsedView ? (
+          <div className="px-3 py-2.5 flex items-center justify-between gap-2 bg-primary/10">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-xs text-muted shrink-0">Selected:</span>
+              <span className="text-sm font-medium text-primary truncate">
+                {value}{tagNameMap.get(value) && tagNameMap.get(value) !== value ? ` - ${tagNameMap.get(value)}` : ''}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPickerOpen(true)}
+              className="text-faint hover:text-primary transition-colors p-1 rounded cursor-pointer shrink-0"
+              title="Change selection"
+              aria-label="Change selection"
             >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <input
-              type="text"
-              placeholder="Search tags..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 text-sm rounded-md border border-input-border bg-surface-primary text-heading placeholder:text-placeholder focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors"
-            />
-          </div>
-        </div>
-
-        {/* Tree list */}
-        <div className="max-h-48 overflow-y-auto px-1 pb-2">
-          {loading ? (
-            <div className="flex items-center justify-center py-6 text-sm text-muted">
-              Loading tags...
-            </div>
-          ) : searchResults ? (
-            searchResults.length === 0 ? (
-              <div className="flex items-center justify-center py-6 text-sm text-muted">
-                No tags match your search
-              </div>
-            ) : (
-              searchResults.map((leaf) => (
-                <TreeNode
-                  key={leaf.tag}
-                  node={leaf}
-                  depth={0}
-                  selectedTag={value}
-                  onSelect={onChange}
-
-                  defaultExpanded={false}
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} aria-hidden>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M16.862 4.487l1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125"
                 />
-              ))
-            )
-          ) : safeNodes.length === 0 ? (
-            <div className="flex items-center justify-center py-6 text-sm text-muted">
-              No tags available
-            </div>
-          ) : (
-            safeNodes.map((node) => (
-              <TreeNode
-                key={node.tag}
-                node={node}
-                depth={0}
-                selectedTag={value}
-                onSelect={onChange}
-
-                defaultExpanded={false}
-              />
-            ))
-          )}
-        </div>
-
-        {/* Selected tag indicator */}
-        {value && (
-          <div className="px-3 py-1.5 border-t border-input-border bg-surface-secondary/50 flex items-center gap-2">
-            <span className="text-xs text-muted">Selected:</span>
-            <span className="text-xs font-medium text-primary">
-              {value}{tagNameMap.get(value) && tagNameMap.get(value) !== value ? ` - ${tagNameMap.get(value)}` : ''}
-            </span>
+              </svg>
+            </button>
           </div>
+        ) : (
+          <>
+            {/* Search input */}
+            <div className="px-2 pt-2 pb-1">
+              <div className="relative">
+                <svg
+                  className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Search tags..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 text-sm rounded-md border border-input-border bg-surface-primary text-heading placeholder:text-placeholder focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors"
+                />
+              </div>
+            </div>
+
+            {/* Tree list */}
+            <div className="max-h-48 overflow-y-auto px-1 pb-2">
+              {loading ? (
+                <div className="flex items-center justify-center py-6 text-sm text-muted">
+                  Loading tags...
+                </div>
+              ) : searchResults ? (
+                searchResults.length === 0 ? (
+                  <div className="flex items-center justify-center py-6 text-sm text-muted">
+                    No tags match your search
+                  </div>
+                ) : (
+                  searchResults.map((leaf) => (
+                    <TreeNode
+                      key={leaf.tag}
+                      node={leaf}
+                      depth={0}
+                      selectedTag={value}
+                      onSelect={handleSelect}
+                      defaultExpanded={false}
+                    />
+                  ))
+                )
+              ) : safeNodes.length === 0 ? (
+                <div className="flex items-center justify-center py-6 text-sm text-muted">
+                  No tags available
+                </div>
+              ) : (
+                safeNodes.map((node) => (
+                  <TreeNode
+                    key={node.tag}
+                    node={node}
+                    depth={0}
+                    selectedTag={value}
+                    onSelect={handleSelect}
+                    defaultExpanded={false}
+                  />
+                ))
+              )}
+            </div>
+
+            {/* Selected tag indicator */}
+            {value && (
+              <div className="px-3 py-1.5 border-t border-input-border bg-surface-secondary/50 flex items-center gap-2">
+                <span className="text-xs text-muted">Selected:</span>
+                <span className="text-xs font-medium text-primary">
+                  {value}{tagNameMap.get(value) && tagNameMap.get(value) !== value ? ` - ${tagNameMap.get(value)}` : ''}
+                </span>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

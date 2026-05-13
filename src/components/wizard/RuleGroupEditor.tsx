@@ -4,6 +4,7 @@ import { ConditionEditor } from './ConditionEditor';
 import { Button } from '../shared/Button';
 import { generateExpressionPrompt } from '../../utils/regexify';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
+import { isSameCondition } from '../../utils/ruleFingerprint';
 
 interface RuleGroupEditorProps {
   group: AndGroupFormValue;
@@ -16,6 +17,12 @@ interface RuleGroupEditorProps {
   canRemoveGroup: boolean;
   startCollapsed?: boolean;
   readOnly?: boolean;
+  /** Index of another rule set that has the same canonical conditions as
+   *  this one, or null when this rule set is unique. When non-null the editor
+   *  renders a persistent banner so duplicates are visible without first
+   *  re-opening one of the conditions, and the Save button on every condition
+   *  is disabled while the duplicate remains. */
+  duplicateOfGroupIndex?: number | null;
 }
 
 export function RuleGroupEditor({
@@ -29,6 +36,7 @@ export function RuleGroupEditor({
   canRemoveGroup,
   startCollapsed,
   readOnly,
+  duplicateOfGroupIndex,
 }: RuleGroupEditorProps) {
   const [isExpanded, setIsExpanded] = useState(!startCollapsed);
 
@@ -74,23 +82,45 @@ export function RuleGroupEditor({
         )}
       </div>
 
+      {duplicateOfGroupIndex != null && (
+        <div
+          role="alert"
+          className="mt-2 w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md border border-red-400 dark:border-rose-400 bg-red-50 dark:bg-rose-900/20 text-xs text-red-600 dark:text-rose-300"
+        >
+          <span aria-hidden="true" className="font-bold leading-none">!</span>
+          <span>
+            This rule set is identical to <span className="font-semibold">Rule Set {duplicateOfGroupIndex + 1}</span>. Remove one or change its conditions.
+          </span>
+        </div>
+      )}
+
       {isExpanded && (
         <>
           <div className='flex items-center justify-between mt-3 w-full'>
             <div className="space-y-0">
-              {group.conditions.map((condition, i) => (
-                <ConditionEditor
-                  key={condition.id}
-                  condition={condition}
-                  onUpdate={(updates) => onUpdateCondition(condition.id, updates)}
-                  onRemove={() => onRemoveCondition(condition.id)}
-                  onSave={onConditionSave}
-                  canRemove={group.conditions.length > 1}
-                  showAnd={i > 0}
-                  startCollapsed={startCollapsed && condition.value.trim().length > 0}
-                  readOnly={readOnly}
-                />
-              ))}
+              {group.conditions.map((condition, i) => {
+                // Within-group duplicate flags ONLY the later copy of an
+                // identical condition — the first occurrence is the original
+                // and stays clean.
+                const isWithinGroupDuplicate = group.conditions
+                  .slice(0, i)
+                  .some((earlier) => isSameCondition(earlier, condition));
+                return (
+                  <ConditionEditor
+                    key={condition.id}
+                    condition={condition}
+                    onUpdate={(updates) => onUpdateCondition(condition.id, updates)}
+                    onRemove={() => onRemoveCondition(condition.id)}
+                    onSave={onConditionSave}
+                    canRemove={group.conditions.length > 1}
+                    showAnd={i > 0}
+                    startCollapsed={startCollapsed && condition.value.trim().length > 0}
+                    readOnly={readOnly}
+                    isWithinGroupDuplicate={isWithinGroupDuplicate}
+                    isGroupDuplicate={duplicateOfGroupIndex != null}
+                  />
+                );
+              })}
             </div>
           </div>
           {!readOnly && (

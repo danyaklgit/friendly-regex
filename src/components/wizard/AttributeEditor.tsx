@@ -96,10 +96,14 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
   const { fieldMeta } = useTransactionData();
   const { activeAttributes, validationClasses, validationOptions, lovOptions, lovLookup, createNewAttribute, transformationMethods } = useLovAttributes();
   const [showDistinct, setShowDistinct] = useState(false);
-  const [editing, setEditing] = useState(!startCollapsed);
+  const [editing, setEditing] = useState(
+    !startCollapsed && attribute.attributeTag.trim().length === 0,
+  );
   const [createAttrOpen, setCreateAttrOpen] = useState(false);
   const [showValidation, setShowValidation] = useState(!!attribute.validationRuleTag);
-  const [hasSaved, setHasSaved] = useState(!!startCollapsed);
+  const [hasSaved, setHasSaved] = useState(
+    !!startCollapsed || attribute.attributeTag.trim().length > 0,
+  );
   const [snapshot, setSnapshot] = useState<AttributeFormValue | null>(() =>
     !startCollapsed ? { ...attribute } : null
   );

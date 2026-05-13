@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import type { ConditionFormValue } from '../../types';
 import { SearchableSelect } from '../shared/SearchableSelect';
 import { Input } from '../shared/Input';
@@ -24,7 +24,15 @@ interface ConditionEditorProps {
   showAnd?: boolean;
   startCollapsed?: boolean;
   readOnly?: boolean;
+  /** True only when this condition matches an EARLIER sibling in the same
+   *  rule set — so the first occurrence stays clean and only the duplicate
+   *  copy is flagged. */
+  isWithinGroupDuplicate?: boolean;
+  /** True when the rule set as a whole is a duplicate of another rule set.
+   *  Drives the Save gate (the persistent banner lives on the group). */
+  isGroupDuplicate?: boolean;
 }
+
 
 export function ConditionEditor({
   condition,
@@ -35,9 +43,13 @@ export function ConditionEditor({
   showAnd,
   startCollapsed,
   readOnly,
+  isWithinGroupDuplicate,
+  isGroupDuplicate,
 }: ConditionEditorProps) {
   const { fieldMeta, transactions } = useTransactionData();
-  const [editing, setEditing] = useState(!startCollapsed);
+  const [editing, setEditing] = useState(
+    !startCollapsed && condition.value.trim().length === 0,
+  );
   const [snapshot, setSnapshot] = useState<ConditionFormValue | null>(() =>
     !startCollapsed ? { ...condition } : null
   );
@@ -79,6 +91,32 @@ export function ConditionEditor({
   const preview = condition.value
     ? generateExpressionPrompt(condition.operation, condition.value, condition.values)
     : '';
+
+  // Duplicate signals come from the parent (RuleGroupEditor / StepRuleExpressions)
+  // which has full visibility of every rule set. Within-group duplicates flag
+  // only the LATER copy so the original stays clean; the whole-group duplicate
+  // is surfaced by a persistent banner on the rule set itself but we still
+  // gate Save here so an in-flight edit cannot bypass it.
+  const isDuplicate = !!isWithinGroupDuplicate || !!isGroupDuplicate;
+  const duplicateMessage = isWithinGroupDuplicate
+    ? 'This condition already exists in this rule set.'
+    : 'Another rule set already has the exact same conditions.';
+
+  // Local mirror of the multi-value input. The parsed `condition.values` strips
+  // empty tokens (so a trailing comma "2023-04-01," produces ["2023-04-01"]),
+  // which previously fed back into the controlled input and erased the comma
+  // the user just typed. Keeping a separate string lets the user type freely;
+  // we only resync when the canonical join of condition.values diverges from
+  // the join of our parsed input (i.e. an external reset such as Discard).
+  const [valuesInput, setValuesInput] = useState(() => (condition.values ?? []).join(', '));
+  useEffect(() => {
+    const fromValues = (condition.values ?? []).join(', ');
+    const parsedFromInput = valuesInput.split(',').map((v) => v.trim()).filter(Boolean).join(', ');
+    if (fromValues !== parsedFromInput) {
+      setValuesInput(fromValues);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [condition.values]);
 
   return (
     <div>
@@ -131,10 +169,12 @@ export function ConditionEditor({
                 <Input
                   label='Value'
                   placeholder="Value1, Value2, ..."
-                  value={(condition.values ?? []).join(', ')}
+                  value={valuesInput}
                   disabled={readOnly}
                   onChange={(e) => {
-                    const values = e.target.value.split(',').map((v) => v.trim()).filter(Boolean);
+                    const raw = e.target.value;
+                    setValuesInput(raw);
+                    const values = raw.split(',').map((v) => v.trim()).filter(Boolean);
                     onUpdate({ values, value: values[0] ?? '' });
                   }}
                 />
@@ -166,10 +206,19 @@ export function ConditionEditor({
         )}
       </div>
       {editing && preview && (
-        <div className="mt-1 ml-3 flex items-center gap-2">
+        <div className="mt-1 ml-3 flex flex-wrap items-center gap-2">
           <p className="text-xs text-primary italic text-left border-dashed border w-fit px-2 py-1">
             {humanizeFieldName(condition.sourceField)} &rarr; <span className='text-orange-500 dark:text-orange-300'>{preview}</span>
           </p>
+          {isDuplicate && (
+            <p
+              role="alert"
+              className="text-xs text-red-600 dark:text-rose-300 inline-flex items-center gap-1.5"
+            >
+              <span aria-hidden="true" className="font-bold leading-none">!</span>
+              <span>{duplicateMessage}</span>
+            </p>
+          )}
           {!readOnly && (
             <>
               {hasChanges && (
@@ -177,7 +226,15 @@ export function ConditionEditor({
                   Discard
                 </Button>
               )}
-              <Button data-tour="condition-save-button" variant="primary" size="xs" onClick={() => { setEditing(false); onSave?.(); }} className="min-w-16 text-center">
+              <Button
+                data-tour="condition-save-button"
+                variant="primary"
+                size="xs"
+                onClick={() => { setEditing(false); onSave?.(); }}
+                disabled={isDuplicate}
+                title={isDuplicate ? duplicateMessage : undefined}
+                className="min-w-16 text-center"
+              >
                 Save
               </Button>
             </>
