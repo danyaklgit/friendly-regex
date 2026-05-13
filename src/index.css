@@ -104,45 +104,57 @@
 
 /* ========== CUSTOM SCROLLBARS ========== */
 
+/* Page-level scrollbar shares the same styling as .custom-scrollbar so the
+   primary browser scrollbar matches the in-page ones. */
+
 /* Webkit (Chrome, Edge, Safari) */
+html::-webkit-scrollbar,
 .custom-scrollbar::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 
+html::-webkit-scrollbar-track,
 .custom-scrollbar::-webkit-scrollbar-track {
   background: #cffafe;
   border-radius: 5px;
 }
 
+html::-webkit-scrollbar-thumb,
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: var(--color-primary);
   border-radius: 5px;
 }
 
+html::-webkit-scrollbar-thumb:hover,
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: var(--color-primary-dark);
 }
 
+html::-webkit-scrollbar-corner,
 .custom-scrollbar::-webkit-scrollbar-corner {
   background: #cffafe;
 }
 
 /* Firefox */
+html,
 .custom-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: var(--color-primary) #cffafe;
 }
 
 /* Dark mode overrides */
+.dark html::-webkit-scrollbar-track,
 .dark .custom-scrollbar::-webkit-scrollbar-track {
   background: #4b5563;
 }
 
+.dark html::-webkit-scrollbar-corner,
 .dark .custom-scrollbar::-webkit-scrollbar-corner {
   background: #4b5563;
 }
 
+.dark html,
 .dark .custom-scrollbar {
   scrollbar-color: var(--color-primary) #4b5563;
 }

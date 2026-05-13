@@ -4,6 +4,7 @@ import { TagMetaBadges } from './TagMetaBadges';
 import { RuleExpressionView } from './RuleExpressionView';
 import { AttributeListView } from './AttributeListView';
 import { Button } from '../shared/Button';
+import { CopyableId } from '../shared/CopyableId';
 
 interface TagRuleCardProps {
   definition: TagSpecDefinition;
@@ -28,6 +29,7 @@ export function TagRuleCard({ definition, parentLib, onEdit, onDelete, onExport,
         <div className="flex items-center gap-3">
           <span className="text-sm font-semibold text-heading">{definition.Tag}</span>
           <TagMetaBadges definition={definition} parentContext={parentLib?.Context} size="xs" />
+          <CopyableId id={definition.Id} />
         </div>
         <svg
           className={`w-5 h-5 text-faint transition-transform ${expanded ? 'rotate-180' : ''}`}

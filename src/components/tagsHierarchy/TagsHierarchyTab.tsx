@@ -335,9 +335,9 @@ export function TagsHierarchyTab() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 flex-1 min-h-0 h-full">
       {/* Header bar */}
-      <div data-tour="tags-hierarchy-header" className="flex items-center gap-3">
+      <div data-tour="tags-hierarchy-header" className="flex items-center gap-3 flex-shrink-0">
         <div className="relative flex-1 max-w-sm">
           <svg
             className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted"
@@ -375,7 +375,7 @@ export function TagsHierarchyTab() {
       </div>
 
       {/* Tree view */}
-      <div data-tour="tags-tree" className="rounded-xl border border-border bg-surface-elevated shadow-sm overflow-hidden">
+      <div data-tour="tags-tree" className="rounded-xl border border-border bg-surface-elevated shadow-sm overflow-y-auto flex-1 min-h-0 custom-scrollbar">
         {filteredView.length === 0 ? (
           <div className="text-sm text-muted text-center py-10">No tags match your search</div>
         ) : (

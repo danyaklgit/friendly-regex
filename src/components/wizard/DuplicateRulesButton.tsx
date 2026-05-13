@@ -5,6 +5,8 @@ import { Button } from '../shared/Button';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { SourceTagPickerModal } from './SourceTagPickerModal';
 
+
+
 interface DuplicateRulesButtonProps {
   /** Number of rule sets currently in the form — triggers confirm when > 0. */
   currentRuleGroupCount: number;
@@ -25,7 +27,7 @@ export function DuplicateRulesButton({
   className,
   ...rest
 }: DuplicateRulesButtonProps) {
-  const { tagDefinitions } = useTagSpecs();
+  const { libraries } = useTagSpecs();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pendingTemplate, setPendingTemplate] = useState<TagSpecDefinition | null>(null);
 
@@ -59,7 +61,7 @@ export function DuplicateRulesButton({
 
       <SourceTagPickerModal
         open={pickerOpen}
-        definitions={tagDefinitions}
+        libraries={libraries}
         onClose={() => setPickerOpen(false)}
         onSelect={handlePickerSelect}
       />

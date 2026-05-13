@@ -37,7 +37,7 @@ export function SettingsTab() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 p-4 overflow-y-auto">
+      <div className="flex-1 p-4 overflow-hidden min-h-0 flex flex-col">
         {activeSubTab === 0 && <TagsHierarchyTab />}
         {activeSubTab === 1 && <AttributesPage />}
         {activeSubTab === 2 && <LovsPage />}
