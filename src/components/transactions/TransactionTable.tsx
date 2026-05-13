@@ -4,8 +4,10 @@ import { useTransactionData } from '../../hooks/useTransactionData';
 import { useLovAttributes } from '../../context/LovAttributesContext';
 import { PREDEFINED_PATTERNS } from '../../constants/operations';
 import { TagBadge } from './TagBadge';
+import { HintsInfoIcon } from './HintsInfoIcon';
 import { Badge } from '../shared/Badge';
 import { Tooltip } from '../shared/Tooltip';
+import { getHints } from '../../utils/getHints';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
 import { decomposeExtractionRegex, engregxify } from '../../utils/engregxify';
 import { getRegexDescription } from '../../types/tagSpec';
@@ -1695,6 +1697,8 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                           );
                         }
                         case 'tags': {
+                          const hints = getHints(item.row);
+                          const hasHints = hints.length > 0;
                           return (
                             <td key={col.key} className={`px-3 ${cellPy} ${stickyBg}`} style={getCellStyle(colIdx, false)}>
                               <div className="flex items-center gap-1.5">
@@ -1708,7 +1712,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                                 )}
                                 <div className="flex-1">
                                   {item.analysis.tags.length > 0 ? (
-                                    <div className={`flex gap-1 ${relaxedMode ? 'flex-nowrap' : 'flex-wrap'}`}>
+                                    <div className={`flex items-center gap-1 ${relaxedMode ? 'flex-nowrap' : 'flex-wrap'}`}>
                                       {isDeadEnd && (
                                         <Badge variant="none" size="sm" className="border border-red-200 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800 px-2.5 shrink-0">Dead End</Badge>
                                       )}
@@ -1732,9 +1736,15 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                                           </Tooltip>
                                         );
                                       })}
+                                      {hasHints && <HintsInfoIcon hints={hints} />}
                                     </div>
                                   ) : isDeadEnd ? (
-                                    <Badge variant="none" size="sm" className="border border-red-200 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800 px-2.5">Dead End</Badge>
+                                    <div className="flex items-center gap-1">
+                                      <Badge variant="none" size="sm" className="border border-red-200 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800 px-2.5">Dead End</Badge>
+                                      {hasHints && <HintsInfoIcon hints={hints} />}
+                                    </div>
+                                  ) : hasHints ? (
+                                    <HintsInfoIcon hints={hints} />
                                   ) : (
                                     <span className="text-faint text-xs">-</span>
                                   )}
