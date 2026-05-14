@@ -68,7 +68,20 @@ export function ConditionEditor({
 
   const handleDiscard = useCallback(() => {
     if (snapshot) {
-      onUpdate(snapshot);
+      // onUpdate is a partial-merge in the parent reducer. The snapshot for a
+      // freshly added condition doesn't carry the optional transient fields
+      // (values / prefix / suffix), so spreading the snapshot would leave a
+      // stale array behind — e.g. a discarded "Matches one of" run keeps
+      // condition.values, then bleeds into the next source field's input.
+      // Including them explicitly forces the merge to overwrite to undefined.
+      onUpdate({
+        sourceField: snapshot.sourceField,
+        operation: snapshot.operation,
+        value: snapshot.value,
+        values: snapshot.values,
+        prefix: snapshot.prefix,
+        suffix: snapshot.suffix,
+      });
       setSnapshot({ ...snapshot });
     }
   }, [snapshot, onUpdate]);
