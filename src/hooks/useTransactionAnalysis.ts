@@ -6,14 +6,14 @@ import type { AnalyzedTransaction } from '../types';
 
 export function useTransactionAnalysis(): AnalyzedTransaction[] {
   const { libraries } = useTagSpecs();
-  const { transactions } = useTransactionData();
+  const { transactions, isLiveMode } = useTransactionData();
 
   return useMemo(
     () =>
       transactions.map((row) => ({
         row,
-        analysis: analyzeRow(row, libraries),
+        analysis: analyzeRow(row, libraries, isLiveMode),
       })),
-    [transactions, libraries]
+    [transactions, libraries, isLiveMode]
   );
 }

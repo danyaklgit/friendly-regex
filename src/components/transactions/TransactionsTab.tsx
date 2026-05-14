@@ -208,7 +208,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     isLiveMode, loading, hasMore: liveHasMore, totalTransactionsCount, fetchPage, fetchCount,
     trimLoadedTransactions,
     filterDefinitions, filterDefinitionsLoading, fetchFilterDefinitions,
-    decimalMaxValues, fetchDecimalMaxValues,
+    decimalMaxValues,
   } = useTransactionData();
   // Fetch filter definitions when the Transactions tab mounts
   useEffect(() => {
@@ -216,17 +216,10 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       fetchFilterDefinitions();
     }
   }, [isLiveMode, fetchFilterDefinitions, filterDefinitions.length]);
-  // Probe the true max value for each DECIMAL filter once definitions are loaded.
-  // Skip entirely when the user arrived via a Backlog "edit tag" navigation —
-  // they're going straight into the rule builder; amount-range sliders aren't
-  // in play, so the probe is pure noise. DynamicFilters falls back to a
-  // data-derived max for DECIMAL bounds when no probed value is present.
-  useEffect(() => {
-    if (!isLiveMode || filterDefinitions.length === 0) return;
-    if (activeCheckout?.pendingDefinitionId) return;
-    fetchDecimalMaxValues(filterDefinitions);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLiveMode, filterDefinitions.length]);
+  // DECIMAL filter sliders use a static 200M default ceiling instead of a
+  // probe-API call (see DEFAULT_DECIMAL_MAX in DynamicFilters). Edit mode lets
+  // the user type a higher value if their workload needs it, so we don't pay
+  // the cost of an unscoped probe round-trip on every navigation here.
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -490,15 +483,20 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // While a Backlog "edit" navigation is pending, skip auto-fetch — handleTagClick
   // will set tagClickState and this effect will re-fire with the scoped extra filter,
   // avoiding a broad fetch that would just be aborted.
+  // Also wait for filterDefinitions to load before firing: while empty, baseFilters
+  // uses sample-mode column-name keys that translateFilters drops, which would send
+  // a request with no bank/side scope — pure waste, since the effect re-fires with
+  // correct tag-name keys once definitions resolve.
   useEffect(() => {
     if (!isLiveMode) return;
+    if (filterDefinitions.length === 0) return;
     if (activeCheckout?.pendingDefinitionId) return;
     const timer = setTimeout(() => {
       fetchPage(outgoingFilters, false, incrementalPagination ? undefined : 0, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined);
       if (!incrementalPagination) { setCurrentPage(0); setPageInputValue('1'); }
     }, 50);
     return () => clearTimeout(timer);
-  }, [isLiveMode, outgoingFilters, fetchPage, incrementalPagination, activeExtraFilters, activeCheckout?.pendingDefinitionId]);
+  }, [isLiveMode, filterDefinitions.length, outgoingFilters, fetchPage, incrementalPagination, activeExtraFilters, activeCheckout?.pendingDefinitionId]);
 
   // Capture Call 2 total count (definition-based) before Call 3 can overwrite it
   useEffect(() => {
@@ -676,7 +674,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     () =>
       transactions.map((row) => ({
         row,
-        analysis: analyzeRow(row, allLibraries),
+        analysis: analyzeRow(row, allLibraries, isLiveMode),
       })).filter(item => {
         if (!builderOpen || !builderHasContent) return true;
         // When tag click applied a server-side tag filter, skip client-side
@@ -685,7 +683,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         if (editingDef) return item.analysis.matchedDefinitions.some(d => d.Id === editingDef.Id);
         return item.analysis.tags.includes('Preview');
       }),
-    [transactions, allLibraries, tempDefinition, editingDef, tagClickState, builderOpen, builderHasContent]
+    [transactions, allLibraries, tempDefinition, editingDef, tagClickState, builderOpen, builderHasContent, isLiveMode]
   );
 
   // Apply all filters

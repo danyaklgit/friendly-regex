@@ -511,6 +511,12 @@ function formatThousands(raw: string): string {
 
 // ─── DECIMAL filter (range slider) ───────────────────────────────────────────
 
+// Static default ceiling for decimal range sliders. We no longer probe the API
+// for a true global max (see TransactionsTab) — instead the slider opens at
+// this value and edit mode lets the user type a higher number if their data
+// exceeds it.
+const DEFAULT_DECIMAL_MAX = 200_000_000;
+
 function DecimalFilter({
   definition,
   filters,
@@ -529,20 +535,27 @@ function DecimalFilter({
   const currentMax = [...(filters[lteKey] ?? [])][0] ?? '';
   const hasActive = !!currentMin || !!currentMax;
 
-  const hasSlider = dataMax !== undefined && dataMax > 0;
-  const sliderMax = hasSlider ? ceilToNice(dataMax) : 0;
-  // Step proportional to max, capped at 500,000
-  const step = hasSlider
-    ? Math.min(500_000, Math.max(1, Math.pow(10, Math.max(0, Math.floor(Math.log10(sliderMax)) - 2))))
-    : 1;
+  // Base ceiling: the static default is the floor, growing if the loaded data
+  // actually exceeds it. The slider is always usable — no "No data available"
+  // state — so hasSlider is always true once we render this component.
+  const dataDerivedMax = dataMax !== undefined && dataMax > 0 ? ceilToNice(dataMax) : 0;
+  const baseMax = Math.max(DEFAULT_DECIMAL_MAX, dataDerivedMax);
 
   // Applied filter values (what's actually filtering the table)
   const appliedLow = currentMin !== '' ? Number(currentMin) : 0;
-  const appliedHigh = currentMax !== '' ? Number(currentMax) : sliderMax;
+  const appliedHigh = currentMax !== '' ? Number(currentMax) : baseMax;
 
   // Pending (draft) slider state — not applied until user clicks Filter
   const [pendingLow, setPendingLow] = useState(appliedLow);
   const [pendingHigh, setPendingHigh] = useState(appliedHigh);
+
+  // Grow sliderMax so the thumb stays in range if the user (or a saved filter)
+  // exceeds the default. Lets edit-mode entries beyond DEFAULT_DECIMAL_MAX work
+  // without truncating the slider visually.
+  const sliderMax = Math.max(baseMax, appliedHigh, pendingHigh);
+  const hasSlider = sliderMax > 0;
+  // Step proportional to max, capped at 500,000
+  const step = Math.min(500_000, Math.max(1, Math.pow(10, Math.max(0, Math.floor(Math.log10(sliderMax)) - 2))));
 
   // Edit-mode state for manual min/max inputs
   const [editMode, setEditMode] = useState(false);
@@ -562,8 +575,13 @@ function DecimalFilter({
     const next = { ...filters };
     if (pendingLow <= 0) delete next[gteKey];
     else next[gteKey] = new Set([String(pendingLow)]);
-    if (pendingHigh >= sliderMax) delete next[lteKey];
-    else next[lteKey] = new Set([String(pendingHigh)]);
+    // Always honor pendingHigh as the upper bound — the user reached this
+    // value deliberately (Apply only fires when isDirty, and the Apply button
+    // only renders then). Even if they typed a value above the static 200M
+    // default, that ceiling is just a starting point, not a cap. Reset
+    // clears the filter via clearFilter().
+    if (pendingHigh > 0 && pendingHigh >= pendingLow) next[lteKey] = new Set([String(pendingHigh)]);
+    else delete next[lteKey];
     onFiltersChange(next);
     setOpen(false);
   };
@@ -571,7 +589,7 @@ function DecimalFilter({
   const clearFilter = (e: React.MouseEvent) => {
     e.stopPropagation();
     setPendingLow(0);
-    setPendingHigh(sliderMax);
+    setPendingHigh(baseMax);
     const next = { ...filters };
     delete next[gteKey];
     delete next[lteKey];
@@ -664,7 +682,10 @@ function DecimalFilter({
                         const raw = e.target.value.replace(/,/g, '');
                         setHighStr(formatThousands(raw));
                         const v = parseFloat(raw);
-                        if (!isNaN(v) && v >= pendingLow && v <= sliderMax) {
+                        // No upper clamp here — sliderMax grows from pendingHigh,
+                        // so a user-typed value above the default 200M ceiling is
+                        // honored and the slider extends to match.
+                        if (!isNaN(v) && v >= pendingLow) {
                           setPendingHigh(v);
                         }
                       }}

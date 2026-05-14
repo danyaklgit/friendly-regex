@@ -130,9 +130,11 @@ export function ViewContextModal({ open, onClose, transaction, authToken, tepHea
         authToken,
         tepHeaders,
       );
+      // This modal always fetches live data via the API, so backend tags
+      // (OpsTag / OpsMultiTags) are authoritative — don't re-run rules locally.
       const analyzed = (result.Transactions ?? []).map((row) => ({
         row,
-        analysis: analyzeRow(row, libraries),
+        analysis: analyzeRow(row, libraries, true),
       }));
       setRows(analyzed);
     } catch (err) {
