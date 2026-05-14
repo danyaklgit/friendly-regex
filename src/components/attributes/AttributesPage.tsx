@@ -62,8 +62,8 @@ export function AttributesPage() {
   const getEnDetail = (attr: BackendAttribute) => attr.Details.find((d) => d.LanguageCode === 'en');
 
   return (
-    <div>
-      <div className="flex items-center gap-3 mb-4">
+    <div className="flex flex-col min-h-0 flex-1">
+      <div className="flex items-center gap-3 mb-4 shrink-0">
         <div className="relative flex-1 max-w-sm">
           <svg
             className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted"
@@ -95,15 +95,15 @@ export function AttributesPage() {
           {search ? 'No attributes match your search.' : 'No attributes found.'}
         </div>
       ) : (
-        <div className="overflow-x-auto border border-border rounded-lg">
+        <div className="flex-1 min-h-0 overflow-auto custom-scrollbar border border-border rounded-lg">
           <table className="min-w-full divide-y divide-divide">
-            <thead className="bg-surface-secondary">
+            <thead className="bg-surface-secondary sticky top-0 z-20">
               <tr>
                 <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Name</th>
                 <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Value</th>
                 <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Description</th>
                 <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Suggested LOV</th>
-                <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-body-secondary sticky right-0 z-10 bg-surface-secondary shadow-[-4px_0_4px_-2px_rgba(0,0,0,0.08)]">Actions</th>
+                <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-body-secondary sticky right-0 z-30 bg-surface-secondary border-l border-border-strong shadow-[-16px_0_24px_-8px_rgba(15,23,42,0.55)] dark:shadow-[-16px_0_24px_-8px_rgba(8,145,178,0.35)]">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-surface divide-y divide-divide">
@@ -115,7 +115,7 @@ export function AttributesPage() {
                     <td className="px-4 py-2.5 text-xs text-body-secondary font-mono">{attr.Value}</td>
                     <td className="px-4 py-2.5 text-xs text-body-secondary">{en?.ShortDescription ?? '—'}</td>
                     <td className="px-4 py-2.5 text-xs text-body-secondary">{attr.PossibleLOVTag ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-right sticky right-0 z-10 bg-surface group-hover:bg-surface-hover shadow-[-4px_0_4px_-2px_rgba(0,0,0,0.08)]">
+                    <td className="px-4 py-2.5 text-right sticky right-0 z-10 bg-surface-secondary group-hover:bg-surface-hover border-l border-border-strong shadow-[-16px_0_24px_-8px_rgba(15,23,42,0.55)] dark:shadow-[-16px_0_24px_-8px_rgba(8,145,178,0.35)]">
                       {!isAudit && (
                         <button
                           type="button"

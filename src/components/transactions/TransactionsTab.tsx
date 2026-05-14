@@ -1362,19 +1362,6 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
           })()}
 
           <span className='flex flex-col items-center w-full text-slate-500 text-xs pb-2 gap-1'>
-            {/* Records count — always shown */}
-            <span className='flex items-baseline'>
-              Records: <span className='text-primary pl-1 text-base'>{filteredData.length}</span>
-            </span>
-            {/* Ruleset match count — only shown after API confirms AND counts differ */}
-            {tagClickState?.rulesetApplied &&
-              tagClickState.rulesetMatchCount != null &&
-              tagClickState.rulesetMatchCount !== filteredData.length && (
-              <span className='text-[11px] text-emerald-600 dark:text-emerald-400'>
-                {tagClickState.rulesetMatchCount.toLocaleString()} transaction{tagClickState.rulesetMatchCount !== 1 ? 's' : ''} match this ruleset
-              </span>
-            )}
-
             {/* After Apply Rules: discard changes + show all */}
             {tagClickState?.rulesetApplied && !tagClickState.showingAll && (
               <button
@@ -1574,9 +1561,13 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
               }}>
                 Next &rarr;
               </Button>
-              {/* <span className="text-xs text-muted ml-2">
-                ({(isLiveMode ? totalTransactionsCount ?? 0 : filteredLen).toLocaleString()} total)
-              </span> */}
+              <span className="text-border">|</span>
+              <span className="text-xs text-muted">
+                <span className="font-medium text-heading">{loadedNow.toLocaleString()}</span>
+                {' loaded · '}
+                <span className="font-medium text-heading">{totalNow.toLocaleString()}</span>
+                {' total'}
+              </span>
             </>
           )}
         </div>
