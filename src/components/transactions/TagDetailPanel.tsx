@@ -4,7 +4,7 @@ import { Badge } from '../shared/Badge';
 import { CopyableId } from '../shared/CopyableId';
 import { RuleExpressionView } from '../tagRules/RuleExpressionView';
 import { useTagSampleTransactions } from '../../hooks/useTagSampleTransactions';
-import { getRegexDescription } from '../../types/tagSpec';
+import { getContextValue, getRegexDescription } from '../../types/tagSpec';
 import { engregxify } from '../../utils';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
 
@@ -111,6 +111,12 @@ export function TagDetailPanel({
                       <span className={`w-1.5 h-1.5 rounded-full ${accent.bar}`} />
                       {certainty} certainty
                     </span>
+                    {(() => {
+                      const txnType = getContextValue(definition.Context, 'TransactionTypeCode');
+                      return txnType ? (
+                        <Badge variant="info" size="xs">{txnType}</Badge>
+                      ) : null;
+                    })()}
                     <Badge variant="default" size="xs">{source}</Badge>
                     <Badge
                       variant={definition.StatusTag === 'ACTIVE' ? 'success' : 'default'}
