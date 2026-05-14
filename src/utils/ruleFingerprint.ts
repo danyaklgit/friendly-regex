@@ -45,3 +45,28 @@ export function computeDuplicateGroupIndexes(ruleGroups: AndGroupFormValue[]): (
     return other === -1 ? null : other;
   });
 }
+
+/** True when any two rule sets share the same canonical fingerprint. Used as
+ *  the boolean gate on the top-level submit buttons; the per-row banner is
+ *  driven by computeDuplicateGroupIndexes above. */
+export function hasDuplicateGroups(ruleGroups: AndGroupFormValue[]): boolean {
+  return computeDuplicateGroupIndexes(ruleGroups).some((i) => i !== null);
+}
+
+/** True when any rule set contains two filled conditions with the same
+ *  fingerprint. Cross-group duplicates are NOT covered here — that's
+ *  hasDuplicateGroups. Empty placeholder conditions never participate. */
+export function hasWithinGroupConditionDuplicates(
+  ruleGroups: AndGroupFormValue[],
+): boolean {
+  for (const g of ruleGroups) {
+    const seen = new Set<string>();
+    for (const c of g.conditions) {
+      if (!isFilledCondition(c)) continue;
+      const fp = conditionFingerprint(c);
+      if (seen.has(fp)) return true;
+      seen.add(fp);
+    }
+  }
+  return false;
+}

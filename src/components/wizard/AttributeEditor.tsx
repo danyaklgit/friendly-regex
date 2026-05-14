@@ -52,6 +52,11 @@ interface AttributeEditorProps {
   transactions?: TransactionRow[];
   startCollapsed?: boolean;
   readOnly?: boolean;
+  /** True when this row's attributeTag duplicates an EARLIER attribute's name
+   *  in the same tag. Only the later occurrence is flagged so the first one
+   *  stays clean — caller (StepAttributes) decides which is which via
+   *  computeDuplicateAttributeIndexes. */
+  isDuplicateName?: boolean;
 }
 
 /**
@@ -92,7 +97,7 @@ function BoundaryHintIcon({
   );
 }
 
-export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, startCollapsed, readOnly }: AttributeEditorProps) {
+export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, startCollapsed, readOnly, isDuplicateName }: AttributeEditorProps) {
   const { fieldMeta } = useTransactionData();
   const { activeAttributes, validationClasses, validationOptions, lovOptions, lovLookup, createNewAttribute, transformationMethods } = useLovAttributes();
   const [showDistinct, setShowDistinct] = useState(false);
@@ -408,8 +413,23 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
     return null;
   }, [transactions, attribute.sourceField, attribute.attributeTag, attribute.extractionOperation, attribute.prefix, attribute.suffix, attribute.verifyValue, attribute.validationRuleTag, validationClasses, extractionParams]);
 
+  // Mirrors RuleGroupEditor's banner: persistent (rendered whether the row is
+  // expanded or collapsed) so the duplicate is always visible until resolved.
+  const duplicateNameMessage = isDuplicateName
+    ? `An attribute named "${attribute.attributeTag.trim()}" already exists in this tag. Rename or remove it to continue.`
+    : null;
+
   return (
-    <div className="border border-border rounded-lg bg-surface">
+    <div className={`border rounded-lg bg-surface ${isDuplicateName ? 'border-red-400 dark:border-rose-400' : 'border-border'}`}>
+      {duplicateNameMessage && (
+        <div
+          role="alert"
+          className="flex items-center gap-2 px-3 py-1.5 rounded-t-lg border-b border-red-400 dark:border-rose-400 bg-red-50 dark:bg-rose-900/20 text-xs text-red-600 dark:text-rose-300"
+        >
+          <span aria-hidden="true" className="font-bold leading-none">!</span>
+          <span>{duplicateNameMessage}</span>
+        </div>
+      )}
       {editing ? (
         <div className="space-y-4 p-3">
           {/* Header: collapse arrow + preview + Remove */}
@@ -821,7 +841,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                   <Button variant="secondary" size="xs" onClick={handleDiscard} className="min-w-16 text-center shrink-0">
                     Discard
                   </Button>
-                  {canSaveAttribute ? (
+                  {canSaveAttribute && !isDuplicateName ? (
                     <Button
                       variant="primary"
                       size="xs"
@@ -831,7 +851,14 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                       Save
                     </Button>
                   ) : (
-                    <Tooltip content={`Missing: ${missingSaveFields.join(', ')}`} placement="top">
+                    <Tooltip
+                      content={
+                        isDuplicateName
+                          ? 'Rename or remove the duplicate attribute before saving.'
+                          : `Missing: ${missingSaveFields.join(', ')}`
+                      }
+                      placement="top"
+                    >
                       <span>
                         <Button
                           variant="primary"

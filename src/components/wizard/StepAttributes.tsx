@@ -1,6 +1,8 @@
+import { useMemo } from 'react';
 import type { AttributeFormValue, TransactionRow } from '../../types';
 import { AttributeEditor } from './AttributeEditor';
 import { Button } from '../shared/Button';
+import { computeDuplicateAttributeIndexes } from '../../utils/attributeFingerprint';
 
 interface StepAttributesProps {
   attributes: AttributeFormValue[];
@@ -13,6 +15,11 @@ interface StepAttributesProps {
 }
 
 export function StepAttributes({ attributes, onAdd, onRemove, onUpdate, transactions, startCollapsed, readOnly }: StepAttributesProps) {
+  // For each attribute, the index of the earlier row sharing its (trimmed,
+  // case-insensitive) name, or null when it's unique. Only the later
+  // duplicate carries the flag so the original stays clean.
+  const duplicateOfIndex = useMemo(() => computeDuplicateAttributeIndexes(attributes), [attributes]);
+
   return (
     <div data-tour="wizard-attributes">
       <p className="text-xs text-muted mb-2">
@@ -22,7 +29,7 @@ export function StepAttributes({ attributes, onAdd, onRemove, onUpdate, transact
 
       {attributes.length > 0 ? (
         <div className="space-y-1">
-          {attributes.map((attr) => (
+          {attributes.map((attr, i) => (
             <AttributeEditor
               key={attr.id}
               attribute={attr}
@@ -31,6 +38,7 @@ export function StepAttributes({ attributes, onAdd, onRemove, onUpdate, transact
               transactions={transactions}
               startCollapsed={startCollapsed && attr.attributeTag.trim().length > 0}
               readOnly={readOnly}
+              isDuplicateName={duplicateOfIndex[i] !== null}
             />
           ))}
         </div>

@@ -4,6 +4,8 @@ import { useAuth } from '../../context/AuthContext';
 import { useTransactionData } from '../../hooks/useTransactionData';
 import { useMatchingTagIds } from '../../hooks/useMatchingTagIds';
 import { buildRulesetFilters } from '../../utils/buildRulesetFilters';
+import { hasDuplicateGroups, hasWithinGroupConditionDuplicates } from '../../utils/ruleFingerprint';
+import { hasDuplicateAttributeNames } from '../../utils/attributeFingerprint';
 import type { FilterProperty } from '../../api/transactions';
 import { useWizardForm, fromExistingDefinition } from '../../hooks/useWizardForm';
 import type { TagSpecDefinition, TagSpecLibrary, AnalyzedTransaction, WizardFormState, RuleExpression, CheckoutState, TransactionRow } from '../../types';
@@ -634,6 +636,18 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const builderHasTransactionType = builder.formState.transactionTypeCode.trim().length > 0;
   const canSubmitBuilder = builderHasTransactionType;
 
+  // Centralized duplicate gate: any cross-rule-set duplicate, any within-group
+  // condition duplicate, or any duplicate attribute name disables the
+  // top-level Create / Save button. The per-row banners (ConditionEditor,
+  // RuleGroupEditor, AttributeEditor) make the cause visible; the tooltip
+  // below explains why the button is off when the user hovers.
+  const builderHasDuplicates = useMemo(() => (
+    hasDuplicateGroups(builder.formState.ruleGroups)
+      || hasWithinGroupConditionDuplicates(builder.formState.ruleGroups)
+      || hasDuplicateAttributeNames(builder.formState.attributes)
+  ), [builder.formState.ruleGroups, builder.formState.attributes]);
+  const canCreateFromBuilder = canSubmitBuilder && !builderHasDuplicates;
+
   // Live preview: which existing tag definitions match the rule the user is
   // currently authoring? Fired only while the builder is open. Hook owns the
   // debouncing and abort logic.
@@ -1212,8 +1226,15 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                 )
               )}
               {!isReadOnly && (
-                !builderHasTransactionType ? (
-                  <Tooltip content="Select a Transaction Type first" placement="bottom">
+                !canCreateFromBuilder ? (
+                  <Tooltip
+                    content={
+                      !builderHasTransactionType
+                        ? 'Select a Transaction Type first'
+                        : 'Fix or remove the duplicate rule sets, conditions, or attributes flagged above before saving.'
+                    }
+                    placement="bottom"
+                  >
                     <span>
                       <Button
                         data-tour="create-tag-button"
@@ -1231,7 +1252,6 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                     variant="primary"
                     size="xs"
                     onClick={handleCreateFromBuilder}
-                    disabled={!canSubmitBuilder}
                   >
                     {editingDef ? `Save changes for "${editingDef.Tag}"` : 'Create Rule with current settings'}
                   </Button>
