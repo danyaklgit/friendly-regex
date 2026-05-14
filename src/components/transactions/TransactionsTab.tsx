@@ -1439,8 +1439,10 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
 
       {/* Hide the pagination strip entirely when the table is empty and we
           aren't waiting on a fetch — "0 loaded · N total" plus +N buttons next
-          to a "No transactions found" empty state is just noise. */}
-      {!(filteredLen === 0 && !loading) && (hasMore || loading || (incrementalPagination && (isLiveMode ? transactions.length : visibleCount) > BATCH_SIZE) || (!incrementalPagination && (isLiveMode ? (totalTransactionsCount ?? 0) > BATCH_SIZE : filteredLen > BATCH_SIZE))) && (() => {
+          to a "No transactions found" empty state is just noise. Otherwise
+          render the strip even for single-page result sets so the user always
+          sees the "X loaded · Y total" count. */}
+      {!(filteredLen === 0 && !loading) && (() => {
         // Compute backward and forward batch lists once so the skeleton placeholders
         // mirror the actual button layout (e.g. don't draw four backward boxes when
         // only one backward button would render).

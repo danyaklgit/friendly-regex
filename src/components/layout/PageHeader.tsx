@@ -34,12 +34,12 @@ export function PageHeader({ tabs, activeIndex, onTabChange, checkout, onOpenOnb
     <header className="bg-surface border-b border-border">
       <div className="max-w-10xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center gap-6 h-12">
         <h1 className="text-lg font-semibold text-heading shrink-0">Transactions Enrichment Program</h1>
-        <nav className="flex gap-4 h-full" aria-label="Tabs">
+        <nav className="flex gap-4 h-full shrink-0" aria-label="Tabs">
           {tabs.map((tab, i) => (
             <button
               key={tab.label}
               onClick={() => onTabChange(i)}
-              className={`text-sm font-medium border-b-2 transition-colors cursor-pointer h-full flex items-center
+              className={`text-sm font-medium border-b-2 transition-colors cursor-pointer h-full flex items-center whitespace-nowrap
                 ${
                   i === activeIndex
                     ? 'border-primary text-primary'
@@ -51,22 +51,22 @@ export function PageHeader({ tabs, activeIndex, onTabChange, checkout, onOpenOnb
           ))}
         </nav>
         {checkout && (
-          <div data-tour="checkout-active-indicator" className="flex items-center gap-3 ml-auto">
-            <span className="text-sm text-primary-dark">
+          <div data-tour="checkout-active-indicator" className="flex items-center gap-3 ml-auto shrink-0">
+            <span className="text-sm text-primary-dark whitespace-nowrap">
               <span className="font-semibold">{checkout.isReadOnly ? "You're viewing" : "You're working on"}</span> {checkout.bank} - {checkout.side}
             </span>
             {!checkout.isReadOnly && !isAudit && (
               <>
                 {checkout.onRequestUndo && checkout.hasChanges && (
-                  <Button variant="secondary" size="xs" onClick={() => checkout.onRequestUndo!(checkout.bank, checkout.side)} disabled={checkout.actionLoading}>
+                  <Button variant="secondary" size="xs" onClick={() => checkout.onRequestUndo!(checkout.bank, checkout.side)} disabled={checkout.actionLoading} className="whitespace-nowrap">
                     Review Changes
                   </Button>
                 )}
-                <span data-tour="checkout-actions" className="flex items-center gap-2">
-                  <Button variant="primary" size="xs" onClick={() => checkout.onRelease(checkout.bank, checkout.side)} disabled={checkout.actionLoading}>
+                <span data-tour="checkout-actions" className="flex items-center gap-2 shrink-0">
+                  <Button variant="primary" size="xs" onClick={() => checkout.onRelease(checkout.bank, checkout.side)} disabled={checkout.actionLoading} className="whitespace-nowrap">
                     {checkout.hasChanges ? 'Save and Release' : 'Release'}
                   </Button>
-                  <Button variant="primary" size="xs" onClick={() => checkout.onCheckin(checkout.bank, checkout.side)} disabled={checkout.actionLoading}>
+                  <Button variant="primary" size="xs" onClick={() => checkout.onCheckin(checkout.bank, checkout.side)} disabled={checkout.actionLoading} className="whitespace-nowrap">
                     {checkout.hasChanges ? 'Save and Check In' : 'Check In'}
                   </Button>
                 </span>

@@ -39,7 +39,7 @@ export function LovItemsPane({ list, onRefresh, refreshing }: LovItemsPaneProps)
     <div className="flex-1 flex flex-col min-w-0 p-4 gap-3 overflow-hidden">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-heading truncate">{humanizeLovTag(list.Tag)}</h3>
+          <h3 className="text-sm font-semibold text-heading truncate">{list.Name?.trim() || humanizeLovTag(list.Tag)}</h3>
           <p className="text-xs text-muted">
             {items.length} {items.length === 1 ? 'item' : 'items'}
           </p>

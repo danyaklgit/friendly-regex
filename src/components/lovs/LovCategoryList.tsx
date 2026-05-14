@@ -11,13 +11,19 @@ interface LovCategoryListProps {
 export function LovCategoryList({ lists, selectedTag, onSelect }: LovCategoryListProps) {
   const [filter, setFilter] = useState('');
 
+  // Prefer the backend-supplied Name (preserves correct acronym casing like
+  // "ARNBSARI IPS Rejection Codes") and fall back to humanizing the Tag for
+  // legacy payloads where Name is missing or empty.
+  const labelFor = (l: LOVList) => l.Name?.trim() || humanizeLovTag(l.Tag);
+
   const visible = useMemo(() => {
     const term = filter.trim().toLowerCase();
     if (!term) return lists;
     return lists.filter((l) => {
-      const label = humanizeLovTag(l.Tag).toLowerCase();
+      const label = labelFor(l).toLowerCase();
       return l.Tag.toLowerCase().includes(term) || label.includes(term);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lists, filter]);
 
   return (
@@ -57,7 +63,7 @@ export function LovCategoryList({ lists, selectedTag, onSelect }: LovCategoryLis
                     : 'text-body-secondary hover:bg-surface-hover'
                   }`}
               >
-                <span className="truncate text-left">{humanizeLovTag(list.Tag)}</span>
+                <span className="text-left break-words">{labelFor(list)}</span>
                 <span
                   className={`shrink-0 text-[10px] font-medium rounded-full px-2 py-0.5 border
                     ${isActive
