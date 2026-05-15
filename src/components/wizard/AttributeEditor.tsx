@@ -391,12 +391,26 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
       }
     }
 
-    // Handle ValidationClass regex — validate extracted values against the class pattern
+    // Handle ValidationClass regex — validate extracted values against the
+    // class pattern AFTER the post-extraction transformation pipeline has run.
+    // Validation is conceptually downstream of transformations in the UI
+    // (Extraction → Transformations → Validations), so testing the raw
+    // extracted value would let "✓ 50" lie about transformed output that no
+    // longer satisfies the rule (e.g. an IBAN that loses its digits to a
+    // Remove Numeric transformation).
     const vc = validationClasses.find((c) => c.Tag === attribute.validationRuleTag);
     if (vc?.Regex && attribute.sourceField) {
       try {
         const extractionRegex = new RegExp(regexifyExtraction(attribute.extractionOperation, extractionParams));
         const vcRegex = new RegExp(vc.Regex);
+        const transformations = attribute.transformations ?? [];
+        const applyTransforms = (input: string): string => {
+          let v = input;
+          for (const t of transformations) {
+            v = applyTransformation(t.method, t.args, v);
+          }
+          return v;
+        };
         let total = 0;
         let passed = 0;
         for (const row of transactions) {
@@ -404,14 +418,15 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
           const extracted = extractClientValue(row, extractionRegex) ?? readServerValue(row);
           if (!extracted) continue;
           total++;
-          if (vcRegex.test(extracted)) passed++;
+          const finalValue = transformations.length > 0 ? applyTransforms(extracted) : extracted;
+          if (vcRegex.test(finalValue)) passed++;
         }
         if (total > 0) return { allValid: passed === total, passed, total, notPassed: total - passed };
       } catch { /* skip */ }
     }
 
     return null;
-  }, [transactions, attribute.sourceField, attribute.attributeTag, attribute.extractionOperation, attribute.prefix, attribute.suffix, attribute.verifyValue, attribute.validationRuleTag, validationClasses, extractionParams]);
+  }, [transactions, attribute.sourceField, attribute.attributeTag, attribute.extractionOperation, attribute.prefix, attribute.suffix, attribute.verifyValue, attribute.validationRuleTag, attribute.transformations, validationClasses, extractionParams]);
 
   // Mirrors RuleGroupEditor's banner: persistent (rendered whether the row is
   // expanded or collapsed) so the duplicate is always visible until resolved.
