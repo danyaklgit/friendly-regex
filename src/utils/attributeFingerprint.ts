@@ -1,4 +1,5 @@
 import type { AttributeFormValue } from '../types';
+import { EXTRACTION_OPERATIONS } from '../constants/operations';
 
 /** True if an attribute has been named — empty placeholder rows are ignored
  *  for duplicate comparisons so adding a fresh row never false-flags. */
@@ -37,4 +38,30 @@ export function computeDuplicateAttributeIndexes(
 
 export function hasDuplicateAttributeNames(attributes: AttributeFormValue[]): boolean {
   return computeDuplicateAttributeIndexes(attributes).some((i) => i !== null);
+}
+
+/** True if every required slot on the attribute is filled — name, source
+ *  field, extraction method, and any operation-specific fields the method
+ *  declares (prefix/suffix/pattern/verifyValue). Mirrors the
+ *  `missingSaveFields` check inside AttributeEditor so the builder-level
+ *  gate stays consistent with the inline Save button. */
+export function isCompleteAttribute(a: AttributeFormValue): boolean {
+  if (a.attributeTag.trim().length === 0) return false;
+  if (!a.sourceField || a.sourceField.trim().length === 0) return false;
+  const opKey = a.extractionOperation as string;
+  if (!opKey || opKey.trim().length === 0) return false;
+  const op = EXTRACTION_OPERATIONS.find((o) => o.key === a.extractionOperation);
+  if (op) {
+    for (const field of op.fields) {
+      if (field === 'prefix' && (a.prefix ?? '').length === 0) return false;
+      if (field === 'suffix' && (a.suffix ?? '').length === 0) return false;
+      if (field === 'pattern' && (a.pattern ?? '').length === 0) return false;
+      if (field === 'verifyValue' && (a.verifyValue ?? '').length === 0) return false;
+    }
+  }
+  return true;
+}
+
+export function hasIncompleteAttribute(attributes: AttributeFormValue[]): boolean {
+  return attributes.some((a) => !isCompleteAttribute(a));
 }

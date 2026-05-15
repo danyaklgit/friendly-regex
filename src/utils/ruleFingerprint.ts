@@ -1,4 +1,5 @@
 import type { AndGroupFormValue, ConditionFormValue } from '../types';
+import { MATCH_OPERATIONS } from '../constants/operations';
 
 /** True if a condition has been filled in enough to matter for matching. An
  *  empty placeholder row (no sourceField or empty value) contributes nothing
@@ -69,4 +70,37 @@ export function hasWithinGroupConditionDuplicates(
     }
   }
   return false;
+}
+
+/** True if a condition has every required field present. Used to gate the
+ *  top-level Create/Save button: a row that's been added but not finished
+ *  shouldn't slip through and be persisted as a broken condition.
+ *  - sourceField + operation must be set.
+ *  - For multi-value operations (matches_one_of), `values` must contain at
+ *    least one non-empty entry.
+ *  - For single-value operations, `value` must be non-empty. */
+export function isCompleteCondition(c: ConditionFormValue): boolean {
+  if (!c.sourceField || c.sourceField.trim().length === 0) return false;
+  const op = c.operation as string;
+  if (!op || op.trim().length === 0) return false;
+  const def = MATCH_OPERATIONS.find((m) => m.key === c.operation);
+  if (def?.requiresMultipleValues) {
+    return !!(c.values && c.values.some((v) => v.trim().length > 0));
+  }
+  return c.value.trim().length > 0;
+}
+
+/** True when any condition in any rule group is partially filled / placeholder.
+ *  An empty group (zero conditions) is reported by hasEmptyRuleGroup below. */
+export function hasIncompleteCondition(ruleGroups: AndGroupFormValue[]): boolean {
+  return ruleGroups.some((g) => g.conditions.some((c) => !isCompleteCondition(c)));
+}
+
+/** True when any rule group is effectively empty — either has zero conditions
+ *  or all conditions are still placeholders. Such a group adds nothing to the
+ *  rule and should block save until the user fills it in or removes it. */
+export function hasEmptyRuleGroup(ruleGroups: AndGroupFormValue[]): boolean {
+  return ruleGroups.some(
+    (g) => g.conditions.length === 0 || g.conditions.every((c) => !isCompleteCondition(c)),
+  );
 }

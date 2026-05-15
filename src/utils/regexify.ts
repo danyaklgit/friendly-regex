@@ -5,6 +5,22 @@ function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/** True when a literal value looks like an ISO calendar date (YYYY-MM-DD).
+ *  Date-stored fields like StatementDate come back from the backend as full
+ *  ISO timestamps (e.g. 2024-01-29T00:00:00Z), so end-anchored regexes built
+ *  from a bare date never match server-side. We widen the end anchor with
+ *  `(T|$)` when the value is date-shaped, so the regex matches both the
+ *  bare date and any ISO timestamp that begins with it. */
+function looksLikeIsoDate(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+/** End-of-value anchor: `(T|$)` for ISO-date values so a stored
+ *  `2024-01-29T00:00:00Z` still matches, plain `$` otherwise. */
+function endAnchor(value: string): string {
+  return looksLikeIsoDate(value) ? '(T|$)' : '$';
+}
+
 /**
  * Returns true if the pattern already contains an unescaped capturing group —
  * i.e. `(...)` or `(?<name>...)`, but not `(?:...)`, `(?=...)`, `(?!...)`,
@@ -43,25 +59,29 @@ export function regexify(
     case 'begins_with':
       return `^${escaped}`;
     case 'ends_with':
-      return `${escaped}$`;
+      return `${escaped}${endAnchor(value)}`;
     case 'contains':
       return escaped;
     case 'does_not_contain':
       // Anchor the whole string so the lookahead is evaluated against it all.
       return `^(?!.*${escaped}).*$`;
     case 'equals':
-      return `^${escaped}$`;
+      return `^${escaped}${endAnchor(value)}`;
     case 'does_not_equal':
-      return `^(?!${escaped}$).*$`;
+      return `^(?!${escaped}${endAnchor(value)}).*$`;
     case 'does_not_start_with':
       return `^(?!${escaped}).*$`;
     case 'does_not_end_with':
       // Use negative lookahead at start (anchored), not variable-length lookbehind,
       // for broader regex-engine compatibility.
-      return `^(?!.*${escaped}$).*$`;
+      return `^(?!.*${escaped}${endAnchor(value)}).*$`;
     case 'matches_pattern': {
       const vals = values && values.length > 0 ? values : [value];
-      return `^(${vals.map(escapeRegex).join('|')})$`;
+      // Use the ISO-date end anchor only when EVERY value is date-shaped — a
+      // mixed list (some dates, some non-dates) would otherwise let a non-date
+      // value spuriously match an ISO timestamp prefix like "CODET...".
+      const tail = vals.every(looksLikeIsoDate) ? '(T|$)' : '$';
+      return `^(${vals.map(escapeRegex).join('|')})${tail}`;
     }
     case 'match_regex':
       return value;

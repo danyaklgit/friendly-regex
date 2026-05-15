@@ -461,8 +461,8 @@ export function engregxify(regex: string): string {
     return `Extract before '${unescapeRegex(extractBeforeMatch[1])}'`;
   }
 
-  // Equals: ^value$
-  const equalsMatch = regex.match(/^\^(.+)\$$/);
+  // Equals: ^value$ — also accepts the ISO-date-tolerant `(T|$)` end anchor.
+  const equalsMatch = regex.match(/^\^(.+?)(?:\$|\(T\|\$\))$/);
   if (equalsMatch) {
     if (!hasActiveRegexSyntax(equalsMatch[1])) {
       return `Equals '${unescapeRegex(equalsMatch[1])}'`;
@@ -477,8 +477,8 @@ export function engregxify(regex: string): string {
     }
   }
 
-  // Ends with: value$
-  const endsWithMatch = regex.match(/^(.+)\$$/);
+  // Ends with: value$ — same date tolerance.
+  const endsWithMatch = regex.match(/^(.+?)(?:\$|\(T\|\$\))$/);
   if (endsWithMatch) {
     if (!hasActiveRegexSyntax(endsWithMatch[1])) {
       return `Ends with '${unescapeRegex(endsWithMatch[1])}'`;
@@ -533,7 +533,9 @@ export function decomposeRegex(regex: string): {
   // Negative lookahead: does not end with — ^(?!.*value$).*$ (current
   // frontend form via regexify). Checked BEFORE does_not_contain so the
   // anchored `$` inside the lookahead isn't swallowed by the looser pattern.
-  const doesNotEndWithLAMatch = regex.match(/^\^\(\?!\.\*(.+)\$\)(?:\.\*\$)?$/);
+  // Accepts either the plain `$` end anchor or the ISO-date-tolerant
+  // `(T|$)` anchor that regexify emits for date-shaped values.
+  const doesNotEndWithLAMatch = regex.match(/^\^\(\?!\.\*(.+?)(?:\$|\(T\|\$\))\)(?:\.\*\$)?$/);
   if (doesNotEndWithLAMatch && !hasActiveRegexSyntax(doesNotEndWithLAMatch[1])) {
     return { operation: 'does_not_end_with', value: unescapeRegex(doesNotEndWithLAMatch[1]) };
   }
@@ -553,8 +555,9 @@ export function decomposeRegex(regex: string): {
     return { operation: 'does_not_contain', value: unescapeRegex(doesNotContainAltMatch[1]) };
   }
 
-  // Negative lookahead: does not equal — ^(?!value$) with optional `.*$`
-  const doesNotEqualMatch = regex.match(/^\^\(\?!(.+)\$\)(?:\.\*\$)?$/);
+  // Negative lookahead: does not equal — ^(?!value$) with optional `.*$`.
+  // Same ISO-date end-anchor tolerance as above.
+  const doesNotEqualMatch = regex.match(/^\^\(\?!(.+?)(?:\$|\(T\|\$\))\)(?:\.\*\$)?$/);
   if (doesNotEqualMatch && !hasActiveRegexSyntax(doesNotEqualMatch[1])) {
     return { operation: 'does_not_equal', value: unescapeRegex(doesNotEqualMatch[1]) };
   }
@@ -565,8 +568,9 @@ export function decomposeRegex(regex: string): {
     return { operation: 'does_not_start_with', value: unescapeRegex(doesNotStartWithMatch[1]) };
   }
 
-  // Equals: ^value$
-  const equalsMatch = regex.match(/^\^(.+)\$$/);
+  // Equals: ^value$ — accepts either the plain `$` end anchor or the
+  // ISO-date-tolerant `(T|$)` anchor emitted by regexify for date values.
+  const equalsMatch = regex.match(/^\^(.+?)(?:\$|\(T\|\$\))$/);
   if (equalsMatch && !hasActiveRegexSyntax(equalsMatch[1])) {
     return { operation: 'equals', value: unescapeRegex(equalsMatch[1]) };
   }
@@ -577,8 +581,8 @@ export function decomposeRegex(regex: string): {
     return { operation: 'begins_with', value: unescapeRegex(beginsWithMatch[1]) };
   }
 
-  // Ends with: value$
-  const endsWithMatch = regex.match(/^(.+)\$$/);
+  // Ends with: value$ — same ISO-date tolerance as equals.
+  const endsWithMatch = regex.match(/^(.+?)(?:\$|\(T\|\$\))$/);
   if (endsWithMatch && !hasActiveRegexSyntax(endsWithMatch[1])) {
     return { operation: 'ends_with', value: unescapeRegex(endsWithMatch[1]) };
   }

@@ -206,6 +206,39 @@ describe('decomposeRegex', () => {
     expect(decomposeRegex('^A\\.B$')).toEqual({ operation: 'equals', value: 'A.B' });
   });
 
+  // ISO-date-tolerant end anchor `(T|$)` — produced by regexify when the
+  // literal value matches YYYY-MM-DD. Decompose must recognize both shapes
+  // so saved date rules round-trip back into the editor cleanly.
+  describe('ISO-date end anchor round-trip', () => {
+    it('equals with (T|$) anchor', () => {
+      expect(decomposeRegex('^2024-01-29(T|$)')).toEqual({
+        operation: 'equals',
+        value: '2024-01-29',
+      });
+    });
+
+    it('ends_with with (T|$) anchor', () => {
+      expect(decomposeRegex('2024-01-29(T|$)')).toEqual({
+        operation: 'ends_with',
+        value: '2024-01-29',
+      });
+    });
+
+    it('does_not_equal with (T|$) anchor inside lookahead', () => {
+      expect(decomposeRegex('^(?!2024-01-29(T|$)).*$')).toEqual({
+        operation: 'does_not_equal',
+        value: '2024-01-29',
+      });
+    });
+
+    it('does_not_end_with with (T|$) anchor inside lookahead', () => {
+      expect(decomposeRegex('^(?!.*2024-01-29(T|$)).*$')).toEqual({
+        operation: 'does_not_end_with',
+        value: '2024-01-29',
+      });
+    });
+  });
+
   // Escaped pipe: matches_pattern branch
   it('matches_pattern with escaped pipe values', () => {
     const result = decomposeRegex('USD\\|EUR');

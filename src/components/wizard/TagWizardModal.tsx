@@ -10,8 +10,16 @@ import { StepBasicInfo } from './StepBasicInfo';
 import { StepRuleExpressions } from './StepRuleExpressions';
 import { StepAttributes } from './StepAttributes';
 import { StepReview } from './StepReview';
-import { hasDuplicateGroups, hasWithinGroupConditionDuplicates } from '../../utils/ruleFingerprint';
-import { hasDuplicateAttributeNames } from '../../utils/attributeFingerprint';
+import {
+  hasDuplicateGroups,
+  hasEmptyRuleGroup,
+  hasIncompleteCondition,
+  hasWithinGroupConditionDuplicates,
+} from '../../utils/ruleFingerprint';
+import {
+  hasDuplicateAttributeNames,
+  hasIncompleteAttribute,
+} from '../../utils/attributeFingerprint';
 
 interface TagWizardModalProps {
   existingDef?: TagSpecDefinition;
@@ -27,16 +35,25 @@ export function TagWizardModal({ existingDef, parentLib, initialFormState, initi
   const { fieldMeta } = useTransactionData();
   const wizard = useWizardForm(existingDef, initialFormState, fieldMeta.sourceFields[0], parentLib, initialStep);
 
-  // Duplicate detection: rule sets, within-group conditions, attribute names.
   // Each step that surfaces the offending UI gates its own Next button; the
-  // final-step Create/Save button gates on the combined state. Per-row banners
-  // (RuleGroupEditor, ConditionEditor, AttributeEditor) tell the user what to
-  // fix; these gates just prevent moving past or saving a broken state.
+  // final-step Create/Save button gates on the combined state. Two classes of
+  // problem block save:
+  //   * Duplicates (rule sets, within-group conditions, attribute names) —
+  //     per-row banners in the editors surface where to fix.
+  //   * Incomplete rows — "+ Add" placeholders the user never finished
+  //     filling. Saving those would persist empty conditions / attributes
+  //     that re-open as edit forms forever after.
   const hasRuleDuplicates =
     hasDuplicateGroups(wizard.formState.ruleGroups)
     || hasWithinGroupConditionDuplicates(wizard.formState.ruleGroups);
   const hasAttributeDuplicates = hasDuplicateAttributeNames(wizard.formState.attributes);
+  const hasIncompleteRule =
+    hasIncompleteCondition(wizard.formState.ruleGroups)
+    || hasEmptyRuleGroup(wizard.formState.ruleGroups);
+  const hasIncompleteAttr = hasIncompleteAttribute(wizard.formState.attributes);
   const hasAnyDuplicates = hasRuleDuplicates || hasAttributeDuplicates;
+  const hasAnyIncomplete = hasIncompleteRule || hasIncompleteAttr;
+  const hasAnyBlockingIssue = hasAnyDuplicates || hasAnyIncomplete;
 
   const isStepValid = (step: WizardStep): boolean => {
     switch (step) {
@@ -51,15 +68,15 @@ export function TagWizardModal({ existingDef, parentLib, initialFormState, initi
           wizard.formState.transactionTypeCode.trim().length > 0
         );
       case 2:
-        // Rule expressions are optional, but if any duplicate exists the user
-        // must fix it before continuing — otherwise they'd carry a broken
-        // ruleset through to the Review step.
-        return !hasRuleDuplicates;
+        // Rule expressions are optional, but a duplicate OR an unfinished
+        // placeholder rule set blocks forward progress — both would otherwise
+        // carry through to Review and be persisted on save.
+        return !hasRuleDuplicates && !hasIncompleteRule;
       case 3:
-        // Attributes are optional; duplicates block forward progress.
-        return !hasAttributeDuplicates;
+        // Attributes are optional; duplicates and incomplete rows block.
+        return !hasAttributeDuplicates && !hasIncompleteAttr;
       case 4:
-        return !hasAnyDuplicates;
+        return !hasAnyBlockingIssue;
       default:
         return false;
     }
@@ -68,13 +85,26 @@ export function TagWizardModal({ existingDef, parentLib, initialFormState, initi
   const canProceed = () => isStepValid(wizard.currentStep);
 
   // Reason shown when the Next or Create button is disabled. Step 1 has its
-  // own required-field treatment so we only need to label the duplicate case.
+  // own required-field treatment so we only need to label the issues from
+  // step 2 onward. Incomplete-row reasons take precedence over duplicate
+  // reasons since a row that isn't filled in yet can't meaningfully be a
+  // duplicate either.
   const nextBlockedReason = (() => {
-    if (wizard.currentStep === 2 && hasRuleDuplicates) {
-      return 'Fix or remove the duplicate rule sets or conditions flagged above before continuing.';
+    if (wizard.currentStep === 2) {
+      if (hasIncompleteRule) {
+        return 'Finish filling (or remove) the unsaved rule set before continuing.';
+      }
+      if (hasRuleDuplicates) {
+        return 'Fix or remove the duplicate rule sets or conditions flagged above before continuing.';
+      }
     }
-    if (wizard.currentStep === 3 && hasAttributeDuplicates) {
-      return 'Rename or remove the duplicate attribute flagged above before continuing.';
+    if (wizard.currentStep === 3) {
+      if (hasIncompleteAttr) {
+        return 'Finish filling (or remove) the unsaved attribute before continuing.';
+      }
+      if (hasAttributeDuplicates) {
+        return 'Rename or remove the duplicate attribute flagged above before continuing.';
+      }
     }
     return null;
   })();
@@ -123,9 +153,13 @@ export function TagWizardModal({ existingDef, parentLib, initialFormState, initi
                 Next
               </Button>
             )
-          ) : hasAnyDuplicates ? (
+          ) : hasAnyBlockingIssue ? (
             <Tooltip
-              content="Fix or remove the duplicate rule sets, conditions, or attributes flagged earlier before saving."
+              content={
+                hasAnyIncomplete
+                  ? 'Finish filling (or remove) the unsaved rule set or attribute before saving.'
+                  : 'Fix or remove the duplicate rule sets, conditions, or attributes flagged earlier before saving.'
+              }
               placement="top"
             >
               <span>

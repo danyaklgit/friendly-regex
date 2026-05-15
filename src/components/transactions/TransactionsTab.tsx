@@ -4,8 +4,16 @@ import { useAuth } from '../../context/AuthContext';
 import { useTransactionData } from '../../hooks/useTransactionData';
 import { useMatchingTagIds } from '../../hooks/useMatchingTagIds';
 import { buildRulesetFilters } from '../../utils/buildRulesetFilters';
-import { hasDuplicateGroups, hasWithinGroupConditionDuplicates } from '../../utils/ruleFingerprint';
-import { hasDuplicateAttributeNames } from '../../utils/attributeFingerprint';
+import {
+  hasDuplicateGroups,
+  hasEmptyRuleGroup,
+  hasIncompleteCondition,
+  hasWithinGroupConditionDuplicates,
+} from '../../utils/ruleFingerprint';
+import {
+  hasDuplicateAttributeNames,
+  hasIncompleteAttribute,
+} from '../../utils/attributeFingerprint';
 import type { FilterProperty } from '../../api/transactions';
 import { useWizardForm, fromExistingDefinition } from '../../hooks/useWizardForm';
 import type { TagSpecDefinition, TagSpecLibrary, AnalyzedTransaction, WizardFormState, RuleExpression, CheckoutState, TransactionRow } from '../../types';
@@ -636,17 +644,34 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const builderHasTransactionType = builder.formState.transactionTypeCode.trim().length > 0;
   const canSubmitBuilder = builderHasTransactionType;
 
-  // Centralized duplicate gate: any cross-rule-set duplicate, any within-group
-  // condition duplicate, or any duplicate attribute name disables the
-  // top-level Create / Save button. The per-row banners (ConditionEditor,
-  // RuleGroupEditor, AttributeEditor) make the cause visible; the tooltip
-  // below explains why the button is off when the user hovers.
+  // Centralized gate for the top-level Create / Save button. Three classes of
+  // issue block save and each surfaces its own tooltip:
+  //   1. Duplicates  — already flagged with red banners on the offending rows.
+  //   2. Incomplete attributes — a row was added (via + Add Attribute) but the
+  //      user hasn't finished filling required fields. Saving here would
+  //      persist an empty-name attribute that shows up as a "New Attribute"
+  //      form forever after.
+  //   3. Incomplete rule sets — a rule group was added (via + Add Rule Set or
+  //      + Add Condition) but the user left a placeholder. Same persistence
+  //      problem as attributes.
   const builderHasDuplicates = useMemo(() => (
     hasDuplicateGroups(builder.formState.ruleGroups)
       || hasWithinGroupConditionDuplicates(builder.formState.ruleGroups)
       || hasDuplicateAttributeNames(builder.formState.attributes)
   ), [builder.formState.ruleGroups, builder.formState.attributes]);
-  const canCreateFromBuilder = canSubmitBuilder && !builderHasDuplicates;
+  const builderHasIncompleteAttribute = useMemo(
+    () => hasIncompleteAttribute(builder.formState.attributes),
+    [builder.formState.attributes],
+  );
+  const builderHasIncompleteRule = useMemo(() => (
+    hasIncompleteCondition(builder.formState.ruleGroups)
+      || hasEmptyRuleGroup(builder.formState.ruleGroups)
+  ), [builder.formState.ruleGroups]);
+  const canCreateFromBuilder =
+    canSubmitBuilder
+    && !builderHasDuplicates
+    && !builderHasIncompleteAttribute
+    && !builderHasIncompleteRule;
 
   // Live preview: which existing tag definitions match the rule the user is
   // currently authoring? Fired only while the builder is open. Hook owns the
@@ -1231,7 +1256,11 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                     content={
                       !builderHasTransactionType
                         ? 'Select a Transaction Type first'
-                        : 'Fix or remove the duplicate rule sets, conditions, or attributes flagged above before saving.'
+                        : builderHasIncompleteRule
+                          ? 'Finish filling (or remove) the unsaved rule set before saving.'
+                          : builderHasIncompleteAttribute
+                            ? 'Finish filling (or remove) the unsaved attribute before saving.'
+                            : 'Fix or remove the duplicate rule sets, conditions, or attributes flagged above before saving.'
                     }
                     placement="bottom"
                   >

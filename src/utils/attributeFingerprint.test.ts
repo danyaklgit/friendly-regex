@@ -4,10 +4,12 @@ import {
   attributeNameKey,
   computeDuplicateAttributeIndexes,
   hasDuplicateAttributeNames,
+  hasIncompleteAttribute,
+  isCompleteAttribute,
   isFilledAttribute,
 } from './attributeFingerprint';
 
-function attr(name: string, id = name): AttributeFormValue {
+function attr(name: string, id = name, overrides: Partial<AttributeFormValue> = {}): AttributeFormValue {
   return {
     id,
     attributeTag: name,
@@ -15,6 +17,20 @@ function attr(name: string, id = name): AttributeFormValue {
     validationRuleTag: '',
     sourceField: '',
     extractionOperation: '' as AttributeFormValue['extractionOperation'],
+    ...overrides,
+  };
+}
+
+function completeAttr(overrides: Partial<AttributeFormValue> = {}): AttributeFormValue {
+  return {
+    id: 'x',
+    attributeTag: 'BeneficiaryName',
+    isMandatory: false,
+    validationRuleTag: '',
+    sourceField: 'Description1',
+    extractionOperation: 'extract_after' as AttributeFormValue['extractionOperation'],
+    prefix: 'FAVOR ',
+    ...overrides,
   };
 }
 
@@ -100,5 +116,58 @@ describe('hasDuplicateAttributeNames', () => {
 
   it('is true when any later attribute repeats an earlier name', () => {
     expect(hasDuplicateAttributeNames([attr('A'), attr('B'), attr('A', 'c')])).toBe(true);
+  });
+});
+
+describe('isCompleteAttribute', () => {
+  it('rejects rows missing name, source field, or extraction method', () => {
+    expect(isCompleteAttribute(completeAttr({ attributeTag: '' }))).toBe(false);
+    expect(isCompleteAttribute(completeAttr({ sourceField: '' }))).toBe(false);
+    expect(isCompleteAttribute(completeAttr({
+      extractionOperation: '' as AttributeFormValue['extractionOperation'],
+    }))).toBe(false);
+  });
+
+  it('requires the prefix field for extract_after', () => {
+    expect(isCompleteAttribute(completeAttr({ prefix: '' }))).toBe(false);
+  });
+
+  it('requires both prefix and suffix for extract_between', () => {
+    const baseline = completeAttr({
+      extractionOperation: 'extract_between' as AttributeFormValue['extractionOperation'],
+      prefix: 'FAVOR ',
+      suffix: ' /',
+    });
+    expect(isCompleteAttribute(baseline)).toBe(true);
+    expect(isCompleteAttribute({ ...baseline, suffix: '' })).toBe(false);
+    expect(isCompleteAttribute({ ...baseline, prefix: '' })).toBe(false);
+  });
+
+  it('passes for extract_full_field with no operation-specific fields', () => {
+    expect(isCompleteAttribute(completeAttr({
+      extractionOperation: 'extract_full_field' as AttributeFormValue['extractionOperation'],
+      prefix: undefined,
+    }))).toBe(true);
+  });
+
+  it('passes the canonical fully-filled extract_after attribute', () => {
+    expect(isCompleteAttribute(completeAttr())).toBe(true);
+  });
+});
+
+describe('hasIncompleteAttribute', () => {
+  it('is false for an empty array', () => {
+    expect(hasIncompleteAttribute([])).toBe(false);
+  });
+
+  it('is true when any attribute is missing a required field', () => {
+    expect(hasIncompleteAttribute([completeAttr(), attr('Placeholder')])).toBe(true);
+  });
+
+  it('is false when every attribute is complete', () => {
+    expect(hasIncompleteAttribute([
+      completeAttr(),
+      completeAttr({ attributeTag: 'BankName', prefix: 'BANK:' }),
+    ])).toBe(false);
   });
 });

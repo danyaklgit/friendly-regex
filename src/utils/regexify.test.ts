@@ -74,6 +74,44 @@ describe('regexify', () => {
     // Force an unknown operation through the default branch
     expect(regexify('unknown_op' as any, 'test')).toBe('test');
   });
+
+  // Date-shaped values get an ISO-date-tolerant end anchor `(T|$)` so the
+  // server-side regex match still hits rows whose date column stores a full
+  // ISO timestamp (2024-01-29T00:00:00Z). Non-date values keep the plain `$`.
+  describe('ISO-date end anchor', () => {
+    it('equals emits (T|$) for a bare date value', () => {
+      expect(regexify('equals', '2024-01-29')).toBe('^2024-01-29(T|$)');
+    });
+
+    it('equals still emits plain $ for non-date values', () => {
+      expect(regexify('equals', '2024-AB-29')).toBe('^2024-AB-29$');
+      expect(regexify('equals', '20240129')).toBe('^20240129$');
+    });
+
+    it('ends_with emits (T|$) for a bare date value', () => {
+      expect(regexify('ends_with', '2024-01-29')).toBe('2024-01-29(T|$)');
+    });
+
+    it('does_not_equal emits the tolerant anchor inside the negative lookahead', () => {
+      expect(regexify('does_not_equal', '2024-01-29'))
+        .toBe('^(?!2024-01-29(T|$)).*$');
+    });
+
+    it('does_not_end_with emits the tolerant anchor inside the negative lookahead', () => {
+      expect(regexify('does_not_end_with', '2024-01-29'))
+        .toBe('^(?!.*2024-01-29(T|$)).*$');
+    });
+
+    it('matches_pattern uses (T|$) only when EVERY value is date-shaped', () => {
+      expect(regexify('matches_pattern', '', ['2024-01-29', '2024-01-30']))
+        .toBe('^(2024-01-29|2024-01-30)(T|$)');
+    });
+
+    it('matches_pattern falls back to plain $ when any value is not date-shaped', () => {
+      expect(regexify('matches_pattern', '', ['2024-01-29', 'CODE']))
+        .toBe('^(2024-01-29|CODE)$');
+    });
+  });
 });
 
 describe('regexifyExtraction', () => {

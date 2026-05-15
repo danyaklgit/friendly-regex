@@ -124,4 +124,20 @@ describe('evaluateRuleSet', () => {
     const group: AndGroup = [makeCondition('StatementDate', '^(?!2024-03-26$).*$')];
     expect(evaluateRuleSet(group, rowWithDate)).toBe(false);
   });
+
+  // After the ISO-date-tolerant regex change (see regexify), `equals` on a
+  // date value emits `^value(T|$)`. The client-side evaluator already
+  // canonicalizes the field to its date portion, so both the old `^value$`
+  // form and the new `^value(T|$)` form must still match an ISO row.
+  it('equals on a date value with the new (T|$) anchor still matches', () => {
+    const rowWithDate: TransactionRow = { StatementDate: '2024-01-29T00:00:00Z' };
+    const group: AndGroup = [makeCondition('StatementDate', '^2024-01-29(T|$)')];
+    expect(evaluateRuleSet(group, rowWithDate)).toBe(true);
+  });
+
+  it('equals on a date value with the new (T|$) anchor rejects a different date', () => {
+    const rowWithDate: TransactionRow = { StatementDate: '2024-01-30T00:00:00Z' };
+    const group: AndGroup = [makeCondition('StatementDate', '^2024-01-29(T|$)')];
+    expect(evaluateRuleSet(group, rowWithDate)).toBe(false);
+  });
 });
