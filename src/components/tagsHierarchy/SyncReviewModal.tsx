@@ -3,6 +3,8 @@ import type { TagHierarchyRawNode } from '../../api/tagsHierarchy';
 import { Modal } from '../shared/Modal';
 import { Button } from '../shared/Button';
 import { Badge } from '../shared/Badge';
+import { computeDiff } from '../../utils/tagHierarchyDiff';
+import { getNodeName } from '../../utils/tagHierarchyNode';
 
 interface SyncReviewModalProps {
   open: boolean;
@@ -12,69 +14,6 @@ interface SyncReviewModalProps {
   onConfirm: () => void;
   syncing: boolean;
   demoMode?: boolean;
-}
-
-interface NodeDiff {
-  tag: string;
-  name: string;
-  changes: string[];
-}
-
-function getNodeName(node: TagHierarchyRawNode): string {
-  return node.Details?.find((d) => d.LanguageCode === 'en')?.Name ?? node.Tag;
-}
-
-function arraysEqual(a: string[] | null, b: string[] | null): boolean {
-  if (!a && !b) return true;
-  if (!a || !b) return false;
-  if (a.length !== b.length) return false;
-  const sortedA = [...a].sort();
-  const sortedB = [...b].sort();
-  return sortedA.every((v, i) => v === sortedB[i]);
-}
-
-export function computeDiff(
-  current: TagHierarchyRawNode[],
-  original: TagHierarchyRawNode[],
-): { added: TagHierarchyRawNode[]; removed: TagHierarchyRawNode[]; modified: NodeDiff[] } {
-  const originalMap = new Map(original.map((n) => [n.Tag, n]));
-  const currentMap = new Map(current.map((n) => [n.Tag, n]));
-
-  const added = current.filter((n) => !originalMap.has(n.Tag));
-  const removed = original.filter((n) => !currentMap.has(n.Tag));
-
-  const modified: NodeDiff[] = [];
-  for (const node of current) {
-    const orig = originalMap.get(node.Tag);
-    if (!orig) continue;
-
-    const changes: string[] = [];
-    if (node.StatusTag !== orig.StatusTag) {
-      changes.push(`Status: ${orig.StatusTag} → ${node.StatusTag}`);
-    }
-
-    const origName = getNodeName(orig);
-    const curName = getNodeName(node);
-    if (curName !== origName) changes.push(`Name: "${origName}" → "${curName}"`);
-
-    const origDesc = orig.Details?.find((d) => d.LanguageCode === 'en')?.Description ?? '';
-    const curDesc = node.Details?.find((d) => d.LanguageCode === 'en')?.Description ?? '';
-    if (curDesc !== origDesc) changes.push('Description changed');
-
-    if (!arraysEqual(node.GroupTags, orig.GroupTags)) {
-      changes.push(`Groups: [${(orig.GroupTags ?? []).join(', ')}] → [${(node.GroupTags ?? []).join(', ')}]`);
-    }
-
-    if (node.ParentTag !== orig.ParentTag) {
-      changes.push(`Parent: ${orig.ParentTag ?? 'none'} → ${node.ParentTag ?? 'none'}`);
-    }
-
-    if (changes.length > 0) {
-      modified.push({ tag: node.Tag, name: curName, changes });
-    }
-  }
-
-  return { added, removed, modified };
 }
 
 export function SyncReviewModal({ open, onClose, currentNodes, originalNodes, onConfirm, syncing, demoMode }: SyncReviewModalProps) {

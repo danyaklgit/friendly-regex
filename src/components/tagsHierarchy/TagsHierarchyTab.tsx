@@ -1,10 +1,9 @@
 import { useState, useMemo, useCallback, useRef } from 'react';
 import { useTagSpecs } from '../../hooks/useTagSpecs';
+import { useHasUnsyncedTags } from '../../hooks/useHasUnsyncedTags';
+import { useSyncTags } from '../../hooks/useSyncTags';
 import { useAuth } from '../../context/AuthContext';
-import { useTepConfig } from '../../context/TepConfigContext';
 import type { TagHierarchyRawNode } from '../../api/tagsHierarchy';
-import { saveTagsHierarchy } from '../../api/tagsHierarchy';
-import { computeDiff } from './SyncReviewModal';
 import { TagEditModal } from './TagEditModal';
 import { SyncReviewModal } from './SyncReviewModal';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
@@ -12,15 +11,7 @@ import { Button } from '../shared/Button';
 import { Badge } from '../shared/Badge';
 import { Toast } from '../shared/Toast';
 import { EmptyState } from '../shared/EmptyState';
-import type { TepHeaders } from '../../api/transactions';
-
-function getNodeName(node: TagHierarchyRawNode): string {
-  return node.Details?.find((d) => d.LanguageCode === 'en')?.Name ?? node.Tag;
-}
-
-function getNodeDesc(node: TagHierarchyRawNode): string {
-  return node.Details?.find((d) => d.LanguageCode === 'en')?.Description ?? '';
-}
+import { getNodeName, getNodeDesc } from '../../utils/tagHierarchyNode';
 
 function highlightText(text: string, q: string) {
   if (!q) return text;
@@ -44,12 +35,12 @@ interface GroupedView {
 
 export function TagsHierarchyTab() {
   const {
-    rawHierarchyNodes, originalRawNodes, hierarchyWrapper,
-    hierarchyDispatch, setOriginalRawNodes, setHierarchyWrapper,
+    rawHierarchyNodes, originalRawNodes,
+    hierarchyDispatch,
     tagsHierarchyLoading, refetchHierarchy,
   } = useTagSpecs();
-  const { getAuthHeaders, userId, useDummyData, isAudit } = useAuth();
-  const tepConfig = useTepConfig();
+  const { useDummyData, isAudit } = useAuth();
+  const syncTags = useSyncTags();
 
   const [search, setSearch] = useState('');
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set());
@@ -181,13 +172,7 @@ export function TagsHierarchyTab() {
       .filter((g): g is GroupedView => g !== null);
   }, [groupedView, query]);
 
-  const hasChanges = useMemo(
-    () => {
-      const diff = computeDiff(rawHierarchyNodes, originalRawNodes);
-      return diff.added.length + diff.removed.length + diff.modified.length > 0;
-    },
-    [rawHierarchyNodes, originalRawNodes],
-  );
+  const hasChanges = useHasUnsyncedTags();
 
   const toggleGroup = (groupTag: string) => {
     setExpandedGroups((prev) => {
@@ -242,22 +227,6 @@ export function TagsHierarchyTab() {
     setToast({ message: `Tag "${deleteTarget.Tag}" deleted`, type: 'success' });
   };
 
-  const headers = getAuthHeaders();
-  const authRaw = headers['Authorization'];
-  const authToken = authRaw?.startsWith('Bearer ') ? authRaw.slice(7) : null;
-
-  const tepHeaders = useMemo((): TepHeaders | null => {
-    if (!userId) return null;
-    return {
-      apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
-      userId,
-      tenantCode: tepConfig.ttpTenantCode,
-      languageCode: tepConfig.languageCode,
-      timeZone: tepConfig.timeZone,
-      requestId: tepConfig.ttpRequestId,
-    };
-  }, [userId, tepConfig]);
-
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
@@ -271,37 +240,18 @@ export function TagsHierarchyTab() {
   }, [refetchHierarchy]);
 
   const handleSync = useCallback(async () => {
-    if (!hierarchyWrapper) return;
-    if (useDummyData) {
-      setOriginalRawNodes([...rawHierarchyNodes]);
-      setSyncModalOpen(false);
-      setToast({ message: 'Tags synced (dummy mode)', type: 'success' });
-      // Show loader briefly then refetch
-      setRefreshing(true);
-      await new Promise((r) => setTimeout(r, 2000));
-      await refetchHierarchy();
-      setRefreshing(false);
-      return;
-    }
-    if (!authToken || !tepHeaders) return;
     setSyncing(true);
     try {
-      const payload = { ...hierarchyWrapper, TagsHierarchy: rawHierarchyNodes };
-      await saveTagsHierarchy(authToken, tepHeaders, payload);
+      await syncTags();
       setSyncModalOpen(false);
-      setToast({ message: 'Tags synced successfully', type: 'success' });
-      // Show loader for 2 seconds then refetch from server
-      setSyncing(false);
-      setRefreshing(true);
-      await new Promise((r) => setTimeout(r, 2000));
-      await refetchHierarchy();
-      setRefreshing(false);
+      setToast({ message: useDummyData ? 'Tags synced (dummy mode)' : 'Tags synced successfully', type: 'success' });
     } catch (err) {
       console.error('Failed to sync tags:', err);
       setToast({ message: err instanceof Error ? err.message : 'Failed to sync tags', type: 'error' });
+    } finally {
       setSyncing(false);
     }
-  }, [hierarchyWrapper, rawHierarchyNodes, authToken, tepHeaders, useDummyData, setOriginalRawNodes, setHierarchyWrapper, refetchHierarchy]);
+  }, [syncTags, useDummyData]);
 
   // Background class helpers for new / modified visual states
   const getGroupBgClass = (groupTag: string) => {
@@ -367,7 +317,17 @@ export function TagsHierarchyTab() {
             </Button>
           )}
           {hasChanges && !isAudit && (
-            <Button data-tour="sync-tags-button" variant="secondary" size="sm" onClick={() => setSyncModalOpen(true)}>
+            <Button
+              data-tour="sync-tags-button"
+              variant="primary"
+              size="sm"
+              onClick={() => setSyncModalOpen(true)}
+              className="motion-safe:animate-pulse ring-2 ring-primary/40 ring-offset-2 ring-offset-surface-secondary shadow-md"
+            >
+              <span className="relative flex h-1.5 w-1.5 mr-1.5">
+                <span className="absolute inline-flex h-full w-full rounded-full bg-white opacity-75 motion-safe:animate-ping" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white" />
+              </span>
               Sync Tags
             </Button>
           )}
