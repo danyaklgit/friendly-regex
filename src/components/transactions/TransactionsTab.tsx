@@ -20,6 +20,8 @@ import type { TagSpecDefinition, TagSpecLibrary, AnalyzedTransaction, WizardForm
 import type { WizardFormResult } from '../../hooks/useWizardForm';
 import { analyzeRow } from '../../utils/analyzeRow';
 import { computeDefinitionVersions } from '../../utils/definitionVersions';
+import { getAllTagNameOptions, getAttributeSuggestionsForTag } from '../../utils/tagNameLookup';
+import { SearchableSelect } from '../shared/SearchableSelect';
 import { regexify, regexifyExtraction, generateExpressionPrompt, generateExtractionPrompt } from '../../utils/regexify';
 import { generateExpressionId } from '../../utils/uuid';
 import { getContextValue } from '../../types/tagSpec';
@@ -208,6 +210,8 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     [inProgressLib],
   );
 
+  const tagNameOptions = useMemo(() => getAllTagNameOptions(libraries), [libraries]);
+
   useEffect(() => {
     if (inProgressLib && activeCheckout) {
       const baselineKey = `tep:baseline:${activeCheckout.bank}:${activeCheckout.side}`;
@@ -241,6 +245,16 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
 
   // Rule builder state (reuses the wizard form hook)
   const builder = useWizardForm(undefined, undefined, fieldMeta.sourceFields[0]);
+  const builderAttributeNamesKey = builder.formState.attributes.map((a) => a.attributeTag).join('|');
+  const suggestedAttributeNames = useMemo(
+    () => getAttributeSuggestionsForTag(
+      libraries,
+      builder.formState.tag,
+      builder.formState.attributes.map((a) => a.attributeTag),
+    ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [libraries, builder.formState.tag, builderAttributeNamesKey],
+  );
   const [builderOpen, setBuilderOpen] = useState(false);
   const builderRef = useRef<HTMLDivElement>(null);
   const [builderHeight, setBuilderHeight] = useState(0);
@@ -1212,7 +1226,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                 </div>
               );
             })()}
-            <div data-tour="builder-transaction-type" className="flex items-center gap-2">
+            <div data-tour="builder-transaction-type" className="flex items-center gap-2 flex-wrap">
               <label className="text-xs font-medium text-primary-dark whitespace-nowrap">
                 Transaction Type<span className="text-red-500 ml-0.5" aria-hidden>*</span>
               </label>
@@ -1222,6 +1236,19 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                 filterDefinitions={filterDefinitions}
                 disabled={isReadOnly}
               />
+              <label className="text-xs font-medium text-primary-dark whitespace-nowrap ml-2">
+                Tag Name
+              </label>
+              <div className="min-w-[180px]">
+                <SearchableSelect
+                  value={builder.formState.tag}
+                  onChange={(val) => builder.updateBasicInfo({ tag: val })}
+                  options={tagNameOptions}
+                  placeholder="Select or type a tag name…"
+                  disabled={isReadOnly}
+                  clearable
+                />
+              </div>
             </div>
             <div className="flex flex-col md:flex-row items-center gap-2">
               {!isReadOnly && !editingDef && (
@@ -1356,6 +1383,8 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                 transactions={filteredData.map((d) => d.row)}
                 startCollapsed={!!editingDef}
                 readOnly={isReadOnly}
+                suggestedAttributeNames={suggestedAttributeNames}
+                suggestedTagName={builder.formState.tag.trim() || undefined}
               />
             </div>
           </div>
