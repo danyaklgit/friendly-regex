@@ -13,6 +13,7 @@ import { decomposeExtractionRegex, engregxify } from '../../utils/engregxify';
 import { getRegexDescription } from '../../types/tagSpec';
 import { regexifyExtraction } from '../../utils/regexify';
 import { extractAttributes } from '../../utils/extractAttributes';
+import type { DefinitionVersionInfo } from '../../utils/definitionVersions';
 import { diffStrings } from '../../utils/textDiff';
 import { DropdownBackdrop } from '../shared/DropdownBackdrop';
 
@@ -21,6 +22,7 @@ interface TransactionTableProps {
   tagDefinitions: TagSpecDefinition[];
   originalDefinitionIds?: Set<string>;
   definitionSourceMap?: Map<string, string>;
+  definitionVersions?: Map<string, DefinitionVersionInfo>;
   highlightExpressions?: RuleExpression[];
   searchHighlights?: Map<string, string>;
   onTagClick?: (tagName: string, definitionId?: string) => void;
@@ -458,7 +460,7 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
 
 export type { ColumnDef };
 
-export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, definitionSourceMap, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, accentHue = 190, onRowContextMenu, originalEditingDef, activeDefinitionId }: TransactionTableProps) {
+export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, definitionSourceMap, definitionVersions, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, accentHue = 190, onRowContextMenu, originalEditingDef, activeDefinitionId }: TransactionTableProps) {
   const { fieldMeta } = useTransactionData();
   const { lovLookup } = useLovAttributes();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -1721,17 +1723,19 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                                         const defId = matchedDef?.Id;
                                         const isUserCreated = defId ? !(originalDefinitionIds?.has(defId)) : false;
                                         const source = isUserCreated ? 'Frontend' : (defId ? (definitionSourceMap?.get(defId) ?? null) : null);
+                                        const versionInfo = defId ? definitionVersions?.get(defId) : undefined;
                                         const badge = (
                                           <TagBadge
                                             tag={tag}
                                             certainty={getCertainty(tag)}
                                             isUserCreated={isUserCreated}
+                                            version={versionInfo?.version}
                                             onClick={onTagClick ? () => onTagClick(tag, defId) : undefined}
                                           />
                                         );
                                         if (!source && !matchedDef) return <span key={tag}>{badge}</span>;
                                         return (
-                                          <Tooltip key={tag} content={renderTagTooltip(source, matchedDef, !!onTagClick)} placement="top">
+                                          <Tooltip key={tag} content={renderTagTooltip(source, matchedDef, !!onTagClick, versionInfo)} placement="top">
                                             <span>{badge}</span>
                                           </Tooltip>
                                         );
@@ -1780,6 +1784,7 @@ export function renderTagTooltip(
   source: string | null,
   def: TagSpecDefinition | undefined,
   clickable: boolean,
+  versionInfo?: DefinitionVersionInfo,
 ): ReactNode {
   const groups = def?.TagRuleExpressions ?? [];
   const hasRules = groups.some((g) => g.length > 0);
@@ -1801,6 +1806,13 @@ export function renderTagTooltip(
               <span className="text-faint"> certainty</span>
             </>
           )}
+        </div>
+      )}
+      {versionInfo && versionInfo.total > 1 && (
+        <div className="text-[11px]">
+          <span className="text-faint">Definition</span>{' '}
+          <span className="font-semibold">{versionInfo.version} of {versionInfo.total}</span>
+          <span className="text-faint"> for this tag in the current library</span>
         </div>
       )}
       {def && (

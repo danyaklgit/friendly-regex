@@ -19,6 +19,7 @@ import { useWizardForm, fromExistingDefinition } from '../../hooks/useWizardForm
 import type { TagSpecDefinition, TagSpecLibrary, AnalyzedTransaction, WizardFormState, RuleExpression, CheckoutState, TransactionRow } from '../../types';
 import type { WizardFormResult } from '../../hooks/useWizardForm';
 import { analyzeRow } from '../../utils/analyzeRow';
+import { computeDefinitionVersions } from '../../utils/definitionVersions';
 import { regexify, regexifyExtraction, generateExpressionPrompt, generateExtractionPrompt } from '../../utils/regexify';
 import { generateExpressionId } from '../../utils/uuid';
 import { getContextValue } from '../../types/tagSpec';
@@ -201,6 +202,11 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         getContextValue(l.Context, 'Side') === activeCheckout.side
     ) ?? null;
   }, [libraries, activeCheckout]);
+
+  const definitionVersions = useMemo(
+    () => computeDefinitionVersions(inProgressLib),
+    [inProgressLib],
+  );
 
   useEffect(() => {
     if (inProgressLib && activeCheckout) {
@@ -1385,10 +1391,11 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                       if (!def) return null;
                       const source = definitionSourceMap.get(id) ?? 'Backend';
                       const isUserCreated = !originalDefinitionIds?.has(id);
+                      const versionInfo = definitionVersions.get(id);
                       return (
                         <Tooltip
                           key={id}
-                          content={renderTagTooltip(source, def, true)}
+                          content={renderTagTooltip(source, def, true, versionInfo)}
                           placement="top"
                         >
                           <span>
@@ -1396,6 +1403,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                               tag={def.Tag}
                               certainty={def.CertaintyLevelTag ?? 'HIGH'}
                               isUserCreated={isUserCreated}
+                              version={versionInfo?.version}
                               onClick={() => setPreviewDef(def)}
                             />
                           </span>
@@ -1461,6 +1469,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         tagDefinitions={allDefinitions}
         originalDefinitionIds={originalDefinitionIds}
         definitionSourceMap={definitionSourceMap}
+        definitionVersions={definitionVersions}
         highlightExpressions={highlightExpressions}
         searchHighlights={searchHighlights}
         onTagClick={handleTagClick}
