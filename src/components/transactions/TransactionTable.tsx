@@ -1441,7 +1441,16 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
   }, [columnSearchOpen]);
 
   return (
-    <div className="rounded-lg border border-border flex flex-col relative" style={{ maxHeight: `calc(100vh - 17.3rem${builderHeight > 0 ? ` - ${builderHeight + 25}px` : ''})`, minHeight: '300px' }}>
+    <div
+      className="rounded-lg border border-border flex flex-col relative"
+      style={{
+        maxHeight: `calc(100vh - 17.3rem${builderHeight > 0 ? ` - ${builderHeight + 25}px` : ''})`,
+        // Only reserve a tall minimum for the loading-skeleton case; once
+        // real rows are rendered let the card shrink to content so a single
+        // result doesn't trail empty whitespace below it.
+        minHeight: data.length === 0 ? '300px' : undefined,
+      }}
+    >
       {/* Column Search spotlight */}
       {columnSearchOpen && (
         <div className="absolute inset-0 z-50 flex items-start justify-center pt-4" onClick={() => { setColumnSearchOpen(false); setColumnSearchQuery(''); }}>
