@@ -12,9 +12,11 @@ interface StepAttributesProps {
   transactions?: TransactionRow[];
   startCollapsed?: boolean;
   readOnly?: boolean;
+  suggestedAttributeNames?: { name: string; count: number }[];
+  suggestedTagName?: string;
 }
 
-export function StepAttributes({ attributes, onAdd, onRemove, onUpdate, transactions, startCollapsed, readOnly }: StepAttributesProps) {
+export function StepAttributes({ attributes, onAdd, onRemove, onUpdate, transactions, startCollapsed, readOnly, suggestedAttributeNames, suggestedTagName }: StepAttributesProps) {
   // For each attribute, the index of the earlier row sharing its (trimmed,
   // case-insensitive) name, or null when it's unique. Only the later
   // duplicate carries the flag so the original stays clean.
@@ -39,6 +41,8 @@ export function StepAttributes({ attributes, onAdd, onRemove, onUpdate, transact
               startCollapsed={startCollapsed && attr.attributeTag.trim().length > 0}
               readOnly={readOnly}
               isDuplicateName={duplicateOfIndex[i] !== null}
+              suggestedAttributeNames={suggestedAttributeNames}
+              suggestedTagName={suggestedTagName}
             />
           ))}
         </div>

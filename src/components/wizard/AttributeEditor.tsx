@@ -57,6 +57,12 @@ interface AttributeEditorProps {
    *  stays clean — caller (StepAttributes) decides which is which via
    *  computeDuplicateAttributeIndexes. */
   isDuplicateName?: boolean;
+  /** When set, the attribute-name picker shows a "Suggested from other 'X' defs"
+   *  section at the top with attribute names borrowed from other definitions
+   *  that share this tag name (case-insensitive). */
+  suggestedAttributeNames?: { name: string; count: number }[];
+  /** Canonical tag name used in the section header copy. */
+  suggestedTagName?: string;
 }
 
 /**
@@ -97,7 +103,7 @@ function BoundaryHintIcon({
   );
 }
 
-export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, startCollapsed, readOnly, isDuplicateName }: AttributeEditorProps) {
+export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, startCollapsed, readOnly, isDuplicateName, suggestedAttributeNames, suggestedTagName }: AttributeEditorProps) {
   const { fieldMeta } = useTransactionData();
   const { activeAttributes, validationClasses, validationOptions, lovOptions, lovLookup, createNewAttribute, transformationMethods, extractionMethods } = useLovAttributes();
   const [showDistinct, setShowDistinct] = useState(false);
@@ -113,14 +119,28 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
     !startCollapsed ? { ...attribute } : null
   );
 
-  // Build attribute name options from backend attributes
-  const attributeNameOptions = useMemo(() =>
-    activeAttributes.map((a) => ({
+  // Build attribute name options from backend attributes, with optional
+  // "Suggested from other 'X' defs" section pinned at the top.
+  const attributeNameOptions = useMemo(() => {
+    const suggestedHeader = suggestedTagName
+      ? `Suggested from other "${suggestedTagName}" defs`
+      : 'Suggested';
+    const suggested = (suggestedAttributeNames ?? []).map((s) => ({
+      value: s.name,
+      label: s.name,
+      sublabel: `Used in ${s.count} other definition${s.count === 1 ? '' : 's'}`,
+      group: suggestedHeader,
+      groupClassName: 'text-orange-600 dark:text-orange-400',
+      sublabelClassName: 'text-orange-600 dark:text-orange-400',
+    }));
+    const all = activeAttributes.map((a) => ({
       value: a.Value,
       label: a.Details.find((d) => d.LanguageCode === 'en')?.Name ?? a.Value,
       sublabel: a.PossibleLOVTag ? `Suggested LOV: ${a.PossibleLOVTag}` : undefined,
-    })),
-  [activeAttributes]);
+      group: suggested.length > 0 ? 'All attributes' : undefined,
+    }));
+    return [...suggested, ...all];
+  }, [activeAttributes, suggestedAttributeNames, suggestedTagName]);
 
   // Use dynamic validation options, fall back to hardcoded
   const validationRuleOptions = useMemo(() =>

@@ -2,12 +2,23 @@ import { useState, useRef, useEffect, useMemo, useLayoutEffect, useCallback, typ
 import { createPortal } from 'react-dom';
 import { DropdownBackdrop } from './DropdownBackdrop';
 
-interface SearchableSelectOption {
+export interface SearchableSelectOption {
   value: string;
   label: string;
   sublabel?: string;
   /** Custom rich content to render instead of the plain sublabel text */
   sublabelNode?: ReactNode;
+  /** Optional group label. Adjacent options sharing the same group are rendered
+   *  under a single section header. Section headers only appear when at least
+   *  one option in the visible list has a group. */
+  group?: string;
+  /** Optional Tailwind classes for the section header (text color, weight,
+   *  etc.). Applied to the section header when this option starts a new group.
+   *  Falls back to `text-faint` when omitted. */
+  groupClassName?: string;
+  /** Optional Tailwind classes for the sublabel under this option. Falls back
+   *  to `text-faint` when omitted. */
+  sublabelClassName?: string;
 }
 
 interface SearchableSelectProps {
@@ -105,7 +116,7 @@ export function SearchableSelect({
         type="button"
         onClick={() => !disabled && setOpen(!open)}
         disabled={disabled}
-        className={`w-full flex items-center justify-between gap-1.5 rounded-lg border border-input-border bg-input-bg px-3 py-2 text-sm text-heading focus:outline-none focus:ring-1 focus:ring-primary transition-colors ${
+        className={`w-full flex items-center justify-between gap-1.5 rounded-lg border border-input-border bg-input-bg px-3 py-0.5 text-sm text-heading focus:outline-none focus:ring-1 focus:ring-primary transition-colors ${
           disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
         } ${!value ? 'text-placeholder' : ''}`}
       >
@@ -158,23 +169,33 @@ export function SearchableSelect({
               {filtered.length === 0 ? (
                 <div className="px-2 py-3 text-xs text-faint text-center">No matches</div>
               ) : (
-                filtered.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => handleSelect(opt.value)}
-                    className={`w-full text-left flex flex-col px-2 py-1.5 text-xs rounded transition-colors ${
-                      value === opt.value
-                        ? 'text-primary font-medium bg-primary/5'
-                        : 'text-heading hover:bg-surface-hover'
-                    }`}
-                  >
-                    <span>{opt.label}</span>
-                    {(opt.sublabelNode || opt.sublabel) && (
-                      <span className="text-[10px] text-faint">{opt.sublabelNode ?? opt.sublabel}</span>
-                    )}
-                  </button>
-                ))
+                filtered.map((opt, i) => {
+                  const prevGroup = i > 0 ? filtered[i - 1].group : undefined;
+                  const showHeader = opt.group && opt.group !== prevGroup;
+                  return (
+                    <div key={opt.value}>
+                      {showHeader && (
+                        <div className={`px-2 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider ${opt.groupClassName ?? 'text-faint'}`}>
+                          {opt.group}
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleSelect(opt.value)}
+                        className={`w-full text-left flex flex-col px-2 py-1.5 text-xs rounded transition-colors ${
+                          value === opt.value
+                            ? 'text-primary font-medium bg-primary/5'
+                            : 'text-heading hover:bg-surface-hover'
+                        }`}
+                      >
+                        <span>{opt.label}</span>
+                        {(opt.sublabelNode || opt.sublabel) && (
+                          <span className={`text-[10px] ${opt.sublabelClassName ?? 'text-faint'}`}>{opt.sublabelNode ?? opt.sublabel}</span>
+                        )}
+                      </button>
+                    </div>
+                  );
+                })
               )}
             </div>
             {onCreateNew && (

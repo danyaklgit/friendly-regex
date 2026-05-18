@@ -6,6 +6,8 @@ import { LovAttributesProvider } from './context/LovAttributesContext';
 import { TepConfigProvider, useTepConfig } from './context/TepConfigContext';
 import { useTagSpecs } from './hooks/useTagSpecs';
 import { useLocalChanges } from './hooks/useLocalChanges';
+import { useHasUnsyncedTags } from './hooks/useHasUnsyncedTags';
+import { useSyncTags } from './hooks/useSyncTags';
 import { LoginPage } from './components/auth/LoginPage';
 import { TabContainer } from './components/layout/TabContainer';
 import { StatsTab } from './components/stats/StatsTab';
@@ -14,6 +16,7 @@ import { SettingsTab } from './components/settings/SettingsTab';
 import { IntegrationLogsTab } from './components/integrationLogs/IntegrationLogsTab';
 import { useTransactionData } from './hooks/useTransactionData';
 import { SessionWarningModal } from './components/shared/SessionWarningModal';
+import { ConfirmDialog } from './components/shared/ConfirmDialog';
 import { UndoChangesDialog } from './components/shared/UndoChangesDialog';
 import { SharedLinkBanner } from './components/shared/SharedLinkBanner';
 import { OnboardingHub } from './components/onboarding/OnboardingHub';
@@ -64,6 +67,33 @@ function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps
 
   const { libraries, refetchLibraries, isPairBeingTagged } = useTagSpecs();
   const { clearChanges, getChangeSummary, hasChanges } = useLocalChanges(activeCheckout?.bank, activeCheckout?.side);
+  const hasUnsyncedTags = useHasUnsyncedTags();
+  const syncTags = useSyncTags();
+  const [pendingTabChange, setPendingTabChange] = useState<number | null>(null);
+
+  const tabLabels = useMemo(
+    () => ['Backlog', 'Transactions', ...(isLiveMode && isDevops ? ['Integration Logs'] : []), 'Settings'],
+    [isLiveMode, isDevops],
+  );
+  const settingsTabIndex = tabLabels.indexOf('Settings');
+
+  const handleTabChange = useCallback((nextIndex: number) => {
+    if (activeTab === settingsTabIndex && nextIndex !== settingsTabIndex && hasUnsyncedTags) {
+      setPendingTabChange(nextIndex);
+      return;
+    }
+    setActiveTab(nextIndex);
+  }, [activeTab, settingsTabIndex, hasUnsyncedTags]);
+
+  useEffect(() => {
+    if (!hasUnsyncedTags) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [hasUnsyncedTags]);
 
   const isCheckoutReadOnly = useMemo(() => {
     if (!activeCheckout || !userId) return true;
@@ -174,7 +204,7 @@ function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps
       <div className="min-h-screen bg-surface-secondary">
         <TabContainer
           activeIndex={activeTab}
-          onTabChange={setActiveTab}
+          onTabChange={handleTabChange}
           tabs={[
             { label: 'Backlog', content: <StatsTab onViewTransactions={handleViewTransactions} onViewAllTransactions={handleViewAllTransactions} onCheckoutComplete={handleCheckoutComplete} authToken={authToken} tepHeaders={tepHeaders} /> },
             { label: 'Transactions', content: <TransactionsTab activeCheckout={activeCheckout} onClearPendingDefinition={() => setActiveCheckout(prev => (prev && prev.pendingDefinitionId != null) ? { ...prev, pendingDefinitionId: undefined } : prev)} initialShareFilters={shareFilters} initialShareToggles={shareToggles} operatorName={operatorName} shareDialogOpen={shareDialogOpen} onShareDialogClose={() => setShareDialogOpen(false)} /> },
@@ -210,6 +240,26 @@ function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps
         open={onboardingOpen}
         onClose={() => setOnboardingOpen(false)}
         onTabChange={setActiveTab}
+      />
+      <ConfirmDialog
+        open={pendingTabChange !== null}
+        onClose={() => setPendingTabChange(null)}
+        onConfirm={async () => {
+          const targetTab = pendingTabChange;
+          if (targetTab === null) return;
+          setToast({ message: 'Syncing tags…', type: 'info' });
+          try {
+            await syncTags();
+            setToast({ message: 'Tags synced successfully', type: 'success' });
+            setActiveTab(targetTab);
+          } catch (err) {
+            setToast({ message: err instanceof Error ? err.message : 'Failed to sync tags', type: 'error' });
+          }
+        }}
+        title="Unsynced tag changes"
+        message="You have tag hierarchy changes that haven't been synced. Sync now and leave?"
+        confirmLabel="Sync and leave"
+        variant="primary"
       />
       {shareData && <SharedLinkBanner share={shareData} onDismiss={() => setShareData(null)} />}
       {toast && <Toast message={toast.message} type={toast.type} duration={toast.duration} onClose={() => setToast(null)} />}

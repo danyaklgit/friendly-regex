@@ -4,6 +4,7 @@ import { Modal } from '../shared/Modal';
 import { Input } from '../shared/Input';
 import { Select } from '../shared/Select';
 import { Button } from '../shared/Button';
+import { getNodeName } from '../../utils/tagHierarchyNode';
 
 interface TagEditModalProps {
   open: boolean;
@@ -67,7 +68,7 @@ export function TagEditModal({ open, onClose, editingNode, allNodes, onSave }: T
     return groups.filter((g) => {
       // Always show selected groups so the user can deselect them
       if (selectedGroups.has(g.Tag)) return true;
-      return g.Tag.toLowerCase().includes(q);
+      return g.Tag.toLowerCase().includes(q) || getNodeName(g).toLowerCase().includes(q);
     });
   }, [groups, groupSearch, selectedGroups]);
 
@@ -110,7 +111,7 @@ export function TagEditModal({ open, onClose, editingNode, allNodes, onSave }: T
   const handleSave = () => {
     if (!canSave) return;
     const node: TagHierarchyRawNode = {
-      Tag: isCreate ? tag.trim().toUpperCase() : editingNode!.Tag,
+      Tag: isCreate ? tag.trim() : editingNode!.Tag,
       Level: isCreate ? level : editingNode!.Level,
       StatusTag: editingNode?.StatusTag ?? 'ACTIVE',
       Actions: editingNode?.Actions ?? ['Move', 'Archive', 'Delete'],
@@ -285,18 +286,20 @@ export function TagEditModal({ open, onClose, editingNode, allNodes, onSave }: T
                   )}
                   {filteredGroups.map((g) => {
                     const checked = selectedGroups.has(g.Tag);
+                    const displayName = getNodeName(g);
                     return (
                       <button
                         key={g.Tag}
                         type="button"
                         onClick={() => toggleGroup(g.Tag)}
+                        title={displayName !== g.Tag ? g.Tag : undefined}
                         className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors cursor-pointer
                           ${checked
                             ? 'bg-primary/15 text-primary border border-primary/30'
                             : 'bg-surface-tertiary text-body border border-transparent hover:bg-surface-hover'
                           }`}
                       >
-                        {g.Tag}
+                        {displayName}
                       </button>
                     );
                   })}
