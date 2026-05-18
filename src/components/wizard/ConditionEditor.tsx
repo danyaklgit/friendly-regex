@@ -131,8 +131,19 @@ export function ConditionEditor({
   }, [fieldKind]);
 
   const selectedOp = MATCH_OPERATIONS.find((op) => op.key === condition.operation);
+  // Clamp user-supplied strings before building the inline preview so a single
+  // long value doesn't dominate the row's truncation budget. The full value
+  // still feeds the regex pipeline — this only affects the human-readable
+  // summary that sits next to the source field name.
+  const PREVIEW_CLAMP = 40;
+  const clampForPreview = (s: string | undefined): string | undefined =>
+    s && s.length > PREVIEW_CLAMP ? s.slice(0, PREVIEW_CLAMP - 1) + '…' : s;
   const preview = condition.value
-    ? generateExpressionPrompt(condition.operation, condition.value, condition.values)
+    ? generateExpressionPrompt(
+        condition.operation,
+        clampForPreview(condition.value) ?? '',
+        condition.values?.map((v) => clampForPreview(v) ?? ''),
+      )
     : '';
 
   // Required-field check for the inline Save button. Mirrors
@@ -300,10 +311,10 @@ export function ConditionEditor({
           </div>
         ) : (
           <div
-            className="flex-1 cursor-pointer hover:bg-surface-active rounded px-2 py-1.5 transition-colors"
+            className="flex-1 min-w-0 cursor-pointer hover:bg-surface-active rounded px-2 py-1.5 transition-colors"
             onClick={() => { setSnapshot({ ...condition }); setEditing(true); }}
           >
-            <p className="text-xs text-primary italic">
+            <p className="text-xs text-primary italic truncate">
               {humanizeFieldName(condition.sourceField)} &rarr; <span className='text-orange-500 dark:text-orange-300'>{preview}</span>
             </p>
           </div>
@@ -317,7 +328,7 @@ export function ConditionEditor({
       {editing && (
         <div className="mt-1 ml-3 flex flex-wrap items-center gap-2">
           {preview && (
-            <p className="text-xs text-primary italic text-left border-dashed border w-fit px-2 py-1">
+            <p className="text-xs text-primary italic text-left border-dashed border w-fit max-w-full px-2 py-1 break-all">
               {humanizeFieldName(condition.sourceField)} &rarr; <span className='text-orange-500 dark:text-orange-300'>{preview}</span>
             </p>
           )}

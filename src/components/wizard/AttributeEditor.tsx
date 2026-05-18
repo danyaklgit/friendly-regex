@@ -232,12 +232,27 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
   // Prefer the LOV item's friendly Name when the op is a `lov:*` entry —
   // the pure util has no access to the LOV catalog and falls back to showing
   // the raw regex, which is ugly in the inline preview.
+  //
+  // For the inline header summary, clamp prefix/suffix/pattern/etc. to a
+  // small per-field budget so a single very long prefix doesn't crowd out
+  // the suffix (and vice versa) when truncate clips the overall line.
   const preview = useMemo(() => {
     if (attribute.extractionOperation.startsWith('lov:')) {
       const lovMatch = extractionMethods.find((m) => m.key === attribute.extractionOperation);
       if (lovMatch) return `Match ${lovMatch.label}`;
     }
-    return generateExtractionPrompt(attribute.extractionOperation, extractionParams);
+    const TRUNC = 20;
+    const clamp = (s: string | undefined) =>
+      s && s.length > TRUNC ? s.slice(0, TRUNC - 1) + '…' : s;
+    const shortParams = {
+      ...extractionParams,
+      prefix: clamp(extractionParams.prefix),
+      suffix: clamp(extractionParams.suffix),
+      pattern: clamp(extractionParams.pattern),
+      toStr: clamp(extractionParams.toStr),
+      verifyValue: clamp(extractionParams.verifyValue),
+    };
+    return generateExtractionPrompt(attribute.extractionOperation, shortParams);
   }, [attribute.extractionOperation, extractionParams, extractionMethods]);
 
   // Raw extracted values, BEFORE the post-extraction transformation pipeline.
@@ -940,9 +955,9 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
           </div>
         </div>
       ) : (
-        <div className="flex items-center justify-between px-3 py-2">
+        <div className="flex items-center justify-between gap-2 px-3 py-2 min-w-0">
           <div
-            className="flex-1 cursor-pointer hover:bg-surface-hover rounded px-2 py-1.5 transition-colors flex items-center gap-1.5"
+            className="flex-1 min-w-0 cursor-pointer hover:bg-surface-hover rounded px-2 py-1.5 transition-colors flex items-center gap-1.5"
             onClick={() => { setSnapshot({ ...attribute }); setEditing(true); }}
           >
             <svg
@@ -954,7 +969,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
             >
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
             </svg>
-            <p className="text-xs">
+            <p className="text-xs truncate min-w-0">
               <span className="font-medium text-primary-dark">{attribute.attributeTag}</span>
               <span className="text-faint mx-1.5">&mdash;</span>
               <span className="text-primary italic">
@@ -967,7 +982,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
               )}
             </p>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 shrink-0">
             {validationSummary && (
               <span className={`text-xs font-medium flex gap-2 mx-2`}>
                 {validationSummary.passed > 0 && <span className='text-emerald-600'>{'\u2713'} {validationSummary.passed}</span>}
