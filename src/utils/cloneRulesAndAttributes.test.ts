@@ -179,4 +179,56 @@ describe('cloneRulesAndAttributesFrom', () => {
     expect(result.attributes[0].extractionOperation).toBe('extract_between_and_verify');
     expect(result.attributes[0].verifyValue).toBe('OK');
   });
+
+  it('maps a stored regex back to the LOV extraction op when its Value matches', () => {
+    const def = makeDefinition({
+      Attributes: [
+        {
+          AttributeTag: 'IBAN',
+          IsMandatory: false,
+          ValidationRuleTag: 'KSA_IBAN',
+          LOVTag: null,
+          AttributeRuleExpression: {
+            SourceField: 'AdditionalInformation',
+            ExpressionPrompt: null,
+            ExpressionId: null,
+            Regex: '^SA\\d{2}[A-Z0-9]{18}$',
+            RegexDetails: [],
+          },
+        },
+      ],
+    });
+    const result = cloneRulesAndAttributesFrom(def, [
+      { key: 'lov:^SA\\d{2}[A-Z0-9]{18}$', label: 'Saudi IBAN', regex: '^SA\\d{2}[A-Z0-9]{18}$' },
+    ]);
+    expect(result.attributes[0].extractionOperation).toBe('lov:^SA\\d{2}[A-Z0-9]{18}$');
+    expect(result.attributes[0].prefix).toBeUndefined();
+    expect(result.attributes[0].suffix).toBeUndefined();
+    expect(result.attributes[0].pattern).toBeUndefined();
+  });
+
+  it('falls through to the standard decompose path when no LOV catalog is supplied', () => {
+    // Same regex as the previous test but without `lovExtractions` — the
+    // decomposer should produce the legacy `extract_matching` shape so old
+    // behaviour is preserved for callers that don't have LOV context.
+    const def = makeDefinition({
+      Attributes: [
+        {
+          AttributeTag: 'IBAN',
+          IsMandatory: false,
+          ValidationRuleTag: 'KSA_IBAN',
+          LOVTag: null,
+          AttributeRuleExpression: {
+            SourceField: 'AdditionalInformation',
+            ExpressionPrompt: null,
+            ExpressionId: null,
+            Regex: '^SA\\d{2}[A-Z0-9]{18}$',
+            RegexDetails: [],
+          },
+        },
+      ],
+    });
+    const result = cloneRulesAndAttributesFrom(def);
+    expect(result.attributes[0].extractionOperation).not.toMatch(/^lov:/);
+  });
 });

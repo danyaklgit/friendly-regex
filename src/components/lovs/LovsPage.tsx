@@ -4,9 +4,9 @@ import { LovCategoryList } from './LovCategoryList';
 import { LovItemsPane } from './LovItemsPane';
 
 // LOV tags that belong to internal/derived flows and are already surfaced
-// elsewhere in the app (Attributes tab, transformation pipeline). Hide them
-// from the operator-facing LOVs UI.
-const HIDDEN_LOV_TAGS = new Set(['ATTRIBUTES', 'ATTRIBUTE_TRANSFORMATON']);
+// elsewhere in the app (Attributes tab, transformation pipeline, the new
+// Extractions tab). Hide them from the operator-facing LOVs UI.
+const HIDDEN_LOV_TAGS = new Set(['ATTRIBUTES', 'ATTRIBUTE_TRANSFORMATON', 'EXTRACTIONS']);
 
 export function LovsPage() {
   const { lovLists, lovLoading, refetchAll } = useLovAttributes();

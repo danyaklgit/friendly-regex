@@ -2,6 +2,7 @@ import type { TagSpecDefinition, TagSpecLibrary, WizardFormState, WizardStep } f
 import type { WizardFormResult } from '../../hooks/useWizardForm';
 import { useWizardForm } from '../../hooks/useWizardForm';
 import { useTransactionData } from '../../hooks/useTransactionData';
+import { useLovAttributes } from '../../context/LovAttributesContext';
 import { Modal } from '../shared/Modal';
 import { Button } from '../shared/Button';
 import { Tooltip } from '../shared/Tooltip';
@@ -33,7 +34,8 @@ interface TagWizardModalProps {
 
 export function TagWizardModal({ existingDef, parentLib, initialFormState, initialStep, fromCheckoutContext, onSave, onClose }: TagWizardModalProps) {
   const { fieldMeta } = useTransactionData();
-  const wizard = useWizardForm(existingDef, initialFormState, fieldMeta.sourceFields[0], parentLib, initialStep);
+  const { extractionMethods } = useLovAttributes();
+  const wizard = useWizardForm(existingDef, initialFormState, fieldMeta.sourceFields[0], parentLib, initialStep, extractionMethods);
 
   // Each step that surfaces the offending UI gates its own Next button; the
   // final-step Create/Save button gates on the combined state. Two classes of

@@ -5,6 +5,7 @@ import type {
   AttributeFormValue,
   ExtractionOperation,
 } from '../types';
+import type { ExtractionMethodDef } from '../types/lov';
 import { decomposeRegex, decomposeExtractionRegex } from './engregxify';
 
 export type RulesAndAttributesSlice = Pick<WizardFormState, 'ruleGroups' | 'attributes'>;
@@ -18,8 +19,16 @@ export type RulesAndAttributesSlice = Pick<WizardFormState, 'ruleGroups' | 'attr
  * cloned form state is independent of the source. _originalRegex is intentionally
  * dropped: when used as a template, the cloned attribute is a brand-new attribute
  * on a different tag, and keeping the source's stored regex could mask edits.
+ *
+ * `lovExtractions` is optional — when provided, any stored extraction regex
+ * that exactly equals a LOV item's Value is mapped to the `lov:*` operation key
+ * (so the dropdown shows the friendly LOV label instead of falling through to
+ * `extract_matching` with a raw regex pattern).
  */
-export function cloneRulesAndAttributesFrom(def: TagSpecDefinition): RulesAndAttributesSlice {
+export function cloneRulesAndAttributesFrom(
+  def: TagSpecDefinition,
+  lovExtractions: ExtractionMethodDef[] = [],
+): RulesAndAttributesSlice {
   const ruleGroups: AndGroupFormValue[] = def.TagRuleExpressions.map((andGroup) => ({
     id: crypto.randomUUID(),
     conditions: andGroup.map((expr) => {
@@ -37,20 +46,29 @@ export function cloneRulesAndAttributesFrom(def: TagSpecDefinition): RulesAndAtt
   }));
 
   const attributes: AttributeFormValue[] = def.Attributes.map((attr) => {
-    const decomposed = decomposeExtractionRegex(attr.AttributeRuleExpression.Regex);
+    const storedRegex = attr.AttributeRuleExpression.Regex;
+    const lovMatch = !attr.AttributeRuleExpression.VerifyValue
+      ? lovExtractions.find((m) => m.regex === storedRegex)
+      : undefined;
+    const decomposed = decomposeExtractionRegex(storedRegex);
+    const extractionOperation: ExtractionOperation = lovMatch
+      ? (lovMatch.key as ExtractionOperation)
+      : attr.AttributeRuleExpression.VerifyValue
+        ? 'extract_between_and_verify'
+        : decomposed.operation;
     return {
       id: crypto.randomUUID(),
       attributeTag: attr.AttributeTag,
       isMandatory: attr.IsMandatory,
       validationRuleTag: attr.ValidationRuleTag,
       sourceField: attr.AttributeRuleExpression.SourceField,
-      extractionOperation: attr.AttributeRuleExpression.VerifyValue
-        ? ('extract_between_and_verify' as ExtractionOperation)
-        : decomposed.operation,
-      prefix: decomposed.prefix,
-      suffix: decomposed.suffix,
-      pattern: decomposed.pattern,
-      suffixOrEndOfInput: decomposed.suffixOrEndOfInput,
+      extractionOperation,
+      // LOV-driven extractions carry no params — drop anything decompose
+      // pulled out (it would just be the raw regex shoved into `pattern`).
+      prefix: lovMatch ? undefined : decomposed.prefix,
+      suffix: lovMatch ? undefined : decomposed.suffix,
+      pattern: lovMatch ? undefined : decomposed.pattern,
+      suffixOrEndOfInput: lovMatch ? undefined : decomposed.suffixOrEndOfInput,
       verifyValue: attr.AttributeRuleExpression.VerifyValue,
       lovTag: attr.LOVTag ?? null,
       isLovBased: !!attr.LOVTag,

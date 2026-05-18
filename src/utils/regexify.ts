@@ -134,6 +134,11 @@ export function regexifyExtraction(
     const def = PREDEFINED_PATTERNS.find((p) => p.key === operation);
     return def?.regex ?? '(.*)';
   }
+  // LOV-driven extraction: the part after `lov:` IS the regex (per the
+  // EXTRACTIONS LOV contract where the item's Value field stores the regex).
+  if (operation.startsWith('lov:')) {
+    return operation.slice(4);
+  }
   const occ = params.occurrence && params.occurrence > 1 ? params.occurrence : 0;
   // Wrap the literal suffix as `(?:<suf>|$)` when the user opted into
   // end-of-input as an alternative boundary. Empty suffix degrades to `$`
@@ -252,6 +257,12 @@ export function generateExtractionPrompt(
   if (operation.startsWith('predefined:')) {
     const def = PREDEFINED_PATTERNS.find((p) => p.key === operation);
     return def ? `Match ${def.label}` : 'Extract value';
+  }
+  // LOV-driven extraction: this util has no access to the LOV catalog, so we
+  // surface the regex directly. UI consumers with LOV context (AttributeEditor,
+  // RulePreview) override this with the LOV item's friendly Name.
+  if (operation.startsWith('lov:')) {
+    return `Match pattern '${operation.slice(4)}'`;
   }
   const modifiers: string[] = [];
   if (params.numChars && params.numChars > 0) modifiers.push(`${params.numChars} chars`);

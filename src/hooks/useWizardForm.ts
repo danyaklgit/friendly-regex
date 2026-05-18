@@ -9,6 +9,7 @@ import type {
   ConditionFormValue,
   AttributeFormValue,
 } from '../types';
+import type { ExtractionMethodDef } from '../types/lov';
 import { getContextValue } from '../types/tagSpec';
 import {
   regexify,
@@ -21,9 +22,10 @@ import { cloneRulesAndAttributesFrom } from '../utils/cloneRulesAndAttributes';
 
 export function fromExistingDefinition(
   def: TagSpecDefinition,
-  parentLib?: TagSpecLibrary
+  parentLib?: TagSpecLibrary,
+  lovExtractions: ExtractionMethodDef[] = [],
 ): WizardFormState {
-  const { ruleGroups, attributes } = cloneRulesAndAttributesFrom(def);
+  const { ruleGroups, attributes } = cloneRulesAndAttributesFrom(def, lovExtractions);
   // In edit mode, preserve the backend's original regex on each attribute. The
   // shared helper drops _originalRegex (intentional for the template case);
   // re-attach it here so live previews don't fall back to lossy round-trips.
@@ -55,6 +57,7 @@ export function useWizardForm(
   _defaultSourceField?: string,
   parentLib?: TagSpecLibrary,
   initialStep?: WizardStep,
+  lovExtractions: ExtractionMethodDef[] = [],
 ) {
   function createEmptyCondition(): ConditionFormValue {
     return {
@@ -110,7 +113,7 @@ export function useWizardForm(
     initialFormState
       ? { ...initialFormState }
       : existingDef
-      ? fromExistingDefinition(existingDef, parentLib)
+      ? fromExistingDefinition(existingDef, parentLib, lovExtractions)
       : createInitialState()
   );
 
@@ -245,9 +248,9 @@ export function useWizardForm(
   const applyTemplate = useCallback((def: TagSpecDefinition) => {
     setFormState((prev) => ({
       ...prev,
-      ...cloneRulesAndAttributesFrom(def),
+      ...cloneRulesAndAttributesFrom(def, lovExtractions),
     }));
-  }, []);
+  }, [lovExtractions]);
 
   // --- Convert form state to TagSpecDefinition + parentContext ---
   const toTagSpecDefinition = useCallback((): WizardFormResult => {

@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo, type ReactNode } from 'react';
 import type { TepHeaders } from '../api/transactions';
-import type { LOVList, ValidationClass, BackendAttribute, AttributeDetail } from '../types/lov';
+import type { LOVList, ValidationClass, BackendAttribute, BackendExtraction, AttributeDetail, ExtractionMethodDef } from '../types/lov';
 import {
   getListsByTags,
   getValidationClasses,
@@ -11,6 +11,12 @@ import {
   enableAttribute as apiEnableAttribute,
   deleteAttribute as apiDeleteAttribute,
 } from '../api/lovAttributes';
+import {
+  getExtractions,
+  createExtraction as apiCreateExtraction,
+  updateExtraction as apiUpdateExtraction,
+  deleteExtraction as apiDeleteExtraction,
+} from '../api/extractions';
 import { TRANSFORMATION_METHODS, type TransformationMethodDef } from '../constants/transformations';
 
 interface LovAttributesContextValue {
@@ -18,26 +24,34 @@ interface LovAttributesContextValue {
   lovLists: LOVList[];
   validationClasses: ValidationClass[];
   backendAttributes: BackendAttribute[];
+  backendExtractions: BackendExtraction[];
 
   // Loading states
   lovLoading: boolean;
   attributesLoading: boolean;
   validationLoading: boolean;
+  extractionsLoading: boolean;
 
   // Derived
   lovLookup: Map<string, Map<string, string>>;
   lovOptions: { value: string; label: string }[];
   activeAttributes: BackendAttribute[];
+  activeExtractions: BackendExtraction[];
   validationOptions: { value: string; label: string }[];
   transformationMethods: TransformationMethodDef[];
+  extractionMethods: ExtractionMethodDef[];
 
   // Actions
   refetchAll: () => Promise<void>;
   refetchAttributes: () => Promise<void>;
+  refetchExtractions: () => Promise<void>;
   createNewAttribute: (payload: { Value: string; PossibleLOVTag?: string | null; Details: AttributeDetail[] }) => Promise<string | null>;
   updateExistingAttribute: (payload: { Id: number; Value: string; PossibleLOVTag?: string | null; Details: AttributeDetail[] }) => Promise<string | null>;
   toggleAttributeStatus: (id: number, enable: boolean) => Promise<string | null>;
   deleteExistingAttribute: (id: number) => Promise<string | null>;
+  createNewExtraction: (payload: { Value: string; Regex: string; Details: AttributeDetail[] }) => Promise<string | null>;
+  updateExistingExtraction: (payload: { Id: number; Value: string; Regex: string; Details: AttributeDetail[] }) => Promise<string | null>;
+  deleteExistingExtraction: (id: number) => Promise<string | null>;
 }
 
 const LovAttributesContext = createContext<LovAttributesContextValue | null>(null);
@@ -52,10 +66,12 @@ export function LovAttributesProvider({ authToken, tepHeaders, children }: LovAt
   const [lovLists, setLovLists] = useState<LOVList[]>([]);
   const [validationClasses, setValidationClasses] = useState<ValidationClass[]>([]);
   const [backendAttributes, setBackendAttributes] = useState<BackendAttribute[]>([]);
+  const [backendExtractions, setBackendExtractions] = useState<BackendExtraction[]>([]);
 
   const [lovLoading, setLovLoading] = useState(false);
   const [attributesLoading, setAttributesLoading] = useState(false);
   const [validationLoading, setValidationLoading] = useState(false);
+  const [extractionsLoading, setExtractionsLoading] = useState(false);
 
   const fetchLov = useCallback(async (signal?: AbortSignal) => {
     if (!authToken || !tepHeaders) return;
@@ -96,6 +112,19 @@ export function LovAttributesProvider({ authToken, tepHeaders, children }: LovAt
     }
   }, [authToken, tepHeaders]);
 
+  const fetchExtractions = useCallback(async (signal?: AbortSignal) => {
+    if (!authToken || !tepHeaders) return;
+    setExtractionsLoading(true);
+    try {
+      const list = await getExtractions(authToken, tepHeaders, signal);
+      if (!signal?.aborted) setBackendExtractions(list);
+    } catch (err) {
+      if (!signal?.aborted) console.error('Failed to fetch extractions:', err);
+    } finally {
+      if (!signal?.aborted) setExtractionsLoading(false);
+    }
+  }, [authToken, tepHeaders]);
+
   // Fetch all on mount
   useEffect(() => {
     if (!authToken || !tepHeaders) return;
@@ -103,16 +132,21 @@ export function LovAttributesProvider({ authToken, tepHeaders, children }: LovAt
     fetchLov(controller.signal);
     fetchValidation(controller.signal);
     fetchAttrs(controller.signal);
+    fetchExtractions(controller.signal);
     return () => controller.abort();
-  }, [authToken, tepHeaders, fetchLov, fetchValidation, fetchAttrs]);
+  }, [authToken, tepHeaders, fetchLov, fetchValidation, fetchAttrs, fetchExtractions]);
 
   const refetchAll = useCallback(async () => {
-    await Promise.all([fetchLov(), fetchValidation(), fetchAttrs()]);
-  }, [fetchLov, fetchValidation, fetchAttrs]);
+    await Promise.all([fetchLov(), fetchValidation(), fetchAttrs(), fetchExtractions()]);
+  }, [fetchLov, fetchValidation, fetchAttrs, fetchExtractions]);
 
   const refetchAttributes = useCallback(async () => {
     await fetchAttrs();
   }, [fetchAttrs]);
+
+  const refetchExtractions = useCallback(async () => {
+    await fetchExtractions();
+  }, [fetchExtractions]);
 
   const createNewAttribute = useCallback(async (payload: { Value: string; PossibleLOVTag?: string | null; Details: AttributeDetail[] }): Promise<string | null> => {
     if (!authToken || !tepHeaders) return null;
@@ -146,6 +180,30 @@ export function LovAttributesProvider({ authToken, tepHeaders, children }: LovAt
     await fetchAttrs();
     return sfm;
   }, [authToken, tepHeaders, fetchAttrs]);
+
+  // Extractions CRUD. Each mutation refetches BOTH the Extractions list and
+  // the LOV (since the dropdown reads `extractionMethods` from the EXTRACTIONS
+  // LOV, not from `backendExtractions`).
+  const createNewExtraction = useCallback(async (payload: { Value: string; Regex: string; Details: AttributeDetail[] }): Promise<string | null> => {
+    if (!authToken || !tepHeaders) return null;
+    const sfm = await apiCreateExtraction(payload, authToken, tepHeaders);
+    await Promise.all([fetchExtractions(), fetchLov()]);
+    return sfm;
+  }, [authToken, tepHeaders, fetchExtractions, fetchLov]);
+
+  const updateExistingExtraction = useCallback(async (payload: { Id: number; Value: string; Regex: string; Details: AttributeDetail[] }): Promise<string | null> => {
+    if (!authToken || !tepHeaders) return null;
+    const sfm = await apiUpdateExtraction(payload, authToken, tepHeaders);
+    await Promise.all([fetchExtractions(), fetchLov()]);
+    return sfm;
+  }, [authToken, tepHeaders, fetchExtractions, fetchLov]);
+
+  const deleteExistingExtraction = useCallback(async (id: number): Promise<string | null> => {
+    if (!authToken || !tepHeaders) return null;
+    const sfm = await apiDeleteExtraction(id, authToken, tepHeaders);
+    await Promise.all([fetchExtractions(), fetchLov()]);
+    return sfm;
+  }, [authToken, tepHeaders, fetchExtractions, fetchLov]);
 
   // Derived: LOV lookup — LOVTag → (Value → Name)
   // Index by Tag, Name, and normalized key so resolution works regardless of
@@ -195,6 +253,10 @@ export function LovAttributesProvider({ authToken, tepHeaders, children }: LovAt
     return backendAttributes.filter((a) => a.StatusTag === 'ACTIVE' || a.StatusTag === null);
   }, [backendAttributes]);
 
+  const activeExtractions = useMemo(() => {
+    return backendExtractions.filter((e) => e.StatusTag === 'ACTIVE' || e.StatusTag === null);
+  }, [backendExtractions]);
+
   // Derived: validation options
   const validationOptions = useMemo(() => {
     return validationClasses.map((vc) => ({ value: vc.Tag, label: vc.Name }));
@@ -218,30 +280,63 @@ export function LovAttributesProvider({ authToken, tepHeaders, children }: LovAt
     return TRANSFORMATION_METHODS;
   }, [lovLists]);
 
+  // Derived: extraction methods sourced from the EXTRACTIONS LOV.
+  //   - Value  = tag identifier (e.g. "KSA_IBAN", "SWIFT_BIC")
+  //   - Name   = display label
+  //   - Tags[0] = the actual regex
+  // Operation key is `lov:<regex>` so `regexifyExtraction` (a pure util with
+  // no LOV access) can produce the stored regex by stripping the prefix.
+  // Items without a regex are skipped — a regex-less entry isn't usable.
+  const extractionMethods = useMemo<ExtractionMethodDef[]>(() => {
+    const list = lovLists.find((l) => l.Tag === 'EXTRACTIONS');
+    if (!list) return [];
+    return list.Items
+      .map((item) => {
+        const regex = Array.isArray(item.Tags) && item.Tags[0] ? item.Tags[0] : '';
+        return { regex, item };
+      })
+      .filter(({ regex }) => regex.length > 0)
+      .map(({ regex, item }) => ({
+        key: `lov:${regex}`,
+        label: item.Name || item.Value,
+        regex,
+        description: item.Description,
+      }));
+  }, [lovLists]);
+
   const value = useMemo<LovAttributesContextValue>(() => ({
     lovLists,
     validationClasses,
     backendAttributes,
+    backendExtractions,
     lovLoading,
     attributesLoading,
     validationLoading,
+    extractionsLoading,
     lovLookup,
     lovOptions,
     activeAttributes,
+    activeExtractions,
     validationOptions,
     transformationMethods,
+    extractionMethods,
     refetchAll,
     refetchAttributes,
+    refetchExtractions,
     createNewAttribute,
     updateExistingAttribute,
     toggleAttributeStatus,
     deleteExistingAttribute,
+    createNewExtraction,
+    updateExistingExtraction,
+    deleteExistingExtraction,
   }), [
-    lovLists, validationClasses, backendAttributes,
-    lovLoading, attributesLoading, validationLoading,
-    lovLookup, lovOptions, activeAttributes, validationOptions, transformationMethods,
-    refetchAll, refetchAttributes, createNewAttribute,
-    updateExistingAttribute, toggleAttributeStatus, deleteExistingAttribute,
+    lovLists, validationClasses, backendAttributes, backendExtractions,
+    lovLoading, attributesLoading, validationLoading, extractionsLoading,
+    lovLookup, lovOptions, activeAttributes, activeExtractions, validationOptions, transformationMethods, extractionMethods,
+    refetchAll, refetchAttributes, refetchExtractions,
+    createNewAttribute, updateExistingAttribute, toggleAttributeStatus, deleteExistingAttribute,
+    createNewExtraction, updateExistingExtraction, deleteExistingExtraction,
   ]);
 
   return (

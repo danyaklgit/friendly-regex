@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { TagsHierarchyTab } from '../tagsHierarchy/TagsHierarchyTab';
 import { AttributesPage } from '../attributes/AttributesPage';
+import { ExtractionsPage } from '../extractions/ExtractionsPage';
 import { LovsPage } from '../lovs/LovsPage';
 
 const SUB_TABS = [
   { key: 'tags', label: 'Tags Hierarchy', icon: 'M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z' },
   { key: 'attributes', label: 'Attributes', icon: 'M4 6h16M4 10h16M4 14h16M4 18h16' },
+  { key: 'extractions', label: 'Extractions', icon: 'M7 8h10M7 12h10M7 16h6M3 4h18v16H3z' },
   { key: 'lovs', label: 'LOVs', icon: 'M3 6h13M3 10h13M3 14h13M3 18h13M20 6h.01M20 10h.01M20 14h.01M20 18h.01' },
 ] as const;
 
@@ -40,7 +42,8 @@ export function SettingsTab() {
       <div className="flex-1 p-4 overflow-hidden min-h-0 flex flex-col">
         {activeSubTab === 0 && <TagsHierarchyTab />}
         {activeSubTab === 1 && <AttributesPage />}
-        {activeSubTab === 2 && <LovsPage />}
+        {activeSubTab === 2 && <ExtractionsPage />}
+        {activeSubTab === 3 && <LovsPage />}
       </div>
     </div>
   );

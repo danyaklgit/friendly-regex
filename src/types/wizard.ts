@@ -28,7 +28,12 @@ export type ExtractionOperation =
   | 'extract_substring'
   | 'extract_between_and_verify'
   | 'extract_full_field'
-  | `predefined:${string}`;
+  | `predefined:${string}`
+  // LOV-driven predefined patterns sourced from the EXTRACTIONS LOV. The part
+  // after `lov:` is the LOV item's Value, which IS the regex (per the
+  // EXTRACTIONS LOV contract). Selecting one of these hides the prefix/suffix/
+  // pattern inputs since the regex carries no params.
+  | `lov:${string}`;
 
 export interface ConditionFormValue {
   id: string;

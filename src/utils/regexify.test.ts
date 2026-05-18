@@ -224,6 +224,22 @@ describe('regexifyExtraction', () => {
       .toBe('(.*)');
   });
 
+  it('lov-prefixed operation: returns the regex carried in the key', () => {
+    // LOV-driven extractions encode the regex as `lov:<regex>`; the pure util
+    // has no catalog access, so the operation key itself carries the payload.
+    expect(regexifyExtraction('lov:^SA\\d{2}[A-Z0-9]{18}$', {}))
+      .toBe('^SA\\d{2}[A-Z0-9]{18}$');
+  });
+
+  it('lov-prefixed operation: ignores all params (no prefix/suffix/pattern fields)', () => {
+    expect(regexifyExtraction('lov:^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$', {
+      prefix: 'IGNORED',
+      suffix: 'IGNORED',
+      pattern: 'IGNORED',
+      numChars: 5,
+    })).toBe('^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$');
+  });
+
   it('default case returns (.*)', () => {
     expect(regexifyExtraction('unknown' as any, {}))
       .toBe('(.*)');
@@ -429,5 +445,12 @@ describe('generateExtractionPrompt', () => {
   it('extract_between_and_verify with missing params defaults to empty strings', () => {
     expect(generateExtractionPrompt('extract_between_and_verify', {}))
       .toBe("Extract between '' and '', verify = ''");
+  });
+
+  it('lov-prefixed operation falls back to a regex-anchored description', () => {
+    // The pure util has no LOV catalog so it can't surface the friendly Name;
+    // UI consumers override this with the LOV's label.
+    expect(generateExtractionPrompt('lov:^SA\\d{22}$', {}))
+      .toBe("Match pattern '^SA\\d{22}$'");
   });
 });

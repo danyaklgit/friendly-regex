@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useTagSpecs } from '../../hooks/useTagSpecs';
 import { useAuth } from '../../context/AuthContext';
 import { useTransactionData } from '../../hooks/useTransactionData';
+import { useLovAttributes } from '../../context/LovAttributesContext';
 import { useMatchingTagIds } from '../../hooks/useMatchingTagIds';
 import { buildRulesetFilters } from '../../utils/buildRulesetFilters';
 import {
@@ -28,6 +29,7 @@ import { StepRuleExpressions } from '../wizard/StepRuleExpressions';
 import { StepAttributes } from '../wizard/StepAttributes';
 import { TagWizardModal } from '../wizard/TagWizardModal';
 import { DuplicateRulesButton } from '../wizard/DuplicateRulesButton';
+import { LovBrowserDrawer } from '../lovs/LovBrowserDrawer';
 import { Button } from '../shared/Button';
 import { CopyableId } from '../shared/CopyableId';
 import { Toast } from '../shared/Toast';
@@ -234,8 +236,10 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Rule builder state (reuses the wizard form hook)
-  const builder = useWizardForm(undefined, undefined, fieldMeta.sourceFields[0]);
+  const { extractionMethods } = useLovAttributes();
+  const builder = useWizardForm(undefined, undefined, fieldMeta.sourceFields[0], undefined, undefined, extractionMethods);
   const [builderOpen, setBuilderOpen] = useState(false);
+  const [lovBrowserOpen, setLovBrowserOpen] = useState(false);
   const builderRef = useRef<HTMLDivElement>(null);
   const [builderHeight, setBuilderHeight] = useState(0);
   const [showOnlyUntagged, setShowOnlyUntagged] = useState(false);
@@ -948,7 +952,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     }
 
     if (foundDef && foundLib) {
-      const formState = fromExistingDefinition(foundDef, foundLib);
+      const formState = fromExistingDefinition(foundDef, foundLib, extractionMethods);
       builder.setFormState(formState);
       setEditingDef(foundDef);
       setEditingParentLib(foundLib);
@@ -996,7 +1000,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         });
       }
     }
-  }, [libraries, builder, isLiveMode, filterDefinitions, filters, baseFilters, fetchPage, fetchCount]);
+  }, [libraries, builder, isLiveMode, filterDefinitions, filters, baseFilters, fetchPage, fetchCount, extractionMethods]);
 
   // Auto-open a definition's rule builder when navigating from the Backlog with a pendingDefinitionId.
   // Wait for both libraries and (in live mode) filter definitions to load so handleTagClick
@@ -1227,6 +1231,14 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                   data-tour="builder-duplicate-rules"
                 />
               )}
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={() => setLovBrowserOpen(true)}
+                title="Browse LOV reference data without leaving the rule builder"
+              >
+                Browse LOVs
+              </Button>
               <Button variant="ghost" size="xs" onClick={handleDiscard}>
                 {isReadOnly ? 'Close' : 'Discard'}
               </Button>
@@ -1664,6 +1676,11 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         source={previewDef ? definitionSourceMap.get(previewDef.Id) ?? 'Backend' : 'Backend'}
         isUserCreated={previewDef ? !originalDefinitionIds?.has(previewDef.Id) : false}
         onClose={() => setPreviewDef(null)}
+      />
+
+      <LovBrowserDrawer
+        open={lovBrowserOpen}
+        onClose={() => setLovBrowserOpen(false)}
       />
 
       {contextModalRow && (() => {

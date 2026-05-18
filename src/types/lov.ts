@@ -33,3 +33,25 @@ export interface BackendAttribute {
   PossibleLOVTag: string | null;
   Details: AttributeDetail[];
 }
+
+// Same shape as BackendAttribute (per the Extractions API spec), but the
+// Value field carries the regex (not a tag identifier). Kept as a distinct
+// type so call sites are unambiguous about which entity they're handling.
+export interface BackendExtraction {
+  Id: number;
+  Value: string;
+  StatusTag: string | null;
+  StatusName: string | null;
+  PossibleLOVTag: string | null;
+  Details: AttributeDetail[];
+}
+
+// Resolved entry used by the AttributeEditor dropdown. `key` is the `lov:*`
+// ExtractionOperation value (the regex prefixed with `lov:`), `regex` is the
+// raw regex string (also = LOV item's Value), `label` is the LOV item's Name.
+export interface ExtractionMethodDef {
+  key: string;
+  label: string;
+  regex: string;
+  description?: string;
+}

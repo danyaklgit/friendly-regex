@@ -99,7 +99,7 @@ function BoundaryHintIcon({
 
 export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, startCollapsed, readOnly, isDuplicateName }: AttributeEditorProps) {
   const { fieldMeta } = useTransactionData();
-  const { activeAttributes, validationClasses, validationOptions, lovOptions, lovLookup, createNewAttribute, transformationMethods } = useLovAttributes();
+  const { activeAttributes, validationClasses, validationOptions, lovOptions, lovLookup, createNewAttribute, transformationMethods, extractionMethods } = useLovAttributes();
   const [showDistinct, setShowDistinct] = useState(false);
   const [editing, setEditing] = useState(
     !startCollapsed && attribute.attributeTag.trim().length === 0,
@@ -209,7 +209,16 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
     suffixOccurrence: attribute.suffixOccurrence,
     suffixOrEndOfInput: attribute.suffixOrEndOfInput,
   }), [attribute.prefix, attribute.suffix, attribute.pattern, attribute.verifyValue, attribute.numChars, attribute.toStr, attribute.toStart, attribute.occurrence, attribute.startingPosition, attribute.fromPosition, attribute.prefixOccurrence, attribute.suffixOccurrence, attribute.suffixOrEndOfInput]);
-  const preview = generateExtractionPrompt(attribute.extractionOperation, extractionParams);
+  // Prefer the LOV item's friendly Name when the op is a `lov:*` entry —
+  // the pure util has no access to the LOV catalog and falls back to showing
+  // the raw regex, which is ugly in the inline preview.
+  const preview = useMemo(() => {
+    if (attribute.extractionOperation.startsWith('lov:')) {
+      const lovMatch = extractionMethods.find((m) => m.key === attribute.extractionOperation);
+      if (lovMatch) return `Match ${lovMatch.label}`;
+    }
+    return generateExtractionPrompt(attribute.extractionOperation, extractionParams);
+  }, [attribute.extractionOperation, extractionParams, extractionMethods]);
 
   // Raw extracted values, BEFORE the post-extraction transformation pipeline.
   // The transformation preview's "Extracted" line and the transformation
@@ -564,7 +573,10 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                 suffixOccurrence: undefined,
                 suffixOrEndOfInput: undefined,
               })}
-              options={FILTERED_EXTRACTION_OPERATIONS.map((op) => ({ value: op.key, label: op.label }))}
+              options={[
+                ...FILTERED_EXTRACTION_OPERATIONS.map((op) => ({ value: op.key, label: op.label })),
+                ...extractionMethods.map((m) => ({ value: m.key, label: m.label, sublabel: m.description })),
+              ]}
               disabled={readOnly}
             />
           </div>
