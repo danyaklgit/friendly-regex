@@ -19,19 +19,16 @@ export async function getExtractions(
   });
   await throwIfNotOk(res, 'Failed to fetch extractions');
   const json = await res.json();
-  // The spec uses camelCase fields (`extractions`, `id`, `value`...) but
-  // existing TEP endpoints in this app return PascalCase. Accept both so the
-  // page works regardless of which casing the backend ends up with.
+  // Accept both PascalCase and camelCase payloads — TEP endpoints in this app
+  // have historically used PascalCase but the documented spec uses camelCase.
   const raw = json.Extractions ?? json.extractions ?? [];
   return raw.map(normalizeExtraction);
 }
 
-// Create/Update payload: the documented spec carries only Value + Details.
-// The real EXTRACTIONS LOV stores the regex in `Tags[0]`, so we attach
-// `Tags: [Regex]` to the payload. Backends that ignore unknown fields will
-// be unaffected; backends that read `Tags` round-trip the regex correctly.
+// Create/Update: `value` IS the regex (no separate Tags array). The form
+// surfaces a single Regex input and `value` round-trips it.
 export async function createExtraction(
-  payload: { Value: string; Regex: string; Details: AttributeDetail[] },
+  payload: { Value: string; Details: AttributeDetail[] },
   token: string,
   tepHeaders: TepHeaders,
   signal?: AbortSignal,
@@ -41,7 +38,6 @@ export async function createExtraction(
     headers: buildHeaders(token, tepHeaders, 'CreateExtraction'),
     body: JSON.stringify({
       Value: payload.Value,
-      Tags: [payload.Regex],
       Details: payload.Details,
     }),
     signal,
@@ -52,7 +48,7 @@ export async function createExtraction(
 }
 
 export async function updateExtraction(
-  payload: { Id: number; Value: string; Regex: string; Details: AttributeDetail[] },
+  payload: { Id: number; Value: string; Details: AttributeDetail[] },
   token: string,
   tepHeaders: TepHeaders,
   signal?: AbortSignal,
@@ -63,7 +59,6 @@ export async function updateExtraction(
     body: JSON.stringify({
       Id: payload.Id,
       Value: payload.Value,
-      Tags: [payload.Regex],
       Details: payload.Details,
     }),
     signal,

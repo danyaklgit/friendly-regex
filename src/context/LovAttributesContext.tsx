@@ -49,8 +49,8 @@ interface LovAttributesContextValue {
   updateExistingAttribute: (payload: { Id: number; Value: string; PossibleLOVTag?: string | null; Details: AttributeDetail[] }) => Promise<string | null>;
   toggleAttributeStatus: (id: number, enable: boolean) => Promise<string | null>;
   deleteExistingAttribute: (id: number) => Promise<string | null>;
-  createNewExtraction: (payload: { Value: string; Regex: string; Details: AttributeDetail[] }) => Promise<string | null>;
-  updateExistingExtraction: (payload: { Id: number; Value: string; Regex: string; Details: AttributeDetail[] }) => Promise<string | null>;
+  createNewExtraction: (payload: { Value: string; Details: AttributeDetail[] }) => Promise<string | null>;
+  updateExistingExtraction: (payload: { Id: number; Value: string; Details: AttributeDetail[] }) => Promise<string | null>;
   deleteExistingExtraction: (id: number) => Promise<string | null>;
 }
 
@@ -181,29 +181,29 @@ export function LovAttributesProvider({ authToken, tepHeaders, children }: LovAt
     return sfm;
   }, [authToken, tepHeaders, fetchAttrs]);
 
-  // Extractions CRUD. Each mutation refetches BOTH the Extractions list and
-  // the LOV (since the dropdown reads `extractionMethods` from the EXTRACTIONS
-  // LOV, not from `backendExtractions`).
-  const createNewExtraction = useCallback(async (payload: { Value: string; Regex: string; Details: AttributeDetail[] }): Promise<string | null> => {
+  // Extractions CRUD. The dropdown now reads `extractionMethods` directly from
+  // `backendExtractions` (the regex lives in each extraction's `Value` field),
+  // so a single refetch of the Extractions list is enough.
+  const createNewExtraction = useCallback(async (payload: { Value: string; Details: AttributeDetail[] }): Promise<string | null> => {
     if (!authToken || !tepHeaders) return null;
     const sfm = await apiCreateExtraction(payload, authToken, tepHeaders);
-    await Promise.all([fetchExtractions(), fetchLov()]);
+    await fetchExtractions();
     return sfm;
-  }, [authToken, tepHeaders, fetchExtractions, fetchLov]);
+  }, [authToken, tepHeaders, fetchExtractions]);
 
-  const updateExistingExtraction = useCallback(async (payload: { Id: number; Value: string; Regex: string; Details: AttributeDetail[] }): Promise<string | null> => {
+  const updateExistingExtraction = useCallback(async (payload: { Id: number; Value: string; Details: AttributeDetail[] }): Promise<string | null> => {
     if (!authToken || !tepHeaders) return null;
     const sfm = await apiUpdateExtraction(payload, authToken, tepHeaders);
-    await Promise.all([fetchExtractions(), fetchLov()]);
+    await fetchExtractions();
     return sfm;
-  }, [authToken, tepHeaders, fetchExtractions, fetchLov]);
+  }, [authToken, tepHeaders, fetchExtractions]);
 
   const deleteExistingExtraction = useCallback(async (id: number): Promise<string | null> => {
     if (!authToken || !tepHeaders) return null;
     const sfm = await apiDeleteExtraction(id, authToken, tepHeaders);
-    await Promise.all([fetchExtractions(), fetchLov()]);
+    await fetchExtractions();
     return sfm;
-  }, [authToken, tepHeaders, fetchExtractions, fetchLov]);
+  }, [authToken, tepHeaders, fetchExtractions]);
 
   // Derived: LOV lookup — LOVTag → (Value → Name)
   // Index by Tag, Name, and normalized key so resolution works regardless of
@@ -280,29 +280,31 @@ export function LovAttributesProvider({ authToken, tepHeaders, children }: LovAt
     return TRANSFORMATION_METHODS;
   }, [lovLists]);
 
-  // Derived: extraction methods sourced from the EXTRACTIONS LOV.
-  //   - Value  = tag identifier (e.g. "KSA_IBAN", "SWIFT_BIC")
-  //   - Name   = display label
-  //   - Tags[0] = the actual regex
-  // Operation key is `lov:<regex>` so `regexifyExtraction` (a pure util with
-  // no LOV access) can produce the stored regex by stripping the prefix.
-  // Items without a regex are skipped — a regex-less entry isn't usable.
+  // Derived: extraction methods sourced from the Extractions CRUD endpoint.
+  // Each backend extraction stores the regex directly in `Value`, and the
+  // English Details entry supplies the friendly Name/ShortDescription used as
+  // dropdown label/description. Operation key stays `lov:<regex>` so
+  // `regexifyExtraction` (a pure util with no catalog access) can produce the
+  // stored regex by stripping the prefix.
   const extractionMethods = useMemo<ExtractionMethodDef[]>(() => {
-    const list = lovLists.find((l) => l.Tag === 'EXTRACTIONS');
-    if (!list) return [];
-    return list.Items
-      .map((item) => {
-        const regex = Array.isArray(item.Tags) && item.Tags[0] ? item.Tags[0] : '';
-        return { regex, item };
+    return activeExtractions
+      .map((ext) => {
+        const regex = ext.Value;
+        const en = ext.Details.find((d) => d.LanguageCode === 'en');
+        return {
+          regex,
+          label: en?.Name?.trim() || regex,
+          description: en?.ShortDescription || undefined,
+        };
       })
       .filter(({ regex }) => regex.length > 0)
-      .map(({ regex, item }) => ({
+      .map(({ regex, label, description }) => ({
         key: `lov:${regex}`,
-        label: item.Name || item.Value,
+        label,
         regex,
-        description: item.Description,
+        description,
       }));
-  }, [lovLists]);
+  }, [activeExtractions]);
 
   const value = useMemo<LovAttributesContextValue>(() => ({
     lovLists,

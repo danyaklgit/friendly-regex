@@ -11,7 +11,6 @@ export function ExtractionsPage() {
   const {
     backendExtractions,
     extractionsLoading,
-    extractionMethods,
     createNewExtraction,
     updateExistingExtraction,
     deleteExistingExtraction,
@@ -26,17 +25,6 @@ export function ExtractionsPage() {
   const [editTarget, setEditTarget] = useState<BackendExtraction | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<BackendExtraction | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-
-  // Look up the regex for a given extraction Value. The CRUD API doesn't
-  // return Tags, but the EXTRACTIONS LOV does — match by Name (the LOV item's
-  // Name equals the EN detail Name on each extraction).
-  const regexByValue = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const m of extractionMethods) {
-      map.set(m.label, m.regex);
-    }
-    return map;
-  }, [extractionMethods]);
 
   const filtered = useMemo(() => {
     const active = backendExtractions.filter((e) => e.StatusTag === 'ACTIVE' || e.StatusTag === null);
@@ -68,11 +56,11 @@ export function ExtractionsPage() {
     setEditTarget(null);
   }, []);
 
-  const handleSave = useCallback(async (payload: { Id?: number; Value: string; Regex: string; Details: { LanguageCode: string; Name: string; ShortDescription: string }[] }) => {
+  const handleSave = useCallback(async (payload: { Id?: number; Value: string; Details: { LanguageCode: string; Name: string; ShortDescription: string }[] }) => {
     try {
       const sfm = payload.Id != null
-        ? await updateExistingExtraction({ Id: payload.Id, Value: payload.Value, Regex: payload.Regex, Details: payload.Details })
-        : await createNewExtraction({ Value: payload.Value, Regex: payload.Regex, Details: payload.Details });
+        ? await updateExistingExtraction({ Id: payload.Id, Value: payload.Value, Details: payload.Details })
+        : await createNewExtraction({ Value: payload.Value, Details: payload.Details });
       setToast({ message: sfm ?? (payload.Id != null ? 'Extraction updated' : 'Extraction created'), type: 'success' });
     } catch (err) {
       setToast({ message: err instanceof Error ? err.message : 'Operation failed', type: 'error' });
@@ -132,23 +120,20 @@ export function ExtractionsPage() {
             <thead className="bg-surface-secondary sticky top-0 z-20">
               <tr>
                 <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Name</th>
-                <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Value</th>
                 <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Regex</th>
                 <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Description</th>
-                <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-body-secondary sticky right-0 z-30 bg-surface-secondary border-l border-border-strong shadow-[-16px_0_24px_-8px_rgba(15,23,42,0.55)] dark:shadow-[-16px_0_24px_-8px_rgba(8,145,178,0.35)]">Actions</th>
+                <th className="w-px px-3 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-body-secondary whitespace-nowrap sticky right-0 z-30 bg-surface-secondary border-l border-border-strong shadow-[-16px_0_24px_-8px_rgba(15,23,42,0.55)] dark:shadow-[-16px_0_24px_-8px_rgba(8,145,178,0.35)]">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-surface divide-y divide-divide">
               {filtered.map((ext) => {
                 const en = getEnDetail(ext);
-                const regex = en?.Name ? regexByValue.get(en.Name) : undefined;
                 return (
                   <tr key={ext.Id} className="group hover:bg-surface-hover transition-colors">
                     <td className="px-4 py-2.5 text-xs font-medium text-heading">{en?.Name ?? ext.Value}</td>
-                    <td className="px-4 py-2.5 text-xs text-body-secondary font-mono">{ext.Value}</td>
-                    <td className="px-4 py-2.5 text-xs text-body-secondary font-mono break-all max-w-md">{regex ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-xs text-body-secondary font-mono break-all max-w-md">{ext.Value || '—'}</td>
                     <td className="px-4 py-2.5 text-xs text-body-secondary">{en?.ShortDescription ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-right sticky right-0 z-10 bg-surface-secondary group-hover:bg-surface-hover border-l border-border-strong shadow-[-16px_0_24px_-8px_rgba(15,23,42,0.55)] dark:shadow-[-16px_0_24px_-8px_rgba(8,145,178,0.35)]">
+                    <td className="w-px px-3 py-2.5 text-right whitespace-nowrap sticky right-0 z-10 bg-surface-secondary group-hover:bg-surface-hover border-l border-border-strong shadow-[-16px_0_24px_-8px_rgba(15,23,42,0.55)] dark:shadow-[-16px_0_24px_-8px_rgba(8,145,178,0.35)]">
                       {!isAudit && (
                         <div className="inline-flex items-center gap-1">
                           <button
@@ -192,11 +177,6 @@ export function ExtractionsPage() {
           onClose={handleCloseForm}
           onSave={handleSave}
           existing={editTarget ?? undefined}
-          existingRegex={
-            editTarget
-              ? regexByValue.get(editTarget.Details.find((d) => d.LanguageCode === 'en')?.Name ?? '') ?? ''
-              : undefined
-          }
         />
       )}
 

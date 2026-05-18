@@ -11,25 +11,12 @@ interface ExtractionFormModalProps {
   onSave: (payload: {
     Id?: number;
     Value: string;
-    Regex: string;
     Details: { LanguageCode: string; Name: string; ShortDescription: string }[];
   }) => Promise<void>;
   existing?: BackendExtraction;
-  // Regex pulled from the EXTRACTIONS LOV item for this existing extraction
-  // (the API's Details/Value alone can't supply it). Passed in by the page so
-  // the modal stays a pure form.
-  existingRegex?: string;
 }
 
-function toUpperSnakeCase(str: string): string {
-  return str
-    .trim()
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '');
-}
-
-export function ExtractionFormModal({ open, onClose, onSave, existing, existingRegex }: ExtractionFormModalProps) {
+export function ExtractionFormModal({ open, onClose, onSave, existing }: ExtractionFormModalProps) {
   const isEdit = !!existing;
   const { backendExtractions } = useLovAttributes();
 
@@ -45,29 +32,22 @@ export function ExtractionFormModal({ open, onClose, onSave, existing, existingR
   const [shortDescAr, setShortDescAr] = useState(() =>
     existing?.Details.find((d) => d.LanguageCode === 'ar')?.ShortDescription ?? ''
   );
-  const [regex, setRegex] = useState<string>(existingRegex ?? '');
+  // `regex` is the extraction's `Value` field — what gets POSTed to the API.
+  const [regex, setRegex] = useState<string>(existing?.Value ?? '');
   const [saving, setSaving] = useState(false);
 
-  // Value is the tag identifier (e.g. "KSA_IBAN"). For create it's auto-
-  // derived from the English Name in UPPER_SNAKE_CASE so it matches the
-  // existing EXTRACTIONS LOV convention. In edit mode it's locked.
-  const computedValue = useMemo(() => {
-    if (isEdit) return existing!.Value;
-    return toUpperSnakeCase(nameEn);
-  }, [isEdit, existing, nameEn]);
-
-  // Duplicate detection: case-insensitive Value comparison against existing
-  // extractions, excluding the row being edited.
+  // Duplicate detection by regex (the Value field): two extractions with the
+  // same regex would be functionally redundant and break the dropdown.
   const duplicateExtraction = useMemo(() => {
-    if (!computedValue) return null;
-    const needle = computedValue.toLowerCase();
+    const needle = regex.trim();
+    if (!needle) return null;
     return backendExtractions.find(
-      (e) => e.Value?.toLowerCase() === needle && (!isEdit || e.Id !== existing!.Id),
+      (e) => e.Value?.trim() === needle && (!isEdit || e.Id !== existing!.Id),
     ) ?? null;
-  }, [computedValue, backendExtractions, isEdit, existing]);
+  }, [regex, backendExtractions, isEdit, existing]);
 
-  // Validate that the regex actually parses. An invalid regex saved to the
-  // EXTRACTIONS LOV would break the dropdown for every operator.
+  // Validate that the regex actually parses. An invalid regex would break the
+  // dropdown for every operator.
   const regexError = useMemo<string | null>(() => {
     if (!regex.trim()) return null;
     try {
@@ -83,7 +63,6 @@ export function ExtractionFormModal({ open, onClose, onSave, existing, existingR
     shortDescEn.trim().length > 0 &&
     nameAr.trim().length > 0 &&
     shortDescAr.trim().length > 0 &&
-    computedValue.length > 0 &&
     regex.trim().length > 0 &&
     !regexError &&
     !duplicateExtraction;
@@ -94,8 +73,7 @@ export function ExtractionFormModal({ open, onClose, onSave, existing, existingR
     try {
       await onSave({
         ...(isEdit ? { Id: existing!.Id } : {}),
-        Value: computedValue,
-        Regex: regex.trim(),
+        Value: regex.trim(),
         Details: [
           { LanguageCode: 'en', Name: nameEn.trim(), ShortDescription: shortDescEn.trim() },
           { LanguageCode: 'ar', Name: nameAr.trim(), ShortDescription: shortDescAr.trim() },
@@ -124,33 +102,32 @@ export function ExtractionFormModal({ open, onClose, onSave, existing, existingR
       }
     >
       <div className="space-y-4">
-        <div className={`min-w-0 rounded-lg p-3 border ${duplicateExtraction ? 'bg-red-50 dark:bg-rose-900/20 border-red-400 dark:border-rose-400' : 'bg-surface-secondary border-border'}`}>
-          <p className="text-xs font-semibold text-muted mb-2">Value (Auto Generated)</p>
-          <p className="text-sm font-mono text-heading break-all">{computedValue || '—'}</p>
-        </div>
-        {duplicateExtraction && (
-          <p
-            role="alert"
-            className="text-xs text-red-600 dark:text-rose-300 inline-flex items-start gap-1.5 -mt-2"
-          >
-            <span aria-hidden="true" className="font-bold leading-none">!</span>
-            <span>
-              An extraction named <span className="font-mono font-semibold">{duplicateExtraction.Value}</span> already exists. Pick a different name to continue.
-            </span>
-          </p>
-        )}
-
         <Input
           label="Regex"
           value={regex}
           onChange={(e) => setRegex(e.target.value)}
           placeholder="e.g. ^SA\d{2}[A-Z0-9]{18}$"
           required
-          error={!!regexError}
+          error={!!regexError || !!duplicateExtraction}
         />
         {regexError && (
           <p role="alert" className="text-xs text-red-600 dark:text-rose-300 -mt-2 font-mono">
             {regexError}
+          </p>
+        )}
+        {duplicateExtraction && (
+          <p
+            role="alert"
+            className="text-xs text-red-600 dark:text-rose-300 -mt-2 inline-flex items-start gap-1.5"
+          >
+            <span aria-hidden="true" className="font-bold leading-none">!</span>
+            <span>
+              An extraction with this regex already exists
+              {duplicateExtraction.Details.find((d) => d.LanguageCode === 'en')?.Name
+                ? <> (<span className="font-semibold">{duplicateExtraction.Details.find((d) => d.LanguageCode === 'en')?.Name}</span>)</>
+                : null}
+              . Pick a different pattern to continue.
+            </span>
           </p>
         )}
 
@@ -164,7 +141,6 @@ export function ExtractionFormModal({ open, onClose, onSave, existing, existingR
               placeholder="e.g. Saudi IBAN"
               required
               maxLength={100}
-              error={!!duplicateExtraction}
             />
             <Input
               label="Short Description"
