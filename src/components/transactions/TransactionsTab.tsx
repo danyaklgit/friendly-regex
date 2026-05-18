@@ -353,14 +353,25 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       extra.push({ ColumnName: 'TransactionTypeCode', Value: builder.formState.transactionTypeCode, Operand: 'EQ' });
     }
     // While authoring a rule, also scope the live transactions fetch by the
-    // REGEX block being composed so the table reflects what the rule will
-    // catch. Bank/side come from the checkout-derived `outgoingFilters` and
-    // TransactionTypeCode is already added above, so we only pull the REGEX
-    // entry out of buildRulesetFilters and discard the rest.
+    // ruleset being composed so the table reflects what the rule will catch.
+    // Bank/side come from the checkout-derived `outgoingFilters` and
+    // TransactionTypeCode is already added above, so we strip those three
+    // from buildRulesetFilters output and forward whatever remains (REGEX
+    // block plus any lifted date / numeric GT/LT/GTE/LTE comparisons).
     if (builderOpen) {
       const ruleset = buildRulesetFilters(builder.formState);
-      const regex = ruleset.find((f) => f.Operand === 'REGEX');
-      if (regex) extra.push(regex);
+      for (const f of ruleset) {
+        if (!('ColumnName' in f)) {
+          // RegexFilterProperty — forward as-is.
+          extra.push(f);
+          continue;
+        }
+        // StandardFilterProperty — keep everything except the bank/side/
+        // transaction-type filters that are already present elsewhere.
+        const col = f.ColumnName;
+        if (col === 'BankSwiftCode' || col === 'Side' || col === 'TransactionTypeCode') continue;
+        extra.push(f);
+      }
     }
     return extra;
   }, [tagClickDefinitionId, tagClickRulesetApplied, tagClickShowingAll, tagClickRulesetFilters, builderOpen, builder.formState]);

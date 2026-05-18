@@ -14,19 +14,28 @@ const NUMERIC_OP_TO_OPERAND: Record<string, 'GT' | 'LT' | 'GTE' | 'LTE' | undefi
   less_than_or_equal: 'LTE',
 };
 
-/** A date GT/LT/GTE/LTE condition can be expressed as a standard
+/** True when the value is an integer or decimal string (incl. optional
+ *  leading minus). Used to discriminate numeric columns from text columns
+ *  without needing a hardcoded field list — the operator's value choice
+ *  itself signals the intended comparison type. */
+function looksLikeNumber(value: string): boolean {
+  return /^-?\d+(\.\d+)?$/.test(value.trim());
+}
+
+/** A date or numeric GT/LT/GTE/LTE condition can be expressed as a standard
  *  FilterProperty (and so reach the server) ONLY when there's a single rule
  *  group — top-level filters AND together, which would break OR semantics
- *  across multiple groups. Numeric (Amount) conditions stay client-side
- *  regardless: the server's standard filter set doesn't include numeric
- *  comparisons we trust here. */
-function isLiftableDateCondition(c: ConditionFormValue, totalGroups: number): boolean {
-  return (
-    totalGroups === 1
-    && DATE_SOURCE_FIELDS.has(c.sourceField)
-    && !!NUMERIC_OP_TO_OPERAND[c.operation]
-    && c.value.trim().length > 0
-  );
+ *  across multiple groups. Dates are detected by source field name; numeric
+ *  comparisons are detected by the shape of the value so the same lift
+ *  works for Amount, CreditAmount, balances, or any future numeric column
+ *  the bank exposes. */
+function isLiftableComparisonCondition(c: ConditionFormValue, totalGroups: number): boolean {
+  if (totalGroups !== 1) return false;
+  if (!NUMERIC_OP_TO_OPERAND[c.operation]) return false;
+  const value = c.value.trim();
+  if (value.length === 0) return false;
+  if (DATE_SOURCE_FIELDS.has(c.sourceField)) return true;
+  return looksLikeNumber(value);
 }
 
 /**
@@ -38,9 +47,9 @@ function isLiftableDateCondition(c: ConditionFormValue, totalGroups: number): bo
  * and numeric operators (those use sentinel regex tokens that don't match
  * anything server-side and are evaluated client-side instead).
  *
- * Date Greater than / Less than conditions are lifted to top-level GT/LT/
- * GTE/LTE filters when the rule has a single group, so the server can
- * filter by them at index speed. Multi-group date comparisons stay
+ * Date and numeric Greater than / Less than conditions are lifted to
+ * top-level GT/LT/GTE/LTE filters when the rule has a single group, so the
+ * server can filter by them at index speed. Multi-group comparisons stay
  * client-side (lifting them would AND-join across OR groups and lose rows).
  *
  * Used by:
@@ -59,10 +68,10 @@ export function buildRulesetFilters(formState: WizardFormState): FilterProperty[
 
   const totalGroups = formState.ruleGroups.length;
 
-  // Lift date GT/LT/GTE/LTE conditions to top-level standard filters.
+  // Lift date / numeric GT/LT/GTE/LTE conditions to top-level standard filters.
   for (const group of formState.ruleGroups) {
     for (const c of group.conditions) {
-      if (isLiftableDateCondition(c, totalGroups)) {
+      if (isLiftableComparisonCondition(c, totalGroups)) {
         filters.push({
           ColumnName: c.sourceField,
           Value: c.value,
@@ -77,13 +86,13 @@ export function buildRulesetFilters(formState: WizardFormState): FilterProperty[
       group.conditions
         // Drop conditions already emitted as top-level GT/LT filters so they
         // don't double-count.
-        .filter(c => !isLiftableDateCondition(c, totalGroups))
+        .filter(c => !isLiftableComparisonCondition(c, totalGroups))
         .filter(c => c.value.trim().length > 0)
-        // Numeric operators that didn't get lifted (Amount, or date GT/LT in
-        // multi-group rules) are not regex — skip them. They're marked with a
-        // `__NUMERIC_*` sentinel in regexify and would not match anything
-        // server-side inside a REGEX payload; the client-side evaluator
-        // handles them after the fetch.
+        // Numeric operators that didn't get lifted (multi-group GT/LT) are
+        // not regex — skip them. They're marked with a `__NUMERIC_*` sentinel
+        // in regexify and would not match anything server-side inside a
+        // REGEX payload; the client-side evaluator handles them after the
+        // fetch.
         .filter(c => !c.operation.startsWith('greater_than') && !c.operation.startsWith('less_than'))
         .map(c => ({
           ColumnName: c.sourceField,

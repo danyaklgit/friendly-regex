@@ -186,7 +186,7 @@ describe('buildRulesetFilters', () => {
       expect(filters.find((f) => 'Operand' in f && (f.Operand === 'GT' || f.Operand === 'LT'))).toBeUndefined();
     });
 
-    it('does NOT lift numeric Amount conditions (still dropped from REGEX, client-side eval)', () => {
+    it('lifts a single-group Amount > to a top-level GT filter', () => {
       const filters = buildRulesetFilters(makeFormState({
         ruleGroups: [{
           id: 'g1',
@@ -196,11 +196,102 @@ describe('buildRulesetFilters', () => {
           ],
         }],
       }));
-      // Amount is not a date field; no top-level GT lifting.
-      expect(filters.find((f) => 'ColumnName' in f && f.ColumnName === 'Amount')).toBeUndefined();
+      expect(filters).toContainEqual({ ColumnName: 'Amount', Value: '100', Operand: 'GT' });
       const regexFilter = filters.find((f): f is Extract<typeof f, { Operand: 'REGEX' }> => f.Operand === 'REGEX');
       expect(regexFilter?.Regex[0]).toHaveLength(1);
       expect(regexFilter?.Regex[0][0].ColumnName).toBe('Description1');
+    });
+
+    it('lifts Amount LT/GTE/LTE alongside a date filter in the same group', () => {
+      const filters = buildRulesetFilters(makeFormState({
+        ruleGroups: [{
+          id: 'g1',
+          conditions: [
+            { id: 'c1', sourceField: 'Amount', operation: 'less_than', value: '5000' },
+            { id: 'c2', sourceField: 'Amount', operation: 'greater_than_or_equal', value: '100' },
+            { id: 'c3', sourceField: 'StatementDate', operation: 'greater_than', value: '2024-01-01' },
+          ],
+        }],
+      }));
+      expect(filters).toContainEqual({ ColumnName: 'Amount', Value: '5000', Operand: 'LT' });
+      expect(filters).toContainEqual({ ColumnName: 'Amount', Value: '100', Operand: 'GTE' });
+      expect(filters).toContainEqual({ ColumnName: 'StatementDate', Value: '2024-01-01', Operand: 'GT' });
+      // All conditions are lifted, REGEX payload should be absent.
+      expect(filters.find((f) => f.Operand === 'REGEX')).toBeUndefined();
+    });
+
+    it('does NOT lift Amount GT/LT across multiple rule groups (OR semantics would break)', () => {
+      const filters = buildRulesetFilters(makeFormState({
+        ruleGroups: [
+          {
+            id: 'g1',
+            conditions: [
+              { id: 'c1', sourceField: 'Amount', operation: 'greater_than', value: '1000' },
+              { id: 'c2', sourceField: 'Description1', operation: 'contains', value: 'A' },
+            ],
+          },
+          {
+            id: 'g2',
+            conditions: [
+              { id: 'c3', sourceField: 'Amount', operation: 'less_than', value: '100' },
+              { id: 'c4', sourceField: 'Description1', operation: 'contains', value: 'B' },
+            ],
+          },
+        ],
+      }));
+      expect(filters.find((f) => 'ColumnName' in f && f.ColumnName === 'Amount')).toBeUndefined();
+    });
+
+    it('lifts GT/LT on a decimal value (numeric shape, not just integers)', () => {
+      const filters = buildRulesetFilters(makeFormState({
+        ruleGroups: [{
+          id: 'g1',
+          conditions: [
+            { id: 'c1', sourceField: 'Amount', operation: 'greater_than', value: '1500.50' },
+          ],
+        }],
+      }));
+      expect(filters).toContainEqual({ ColumnName: 'Amount', Value: '1500.50', Operand: 'GT' });
+    });
+
+    it('lifts GT/LT on a non-Amount numeric column (no hardcoded field list)', () => {
+      const filters = buildRulesetFilters(makeFormState({
+        ruleGroups: [{
+          id: 'g1',
+          conditions: [
+            { id: 'c1', sourceField: 'CreditAmount', operation: 'greater_than_or_equal', value: '250' },
+          ],
+        }],
+      }));
+      expect(filters).toContainEqual({ ColumnName: 'CreditAmount', Value: '250', Operand: 'GTE' });
+    });
+
+    it('lifts GT/LT on a negative number', () => {
+      const filters = buildRulesetFilters(makeFormState({
+        ruleGroups: [{
+          id: 'g1',
+          conditions: [
+            { id: 'c1', sourceField: 'Amount', operation: 'less_than', value: '-100' },
+          ],
+        }],
+      }));
+      expect(filters).toContainEqual({ ColumnName: 'Amount', Value: '-100', Operand: 'LT' });
+    });
+
+    it('does NOT lift GT/LT when the value is not numeric-shaped and not on a date field', () => {
+      // Edge case: the condition editor restricts these operations to
+      // date/numeric fields, but defend in depth — a non-numeric value with
+      // a numeric op on a text column should not produce a server-side
+      // comparison that would silently coerce.
+      const filters = buildRulesetFilters(makeFormState({
+        ruleGroups: [{
+          id: 'g1',
+          conditions: [
+            { id: 'c1', sourceField: 'Description1', operation: 'greater_than', value: 'ACME' },
+          ],
+        }],
+      }));
+      expect(filters.find((f) => 'ColumnName' in f && f.ColumnName === 'Description1')).toBeUndefined();
     });
   });
 });
