@@ -4,7 +4,7 @@ import { ConditionEditor } from './ConditionEditor';
 import { Button } from '../shared/Button';
 import { generateExpressionPrompt } from '../../utils/regexify';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
-import { isSameCondition } from '../../utils/ruleFingerprint';
+import { isSameCondition, isCompleteCondition } from '../../utils/ruleFingerprint';
 
 interface RuleGroupEditorProps {
   group: AndGroupFormValue;
@@ -13,6 +13,7 @@ interface RuleGroupEditorProps {
   onRemoveCondition: (conditionId: string) => void;
   onUpdateCondition: (conditionId: string, updates: Partial<ConditionFormValue>) => void;
   onRemoveGroup: () => void;
+  onCloneGroup?: () => void;
   onConditionSave?: () => void;
   canRemoveGroup: boolean;
   startCollapsed?: boolean;
@@ -32,6 +33,7 @@ export function RuleGroupEditor({
   onRemoveCondition,
   onUpdateCondition,
   onRemoveGroup,
+  onCloneGroup,
   onConditionSave,
   canRemoveGroup,
   startCollapsed,
@@ -39,6 +41,17 @@ export function RuleGroupEditor({
   duplicateOfGroupIndex,
 }: RuleGroupEditorProps) {
   const [isExpanded, setIsExpanded] = useState(!startCollapsed);
+
+  // Clone is only meaningful once the rule set is "saved" — every condition
+  // is complete (no half-filled placeholder rows) and the set itself isn't a
+  // duplicate. Existing rule sets loaded from the backend satisfy this on
+  // mount, so the button shows for them too without extra wiring.
+  const canClone =
+    !readOnly
+    && !!onCloneGroup
+    && group.conditions.length > 0
+    && group.conditions.every(isCompleteCondition)
+    && duplicateOfGroupIndex == null;
 
   return (
     <div data-tour="rule-group-editor" className="border border-border rounded-lg p-3 bg-surface flex flex-col items-start">
@@ -75,11 +88,28 @@ export function RuleGroupEditor({
             );
           })()}
         </div>
-        {canRemoveGroup && !readOnly && (
-          <Button variant="ghost" size="xs" onClick={onRemoveGroup} className="text-red-400 hover:text-red-600 shrink-0">
-            Remove Group
-          </Button>
-        )}
+        <div className="flex items-center gap-1 shrink-0">
+          {/* When the rule set is collapsed, Clone sits in the header so the
+              user can duplicate it without having to expand. When expanded,
+              Clone moves to the bottom row to face the "+ Add condition"
+              button — see the footer below. */}
+          {canClone && !isExpanded && (
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={onCloneGroup}
+              className="text-primary-dark hover:text-primary"
+              title="Duplicate this rule set as a new OR set"
+            >
+              Clone
+            </Button>
+          )}
+          {canRemoveGroup && !readOnly && (
+            <Button variant="ghost" size="xs" onClick={onRemoveGroup} className="text-red-400 hover:text-red-600">
+              Remove Group
+            </Button>
+          )}
+        </div>
       </div>
 
       {duplicateOfGroupIndex != null && (
@@ -123,11 +153,24 @@ export function RuleGroupEditor({
               })}
             </div>
           </div>
-          {!readOnly && (
-            <Button data-tour="add-condition" variant="ghost" size="xs" onClick={onAddCondition} className="mt-1">
-              + Add condition
-            </Button>
-          )}
+          <div className="flex items-center justify-between w-full mt-1">
+            {!readOnly ? (
+              <Button data-tour="add-condition" variant="ghost" size="xs" onClick={onAddCondition}>
+                + Add condition
+              </Button>
+            ) : <span />}
+            {canClone && (
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={onCloneGroup}
+                className="text-primary-dark hover:text-primary"
+                title="Duplicate this rule set as a new OR set"
+              >
+                Clone
+              </Button>
+            )}
+          </div>
         </>
       )}
     </div>

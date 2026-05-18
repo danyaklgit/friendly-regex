@@ -1359,6 +1359,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                       handleApplyRules(newFormState);
                     }
                   : builder.removeRuleGroup}
+                onCloneGroup={builder.cloneRuleGroup}
                 onAddCondition={builder.addCondition}
                 onRemoveCondition={tagClickState
                   ? (groupId, condId) => {

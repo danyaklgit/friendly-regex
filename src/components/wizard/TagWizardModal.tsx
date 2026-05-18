@@ -190,6 +190,7 @@ export function TagWizardModal({ existingDef, parentLib, initialFormState, initi
             ruleGroups={wizard.formState.ruleGroups}
             onAddGroup={wizard.addRuleGroup}
             onRemoveGroup={wizard.removeRuleGroup}
+            onCloneGroup={wizard.cloneRuleGroup}
             onAddCondition={wizard.addCondition}
             onRemoveCondition={wizard.removeCondition}
             onUpdateCondition={wizard.updateCondition}

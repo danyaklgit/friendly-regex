@@ -158,6 +158,29 @@ export function useWizardForm(
     }));
   }, []);
 
+  // Duplicates the rule set at `groupId` and inserts the copy right after it
+  // (so it renders as an OR sibling immediately below). Every id is regenerated
+  // so the clone is independent — editing one no longer mutates the other.
+  // The clone is collapsed by default by the caller's view, but its data is
+  // marked as already-filled so it doesn't open in "new placeholder" mode.
+  const cloneRuleGroup = useCallback((groupId: string) => {
+    setFormState((prev) => {
+      const idx = prev.ruleGroups.findIndex((g) => g.id === groupId);
+      if (idx === -1) return prev;
+      const source = prev.ruleGroups[idx];
+      const cloned: AndGroupFormValue = {
+        id: crypto.randomUUID(),
+        conditions: source.conditions.map((c) => ({
+          ...c,
+          id: crypto.randomUUID(),
+        })),
+      };
+      const next = [...prev.ruleGroups];
+      next.splice(idx + 1, 0, cloned);
+      return { ...prev, ruleGroups: next };
+    });
+  }, []);
+
   const addCondition = useCallback((groupId: string) => {
     setFormState((prev) => ({
       ...prev,
@@ -349,6 +372,7 @@ export function useWizardForm(
     updateBasicInfo,
     addRuleGroup,
     removeRuleGroup,
+    cloneRuleGroup,
     addCondition,
     removeCondition,
     updateCondition,
