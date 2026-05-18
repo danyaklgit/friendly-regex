@@ -42,16 +42,16 @@ export function RuleGroupEditor({
 }: RuleGroupEditorProps) {
   const [isExpanded, setIsExpanded] = useState(!startCollapsed);
 
-  // Clone is only meaningful once the rule set is "saved" — every condition
-  // is complete (no half-filled placeholder rows) and the set itself isn't a
-  // duplicate. Existing rule sets loaded from the backend satisfy this on
-  // mount, so the button shows for them too without extra wiring.
+  // Clone is only meaningful once every condition is complete (no half-filled
+  // placeholder rows). We deliberately allow cloning even when this set is a
+  // duplicate of another: the user often clones several copies first and then
+  // tweaks each one. The duplicate banner stays visible until the user edits
+  // them apart, and the top-level Save gate still blocks persisting twins.
   const canClone =
     !readOnly
     && !!onCloneGroup
     && group.conditions.length > 0
-    && group.conditions.every(isCompleteCondition)
-    && duplicateOfGroupIndex == null;
+    && group.conditions.every(isCompleteCondition);
 
   return (
     <div data-tour="rule-group-editor" className="border border-border rounded-lg p-3 bg-surface flex flex-col items-start">
@@ -119,7 +119,7 @@ export function RuleGroupEditor({
         >
           <span aria-hidden="true" className="font-bold leading-none">!</span>
           <span>
-            This rule set is identical to <span className="font-semibold">Rule Set {duplicateOfGroupIndex + 1}</span>. Remove one or change its conditions.
+            This rule set is identical to <span className="font-semibold">Rule Set {duplicateOfGroupIndex + 1}</span>. Edit one of them so they differ, or remove the duplicate, before saving.
           </span>
         </div>
       )}
