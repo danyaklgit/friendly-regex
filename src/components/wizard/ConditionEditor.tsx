@@ -5,6 +5,7 @@ import { Input } from '../shared/Input';
 import { Button } from '../shared/Button';
 import { Tooltip } from '../shared/Tooltip';
 import { MATCH_OPERATIONS } from '../../constants/operations';
+import { DATE_SOURCE_FIELDS } from '../../constants/fields';
 import { useTransactionData } from '../../hooks/useTransactionData';
 import { generateExpressionPrompt } from '../../utils/regexify';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
@@ -16,12 +17,9 @@ const ALLOWED_SOURCE_FIELDS = new Set([
   'ValueDate',
 ]);
 
-// Date/numeric source fields surface a restricted operation set in the
-// condition editor: only Equals / Does not equal / Greater than / Less than.
-// Anything not listed here falls into the "text" bucket and gets the full
-// non-numeric operation list (Contains, Starts with, Ends with, Matches one
-// of, etc.).
-const DATE_SOURCE_FIELDS = new Set(['StatementDate', 'EntryDate', 'ValueDate']);
+// Date/numeric source fields surface a restricted operation set: only Equals
+// / Does not equal / Greater than / Less than. Anything not listed here
+// falls into the "text" bucket and gets the full operation list.
 const NUMERIC_SOURCE_FIELDS = new Set(['Amount']);
 // The 4 operations valid for date and numeric fields.
 const ORDERED_NUMERIC_DATE_OPS = new Set<string>([

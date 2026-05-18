@@ -17,6 +17,10 @@ function makeFormState(overrides: Partial<WizardFormState> = {}): WizardFormStat
   };
 }
 
+function regexBlock(filters: ReturnType<typeof buildRulesetFilters>) {
+  return filters.find((f): f is Extract<typeof f, { Operand: 'REGEX' }> => f.Operand === 'REGEX');
+}
+
 describe('buildRulesetFilters', () => {
   it('always emits BankSwiftCode and Side as IN filters', () => {
     const filters = buildRulesetFilters(makeFormState());
@@ -45,9 +49,9 @@ describe('buildRulesetFilters', () => {
         ],
       }],
     }));
-    const regexFilter = filters.find((f) => f.Operand === 'REGEX');
-    expect(regexFilter).toBeDefined();
-    expect(regexFilter).toMatchObject({
+    const r = regexBlock(filters);
+    expect(r).toBeDefined();
+    expect(r).toMatchObject({
       Operand: 'REGEX',
       Regex: [[{ ColumnName: 'Description1', Options: '' }]],
     });
@@ -63,25 +67,9 @@ describe('buildRulesetFilters', () => {
         ],
       }],
     }));
-    const regexFilter = filters.find((f): f is Extract<typeof f, { Operand: 'REGEX' }> => f.Operand === 'REGEX');
-    expect(regexFilter?.Regex[0]).toHaveLength(1);
-    expect(regexFilter?.Regex[0][0].ColumnName).toBe('Description2');
-  });
-
-  it('drops numeric operators (greater_than, less_than, ...) from REGEX payload', () => {
-    const filters = buildRulesetFilters(makeFormState({
-      ruleGroups: [{
-        id: 'g1',
-        conditions: [
-          { id: 'c1', sourceField: 'CreditAmount', operation: 'greater_than', value: '100' },
-          { id: 'c2', sourceField: 'CreditAmount', operation: 'less_than_or_equal', value: '500' },
-          { id: 'c3', sourceField: 'Description1', operation: 'contains', value: 'TRF' },
-        ],
-      }],
-    }));
-    const regexFilter = filters.find((f): f is Extract<typeof f, { Operand: 'REGEX' }> => f.Operand === 'REGEX');
-    expect(regexFilter?.Regex[0]).toHaveLength(1);
-    expect(regexFilter?.Regex[0][0].ColumnName).toBe('Description1');
+    const r = regexBlock(filters);
+    expect(r?.Regex[0]).toHaveLength(1);
+    expect(r?.Regex[0][0].ColumnName).toBe('Description2');
   });
 
   it('drops empty groups entirely from the REGEX payload', () => {
@@ -97,9 +85,9 @@ describe('buildRulesetFilters', () => {
         },
       ],
     }));
-    const regexFilter = filters.find((f): f is Extract<typeof f, { Operand: 'REGEX' }> => f.Operand === 'REGEX');
-    expect(regexFilter?.Regex).toHaveLength(1);
-    expect(regexFilter?.Regex[0][0].ColumnName).toBe('Description2');
+    const r = regexBlock(filters);
+    expect(r?.Regex).toHaveLength(1);
+    expect(r?.Regex[0][0].ColumnName).toBe('Description2');
   });
 
   it('omits REGEX filter entirely when all groups are empty', () => {
@@ -112,8 +100,8 @@ describe('buildRulesetFilters', () => {
     expect(filters.find((f) => f.Operand === 'REGEX')).toBeUndefined();
   });
 
-  describe('date Greater than / Less than lifting', () => {
-    it('lifts a single-group StatementDate > to a top-level GT filter', () => {
+  describe('date GT/LT in REGEX block', () => {
+    it('compiles StatementDate > 2024-01-29 into a regex inside REGEX[0]', () => {
       const filters = buildRulesetFilters(makeFormState({
         ruleGroups: [{
           id: 'g1',
@@ -122,71 +110,148 @@ describe('buildRulesetFilters', () => {
           ],
         }],
       }));
-      expect(filters).toContainEqual({
-        ColumnName: 'StatementDate',
-        Value: '2024-01-29',
-        Operand: 'GT',
-      });
-      expect(filters.find((f) => f.Operand === 'REGEX')).toBeUndefined();
+      // No top-level StatementDate filter — date GT lives inside REGEX now.
+      expect(filters.find((f) => 'ColumnName' in f && f.ColumnName === 'StatementDate')).toBeUndefined();
+
+      const r = regexBlock(filters);
+      expect(r?.Regex[0]).toHaveLength(1);
+      const inner = r!.Regex[0][0];
+      expect(inner.ColumnName).toBe('StatementDate');
+      expect(inner.Options).toBe('');
+      expect(inner.Value.startsWith('^')).toBe(true);
+      expect(inner.Value.endsWith('(T|$)')).toBe(true);
+
+      // Compiled regex correctness — round-trip via new RegExp.
+      const re = new RegExp(inner.Value);
+      expect(re.test('2024-01-30')).toBe(true);
+      expect(re.test('2024-01-30T00:00:00Z')).toBe(true);
+      expect(re.test('2024-01-29')).toBe(false);
+      expect(re.test('2023-12-31')).toBe(false);
     });
 
-    it('lifts greater_than_or_equal/less_than/less_than_or_equal as GTE/LT/LTE', () => {
+    it('compiles EntryDate < 2024-01-01 into a regex matching earlier dates', () => {
       const filters = buildRulesetFilters(makeFormState({
         ruleGroups: [{
           id: 'g1',
           conditions: [
-            { id: 'c1', sourceField: 'EntryDate', operation: 'greater_than_or_equal', value: '2024-01-01' },
-            { id: 'c2', sourceField: 'ValueDate', operation: 'less_than', value: '2024-12-31' },
-            { id: 'c3', sourceField: 'StatementDate', operation: 'less_than_or_equal', value: '2024-06-30' },
+            { id: 'c1', sourceField: 'EntryDate', operation: 'less_than', value: '2024-01-01' },
           ],
         }],
       }));
-      expect(filters).toContainEqual({ ColumnName: 'EntryDate', Value: '2024-01-01', Operand: 'GTE' });
-      expect(filters).toContainEqual({ ColumnName: 'ValueDate', Value: '2024-12-31', Operand: 'LT' });
-      expect(filters).toContainEqual({ ColumnName: 'StatementDate', Value: '2024-06-30', Operand: 'LTE' });
+      const r = regexBlock(filters);
+      const inner = r!.Regex[0][0];
+      const re = new RegExp(inner.Value);
+      expect(re.test('2023-12-31')).toBe(true);
+      expect(re.test('2024-01-01')).toBe(false);
     });
 
-    it('keeps text conditions in REGEX alongside lifted date conditions', () => {
+    it('keeps date GT alongside text contains in the same AND group', () => {
       const filters = buildRulesetFilters(makeFormState({
         ruleGroups: [{
           id: 'g1',
           conditions: [
             { id: 'c1', sourceField: 'StatementDate', operation: 'greater_than', value: '2024-01-29' },
-            { id: 'c2', sourceField: 'AdditionalInformation', operation: 'contains', value: 'NOLO' },
+            { id: 'c2', sourceField: 'AdditionalInformation', operation: 'contains', value: 'TNXT/56' },
           ],
         }],
       }));
-      expect(filters).toContainEqual({ ColumnName: 'StatementDate', Value: '2024-01-29', Operand: 'GT' });
-      const regexFilter = filters.find((f): f is Extract<typeof f, { Operand: 'REGEX' }> => f.Operand === 'REGEX');
-      expect(regexFilter?.Regex[0]).toHaveLength(1);
-      expect(regexFilter?.Regex[0][0].ColumnName).toBe('AdditionalInformation');
+      const r = regexBlock(filters);
+      expect(r?.Regex).toHaveLength(1);
+      expect(r?.Regex[0]).toHaveLength(2);
+      expect(r?.Regex[0][0].ColumnName).toBe('StatementDate');
+      expect(r?.Regex[0][1].ColumnName).toBe('AdditionalInformation');
+      expect(r?.Regex[0][1].Value).toBe('TNXT/56');
     });
 
-    it('does NOT lift date conditions when there are multiple rule groups (OR semantics would break)', () => {
+    it('puts each group\'s date condition in its own Regex[i] array', () => {
       const filters = buildRulesetFilters(makeFormState({
         ruleGroups: [
           {
             id: 'g1',
             conditions: [
               { id: 'c1', sourceField: 'StatementDate', operation: 'greater_than', value: '2024-01-01' },
-              { id: 'c2', sourceField: 'AdditionalInformation', operation: 'contains', value: 'A' },
             ],
           },
           {
             id: 'g2',
             conditions: [
-              { id: 'c3', sourceField: 'StatementDate', operation: 'less_than', value: '2023-12-31' },
-              { id: 'c4', sourceField: 'AdditionalInformation', operation: 'contains', value: 'B' },
+              { id: 'c2', sourceField: 'StatementDate', operation: 'less_than', value: '2023-12-31' },
             ],
           },
         ],
       }));
-      // No top-level date filter, because lifting would AND-join across OR
-      // groups and lose rows that match only one group's date range.
-      expect(filters.find((f) => 'Operand' in f && (f.Operand === 'GT' || f.Operand === 'LT'))).toBeUndefined();
+      const r = regexBlock(filters);
+      expect(r?.Regex).toHaveLength(2);
+      expect(r?.Regex[0][0].ColumnName).toBe('StatementDate');
+      expect(r?.Regex[1][0].ColumnName).toBe('StatementDate');
+      // Different compiled patterns for > vs <
+      expect(r?.Regex[0][0].Value).not.toBe(r?.Regex[1][0].Value);
+    });
+  });
+
+  describe('Amount GT/LT in REGEX block', () => {
+    it('compiles Amount > 100 into a regex inside REGEX[0]', () => {
+      const filters = buildRulesetFilters(makeFormState({
+        ruleGroups: [{
+          id: 'g1',
+          conditions: [
+            { id: 'c1', sourceField: 'Amount', operation: 'greater_than', value: '100' },
+          ],
+        }],
+      }));
+      // No top-level Amount filter.
+      expect(filters.find((f) => 'ColumnName' in f && f.ColumnName === 'Amount')).toBeUndefined();
+
+      const r = regexBlock(filters);
+      const inner = r!.Regex[0][0];
+      expect(inner.ColumnName).toBe('Amount');
+      const re = new RegExp(inner.Value);
+      expect(re.test('101')).toBe(true);
+      expect(re.test('100.50')).toBe(true);
+      expect(re.test('1500.50')).toBe(true);
+      expect(re.test('100')).toBe(false);
+      expect(re.test('99')).toBe(false);
     });
 
-    it('lifts a single-group Amount > to a top-level GT filter', () => {
+    it('compiles Amount < 100 into a regex matching smaller values', () => {
+      const filters = buildRulesetFilters(makeFormState({
+        ruleGroups: [{
+          id: 'g1',
+          conditions: [
+            { id: 'c1', sourceField: 'Amount', operation: 'less_than', value: '100' },
+          ],
+        }],
+      }));
+      const r = regexBlock(filters);
+      const inner = r!.Regex[0][0];
+      const re = new RegExp(inner.Value);
+      expect(re.test('0')).toBe(true);
+      expect(re.test('99')).toBe(true);
+      expect(re.test('99.99')).toBe(true);
+      expect(re.test('-50')).toBe(true);
+      expect(re.test('100')).toBe(false);
+      expect(re.test('101')).toBe(false);
+    });
+
+    it('compiles negative threshold Amount > -50', () => {
+      const filters = buildRulesetFilters(makeFormState({
+        ruleGroups: [{
+          id: 'g1',
+          conditions: [
+            { id: 'c1', sourceField: 'Amount', operation: 'greater_than', value: '-50' },
+          ],
+        }],
+      }));
+      const r = regexBlock(filters);
+      const re = new RegExp(r!.Regex[0][0].Value);
+      expect(re.test('-49')).toBe(true);
+      expect(re.test('0')).toBe(true);
+      expect(re.test('100')).toBe(true);
+      expect(re.test('-50')).toBe(false);
+      expect(re.test('-51')).toBe(false);
+    });
+
+    it('keeps Amount GT alongside text contains in the same group', () => {
       const filters = buildRulesetFilters(makeFormState({
         ruleGroups: [{
           id: 'g1',
@@ -196,102 +261,24 @@ describe('buildRulesetFilters', () => {
           ],
         }],
       }));
-      expect(filters).toContainEqual({ ColumnName: 'Amount', Value: '100', Operand: 'GT' });
-      const regexFilter = filters.find((f): f is Extract<typeof f, { Operand: 'REGEX' }> => f.Operand === 'REGEX');
-      expect(regexFilter?.Regex[0]).toHaveLength(1);
-      expect(regexFilter?.Regex[0][0].ColumnName).toBe('Description1');
+      const r = regexBlock(filters);
+      expect(r?.Regex[0]).toHaveLength(2);
+      expect(r?.Regex[0][0].ColumnName).toBe('Amount');
+      expect(r?.Regex[0][1].ColumnName).toBe('Description1');
     });
 
-    it('lifts Amount LT/GTE/LTE alongside a date filter in the same group', () => {
+    it('drops the condition when threshold is not numeric (defence in depth)', () => {
       const filters = buildRulesetFilters(makeFormState({
         ruleGroups: [{
           id: 'g1',
           conditions: [
-            { id: 'c1', sourceField: 'Amount', operation: 'less_than', value: '5000' },
-            { id: 'c2', sourceField: 'Amount', operation: 'greater_than_or_equal', value: '100' },
-            { id: 'c3', sourceField: 'StatementDate', operation: 'greater_than', value: '2024-01-01' },
-          ],
-        }],
-      }));
-      expect(filters).toContainEqual({ ColumnName: 'Amount', Value: '5000', Operand: 'LT' });
-      expect(filters).toContainEqual({ ColumnName: 'Amount', Value: '100', Operand: 'GTE' });
-      expect(filters).toContainEqual({ ColumnName: 'StatementDate', Value: '2024-01-01', Operand: 'GT' });
-      // All conditions are lifted, REGEX payload should be absent.
-      expect(filters.find((f) => f.Operand === 'REGEX')).toBeUndefined();
-    });
-
-    it('does NOT lift Amount GT/LT across multiple rule groups (OR semantics would break)', () => {
-      const filters = buildRulesetFilters(makeFormState({
-        ruleGroups: [
-          {
-            id: 'g1',
-            conditions: [
-              { id: 'c1', sourceField: 'Amount', operation: 'greater_than', value: '1000' },
-              { id: 'c2', sourceField: 'Description1', operation: 'contains', value: 'A' },
-            ],
-          },
-          {
-            id: 'g2',
-            conditions: [
-              { id: 'c3', sourceField: 'Amount', operation: 'less_than', value: '100' },
-              { id: 'c4', sourceField: 'Description1', operation: 'contains', value: 'B' },
-            ],
-          },
-        ],
-      }));
-      expect(filters.find((f) => 'ColumnName' in f && f.ColumnName === 'Amount')).toBeUndefined();
-    });
-
-    it('lifts GT/LT on a decimal value (numeric shape, not just integers)', () => {
-      const filters = buildRulesetFilters(makeFormState({
-        ruleGroups: [{
-          id: 'g1',
-          conditions: [
-            { id: 'c1', sourceField: 'Amount', operation: 'greater_than', value: '1500.50' },
-          ],
-        }],
-      }));
-      expect(filters).toContainEqual({ ColumnName: 'Amount', Value: '1500.50', Operand: 'GT' });
-    });
-
-    it('lifts GT/LT on a non-Amount numeric column (no hardcoded field list)', () => {
-      const filters = buildRulesetFilters(makeFormState({
-        ruleGroups: [{
-          id: 'g1',
-          conditions: [
-            { id: 'c1', sourceField: 'CreditAmount', operation: 'greater_than_or_equal', value: '250' },
-          ],
-        }],
-      }));
-      expect(filters).toContainEqual({ ColumnName: 'CreditAmount', Value: '250', Operand: 'GTE' });
-    });
-
-    it('lifts GT/LT on a negative number', () => {
-      const filters = buildRulesetFilters(makeFormState({
-        ruleGroups: [{
-          id: 'g1',
-          conditions: [
-            { id: 'c1', sourceField: 'Amount', operation: 'less_than', value: '-100' },
-          ],
-        }],
-      }));
-      expect(filters).toContainEqual({ ColumnName: 'Amount', Value: '-100', Operand: 'LT' });
-    });
-
-    it('does NOT lift GT/LT when the value is not numeric-shaped and not on a date field', () => {
-      // Edge case: the condition editor restricts these operations to
-      // date/numeric fields, but defend in depth — a non-numeric value with
-      // a numeric op on a text column should not produce a server-side
-      // comparison that would silently coerce.
-      const filters = buildRulesetFilters(makeFormState({
-        ruleGroups: [{
-          id: 'g1',
-          conditions: [
+            // Numeric op on a non-numeric value — the UI prevents this combo
+            // but the build path is defensive.
             { id: 'c1', sourceField: 'Description1', operation: 'greater_than', value: 'ACME' },
           ],
         }],
       }));
-      expect(filters.find((f) => 'ColumnName' in f && f.ColumnName === 'Description1')).toBeUndefined();
+      expect(filters.find((f) => f.Operand === 'REGEX')).toBeUndefined();
     });
   });
 });

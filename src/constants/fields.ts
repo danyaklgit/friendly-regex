@@ -12,3 +12,9 @@ export const TXN_TYPE_OPTIONS = [
 ] as const;
 export const VALIDATION_RULE_TAG_OPTIONS = ['STRING', 'NUMBER', 'DATE'] as const;
 export const DATA_TYPE_OPTIONS = VALIDATION_RULE_TAG_OPTIONS;
+
+// Source fields the backend stores as ISO date-times. Used both by the
+// condition editor (to restrict the operation set and surface a date picker)
+// and by buildRulesetFilters (to route GT/LT through the date-range regex
+// compiler).
+export const DATE_SOURCE_FIELDS = new Set(['StatementDate', 'EntryDate', 'ValueDate']);
