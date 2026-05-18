@@ -8,11 +8,17 @@ function matches(regex: string | null, sample: string): boolean {
 
 describe('compileNumericRangeRegex', () => {
   describe('parsing', () => {
-    it('returns null for non-integer thresholds', () => {
-      expect(compileNumericRangeRegex('100.5', 'gt')).toBeNull();
+    it('returns null for non-numeric thresholds', () => {
       expect(compileNumericRangeRegex('abc', 'gt')).toBeNull();
       expect(compileNumericRangeRegex('', 'gt')).toBeNull();
       expect(compileNumericRangeRegex('--5', 'gt')).toBeNull();
+      expect(compileNumericRangeRegex('100.', 'gt')).toBeNull();
+      expect(compileNumericRangeRegex('.5', 'gt')).toBeNull();
+    });
+
+    it('accepts decimal thresholds', () => {
+      expect(compileNumericRangeRegex('100.5', 'gt')).not.toBeNull();
+      expect(compileNumericRangeRegex('-100.25', 'lt')).not.toBeNull();
     });
   });
 
@@ -144,6 +150,78 @@ describe('compileNumericRangeRegex', () => {
       expect(matches(r, '-1')).toBe(false);
       expect(matches(r, '0')).toBe(false);
       expect(matches(r, '100')).toBe(false);
+    });
+  });
+
+  describe('decimal thresholds (positive)', () => {
+    it('> 100.5 matches values strictly above 100.5', () => {
+      const r = compileNumericRangeRegex('100.5', 'gt');
+      expect(matches(r, '100.6')).toBe(true);
+      expect(matches(r, '100.51')).toBe(true);
+      expect(matches(r, '100.500001')).toBe(true);
+      expect(matches(r, '101')).toBe(true);
+      expect(matches(r, '1000')).toBe(true);
+      expect(matches(r, '100.5')).toBe(false);
+      expect(matches(r, '100.50')).toBe(false);
+      expect(matches(r, '100.500')).toBe(false);
+      expect(matches(r, '100.4')).toBe(false);
+      expect(matches(r, '100')).toBe(false);
+    });
+
+    it('< 100.5 matches values strictly below 100.5', () => {
+      const r = compileNumericRangeRegex('100.5', 'lt');
+      expect(matches(r, '100')).toBe(true);
+      expect(matches(r, '100.4')).toBe(true);
+      expect(matches(r, '100.4999')).toBe(true);
+      expect(matches(r, '99.99')).toBe(true);
+      expect(matches(r, '0')).toBe(true);
+      expect(matches(r, '-1')).toBe(true);
+      expect(matches(r, '100.5')).toBe(false);
+      expect(matches(r, '100.50')).toBe(false);
+      expect(matches(r, '100.51')).toBe(false);
+      expect(matches(r, '101')).toBe(false);
+    });
+
+    it('treats trailing zeros in the threshold as equivalent (100.50 == 100.5)', () => {
+      const a = compileNumericRangeRegex('100.5', 'gt');
+      const b = compileNumericRangeRegex('100.50', 'gt');
+      expect(a).toBe(b);
+    });
+
+    it('> 0.5 matches fractions above 0.5', () => {
+      const r = compileNumericRangeRegex('0.5', 'gt');
+      expect(matches(r, '0.6')).toBe(true);
+      expect(matches(r, '0.51')).toBe(true);
+      expect(matches(r, '1')).toBe(true);
+      expect(matches(r, '0.5')).toBe(false);
+      expect(matches(r, '0.50')).toBe(false);
+      expect(matches(r, '0.4')).toBe(false);
+      expect(matches(r, '0')).toBe(false);
+    });
+  });
+
+  describe('decimal thresholds (negative)', () => {
+    it('> -100.5 matches values greater than -100.5', () => {
+      const r = compileNumericRangeRegex('-100.5', 'gt');
+      expect(matches(r, '-100')).toBe(true);
+      expect(matches(r, '-100.4')).toBe(true);
+      expect(matches(r, '-99')).toBe(true);
+      expect(matches(r, '0')).toBe(true);
+      expect(matches(r, '100')).toBe(true);
+      expect(matches(r, '-100.5')).toBe(false);
+      expect(matches(r, '-100.6')).toBe(false);
+      expect(matches(r, '-101')).toBe(false);
+    });
+
+    it('< -100.5 matches values less than -100.5', () => {
+      const r = compileNumericRangeRegex('-100.5', 'lt');
+      expect(matches(r, '-100.6')).toBe(true);
+      expect(matches(r, '-101')).toBe(true);
+      expect(matches(r, '-1000')).toBe(true);
+      expect(matches(r, '-100.5')).toBe(false);
+      expect(matches(r, '-100.4')).toBe(false);
+      expect(matches(r, '-100')).toBe(false);
+      expect(matches(r, '0')).toBe(false);
     });
   });
 

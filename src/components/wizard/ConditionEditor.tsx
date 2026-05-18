@@ -284,17 +284,27 @@ export function ConditionEditor({
                 <Input
                   label='Value'
                   // `type=text` (not `number`) avoids the native up/down
-                  // spinners while the onChange filter below keeps the field
-                  // integer-only. `inputMode=numeric` still surfaces the
-                  // numeric keypad on mobile.
+                  // spinners while the onChange filter below restricts the
+                  // input to a signed decimal (digits + optional minus +
+                  // at most one period). `inputMode=decimal` surfaces the
+                  // numeric-with-decimal keypad on mobile.
                   type="text"
-                  inputMode="numeric"
-                  placeholder="Enter integer..."
+                  inputMode="decimal"
+                  placeholder="Enter number..."
                   value={condition.value}
                   disabled={readOnly}
                   onChange={(e) => {
-                    const raw = e.target.value;
-                    const cleaned = raw.replace(/[^\d-]/g, '').replace(/(?!^)-/g, '');
+                    // Strip everything except digits, `-`, and `.`, force `-`
+                    // to be leading-only, then collapse repeat `.` so only the
+                    // first survives.
+                    let cleaned = e.target.value
+                      .replace(/[^\d.-]/g, '')
+                      .replace(/(?!^)-/g, '');
+                    const firstDot = cleaned.indexOf('.');
+                    if (firstDot !== -1) {
+                      cleaned = cleaned.slice(0, firstDot + 1)
+                        + cleaned.slice(firstDot + 1).replace(/\./g, '');
+                    }
                     onUpdate({ value: cleaned });
                   }}
                 />

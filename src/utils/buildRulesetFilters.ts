@@ -8,7 +8,9 @@ import { compileNumericRangeRegex } from './numericRangeRegex';
 type RegexCondition = { ColumnName: string; Value: string; Options: string };
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const INT_RE = /^-?\d+$/;
+// Signed decimal — integer or with a fractional tail. Mirrors the input
+// filter on the Amount field in ConditionEditor.
+const NUMERIC_RE = /^-?\d+(\.\d+)?$/;
 
 /**
  * Compile a single rule-set condition into the inner-condition shape the
@@ -26,7 +28,7 @@ function buildInnerCondition(c: ConditionFormValue): RegexCondition | null {
     const isDate = DATE_SOURCE_FIELDS.has(c.sourceField) || ISO_DATE_RE.test(c.value.trim());
     const compiled = isDate
       ? compileDateRangeRegex(c.value, op)
-      : INT_RE.test(c.value.trim())
+      : NUMERIC_RE.test(c.value.trim())
         ? compileNumericRangeRegex(c.value, op)
         : null;
     if (!compiled) return null;

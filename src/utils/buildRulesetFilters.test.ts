@@ -233,6 +233,26 @@ describe('buildRulesetFilters', () => {
       expect(re.test('101')).toBe(false);
     });
 
+    it('compiles a decimal Amount threshold (Amount > 100.5)', () => {
+      const filters = buildRulesetFilters(makeFormState({
+        ruleGroups: [{
+          id: 'g1',
+          conditions: [
+            { id: 'c1', sourceField: 'Amount', operation: 'greater_than', value: '100.5' },
+          ],
+        }],
+      }));
+      const r = regexBlock(filters);
+      const re = new RegExp(r!.Regex[0][0].Value);
+      expect(re.test('100.6')).toBe(true);
+      expect(re.test('101')).toBe(true);
+      expect(re.test('1000.50')).toBe(true);
+      expect(re.test('100.5')).toBe(false);
+      expect(re.test('100.50')).toBe(false);
+      expect(re.test('100.4')).toBe(false);
+      expect(re.test('100')).toBe(false);
+    });
+
     it('compiles negative threshold Amount > -50', () => {
       const filters = buildRulesetFilters(makeFormState({
         ruleGroups: [{
