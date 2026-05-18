@@ -211,10 +211,12 @@ function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps
             ...(isLiveMode && isDevops ? [{ label: 'Integration Logs', content: <IntegrationLogsTab /> }] : []),
             { label: 'Settings', content: <SettingsTab /> },
           ]}
-          // Hide the "You're working on" indicator on the Backlog tab — that
-          // tab is where the user picks what to work on, so the header
-          // indicator is redundant there and visually crowds the tab strip.
-          checkout={activeCheckout && activeTab !== 0 ? {
+          // The "You're working on" indicator + Release/Check-in actions only
+          // apply to the Transactions tab (the only place the operator is
+          // actively mutating checkout-owned data). Everywhere else they're
+          // either redundant (Backlog: the pick-what-to-work-on screen) or
+          // irrelevant (Integration Logs, Settings).
+          checkout={activeCheckout && activeTab === 1 ? {
             bank: activeCheckout.bank,
             side: activeCheckout.side,
             hasChanges: hasChanges ?? false,
