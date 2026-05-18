@@ -3,6 +3,7 @@ import type { ConditionFormValue } from '../../types';
 import { SearchableSelect } from '../shared/SearchableSelect';
 import { Input } from '../shared/Input';
 import { Button } from '../shared/Button';
+import { Tooltip } from '../shared/Tooltip';
 import { MATCH_OPERATIONS } from '../../constants/operations';
 import { useTransactionData } from '../../hooks/useTransactionData';
 import { generateExpressionPrompt } from '../../utils/regexify';
@@ -13,6 +14,21 @@ const ALLOWED_SOURCE_FIELDS = new Set([
   'Description1', 'Description2', 'EntryDate', 'FundsCode',
   'IBAN', 'StatementDate', 'TransactionDetails', 'TransactionStatusIndicator',
   'ValueDate',
+]);
+
+// Date/numeric source fields surface a restricted operation set in the
+// condition editor: only Equals / Does not equal / Greater than / Less than.
+// Anything not listed here falls into the "text" bucket and gets the full
+// non-numeric operation list (Contains, Starts with, Ends with, Matches one
+// of, etc.).
+const DATE_SOURCE_FIELDS = new Set(['StatementDate', 'EntryDate', 'ValueDate']);
+const NUMERIC_SOURCE_FIELDS = new Set(['Amount']);
+// The 4 operations valid for date and numeric fields.
+const ORDERED_NUMERIC_DATE_OPS = new Set<string>([
+  'equals',
+  'does_not_equal',
+  'greater_than',
+  'less_than',
 ]);
 
 interface ConditionEditorProps {
@@ -86,24 +102,62 @@ export function ConditionEditor({
     }
   }, [snapshot, onUpdate]);
 
-  const isFieldNumeric = useMemo(() => {
-    if (!condition.sourceField || transactions.length === 0) return false;
-    return transactions.every((row) => {
-      const val = row[condition.sourceField];
-      if (val === null || val === undefined || val === '') return true;
-      return !isNaN(Number(val));
-    });
+  // Field kind drives the available operations. Date and numeric fields share
+  // the same restricted set (Equals / Does not equal / Greater than / Less
+  // than) — string-shaped ops like Contains or Starts with don't make sense
+  // for dates or numbers and would compile to regex that doesn't behave
+  // numerically server-side. Falls back to the heuristic (all values parse
+  // as numbers) when the column name isn't on the explicit numeric list, so
+  // future numeric columns work without a code change.
+  const fieldKind = useMemo<'date' | 'numeric' | 'text'>(() => {
+    const f = condition.sourceField;
+    if (!f) return 'text';
+    if (DATE_SOURCE_FIELDS.has(f)) return 'date';
+    if (NUMERIC_SOURCE_FIELDS.has(f)) return 'numeric';
+    if (transactions.length > 0) {
+      const allNumeric = transactions.every((row) => {
+        const val = row[f];
+        if (val === null || val === undefined || val === '') return true;
+        return !isNaN(Number(val));
+      });
+      if (allNumeric) return 'numeric';
+    }
+    return 'text';
   }, [condition.sourceField, transactions]);
 
   const availableOperations = useMemo(() => {
-    if (isFieldNumeric) return MATCH_OPERATIONS;
+    if (fieldKind === 'date' || fieldKind === 'numeric') {
+      return MATCH_OPERATIONS.filter((op) => ORDERED_NUMERIC_DATE_OPS.has(op.key));
+    }
     return MATCH_OPERATIONS.filter((op) => !op.isNumeric);
-  }, [isFieldNumeric]);
+  }, [fieldKind]);
 
   const selectedOp = MATCH_OPERATIONS.find((op) => op.key === condition.operation);
   const preview = condition.value
     ? generateExpressionPrompt(condition.operation, condition.value, condition.values)
     : '';
+
+  // Required-field check for the inline Save button. Mirrors
+  // `isCompleteCondition` (utils/ruleFingerprint) but tailored to surface the
+  // *specific* missing fields in the tooltip so the user knows what to fill.
+  const missingFields = useMemo(() => {
+    const missing: string[] = [];
+    if (!condition.sourceField || condition.sourceField.trim().length === 0) {
+      missing.push('Source Field');
+    }
+    if (!condition.operation || (condition.operation as string).trim().length === 0) {
+      missing.push('Operation');
+    }
+    if (selectedOp?.requiresMultipleValues) {
+      if (!condition.values || !condition.values.some((v) => v.trim().length > 0)) {
+        missing.push('Value');
+      }
+    } else if (!condition.value || condition.value.trim().length === 0) {
+      missing.push('Value');
+    }
+    return missing;
+  }, [condition.sourceField, condition.operation, condition.value, condition.values, selectedOp]);
+  const isIncomplete = missingFields.length > 0;
 
   // Duplicate signals come from the parent (RuleGroupEditor / StepRuleExpressions)
   // which has full visibility of every rule set. Within-group duplicates flag
@@ -151,16 +205,34 @@ export function ConditionEditor({
                 disabled={readOnly}
                 onChange={(newField) => {
                   const updates: Partial<ConditionFormValue> = { sourceField: newField };
-                  const currentOp = MATCH_OPERATIONS.find((op) => op.key === condition.operation);
-                  if (currentOp?.isNumeric) {
-                    const newFieldNumeric = transactions.every((row) => {
-                      const val = row[newField];
-                      if (val === null || val === undefined || val === '') return true;
-                      return !isNaN(Number(val));
-                    });
-                    if (!newFieldNumeric) {
-                      updates.operation = 'begins_with';
-                    }
+                  // Recompute the new field's kind so we can clear any
+                  // operation that won't be valid on it (text-only ops on a
+                  // date/numeric field, or a numeric op on a text field).
+                  const newKind: 'date' | 'numeric' | 'text' = DATE_SOURCE_FIELDS.has(newField)
+                    ? 'date'
+                    : NUMERIC_SOURCE_FIELDS.has(newField)
+                      ? 'numeric'
+                      : transactions.length > 0 && transactions.every((row) => {
+                          const val = row[newField];
+                          if (val === null || val === undefined || val === '') return true;
+                          return !isNaN(Number(val));
+                        })
+                        ? 'numeric'
+                        : 'text';
+                  const allowed = newKind === 'text'
+                    ? new Set(MATCH_OPERATIONS.filter((op) => !op.isNumeric).map((op) => op.key))
+                    : ORDERED_NUMERIC_DATE_OPS;
+                  if (condition.operation && !allowed.has(condition.operation)) {
+                    updates.operation = '' as ConditionFormValue['operation'];
+                    updates.value = '';
+                    updates.values = undefined;
+                  } else if (newKind !== fieldKind && condition.value) {
+                    // Operation survives (equals/does_not_equal work for all
+                    // kinds) but the previously typed value won't render in
+                    // the new input — a date input rejects "ACME", a number
+                    // input strips it. Clear so the user re-enters.
+                    updates.value = '';
+                    updates.values = undefined;
                   }
                   onUpdate(updates);
                 }}
@@ -191,6 +263,32 @@ export function ConditionEditor({
                     onUpdate({ values, value: values[0] ?? '' });
                   }}
                 />
+              ) : fieldKind === 'date' ? (
+                <Input
+                  label='Value'
+                  type="date"
+                  value={condition.value}
+                  disabled={readOnly}
+                  onChange={(e) => onUpdate({ value: e.target.value })}
+                />
+              ) : fieldKind === 'numeric' ? (
+                <Input
+                  label='Value'
+                  // `type=text` (not `number`) avoids the native up/down
+                  // spinners while the onChange filter below keeps the field
+                  // integer-only. `inputMode=numeric` still surfaces the
+                  // numeric keypad on mobile.
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="Enter integer..."
+                  value={condition.value}
+                  disabled={readOnly}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    const cleaned = raw.replace(/[^\d-]/g, '').replace(/(?!^)-/g, '');
+                    onUpdate({ value: cleaned });
+                  }}
+                />
               ) : (
                 <Input
                   label='Value'
@@ -218,11 +316,13 @@ export function ConditionEditor({
           </Button>
         )}
       </div>
-      {editing && preview && (
+      {editing && (
         <div className="mt-1 ml-3 flex flex-wrap items-center gap-2">
-          <p className="text-xs text-primary italic text-left border-dashed border w-fit px-2 py-1">
-            {humanizeFieldName(condition.sourceField)} &rarr; <span className='text-orange-500 dark:text-orange-300'>{preview}</span>
-          </p>
+          {preview && (
+            <p className="text-xs text-primary italic text-left border-dashed border w-fit px-2 py-1">
+              {humanizeFieldName(condition.sourceField)} &rarr; <span className='text-orange-500 dark:text-orange-300'>{preview}</span>
+            </p>
+          )}
           {isDuplicate && (
             <p
               role="alert"
@@ -239,17 +339,39 @@ export function ConditionEditor({
                   Discard
                 </Button>
               )}
-              <Button
-                data-tour="condition-save-button"
-                variant="primary"
-                size="xs"
-                onClick={() => { setEditing(false); onSave?.(); }}
-                disabled={isDuplicate}
-                title={isDuplicate ? duplicateMessage : undefined}
-                className="min-w-16 text-center"
-              >
-                Save
-              </Button>
+              {(isDuplicate || isIncomplete) ? (
+                // Duplicate takes precedence in the tooltip; both block Save.
+                <Tooltip
+                  placement="top"
+                  content={
+                    isDuplicate
+                      ? duplicateMessage
+                      : `Missing: ${missingFields.join(', ')}`
+                  }
+                >
+                  <span>
+                    <Button
+                      data-tour="condition-save-button"
+                      variant="primary"
+                      size="xs"
+                      disabled
+                      className="min-w-16 text-center"
+                    >
+                      Save
+                    </Button>
+                  </span>
+                </Tooltip>
+              ) : (
+                <Button
+                  data-tour="condition-save-button"
+                  variant="primary"
+                  size="xs"
+                  onClick={() => { setEditing(false); onSave?.(); }}
+                  className="min-w-16 text-center"
+                >
+                  Save
+                </Button>
+              )}
             </>
           )}
         </div>
