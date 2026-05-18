@@ -171,6 +171,7 @@ const EMPTY_FILTERS: Record<string, Set<string>> = {};
 export function TransactionsTab({ activeCheckout, onClearPendingDefinition, initialShareFilters, initialShareToggles, operatorName, shareDialogOpen: shareDialogOpenProp, onShareDialogClose }: TransactionsTabProps) {
   const { libraries, tagDefinitions, originalDefinitionIds, dispatch, isPairBeingTagged } = useTagSpecs();
   const { userId, usersMap, getAuthHeaders, refreshIfNeeded, isAudit } = useAuth();
+  const { extractionMethods } = useLovAttributes();
   const tepConfig = useTepConfig();
   const { saveBaseline, updateCurrent } = useLocalChanges(activeCheckout?.bank, activeCheckout?.side);
 

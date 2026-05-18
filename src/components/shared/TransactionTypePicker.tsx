@@ -168,7 +168,7 @@ export function TransactionTypePicker({ value, onChange, filterDefinitions, disa
         type="button"
         onClick={() => !disabled && setOpen(!open)}
         disabled={disabled}
-        className={`flex items-center justify-between gap-1.5 min-w-28 rounded-lg border border-input-border bg-input-bg px-3 py-1 text-xs text-heading focus:outline-none focus:ring-1 focus:ring-primary transition-colors ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+        className={`flex items-center justify-between gap-1.5 min-w-28 rounded-lg border border-input-border bg-input-bg px-3 py-2 text-sm text-heading focus:outline-none focus:ring-1 focus:ring-primary transition-colors ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
       >
         <span className="truncate">{selectedLabel}</span>
         <svg className="w-3 h-3 text-muted shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
