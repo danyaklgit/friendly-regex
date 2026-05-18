@@ -17,6 +17,9 @@ import type { DefinitionVersionInfo } from '../../utils/definitionVersions';
 import { diffStrings } from '../../utils/textDiff';
 import { DropdownBackdrop } from '../shared/DropdownBackdrop';
 import { CommentDialog, type CommentDialogResult } from './CommentDialog';
+import { ConfirmDialog } from '../shared/ConfirmDialog';
+import { Modal } from '../shared/Modal';
+import { Button } from '../shared/Button';
 import type { SetTransactionsCommentEntry } from '../../api/transactions';
 
 interface TransactionTableProps {
@@ -31,6 +34,7 @@ interface TransactionTableProps {
   onFlagDeadEnd?: (ids: string[], value: boolean) => Promise<void>;
   onFlagDeadEndWithComment?: (ids: string[], value: boolean, entries?: SetTransactionsCommentEntry[]) => Promise<void>;
   onSetComments?: (entries: SetTransactionsCommentEntry[]) => Promise<void>;
+  onHideTags?: (tagNames: string[]) => void;
   showAttributes?: boolean;
   relaxedMode?: boolean;
   hiddenColumns?: Set<string>;
@@ -467,7 +471,7 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
 
 export type { ColumnDef };
 
-export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, definitionSourceMap, definitionVersions, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, onFlagDeadEndWithComment, onSetComments, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, accentHue = 190, onRowContextMenu, originalEditingDef, activeDefinitionId }: TransactionTableProps) {
+export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, definitionSourceMap, definitionVersions, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, onFlagDeadEndWithComment, onSetComments, onHideTags, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, accentHue = 190, onRowContextMenu, originalEditingDef, activeDefinitionId }: TransactionTableProps) {
   const { fieldMeta } = useTransactionData();
   const { lovLookup } = useLovAttributes();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -573,6 +577,41 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
   useEffect(() => {
     setSelectedIds(new Set());
   }, [data.length]);
+
+  // Hide Tag action state. The picker covers the multi-tag case; single-tag
+  // and zero-tag cases route through the confirm dialog and the disabled
+  // button respectively.
+  const [hideTagDialog, setHideTagDialog] = useState<
+    | { kind: 'confirm'; name: string }
+    | { kind: 'picker'; names: string[]; picked: Set<string> }
+    | null
+  >(null);
+
+  const selectedTagNames = useMemo(() => {
+    if (selectedIds.size === 0) return [] as string[];
+    const s = new Set<string>();
+    for (const id of selectedIds) {
+      const item = data.find((d) => getRowId(d.row) === id);
+      item?.analysis?.tags?.forEach((t) => s.add(t));
+    }
+    return [...s].sort();
+  }, [selectedIds, data, getRowId]);
+
+  const openHideTagDialog = useCallback(() => {
+    if (selectedTagNames.length === 0) return;
+    if (selectedTagNames.length === 1) {
+      setHideTagDialog({ kind: 'confirm', name: selectedTagNames[0] });
+    } else {
+      setHideTagDialog({ kind: 'picker', names: selectedTagNames, picked: new Set(selectedTagNames) });
+    }
+  }, [selectedTagNames]);
+
+  const confirmHideTags = useCallback((names: string[]) => {
+    if (!onHideTags || names.length === 0) return;
+    onHideTags(names);
+    setSelectedIds(new Set());
+    setHideTagDialog(null);
+  }, [onHideTags]);
 
   const theadRef = useRef<HTMLTableSectionElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -1511,6 +1550,21 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                 Add Comment
               </button>
             )}
+            {onHideTags && (() => {
+              const label = selectedIds.size > 1 ? 'Hide Tags' : 'Hide Tag';
+              const hideBtn = (
+                <button
+                  onClick={openHideTagDialog}
+                  disabled={selectedTagNames.length === 0}
+                  className="cursor-pointer text-xs px-2.5 py-1 rounded border border-border-strong bg-surface text-body hover:bg-surface-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {label}
+                </button>
+              );
+              return selectedTagNames.length === 0 ? (
+                <Tooltip content="No tags on selected rows" placement="bottom">{hideBtn}</Tooltip>
+              ) : hideBtn;
+            })()}
             <button
               onClick={() => setSelectedIds(new Set())}
               className="text-xs text-muted hover:text-body ml-auto"
@@ -1529,6 +1583,75 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
         onClose={closeCommentDialog}
         onConfirm={handleCommentDialogConfirm}
       />
+
+      <ConfirmDialog
+        open={hideTagDialog?.kind === 'confirm'}
+        onClose={() => setHideTagDialog(null)}
+        onConfirm={() => {
+          if (hideTagDialog?.kind === 'confirm') confirmHideTags([hideTagDialog.name]);
+        }}
+        title="Hide tag"
+        message={
+          hideTagDialog?.kind === 'confirm'
+            ? `Hide all rows tagged "${hideTagDialog.name}"? You can unhide them from the chip strip above the table.`
+            : ''
+        }
+        confirmLabel="Hide"
+        variant="primary"
+      />
+
+      <Modal
+        open={hideTagDialog?.kind === 'picker'}
+        onClose={() => setHideTagDialog(null)}
+        title="Hide tags"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setHideTagDialog(null)}>Cancel</Button>
+            <Button
+              variant="primary"
+              onClick={() => {
+                if (hideTagDialog?.kind === 'picker') confirmHideTags([...hideTagDialog.picked]);
+              }}
+              disabled={hideTagDialog?.kind === 'picker' && hideTagDialog.picked.size === 0}
+            >
+              Hide selected
+            </Button>
+          </>
+        }
+      >
+        {hideTagDialog?.kind === 'picker' && (
+          <div className="space-y-2">
+            <p className="text-sm text-body-secondary">
+              The selected rows carry more than one tag. Pick which tags to hide — rows containing any picked tag will disappear from the view.
+            </p>
+            <div className="border border-border rounded-lg divide-y divide-border max-h-72 overflow-auto bg-surface">
+              {hideTagDialog.names.map((name) => {
+                const checked = hideTagDialog.picked.has(name);
+                return (
+                  <label
+                    key={name}
+                    className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-surface-hover text-body"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => {
+                        setHideTagDialog((prev) => {
+                          if (!prev || prev.kind !== 'picker') return prev;
+                          const next = new Set(prev.picked);
+                          if (next.has(name)) next.delete(name); else next.add(name);
+                          return { ...prev, picked: next };
+                        });
+                      }}
+                    />
+                    <span className="text-sm">{name}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* Column Minimap */}
       {(hasOverflow || (loading && data.length === 0)) && (

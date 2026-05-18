@@ -48,6 +48,7 @@ import { ShareLinkDialog } from '../shared/ShareLinkDialog';
 import { RowContextMenu } from './RowContextMenu';
 import { ViewContextModal } from './ViewContextModal';
 import { TagDetailPanel } from './TagDetailPanel';
+import { HiddenTagsPanel } from './HiddenTagsPanel';
 import { useTepConfig } from '../../context/TepConfigContext';
 import type { TepHeaders } from '../../api/transactions';
 
@@ -301,6 +302,12 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const [tableColumns, setTableColumns] = useState<ColumnDef[]>([]);
   const [visibleTableColumns, setVisibleTableColumns] = useState<ColumnDef[]>([]);
   const [filters, setFilters] = useState<Record<string, Set<string>>>({});
+  // Per-row-instance hide state. Each key is `${rowId}::${tagName}` so the
+  // operator can unhide a single occurrence from the panel without affecting
+  // other rows that share the same tag name.
+  const [hiddenRowTags, setHiddenRowTags] = useState<Set<string>>(new Set());
+  const [hiddenTagsPanelOpen, setHiddenTagsPanelOpen] = useState(false);
+  const [hideBusy, setHideBusy] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ row: TransactionRow; x: number; y: number } | null>(null);
   const [contextModalRow, setContextModalRow] = useState<TransactionRow | null>(null);
   const shareFiltersConsumed = useRef(false);
@@ -513,6 +520,22 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [baseFilters]);
+
+  // Clear hidden tags whenever the active checkout changes. Covers release,
+  // check-in, and switching to a different bank/side — TransactionsTab does
+  // not unmount across these transitions, so the reset has to be explicit.
+  useEffect(() => {
+    setHiddenRowTags(new Set());
+    setHiddenTagsPanelOpen(false);
+  }, [activeCheckout?.bank, activeCheckout?.side]);
+
+  // Close the side panel once the last hidden row tag is removed so it
+  // doesn't linger as an empty drawer.
+  useEffect(() => {
+    if (hiddenRowTags.size === 0) setHiddenTagsPanelOpen(false);
+  }, [hiddenRowTags]);
+
+  const rowTagKey = (rowId: string, tag: string) => `${rowId}::${tag}`;
 
   // Live mode: fetch from API when filters or extraFilters change.
   // While a Backlog "edit" navigation is pending, skip auto-fetch — handleTagClick
@@ -750,6 +773,90 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     [transactions, allLibraries, tempDefinition, editingDef, tagClickState, builderOpen, builderHasContent, isLiveMode]
   );
 
+  // Hidden tag occurrences for the side panel — one entry per (row, tagName)
+  // tuple so the panel mirrors how badges appear in the table cell, instead
+  // of collapsing same-named hides into a single chip.
+  const hiddenTagItems = useMemo(() => {
+    if (hiddenRowTags.size === 0) return [] as Array<{ key: string; rowId: string; name: string; def?: TagSpecDefinition }>;
+    const identifier = fieldMeta.identifierField;
+    const out: Array<{ key: string; rowId: string; name: string; def?: TagSpecDefinition }> = [];
+    for (const item of analyzedData) {
+      const rowId = String(item.row[identifier] ?? item.row['Id'] ?? '');
+      item.analysis.tags.forEach((tag, ti) => {
+        const key = rowTagKey(rowId, tag);
+        if (!hiddenRowTags.has(key)) return;
+        const def = item.analysis.matchedDefinitions[ti];
+        out.push({ key, rowId, name: tag, def });
+      });
+    }
+    return out;
+  }, [hiddenRowTags, analyzedData, fieldMeta.identifierField]);
+
+  // Hide each (row × tag) instance for every analyzed row whose tags match
+  // one of the picked names. This is what the operator-facing "Hide Tag"
+  // action triggers: hide all matching rows. Unhiding from the side panel
+  // can then remove individual occurrences.
+  const hideTagNames = useCallback((names: string[]) => {
+    if (names.length === 0) return;
+    const nameSet = new Set(names);
+    const identifier = fieldMeta.identifierField;
+    const keysToAdd: string[] = [];
+    for (const item of analyzedData) {
+      const rowId = String(item.row[identifier] ?? item.row['Id'] ?? '');
+      for (const tag of item.analysis.tags) {
+        if (nameSet.has(tag)) keysToAdd.push(rowTagKey(rowId, tag));
+      }
+    }
+    if (keysToAdd.length === 0) return;
+    setHideBusy(true);
+    setToast({
+      message: names.length === 1
+        ? `Hiding tag '${names[0]}'…`
+        : `Hiding ${names.length} tags…`,
+      type: 'success',
+    });
+    window.setTimeout(() => {
+      setHiddenRowTags((prev) => {
+        const next = new Set(prev);
+        for (const k of keysToAdd) next.add(k);
+        return next;
+      });
+      setHideBusy(false);
+      setToast({
+        message: names.length === 1
+          ? `Tag '${names[0]}' hidden on ${keysToAdd.length} row${keysToAdd.length === 1 ? '' : 's'}`
+          : `${keysToAdd.length} row tag${keysToAdd.length === 1 ? '' : 's'} hidden`,
+        type: 'success',
+      });
+    }, 250);
+  }, [analyzedData, fieldMeta.identifierField]);
+
+  const unhideRowTag = useCallback((rowId: string, name: string) => {
+    const key = rowTagKey(rowId, name);
+    setHideBusy(true);
+    setToast({ message: `Unhiding tag '${name}'…`, type: 'success' });
+    window.setTimeout(() => {
+      setHiddenRowTags((prev) => {
+        if (!prev.has(key)) return prev;
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+      setHideBusy(false);
+      setToast({ message: `Tag '${name}' restored for this row`, type: 'success' });
+    }, 250);
+  }, []);
+
+  const unhideAllTags = useCallback(() => {
+    setHideBusy(true);
+    setToast({ message: 'Unhiding all tags…', type: 'success' });
+    window.setTimeout(() => {
+      setHiddenRowTags(new Set());
+      setHideBusy(false);
+      setToast({ message: 'All hidden rows restored', type: 'success' });
+    }, 250);
+  }, []);
+
   // Apply all filters
   const filteredData = useMemo(() => {
     let result = analyzedData;
@@ -786,8 +893,19 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       result = result.filter((item) => item.row['TransactionTypeCode'] === builder.formState.transactionTypeCode);
     }
 
+    // Drop rows carrying any tag hidden for that specific row. Hide Tag is a
+    // pure view-layer filter — server payload is unchanged so the operator
+    // can toggle individual rows back from the side panel.
+    if (hiddenRowTags.size > 0) {
+      const identifier = fieldMeta.identifierField;
+      result = result.filter((item) => {
+        const rowId = String(item.row[identifier] ?? item.row['Id'] ?? '');
+        return !item.analysis.tags.some((t) => hiddenRowTags.has(rowTagKey(rowId, t)));
+      });
+    }
+
     return result;
-  }, [analyzedData, showOnlyUntagged, showOnlyMultiTagged, showOnlyDeadEnd, filters, isLiveMode, builderOpen, builder.formState.transactionTypeCode]);
+  }, [analyzedData, showOnlyUntagged, showOnlyMultiTagged, showOnlyDeadEnd, filters, isLiveMode, builderOpen, builder.formState.transactionTypeCode, hiddenRowTags, fieldMeta.identifierField]);
 
   // Reset visible count / page when filtered data length changes
   // In live + classic pagination mode, data replaces on every page nav — don't reset page from here
@@ -1541,6 +1659,32 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         </div>
       )}
 
+      {hiddenRowTags.size > 0 && (
+        <div className="flex items-center px-4 py-2 border-y border-border bg-surface-secondary">
+          <button
+            type="button"
+            onClick={() => setHiddenTagsPanelOpen(true)}
+            disabled={hideBusy}
+            className="cursor-pointer inline-flex items-center gap-2 text-xs px-2.5 py-1 rounded border border-border-strong bg-surface text-body hover:bg-surface-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {hideBusy ? (
+              <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            ) : (
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908A3 3 0 1115 12m-2 4a9 9 0 01-12-7l2.292-2.292M3 3l18 18" />
+              </svg>
+            )}
+            <span>Hidden tags</span>
+            <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1.5 rounded-full bg-primary text-white text-[10px] font-semibold">
+              {hiddenRowTags.size}
+            </span>
+          </button>
+        </div>
+      )}
+
       {!loading && visibleData.length === 0 ? (
         <EmptyState
           title="No transactions found"
@@ -1564,6 +1708,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         onFlagDeadEnd={!isReadOnly && !tagClickState?.showingAll && !tagClickState?.rulesetApplied ? flagDeadEnd : undefined}
         onFlagDeadEndWithComment={!isReadOnly && !tagClickState?.showingAll && !tagClickState?.rulesetApplied ? flagDeadEndWithComment : undefined}
         onSetComments={!isReadOnly && !tagClickState?.showingAll && !tagClickState?.rulesetApplied ? setComments : undefined}
+        onHideTags={!isReadOnly && !tagClickState?.showingAll && !tagClickState?.rulesetApplied ? hideTagNames : undefined}
         showAttributes={showAttributes}
         relaxedMode={relaxedMode}
         hiddenColumns={tableHiddenColumns}
@@ -1778,6 +1923,19 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       <LovBrowserDrawer
         open={lovBrowserOpen}
         onClose={() => setLovBrowserOpen(false)}
+      />
+
+      <HiddenTagsPanel
+        open={hiddenTagsPanelOpen}
+        onClose={() => setHiddenTagsPanelOpen(false)}
+        items={hiddenTagItems}
+        hiddenCount={hiddenRowTags.size}
+        originalDefinitionIds={originalDefinitionIds}
+        definitionSourceMap={definitionSourceMap}
+        definitionVersions={definitionVersions}
+        onUnhide={unhideRowTag}
+        onUnhideAll={unhideAllTags}
+        busy={hideBusy}
       />
 
       {contextModalRow && (() => {
