@@ -111,4 +111,96 @@ describe('buildRulesetFilters', () => {
     }));
     expect(filters.find((f) => f.Operand === 'REGEX')).toBeUndefined();
   });
+
+  describe('date Greater than / Less than lifting', () => {
+    it('lifts a single-group StatementDate > to a top-level GT filter', () => {
+      const filters = buildRulesetFilters(makeFormState({
+        ruleGroups: [{
+          id: 'g1',
+          conditions: [
+            { id: 'c1', sourceField: 'StatementDate', operation: 'greater_than', value: '2024-01-29' },
+          ],
+        }],
+      }));
+      expect(filters).toContainEqual({
+        ColumnName: 'StatementDate',
+        Value: '2024-01-29',
+        Operand: 'GT',
+      });
+      expect(filters.find((f) => f.Operand === 'REGEX')).toBeUndefined();
+    });
+
+    it('lifts greater_than_or_equal/less_than/less_than_or_equal as GTE/LT/LTE', () => {
+      const filters = buildRulesetFilters(makeFormState({
+        ruleGroups: [{
+          id: 'g1',
+          conditions: [
+            { id: 'c1', sourceField: 'EntryDate', operation: 'greater_than_or_equal', value: '2024-01-01' },
+            { id: 'c2', sourceField: 'ValueDate', operation: 'less_than', value: '2024-12-31' },
+            { id: 'c3', sourceField: 'StatementDate', operation: 'less_than_or_equal', value: '2024-06-30' },
+          ],
+        }],
+      }));
+      expect(filters).toContainEqual({ ColumnName: 'EntryDate', Value: '2024-01-01', Operand: 'GTE' });
+      expect(filters).toContainEqual({ ColumnName: 'ValueDate', Value: '2024-12-31', Operand: 'LT' });
+      expect(filters).toContainEqual({ ColumnName: 'StatementDate', Value: '2024-06-30', Operand: 'LTE' });
+    });
+
+    it('keeps text conditions in REGEX alongside lifted date conditions', () => {
+      const filters = buildRulesetFilters(makeFormState({
+        ruleGroups: [{
+          id: 'g1',
+          conditions: [
+            { id: 'c1', sourceField: 'StatementDate', operation: 'greater_than', value: '2024-01-29' },
+            { id: 'c2', sourceField: 'AdditionalInformation', operation: 'contains', value: 'NOLO' },
+          ],
+        }],
+      }));
+      expect(filters).toContainEqual({ ColumnName: 'StatementDate', Value: '2024-01-29', Operand: 'GT' });
+      const regexFilter = filters.find((f): f is Extract<typeof f, { Operand: 'REGEX' }> => f.Operand === 'REGEX');
+      expect(regexFilter?.Regex[0]).toHaveLength(1);
+      expect(regexFilter?.Regex[0][0].ColumnName).toBe('AdditionalInformation');
+    });
+
+    it('does NOT lift date conditions when there are multiple rule groups (OR semantics would break)', () => {
+      const filters = buildRulesetFilters(makeFormState({
+        ruleGroups: [
+          {
+            id: 'g1',
+            conditions: [
+              { id: 'c1', sourceField: 'StatementDate', operation: 'greater_than', value: '2024-01-01' },
+              { id: 'c2', sourceField: 'AdditionalInformation', operation: 'contains', value: 'A' },
+            ],
+          },
+          {
+            id: 'g2',
+            conditions: [
+              { id: 'c3', sourceField: 'StatementDate', operation: 'less_than', value: '2023-12-31' },
+              { id: 'c4', sourceField: 'AdditionalInformation', operation: 'contains', value: 'B' },
+            ],
+          },
+        ],
+      }));
+      // No top-level date filter, because lifting would AND-join across OR
+      // groups and lose rows that match only one group's date range.
+      expect(filters.find((f) => 'Operand' in f && (f.Operand === 'GT' || f.Operand === 'LT'))).toBeUndefined();
+    });
+
+    it('does NOT lift numeric Amount conditions (still dropped from REGEX, client-side eval)', () => {
+      const filters = buildRulesetFilters(makeFormState({
+        ruleGroups: [{
+          id: 'g1',
+          conditions: [
+            { id: 'c1', sourceField: 'Amount', operation: 'greater_than', value: '100' },
+            { id: 'c2', sourceField: 'Description1', operation: 'contains', value: 'TRF' },
+          ],
+        }],
+      }));
+      // Amount is not a date field; no top-level GT lifting.
+      expect(filters.find((f) => 'ColumnName' in f && f.ColumnName === 'Amount')).toBeUndefined();
+      const regexFilter = filters.find((f): f is Extract<typeof f, { Operand: 'REGEX' }> => f.Operand === 'REGEX');
+      expect(regexFilter?.Regex[0]).toHaveLength(1);
+      expect(regexFilter?.Regex[0][0].ColumnName).toBe('Description1');
+    });
+  });
 });

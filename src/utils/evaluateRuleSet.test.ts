@@ -140,4 +140,30 @@ describe('evaluateRuleSet', () => {
     const group: AndGroup = [makeCondition('StatementDate', '^2024-01-29(T|$)')];
     expect(evaluateRuleSet(group, rowWithDate)).toBe(false);
   });
+
+  describe('date Greater than / Less than via the numeric sentinel', () => {
+    it('NUMERIC_GT with a date threshold compares lexicographically against an ISO timestamp', () => {
+      const row: TransactionRow = { StatementDate: '2024-03-15T00:00:00Z' };
+      expect(evaluateRuleSet([makeCondition('StatementDate', '__NUMERIC_GT:2024-01-29')], row)).toBe(true);
+      expect(evaluateRuleSet([makeCondition('StatementDate', '__NUMERIC_GT:2024-06-01')], row)).toBe(false);
+    });
+
+    it('NUMERIC_LT with a date threshold against an ISO timestamp', () => {
+      const row: TransactionRow = { StatementDate: '2024-03-15T00:00:00Z' };
+      expect(evaluateRuleSet([makeCondition('StatementDate', '__NUMERIC_LT:2024-06-01')], row)).toBe(true);
+      expect(evaluateRuleSet([makeCondition('StatementDate', '__NUMERIC_LT:2024-01-29')], row)).toBe(false);
+    });
+
+    it('NUMERIC_GTE/LTE work on the exact boundary date', () => {
+      const row: TransactionRow = { StatementDate: '2024-03-15T00:00:00Z' };
+      expect(evaluateRuleSet([makeCondition('StatementDate', '__NUMERIC_GTE:2024-03-15')], row)).toBe(true);
+      expect(evaluateRuleSet([makeCondition('StatementDate', '__NUMERIC_LTE:2024-03-15')], row)).toBe(true);
+    });
+
+    it('NUMERIC_GT keeps working for numeric Amount thresholds (no date shape)', () => {
+      const row: TransactionRow = { Amount: '1500.50' };
+      expect(evaluateRuleSet([makeCondition('Amount', '__NUMERIC_GT:1000')], row)).toBe(true);
+      expect(evaluateRuleSet([makeCondition('Amount', '__NUMERIC_GT:2000')], row)).toBe(false);
+    });
+  });
 });

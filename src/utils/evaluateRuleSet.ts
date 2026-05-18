@@ -1,5 +1,16 @@
 import type { AndGroup, TransactionRow } from '../types';
 
+type CompareOp = 'gt' | 'lt' | 'gte' | 'lte';
+
+function compareWithOp<T extends number | string>(a: T, b: T, op: CompareOp): boolean {
+  switch (op) {
+    case 'gt': return a > b;
+    case 'lt': return a < b;
+    case 'gte': return a >= b;
+    case 'lte': return a <= b;
+  }
+}
+
 /**
  * Evaluates a single AND group against a transaction row.
  * Returns true if ALL conditions in the group match.
@@ -9,18 +20,29 @@ export function evaluateRuleSet(andGroup: AndGroup, row: TransactionRow): boolea
     const fieldValue = row[condition.SourceField];
     if (fieldValue === undefined || fieldValue === null) return false;
 
-    // Numeric comparison operations
-    const numericPrefixes = [
-      { prefix: '__NUMERIC_GT:', compare: (a: number, b: number) => a > b },
-      { prefix: '__NUMERIC_LT:', compare: (a: number, b: number) => a < b },
-      { prefix: '__NUMERIC_GTE:', compare: (a: number, b: number) => a >= b },
-      { prefix: '__NUMERIC_LTE:', compare: (a: number, b: number) => a <= b },
+    // Numeric / date comparison operations. The regexify sentinel
+    // `__NUMERIC_<OP>:<value>` is used for both numeric (Amount > 100) and
+    // date (StatementDate > 2024-01-29) conditions because regexify is
+    // type-agnostic. If the threshold is ISO date-shaped we compare
+    // lexicographically (ISO dates sort correctly as strings); otherwise we
+    // fall back to numeric comparison.
+    const numericPrefixes: { prefix: string; op: CompareOp }[] = [
+      { prefix: '__NUMERIC_GT:', op: 'gt' },
+      { prefix: '__NUMERIC_LT:', op: 'lt' },
+      { prefix: '__NUMERIC_GTE:', op: 'gte' },
+      { prefix: '__NUMERIC_LTE:', op: 'lte' },
     ];
-    for (const { prefix, compare } of numericPrefixes) {
+    for (const { prefix, op } of numericPrefixes) {
       if (condition.Regex.startsWith(prefix)) {
-        const threshold = parseFloat(condition.Regex.slice(prefix.length));
+        const valueStr = condition.Regex.slice(prefix.length);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(valueStr)) {
+          const rawStr = String(fieldValue);
+          const fieldStr = /^\d{4}-\d{2}-\d{2}T/.test(rawStr) ? rawStr.split('T')[0] : rawStr;
+          return compareWithOp(fieldStr, valueStr, op);
+        }
+        const threshold = parseFloat(valueStr);
         const numValue = parseFloat(String(fieldValue));
-        return !isNaN(numValue) && !isNaN(threshold) && compare(numValue, threshold);
+        return !isNaN(numValue) && !isNaN(threshold) && compareWithOp(numValue, threshold, op);
       }
     }
 
