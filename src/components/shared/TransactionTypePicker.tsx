@@ -9,9 +9,12 @@ interface TransactionTypePickerProps {
   onChange: (value: string) => void;
   filterDefinitions?: FilterDefinition[];
   disabled?: boolean;
+  /** Extra classes for the trigger button. Use `!`-prefixed utilities to
+   *  override defaults (e.g. `!py-1`, `!max-w-[180px]`). */
+  triggerClassName?: string;
 }
 
-export function TransactionTypePicker({ value, onChange, filterDefinitions, disabled }: TransactionTypePickerProps) {
+export function TransactionTypePicker({ value, onChange, filterDefinitions, disabled, triggerClassName }: TransactionTypePickerProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [highlightIndex, setHighlightIndex] = useState(0);
@@ -168,7 +171,7 @@ export function TransactionTypePicker({ value, onChange, filterDefinitions, disa
         type="button"
         onClick={() => !disabled && setOpen(!open)}
         disabled={disabled}
-        className={`flex items-center justify-between gap-1.5 min-w-28 rounded-lg border border-input-border bg-input-bg px-3 py-2 text-sm text-heading focus:outline-none focus:ring-1 focus:ring-primary transition-colors ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+        className={`flex items-center justify-between gap-1.5 min-w-28 rounded-lg border border-input-border bg-input-bg px-3 py-2 text-sm text-heading focus:outline-none focus:ring-1 focus:ring-primary transition-colors ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'} ${triggerClassName ?? ''}`}
       >
         <span className="truncate">{selectedLabel}</span>
         <svg className="w-3 h-3 text-muted shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">

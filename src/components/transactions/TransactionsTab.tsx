@@ -1230,7 +1230,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                 </div>
               );
             })()}
-            <div data-tour="builder-transaction-type" className="flex items-center gap-2 flex-wrap">
+            <div data-tour="builder-transaction-type" className="flex items-center gap-2 flex-wrap shrink-0">
               <label className="text-xs font-medium text-primary-dark whitespace-nowrap">
                 Transaction Type<span className="text-red-500 ml-0.5" aria-hidden>*</span>
               </label>
@@ -1239,28 +1239,31 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                 onChange={(val) => builder.updateBasicInfo({ transactionTypeCode: val })}
                 filterDefinitions={filterDefinitions}
                 disabled={isReadOnly}
+                triggerClassName="!py-1 !text-xs !max-w-[220px]"
               />
               <label className="text-xs font-medium text-primary-dark whitespace-nowrap ml-2">
                 Tag Name
               </label>
-              <div className="min-w-[180px]">
+              <div className="min-w-[140px] max-w-[160px]">
                 <SearchableSelect
                   value={builder.formState.tag}
                   onChange={(val) => builder.updateBasicInfo({ tag: val })}
                   options={tagNameOptions}
-                  placeholder="Select or type a tag name…"
+                  placeholder="Select or type a tag…"
                   disabled={isReadOnly}
                   clearable
+                  triggerClassName="!py-1 !text-xs"
                 />
               </div>
             </div>
-            <div className="flex flex-col md:flex-row items-center gap-2">
+            <div className="flex flex-col md:flex-row items-center gap-2 shrink-0 whitespace-nowrap">
               {!isReadOnly && !editingDef && (
                 <DuplicateRulesButton
                   currentRuleGroupCount={builder.formState.ruleGroups.length}
                   currentAttributeCount={builder.formState.attributes.length}
                   onApplyTemplate={builder.applyTemplate}
                   size="xs"
+                  className="whitespace-nowrap"
                   data-tour="builder-duplicate-rules"
                 />
               )}
@@ -1268,18 +1271,19 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                 variant="ghost"
                 size="xs"
                 onClick={() => setLovBrowserOpen(true)}
+                className="whitespace-nowrap"
                 title="Browse LOV reference data without leaving the rule builder"
               >
                 Browse LOVs
               </Button>
-              <Button variant="ghost" size="xs" onClick={handleDiscard}>
+              <Button variant="ghost" size="xs" onClick={handleDiscard} className="whitespace-nowrap">
                 {isReadOnly ? 'Close' : 'Discard'}
               </Button>
               {!isReadOnly && tagClickState && (
                 !builderHasTransactionType ? (
                   <Tooltip content="Select a Transaction Type first" placement="bottom">
                     <span>
-                      <Button variant="outline" size="xs" disabled>
+                      <Button variant="outline" size="xs" disabled className="whitespace-nowrap">
                         Apply Rules
                       </Button>
                     </span>
@@ -1290,6 +1294,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                     size="xs"
                     onClick={() => handleApplyRules()}
                     disabled={!canSubmitBuilder}
+                    className="whitespace-nowrap"
                   >
                     Apply Rules
                   </Button>
@@ -1315,6 +1320,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                         variant="primary"
                         size="xs"
                         disabled
+                        className="whitespace-nowrap"
                       >
                         {editingDef ? `Save changes for "${editingDef.Tag}"` : 'Create Rule with current settings'}
                       </Button>
@@ -1326,6 +1332,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                     variant="primary"
                     size="xs"
                     onClick={handleCreateFromBuilder}
+                    className="whitespace-nowrap"
                   >
                     {editingDef ? `Save changes for "${editingDef.Tag}"` : 'Create Rule with current settings'}
                   </Button>

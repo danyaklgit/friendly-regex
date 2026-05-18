@@ -31,6 +31,9 @@ interface SearchableSelectProps {
   disabled?: boolean;
   label?: string;
   clearable?: boolean;
+  /** Extra classes for the trigger button. Use `!`-prefixed utilities to
+   *  override defaults (e.g. `!py-1`, `!text-xs`). */
+  triggerClassName?: string;
 }
 
 export function SearchableSelect({
@@ -43,6 +46,7 @@ export function SearchableSelect({
   disabled,
   label,
   clearable,
+  triggerClassName,
 }: SearchableSelectProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -118,7 +122,7 @@ export function SearchableSelect({
         disabled={disabled}
         className={`w-full flex items-center justify-between gap-1.5 rounded-lg border border-input-border bg-input-bg px-3 py-2 text-sm text-heading focus:outline-none focus:ring-1 focus:ring-primary transition-colors ${
           disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
-        } ${!value ? 'text-placeholder' : ''}`}
+        } ${!value ? 'text-placeholder' : ''} ${triggerClassName ?? ''}`}
       >
         <span className="truncate">{selectedLabel}</span>
         <span className="flex items-center gap-1 shrink-0">
