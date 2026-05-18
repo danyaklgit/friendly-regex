@@ -85,6 +85,25 @@ function statusBadgeVariant(
   return 'default';
 }
 
+// Per-endpoint Rerun visibility:
+//   - ProcessTransactionsForTagging: never (the call is asynchronous; the
+//     real outcome lands in a follow-up PushProcessedStatement log).
+//   - PushProcessedStatement / PatchTransactions: hide on a clean success
+//     (Information · 0 · OK); show otherwise so the operator can retry the
+//     failing call.
+//   - Anything else: show by default (no special handling defined).
+function shouldShowRerun(log: IntegrationLog): boolean {
+  if (log.Endpoint === 'ProcessTransactionsForTagging') return false;
+  if (log.Endpoint === 'PushProcessedStatement' || log.Endpoint === 'PatchTransactions') {
+    const isClean =
+      log.StatusType === 'Information'
+      && String(log.StatusCode ?? '') === '0'
+      && (log.StatusDescription ?? '').trim() === 'OK';
+    return !isClean;
+  }
+  return true;
+}
+
 function formatDateTime(iso: string): string {
   if (!iso) return '';
   const d = new Date(iso);
@@ -512,7 +531,7 @@ export function IntegrationLogsTab() {
                     </td>
                     <td className="px-3 py-2 text-right whitespace-nowrap sticky right-0 bg-surface-elevated group-hover:bg-surface-hover transition-colors z-10 shadow-[-4px_0_4px_-2px_rgba(0,0,0,0.08)]">
                       <div className="inline-flex items-center justify-end gap-1.5">
-                        {!isAudit && log.Endpoint !== 'ProcessTransactionsForTagging' && (
+                        {!isAudit && shouldShowRerun(log) && (
                           <Button
                             variant="outline"
                             size="xs"
