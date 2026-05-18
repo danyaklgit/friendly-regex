@@ -36,6 +36,7 @@ import { LovBrowserDrawer } from '../lovs/LovBrowserDrawer';
 import { Button } from '../shared/Button';
 import { CopyableId } from '../shared/CopyableId';
 import { Toast } from '../shared/Toast';
+import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { Tooltip } from '../shared/Tooltip';
 import { DynamicFilters } from './DynamicFilters';
 import { Toggle } from '../shared/Toggle';
@@ -884,6 +885,31 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     }
   }, [builder, tagClickState, baseFilters]);
 
+  // Delete target for the in-builder Delete button — mirrors the Backlog
+  // tab's per-row delete. Confirmation dialog displays the Tag name, and on
+  // confirm dispatches the same DELETE action so the change tracker picks it
+  // up for the next checkout save.
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; tag: string } | null>(null);
+  const handleRequestDelete = useCallback(() => {
+    if (!editingDef) return;
+    setDeleteTarget({ id: editingDef.Id, tag: editingDef.Tag });
+  }, [editingDef]);
+  const handleConfirmDelete = useCallback(() => {
+    if (!deleteTarget) return;
+    dispatch({ type: 'DELETE', payload: { definitionId: deleteTarget.id } });
+    setToast({ message: `Tag '${deleteTarget.tag}' deleted`, type: 'success' });
+    setDeleteTarget(null);
+    // Close the builder and restore pre-click filters — same path as Discard.
+    setBuilderOpen(false);
+    setEditingDef(undefined);
+    setEditingParentLib(undefined);
+    builder.resetForm();
+    if (tagClickState !== null) {
+      setFilters({ ...baseFilters, ...tagClickState.preFilters });
+      setTagClickState(null);
+    }
+  }, [deleteTarget, dispatch, builder, tagClickState, baseFilters]);
+
   const handleWizardSave = useCallback(async (result: WizardFormResult) => {
     if (editingDef) {
       dispatch({ type: 'UPDATE', payload: result });
@@ -1499,6 +1525,19 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
             )}
           </span>
 
+          {!isReadOnly && editingDef && (
+            <div className="px-5 pb-3 flex justify-end">
+              <Button
+                variant="danger_ghost"
+                size="xs"
+                onClick={handleRequestDelete}
+                className="whitespace-nowrap"
+                title="Delete this tag rule"
+              >
+                Delete TagSpec
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
@@ -1696,6 +1735,16 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       )}
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Tag Rule"
+        message={`Are you sure you want to delete the tag "${deleteTarget?.tag}"? This cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger_ghost"
+      />
 
       {activeCheckout && shareDialogOpenProp && (
         <ShareLinkDialog
