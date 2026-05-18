@@ -2,7 +2,7 @@ import { createContext, useState, useMemo, useCallback, useRef, useEffect, type 
 import type { TransactionRow } from '../types';
 import { deriveFieldMeta, type FieldMeta } from '../utils/deriveFieldMeta';
 import { translateFilters } from '../utils/translateFilters';
-import { getTransactions, getFilters, markTransactionsAsDeadEnd, unmarkDeadEndTransactions, DEFAULT_SORTING, type TepHeaders, type FilterDefinition, type FilterProperty } from '../api/transactions';
+import { getTransactions, getFilters, markTransactionsAsDeadEnd, unmarkDeadEndTransactions, setTransactionsComment, DEFAULT_SORTING, type TepHeaders, type FilterDefinition, type FilterProperty, type SetTransactionsCommentEntry } from '../api/transactions';
 import { useAuth } from './AuthContext';
 import { useTepConfig } from './TepConfigContext';
 import sampleTransactionData from '../data/sampleData.json';
@@ -16,6 +16,8 @@ export interface TransactionDataContextValue {
   resetToSample: () => void;
   isCustomData: boolean;
   flagDeadEnd: (ids: string[], value: boolean) => Promise<void>;
+  setComments: (entries: SetTransactionsCommentEntry[]) => Promise<void>;
+  flagDeadEndWithComment: (ids: string[], value: boolean, entries?: SetTransactionsCommentEntry[]) => Promise<void>;
   // Live mode additions
   isLiveMode: boolean;
   loading: boolean;
@@ -103,6 +105,46 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
       )
     );
   }, [fieldMeta.identifierField, isLiveMode, getAuthHeaders, refreshIfNeeded, userId, tepConfig]);
+
+  const setComments = useCallback(async (entries: SetTransactionsCommentEntry[]) => {
+    if (entries.length === 0) return;
+    if (isLiveMode) {
+      await refreshIfNeeded();
+      const authHeaders = getAuthHeaders();
+      const token = authHeaders.Authorization?.replace('Bearer ', '') ?? '';
+      const tepHeaders: TepHeaders = {
+        apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
+        userId: userId ?? '',
+        tenantCode: tepConfig.ttpTenantCode,
+        languageCode: tepConfig.languageCode,
+        timeZone: tepConfig.timeZone,
+        requestId: tepConfig.ttpRequestId,
+      };
+      await setTransactionsComment(entries, token, tepHeaders);
+    }
+    const byId = new Map(entries.map((e) => [e.Id, e.Comment ?? '']));
+    setTransactions((prev) =>
+      prev.map((row) => {
+        const id = String(row[fieldMeta.identifierField] ?? row['Id'] ?? '');
+        if (!byId.has(id)) return row;
+        return { ...row, Comment: byId.get(id) ?? '' };
+      })
+    );
+  }, [fieldMeta.identifierField, isLiveMode, getAuthHeaders, refreshIfNeeded, userId, tepConfig]);
+
+  // Flag/unflag + (optionally) set comments. Sequential so that a comment-API
+  // failure does not silently roll back the deadend flip — the dialog surfaces
+  // the error and local state reflects the partial success.
+  const flagDeadEndWithComment = useCallback(async (
+    ids: string[],
+    value: boolean,
+    entries?: SetTransactionsCommentEntry[],
+  ) => {
+    await flagDeadEnd(ids, value);
+    if (entries && entries.length > 0) {
+      await setComments(entries);
+    }
+  }, [flagDeadEnd, setComments]);
 
   const filterFetchingRef = useRef(false);
   const fetchFilterDefinitions = useCallback(async () => {
@@ -328,6 +370,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
   return (
     <TransactionDataContext.Provider value={{
       transactions, fieldMeta, loadTransactions, resetToSample, isCustomData, flagDeadEnd,
+      setComments, flagDeadEndWithComment,
       isLiveMode, loading, hasMore, totalTransactionsCount, fetchPage, fetchCount,
       trimLoadedTransactions,
       filterDefinitions, filterDefinitionsLoading, fetchFilterDefinitions,

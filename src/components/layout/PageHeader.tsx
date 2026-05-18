@@ -33,7 +33,7 @@ export function PageHeader({ tabs, activeIndex, onTabChange, checkout, onOpenOnb
   return (
     <header className="bg-surface border-b border-border">
       <div className="max-w-10xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center gap-6 h-12">
-        <h1 className="text-lg font-semibold text-heading shrink-0">Transactions Enrichment Program</h1>
+        <h1 className="text-lg font-semibold text-heading min-w-0 truncate">Transactions Enrichment Program</h1>
         <nav className="flex gap-4 h-full shrink-0" aria-label="Tabs">
           {tabs.map((tab, i) => (
             <button
@@ -74,9 +74,9 @@ export function PageHeader({ tabs, activeIndex, onTabChange, checkout, onOpenOnb
             )}
           </div>
         )}
-        <div className={`${checkout ? '' : 'ml-auto '}flex items-center gap-3`}>
+        <div className={`${checkout ? '' : 'ml-auto '}flex items-center gap-3 shrink-0`}>
           <Tooltip content={timeRemaining} placement="bottom">
-            <span className="text-xs text-body">{displayName ?? username}</span>
+            <span className="text-xs text-body whitespace-nowrap">{displayName ?? username}</span>
           </Tooltip>
           {isAudit && (
             <Tooltip content="Read-only audit access" placement="bottom">

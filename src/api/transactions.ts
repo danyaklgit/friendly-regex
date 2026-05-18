@@ -285,6 +285,37 @@ export async function unmarkDeadEndTransactions(
   await throwIfNotOk(res, 'Failed to unmark dead end transactions');
 }
 
+export interface SetTransactionsCommentEntry {
+  Id: string;
+  Comment: string | null;
+}
+
+export async function setTransactionsComment(
+  entries: SetTransactionsCommentEntry[],
+  authToken: string,
+  tepHeaders: TepHeaders,
+  signal?: AbortSignal,
+): Promise<void> {
+  const res = await fetch(`${BASE}/SetTransactionsComment`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      Authorization: `Bearer ${authToken}`,
+      'x-apikey': tepHeaders.apiKey,
+      ActivityTag: 'SetTransactionsComment',
+      LanguageCode: tepHeaders.languageCode,
+      TTPUserId: tepHeaders.userId,
+      TTPTenantCode: tepHeaders.tenantCode,
+      TTPRequestId: tepHeaders.requestId,
+      TimeZone: tepHeaders.timeZone,
+    },
+    body: JSON.stringify({ Transactions: entries }),
+    signal,
+  });
+  await throwIfNotOk(res, 'Failed to set transactions comment');
+}
+
 // --- Integration Logs ---------------------------------------------------------
 
 export interface IntegrationLog {

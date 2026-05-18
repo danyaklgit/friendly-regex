@@ -16,6 +16,8 @@ import { extractAttributes } from '../../utils/extractAttributes';
 import type { DefinitionVersionInfo } from '../../utils/definitionVersions';
 import { diffStrings } from '../../utils/textDiff';
 import { DropdownBackdrop } from '../shared/DropdownBackdrop';
+import { CommentDialog, type CommentDialogResult } from './CommentDialog';
+import type { SetTransactionsCommentEntry } from '../../api/transactions';
 
 interface TransactionTableProps {
   data: AnalyzedTransaction[];
@@ -27,6 +29,8 @@ interface TransactionTableProps {
   searchHighlights?: Map<string, string>;
   onTagClick?: (tagName: string, definitionId?: string) => void;
   onFlagDeadEnd?: (ids: string[], value: boolean) => Promise<void>;
+  onFlagDeadEndWithComment?: (ids: string[], value: boolean, entries?: SetTransactionsCommentEntry[]) => Promise<void>;
+  onSetComments?: (entries: SetTransactionsCommentEntry[]) => Promise<void>;
   showAttributes?: boolean;
   relaxedMode?: boolean;
   hiddenColumns?: Set<string>;
@@ -75,6 +79,7 @@ const DEFAULT_COLUMN_ORDER = [
   'data:Description2',
   'data:AdditionalInformation',
   'data:TransactionDetails',
+  'data:Comment',
 ];
 
 export const ALLOWED_COLUMN_KEYS = new Set([
@@ -95,6 +100,7 @@ export const ALLOWED_COLUMN_KEYS = new Set([
   'data:AdditionalInformation',
   'data:Description1',
   'data:Description2',
+  'data:Comment',
 ]);
 
 /**
@@ -114,6 +120,7 @@ export const DEFAULT_VISIBLE_COLUMN_KEYS = new Set([
   'data:Description1',
   'data:Description2',
   'data:AdditionalInformation',
+  'data:Comment',
   // __debit / __credit are added conditionally by the caller based on checkout side.
 ]);
 const SIDE_AMOUNT_FIELDS = new Set(['Side', 'Amount']);
@@ -460,7 +467,7 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
 
 export type { ColumnDef };
 
-export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, definitionSourceMap, definitionVersions, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, accentHue = 190, onRowContextMenu, originalEditingDef, activeDefinitionId }: TransactionTableProps) {
+export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, definitionSourceMap, definitionVersions, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, onFlagDeadEndWithComment, onSetComments, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, accentHue = 190, onRowContextMenu, originalEditingDef, activeDefinitionId }: TransactionTableProps) {
   const { fieldMeta } = useTransactionData();
   const { lovLookup } = useLovAttributes();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -511,6 +518,56 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
       setFlagLoading(false);
     }
   }, [onFlagDeadEnd, selectedIds]);
+
+  type CommentDialogState =
+    | { mode: 'comment-only' }
+    | { mode: 'flag-with-comment'; flagAction: 'flag' | 'unflag' };
+
+  const [commentDialogState, setCommentDialogState] = useState<CommentDialogState | null>(null);
+
+  const openFlagDialog = useCallback((flagAction: 'flag' | 'unflag') => {
+    setCommentDialogState({ mode: 'flag-with-comment', flagAction });
+  }, []);
+  const openCommentDialog = useCallback(() => {
+    setCommentDialogState({ mode: 'comment-only' });
+  }, []);
+  const closeCommentDialog = useCallback(() => {
+    setCommentDialogState(null);
+  }, []);
+
+  const selectedRowsForDialog = useMemo(() => {
+    if (!commentDialogState) return [];
+    const rows: TransactionRow[] = [];
+    for (const id of selectedIds) {
+      const item = data.find((d) => getRowId(d.row) === id);
+      if (item) rows.push(item.row);
+    }
+    return rows;
+  }, [commentDialogState, selectedIds, data, getRowId]);
+
+  const handleCommentDialogConfirm = useCallback(async (result: CommentDialogResult) => {
+    if (!commentDialogState) return;
+    const ids = Array.from(selectedIds);
+    if (commentDialogState.mode === 'flag-with-comment') {
+      const value = commentDialogState.flagAction === 'flag';
+      const entries = result.skipped ? undefined : result.entries;
+      if (onFlagDeadEndWithComment) {
+        await onFlagDeadEndWithComment(ids, value, entries);
+      } else if (onFlagDeadEnd) {
+        // Fallback when the parent hasn't wired the combined callback.
+        await onFlagDeadEnd(ids, value);
+      }
+      setSelectedIds(new Set());
+      return;
+    }
+    if (commentDialogState.mode === 'comment-only') {
+      if (result.skipped) return;
+      if (onSetComments && result.entries.length > 0) {
+        await onSetComments(result.entries);
+      }
+      setSelectedIds(new Set());
+    }
+  }, [commentDialogState, selectedIds, onFlagDeadEndWithComment, onFlagDeadEnd, onSetComments]);
 
   // Clear selection when data changes
   useEffect(() => {
@@ -1422,6 +1479,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
           const item = data.find((d) => getRowId(d.row) === id);
           return item?.row['IsDeadEnd'] !== true;
         });
+        const flagHandler = onFlagDeadEndWithComment ? openFlagDialog : null;
         return (
           <div className="flex items-center gap-3 px-4 py-2 bg-primary/10 border-b border-primary/20 shrink-0">
             <span className="text-xs font-medium text-primary-dark">
@@ -1429,7 +1487,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
             </span>
             {!allDeadEnd && (
               <button
-                onClick={() => handleFlagDeadEnd(true)}
+                onClick={() => flagHandler ? flagHandler('flag') : handleFlagDeadEnd(true)}
                 disabled={flagLoading}
                 className="text-xs px-2.5 py-1 rounded border border-red-300 bg-red-50 text-red-700 hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -1438,11 +1496,19 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
             )}
             {!noneDeadEnd && (
               <button
-                onClick={() => handleFlagDeadEnd(false)}
+                onClick={() => flagHandler ? flagHandler('unflag') : handleFlagDeadEnd(false)}
                 disabled={flagLoading}
                 className="text-xs px-2.5 py-1 rounded border border-border-strong bg-surface text-body hover:bg-surface-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {flagLoading ? 'Unflagging...' : 'Unflag Dead End'}
+              </button>
+            )}
+            {onSetComments && (
+              <button
+                onClick={openCommentDialog}
+                className="text-xs px-2.5 py-1 rounded border border-primary/40 bg-primary/5 text-primary-dark hover:bg-primary/15 transition-colors"
+              >
+                Add Comment
               </button>
             )}
             <button
@@ -1454,6 +1520,15 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
           </div>
         );
       })()}
+
+      <CommentDialog
+        open={commentDialogState !== null}
+        mode={commentDialogState?.mode ?? 'comment-only'}
+        flagAction={commentDialogState?.mode === 'flag-with-comment' ? commentDialogState.flagAction : undefined}
+        selectedRows={selectedRowsForDialog}
+        onClose={closeCommentDialog}
+        onConfirm={handleCommentDialogConfirm}
+      />
 
       {/* Column Minimap */}
       {(hasOverflow || (loading && data.length === 0)) && (

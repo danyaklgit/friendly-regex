@@ -228,6 +228,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
 
   const {
     transactions, fieldMeta, loadTransactions, resetToSample, isCustomData, flagDeadEnd,
+    setComments, flagDeadEndWithComment,
     isLiveMode, loading, hasMore: liveHasMore, totalTransactionsCount, fetchPage, fetchCount,
     trimLoadedTransactions,
     filterDefinitions, filterDefinitionsLoading, fetchFilterDefinitions,
@@ -1515,6 +1516,8 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         searchHighlights={searchHighlights}
         onTagClick={handleTagClick}
         onFlagDeadEnd={!isReadOnly && !tagClickState?.showingAll && !tagClickState?.rulesetApplied ? flagDeadEnd : undefined}
+        onFlagDeadEndWithComment={!isReadOnly && !tagClickState?.showingAll && !tagClickState?.rulesetApplied ? flagDeadEndWithComment : undefined}
+        onSetComments={!isReadOnly && !tagClickState?.showingAll && !tagClickState?.rulesetApplied ? setComments : undefined}
         showAttributes={showAttributes}
         relaxedMode={relaxedMode}
         hiddenColumns={tableHiddenColumns}
