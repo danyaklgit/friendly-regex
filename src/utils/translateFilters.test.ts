@@ -67,7 +67,7 @@ describe('translateFilters', () => {
     expect(result).toEqual([{ ColumnName: 'Side', Value: 'CR|DR', Operand: 'IN' }]);
   });
 
-  it('LIST + EQ filter (SHOW ONLY style) creates one entry per selected column', () => {
+  it('LIST + EQ (SHOW ONLY style) with multiple selections sharing a value uses pipe-joined ColumnName + IN', () => {
     const defs = [
       listEqDef('SHOW ONLY', [
         { col: 'OpsIsUntagged', val: 'True', label: 'Untagged' },
@@ -79,8 +79,7 @@ describe('translateFilters', () => {
       defs,
     );
     expect(result).toEqual([
-      { ColumnName: 'OpsIsUntagged', Value: 'True', Operand: 'EQ' },
-      { ColumnName: 'OpsIsDeadEnd', Value: 'True', Operand: 'EQ' },
+      { ColumnName: 'OpsIsUntagged|OpsIsDeadEnd', Value: 'True', Operand: 'IN' },
     ]);
   });
 
@@ -94,7 +93,7 @@ describe('translateFilters', () => {
     expect(result).toEqual([{ ColumnName: 'OpsIsUntagged', Value: 'True', Operand: 'EQ' }]);
   });
 
-  it('LIST + EQ uses Value and Operand from definition, not hardcoded', () => {
+  it('LIST + EQ multi-select with differing Values falls back to REGEX outer-OR', () => {
     const defs = [
       listEqDef('CUSTOM_EQ', [
         { col: 'ColA', val: 'Yes', label: 'Option A' },
@@ -103,8 +102,13 @@ describe('translateFilters', () => {
     ];
     const result = translateFilters({ CUSTOM_EQ: new Set(['ColA', 'ColB']) }, defs);
     expect(result).toEqual([
-      { ColumnName: 'ColA', Value: 'Yes', Operand: 'EQ' },
-      { ColumnName: 'ColB', Value: 'Active', Operand: 'EQ' },
+      {
+        Operand: 'REGEX',
+        Regex: [
+          [{ ColumnName: 'ColA', Value: '^Yes$', Options: '' }],
+          [{ ColumnName: 'ColB', Value: '^Active$', Options: '' }],
+        ],
+      },
     ]);
   });
 
