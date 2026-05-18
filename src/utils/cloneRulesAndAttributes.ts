@@ -7,6 +7,7 @@ import type {
 } from '../types';
 import type { ExtractionMethodDef } from '../types/lov';
 import { decomposeRegex, decomposeExtractionRegex } from './engregxify';
+import { ensureLovExtractionCaptureGroup } from './regexify';
 
 export type RulesAndAttributesSlice = Pick<WizardFormState, 'ruleGroups' | 'attributes'>;
 
@@ -47,8 +48,14 @@ export function cloneRulesAndAttributesFrom(
 
   const attributes: AttributeFormValue[] = def.Attributes.map((attr) => {
     const storedRegex = attr.AttributeRuleExpression.Regex;
+    // Compare against BOTH the raw LOV regex and its capture-group-wrapped
+    // form (what regexifyExtraction now produces) so validation-style LOV
+    // entries round-trip correctly even after the save-time wrap.
     const lovMatch = !attr.AttributeRuleExpression.VerifyValue
-      ? lovExtractions.find((m) => m.regex === storedRegex)
+      ? lovExtractions.find((m) =>
+          m.regex === storedRegex
+          || ensureLovExtractionCaptureGroup(m.regex) === storedRegex,
+        )
       : undefined;
     const decomposed = decomposeExtractionRegex(storedRegex);
     const extractionOperation: ExtractionOperation = lovMatch

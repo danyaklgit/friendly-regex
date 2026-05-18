@@ -121,6 +121,34 @@ function buildCaptureBefore(numChars?: number, toStr?: string): string {
   return '(.*?)';
 }
 
+/**
+ * Adapts a regex sourced from the EXTRACTIONS LOV into a form usable by the
+ * extraction pipeline.
+ *
+ * 1. If the LOV entry already exposes a capture group, the regex passes
+ *    through verbatim.
+ * 2. Otherwise the pattern is wrapped so the server has a group to lift the
+ *    captured value out of.
+ * 3. A trailing `$` is dropped on the way through, since LOV regexes are
+ *    typically written for VALIDATION (must match the whole field) but the
+ *    user is using them for EXTRACTION (lift the matching span out of
+ *    whatever the field contains). Keeping `$` would block extraction on
+ *    longer fields — e.g. `^SA\d{2}[A-Z0-9]{18}$` against a 24-char IBAN.
+ *
+ * Used at save time AND at load time (to keep the LOV catalog lookup in
+ * cloneRulesAndAttributesFrom in sync).
+ */
+export function ensureLovExtractionCaptureGroup(raw: string): string {
+  if (hasUserCaptureGroup(raw)) return raw;
+  // Anchored `^...$` → keep `^`, drop trailing `$`, place capture inside.
+  const fullyAnchored = raw.match(/^\^([\s\S]*)\$$/);
+  if (fullyAnchored) return `^(${fullyAnchored[1]})`;
+  // Just end-anchored `...$` → drop trailing `$`, wrap.
+  const endAnchored = raw.match(/^([\s\S]*)\$$/);
+  if (endAnchored) return `(${endAnchored[1]})`;
+  return `(${raw})`;
+}
+
 export function regexifyExtraction(
   operation: ExtractionOperation,
   params: {
@@ -135,9 +163,11 @@ export function regexifyExtraction(
     return def?.regex ?? '(.*)';
   }
   // LOV-driven extraction: the part after `lov:` IS the regex (per the
-  // EXTRACTIONS LOV contract where the item's Value field stores the regex).
+  // EXTRACTIONS LOV contract where the item's Tags[0] field stores the
+  // regex). Wrap validation-style patterns so the server can lift the
+  // matched span out — see ensureLovExtractionCaptureGroup for details.
   if (operation.startsWith('lov:')) {
-    return operation.slice(4);
+    return ensureLovExtractionCaptureGroup(operation.slice(4));
   }
   const occ = params.occurrence && params.occurrence > 1 ? params.occurrence : 0;
   // Wrap the literal suffix as `(?:<suf>|$)` when the user opted into

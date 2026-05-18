@@ -224,20 +224,43 @@ describe('regexifyExtraction', () => {
       .toBe('(.*)');
   });
 
-  it('lov-prefixed operation: returns the regex carried in the key', () => {
+  it('lov-prefixed operation: returns the regex carried in the key when it already has a capture group', () => {
     // LOV-driven extractions encode the regex as `lov:<regex>`; the pure util
     // has no catalog access, so the operation key itself carries the payload.
-    expect(regexifyExtraction('lov:^SA\\d{2}[A-Z0-9]{18}$', {}))
-      .toBe('^SA\\d{2}[A-Z0-9]{18}$');
+    // When the LOV entry already exposes a capture group, the regex passes
+    // through verbatim (no double-wrapping).
+    expect(regexifyExtraction('lov:(SA\\d{2}[A-Z0-9]{18})', {}))
+      .toBe('(SA\\d{2}[A-Z0-9]{18})');
   });
 
   it('lov-prefixed operation: ignores all params (no prefix/suffix/pattern fields)', () => {
+    // The SWIFT/BIC regex already carries a capture group, so it round-trips
+    // through `lov:` without further wrapping.
     expect(regexifyExtraction('lov:^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$', {
       prefix: 'IGNORED',
       suffix: 'IGNORED',
       pattern: 'IGNORED',
       numChars: 5,
     })).toBe('^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$');
+  });
+
+  it('lov-prefixed operation: wraps an anchored validation regex, keeping `^` and dropping `$`', () => {
+    // Validation-style LOV entry (no capture group) — needs wrapping so the
+    // server has something to lift out. The trailing `$` is dropped because
+    // LOV regexes are validation-shaped but we're using them for extraction
+    // (longer fields shouldn't block the lift).
+    expect(regexifyExtraction('lov:^SA\\d{2}[A-Z0-9]{18}$', {}))
+      .toBe('^(SA\\d{2}[A-Z0-9]{18})');
+  });
+
+  it('lov-prefixed operation: drops a lone trailing `$` and wraps with a capture group', () => {
+    expect(regexifyExtraction('lov:[12]\\d{9}$', {}))
+      .toBe('([12]\\d{9})');
+  });
+
+  it('lov-prefixed operation: wraps an unanchored validation regex with a capture around the whole pattern', () => {
+    expect(regexifyExtraction('lov:[12]\\d{9}', {}))
+      .toBe('([12]\\d{9})');
   });
 
   it('default case returns (.*)', () => {

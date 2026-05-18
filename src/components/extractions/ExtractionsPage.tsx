@@ -13,12 +13,17 @@ export function ExtractionsPage() {
     extractionsLoading,
     extractionMethods,
     createNewExtraction,
+    updateExistingExtraction,
     deleteExistingExtraction,
   } = useLovAttributes();
   const { isAudit } = useAuth();
 
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
+  // `editTarget` toggles the form modal between create mode (null) and edit
+  // mode (the row's BackendExtraction). The modal's onSave decides which
+  // context API to call based on whether `payload.Id` is present.
+  const [editTarget, setEditTarget] = useState<BackendExtraction | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<BackendExtraction | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
@@ -49,18 +54,31 @@ export function ExtractionsPage() {
   }, [backendExtractions, search]);
 
   const handleCreate = useCallback(() => {
+    setEditTarget(null);
     setFormOpen(true);
+  }, []);
+
+  const handleEdit = useCallback((ext: BackendExtraction) => {
+    setEditTarget(ext);
+    setFormOpen(true);
+  }, []);
+
+  const handleCloseForm = useCallback(() => {
+    setFormOpen(false);
+    setEditTarget(null);
   }, []);
 
   const handleSave = useCallback(async (payload: { Id?: number; Value: string; Regex: string; Details: { LanguageCode: string; Name: string; ShortDescription: string }[] }) => {
     try {
-      const sfm = await createNewExtraction({ Value: payload.Value, Regex: payload.Regex, Details: payload.Details });
-      setToast({ message: sfm ?? 'Extraction created', type: 'success' });
+      const sfm = payload.Id != null
+        ? await updateExistingExtraction({ Id: payload.Id, Value: payload.Value, Regex: payload.Regex, Details: payload.Details })
+        : await createNewExtraction({ Value: payload.Value, Regex: payload.Regex, Details: payload.Details });
+      setToast({ message: sfm ?? (payload.Id != null ? 'Extraction updated' : 'Extraction created'), type: 'success' });
     } catch (err) {
       setToast({ message: err instanceof Error ? err.message : 'Operation failed', type: 'error' });
       throw err;
     }
-  }, [createNewExtraction]);
+  }, [createNewExtraction, updateExistingExtraction]);
 
   const handleDeleteConfirm = useCallback(async () => {
     if (!deleteTarget) return;
@@ -132,16 +150,28 @@ export function ExtractionsPage() {
                     <td className="px-4 py-2.5 text-xs text-body-secondary">{en?.ShortDescription ?? '—'}</td>
                     <td className="px-4 py-2.5 text-right sticky right-0 z-10 bg-surface-secondary group-hover:bg-surface-hover border-l border-border-strong shadow-[-16px_0_24px_-8px_rgba(15,23,42,0.55)] dark:shadow-[-16px_0_24px_-8px_rgba(8,145,178,0.35)]">
                       {!isAudit && (
-                        <button
-                          type="button"
-                          onClick={() => setDeleteTarget(ext)}
-                          className="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/20 text-muted hover:text-red-600 transition-colors cursor-pointer"
-                          title="Delete"
-                        >
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
+                        <div className="inline-flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleEdit(ext)}
+                            className="p-1.5 rounded hover:bg-primary/10 text-muted hover:text-primary transition-colors cursor-pointer"
+                            title="Edit"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteTarget(ext)}
+                            className="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/20 text-muted hover:text-red-600 transition-colors cursor-pointer"
+                            title="Delete"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -154,9 +184,19 @@ export function ExtractionsPage() {
 
       {formOpen && (
         <ExtractionFormModal
+          // `key` forces a fresh mount per target so the form's useState
+          // initialisers re-run with the new `existing` values (otherwise
+          // editing a second row keeps the first row's state).
+          key={editTarget?.Id ?? 'new'}
           open
-          onClose={() => setFormOpen(false)}
+          onClose={handleCloseForm}
           onSave={handleSave}
+          existing={editTarget ?? undefined}
+          existingRegex={
+            editTarget
+              ? regexByValue.get(editTarget.Details.find((d) => d.LanguageCode === 'en')?.Name ?? '') ?? ''
+              : undefined
+          }
         />
       )}
 

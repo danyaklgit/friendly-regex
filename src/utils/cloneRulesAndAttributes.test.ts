@@ -207,6 +207,34 @@ describe('cloneRulesAndAttributesFrom', () => {
     expect(result.attributes[0].pattern).toBeUndefined();
   });
 
+  it('maps a stored regex back to the LOV op when the stored form is the capture-wrapped version of the LOV regex', () => {
+    // Validation-style LOV entries (no capture group, anchored ^...$) get
+    // wrapped at save time AND have their trailing `$` dropped so extraction
+    // works on longer fields. The load path must still resolve back to the
+    // LOV op despite the transformation.
+    const def = makeDefinition({
+      Attributes: [
+        {
+          AttributeTag: 'IBAN',
+          IsMandatory: false,
+          ValidationRuleTag: 'KSA_IBAN',
+          LOVTag: null,
+          AttributeRuleExpression: {
+            SourceField: 'IBAN',
+            ExpressionPrompt: null,
+            ExpressionId: null,
+            Regex: '^(SA\\d{2}[A-Z0-9]{18})',
+            RegexDetails: [],
+          },
+        },
+      ],
+    });
+    const result = cloneRulesAndAttributesFrom(def, [
+      { key: 'lov:^SA\\d{2}[A-Z0-9]{18}$', label: 'Saudi IBAN', regex: '^SA\\d{2}[A-Z0-9]{18}$' },
+    ]);
+    expect(result.attributes[0].extractionOperation).toBe('lov:^SA\\d{2}[A-Z0-9]{18}$');
+  });
+
   it('falls through to the standard decompose path when no LOV catalog is supplied', () => {
     // Same regex as the previous test but without `lovExtractions` — the
     // decomposer should produce the legacy `extract_matching` shape so old
