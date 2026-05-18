@@ -150,6 +150,16 @@ describe('isCompleteAttribute', () => {
     }))).toBe(true);
   });
 
+  it('requires numChars (> 0) for extract_last_n_chars', () => {
+    const base = completeAttr({
+      extractionOperation: 'extract_last_n_chars' as AttributeFormValue['extractionOperation'],
+      prefix: undefined,
+    });
+    expect(isCompleteAttribute({ ...base, numChars: undefined })).toBe(false);
+    expect(isCompleteAttribute({ ...base, numChars: 0 })).toBe(false);
+    expect(isCompleteAttribute({ ...base, numChars: 4 })).toBe(true);
+  });
+
   it('passes the canonical fully-filled extract_after attribute', () => {
     expect(isCompleteAttribute(completeAttr())).toBe(true);
   });

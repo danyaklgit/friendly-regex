@@ -26,6 +26,7 @@ export type ExtractionOperation =
   | 'extract_before'
   | 'extract_matching'
   | 'extract_substring'
+  | 'extract_last_n_chars'
   | 'extract_between_and_verify'
   | 'extract_full_field'
   | `predefined:${string}`

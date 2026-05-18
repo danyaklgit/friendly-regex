@@ -201,6 +201,12 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
         if (field === 'pattern' && (attribute.pattern ?? '').length === 0) missing.push('Pattern');
         if (field === 'verifyValue' && (attribute.verifyValue ?? '').length === 0) missing.push('Verify Value');
       }
+      // extract_last_n_chars treats numChars as required — the operation has
+      // no other tunable parameter, and emitting an unbounded fallback regex
+      // would silently capture the whole field.
+      if (selectedOp.key === 'extract_last_n_chars' && !(attribute.numChars && attribute.numChars > 0)) {
+        missing.push('# of Chars');
+      }
     }
     return missing;
   }, [
@@ -211,6 +217,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
     attribute.suffix,
     attribute.pattern,
     attribute.verifyValue,
+    attribute.numChars,
     selectedOp,
   ]);
   const canSaveAttribute = missingSaveFields.length === 0;
@@ -759,17 +766,23 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
 
           {filteredOp?.optionalFields && filteredOp.optionalFields.length > 0 && (
             <div className="grid grid-cols-3 gap-2">
-              {filteredOp.optionalFields.includes('numChars') && (
-                <Input
-                  label="# of Chars"
-                  placeholder="Optional"
-                  type="number"
-                  min={1}
-                  value={attribute.numChars ?? ''}
-                  onChange={(e) => onUpdate({ numChars: e.target.value ? Number(e.target.value) : undefined })}
-                  disabled={!!attribute.toStart || readOnly}
-                />
-              )}
+              {filteredOp.optionalFields.includes('numChars') && (() => {
+                const numCharsRequired = filteredOp.key === 'extract_last_n_chars';
+                const numCharsMissing = numCharsRequired && !(attribute.numChars && attribute.numChars > 0);
+                return (
+                  <Input
+                    label="# of Chars"
+                    placeholder={numCharsRequired ? 'Required' : 'Optional'}
+                    type="number"
+                    min={1}
+                    required={numCharsRequired}
+                    error={numCharsMissing}
+                    value={attribute.numChars ?? ''}
+                    onChange={(e) => onUpdate({ numChars: e.target.value ? Number(e.target.value) : undefined })}
+                    disabled={!!attribute.toStart || readOnly}
+                  />
+                );
+              })()}
               {filteredOp.optionalFields.includes('toStr') && (
                 <Input
                   label="To String"

@@ -283,6 +283,29 @@ describe('decomposeExtractionRegex', () => {
     });
   });
 
+  it('extract_last_n_chars round-trips from `(.{N})$`', () => {
+    expect(decomposeExtractionRegex('(.{4})$')).toEqual({
+      operation: 'extract_last_n_chars',
+      numChars: 4,
+    });
+  });
+
+  it('extract_last_n_chars with single-digit numChars', () => {
+    expect(decomposeExtractionRegex('(.{12})$')).toEqual({
+      operation: 'extract_last_n_chars',
+      numChars: 12,
+    });
+  });
+
+  it('does not misread `(.{N})` without end-anchor as extract_last_n_chars', () => {
+    // No trailing `$` → falls through to extract_matching, preserving the
+    // distinction between "last N chars" and "first N chars from start".
+    expect(decomposeExtractionRegex('(.{4})')).toEqual({
+      operation: 'extract_matching',
+      pattern: '.{4}',
+    });
+  });
+
   // Case A: ^(.*) and ^([\s\S]*)$ both collapse to extract_full_field — they
   // behave identically on single-line transaction text.
   it.each([

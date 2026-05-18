@@ -76,6 +76,7 @@ export function cloneRulesAndAttributesFrom(
       suffix: lovMatch ? undefined : decomposed.suffix,
       pattern: lovMatch ? undefined : decomposed.pattern,
       suffixOrEndOfInput: lovMatch ? undefined : decomposed.suffixOrEndOfInput,
+      numChars: lovMatch ? undefined : decomposed.numChars,
       verifyValue: attr.AttributeRuleExpression.VerifyValue,
       lovTag: attr.LOVTag ?? null,
       isLovBased: !!attr.LOVTag,

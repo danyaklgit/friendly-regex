@@ -183,6 +183,28 @@ describe('regexifyExtraction', () => {
       .toBe('^([\\s\\S]*)$');
   });
 
+  it('extract_last_n_chars: emits a trailing-anchored fixed-length capture', () => {
+    expect(regexifyExtraction('extract_last_n_chars', { numChars: 4 }))
+      .toBe('(.{4})$');
+  });
+
+  it('extract_last_n_chars: numChars of 1 still anchors at end of input', () => {
+    expect(regexifyExtraction('extract_last_n_chars', { numChars: 1 }))
+      .toBe('(.{1})$');
+  });
+
+  it('extract_last_n_chars: degrades to a full-field capture when numChars is missing', () => {
+    expect(regexifyExtraction('extract_last_n_chars', {}))
+      .toBe('(.*)');
+  });
+
+  it('extract_last_n_chars: round-trips through new RegExp to grab the trailing N chars', () => {
+    const re = new RegExp(regexifyExtraction('extract_last_n_chars', { numChars: 3 }));
+    expect('CH123456789'.match(re)?.[1]).toBe('789');
+    // Field shorter than N → no match (consistent with other fixed-length extracts).
+    expect('AB'.match(re)).toBeNull();
+  });
+
   it('extract_between with suffixOrEndOfInput emits `(?:<suffix>|$)`', () => {
     // The dominant production shape: 373 rules in the seed file use this.
     expect(regexifyExtraction('extract_between', {
@@ -413,6 +435,21 @@ describe('generateExtractionPrompt', () => {
 
   it('extract_full_field', () => {
     expect(generateExtractionPrompt('extract_full_field', {})).toBe('Extract full field');
+  });
+
+  it('extract_last_n_chars with numChars', () => {
+    expect(generateExtractionPrompt('extract_last_n_chars', { numChars: 4 }))
+      .toBe('Extract last 4 characters');
+  });
+
+  it('extract_last_n_chars: singular wording when numChars is 1', () => {
+    expect(generateExtractionPrompt('extract_last_n_chars', { numChars: 1 }))
+      .toBe('Extract last 1 character');
+  });
+
+  it('extract_last_n_chars without numChars falls back to the placeholder phrasing', () => {
+    expect(generateExtractionPrompt('extract_last_n_chars', {}))
+      .toBe('Extract last n characters');
   });
 
   it('predefined pattern', () => {

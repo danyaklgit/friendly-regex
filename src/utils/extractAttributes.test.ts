@@ -72,6 +72,20 @@ describe('extractAttributes', () => {
     expect(extractAttributes([], row)).toEqual({});
   });
 
+  it('extract_last_n_chars regex pulls the trailing N characters', () => {
+    // `(.{4})$` is what regexifyExtraction emits for extract_last_n_chars
+    // with numChars=4. The trailing-anchored capture pins to the last 4
+    // chars of the source field's value.
+    const attrs = [makeAttr('LastFour', 'Description1', '(.{4})$')];
+    expect(extractAttributes(attrs, row)).toEqual({ LastFour: '-001' });
+  });
+
+  it('extract_last_n_chars returns null when field is shorter than N', () => {
+    const shortRow: TransactionRow = { Description1: 'AB' };
+    const attrs = [makeAttr('TooShort', 'Description1', '(.{4})$')];
+    expect(extractAttributes(attrs, shortRow)).toEqual({ TooShort: null });
+  });
+
   it('uses raw source field value when regex is empty', () => {
     const attrs = [makeAttr('Raw', 'Description1', '')];
     const result = extractAttributes(attrs, row);

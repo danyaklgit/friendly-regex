@@ -223,6 +223,15 @@ export function regexifyExtraction(
       const pos = params.fromPosition && params.fromPosition > 0 ? `.{${params.fromPosition}}` : '';
       return `${pos}${buildCapture(params.numChars, params.toStr)}`;
     }
+    case 'extract_last_n_chars': {
+      // Anchor at end-of-input so the regex engine pins the capture to the
+      // trailing N chars. With no N set we degrade to a full-field capture so
+      // the rule stays compilable while the operator finishes filling it in.
+      if (params.numChars && params.numChars > 0) {
+        return `(.{${params.numChars}})$`;
+      }
+      return '(.*)';
+    }
     case 'extract_between_and_verify':
       return `${escapeRegex(params.prefix ?? '')}(.*?)${escapeRegex(params.suffix ?? '')}`;
     case 'extract_full_field':
@@ -326,6 +335,10 @@ export function generateExtractionPrompt(
       if (params.toStr) parts.push(`to '${params.toStr}'`);
       return `Sub-string${parts.length > 0 ? ` (${parts.join(', ')})` : ''}`;
     }
+    case 'extract_last_n_chars':
+      return params.numChars && params.numChars > 0
+        ? `Extract last ${params.numChars} character${params.numChars === 1 ? '' : 's'}`
+        : 'Extract last n characters';
     case 'extract_between_and_verify':
       return `Extract between '${params.prefix ?? ''}' and '${params.suffix ?? ''}', verify = '${params.verifyValue ?? ''}'`;
     case 'extract_full_field':

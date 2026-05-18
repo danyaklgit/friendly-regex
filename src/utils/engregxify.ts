@@ -615,6 +615,7 @@ export function decomposeExtractionRegex(regex: string): {
   suffix?: string;
   pattern?: string;
   suffixOrEndOfInput?: boolean;
+  numChars?: number;
 } {
   // 1. Lookarounds anywhere → matching pattern. Lookbehinds and lookaheads
   //    can't be expressed as literal prefix/suffix, so the entire regex stays
@@ -635,6 +636,15 @@ export function decomposeExtractionRegex(regex: string): {
   //    Collapse them into the single `extract_full_field` method.
   if (/^\^\((?:\.\*|\[\\s\\S\]\*)\)\$?$/.test(regex)) {
     return { operation: 'extract_full_field' };
+  }
+
+  // 3b. Extract last N characters: `(.{N})$`. Matches the trailing N chars of
+  //     the source field. Must be checked before the catch-all outer-parens
+  //     branch below — that branch would otherwise strip the parens and route
+  //     this through `extract_matching`, losing the N-chars metadata.
+  const lastNCharsMatch = regex.match(/^\(\.\{(\d+)\}\)\$$/);
+  if (lastNCharsMatch) {
+    return { operation: 'extract_last_n_chars', numChars: Number(lastNCharsMatch[1]) };
   }
 
   // 4. Extract between: prefix(.*?)suffix — try the suffix-with-end-of-input

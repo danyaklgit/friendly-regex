@@ -58,6 +58,10 @@ export function isCompleteAttribute(a: AttributeFormValue): boolean {
       if (field === 'pattern' && (a.pattern ?? '').length === 0) return false;
       if (field === 'verifyValue' && (a.verifyValue ?? '').length === 0) return false;
     }
+    // extract_last_n_chars has no required text fields, but numChars is the
+    // sole driver of the captured span — without it the rule would extract
+    // the entire field. Treat it as required for save gating.
+    if (op.key === 'extract_last_n_chars' && !(a.numChars && a.numChars > 0)) return false;
   }
   return true;
 }
