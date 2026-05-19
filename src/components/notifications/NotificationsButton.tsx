@@ -4,9 +4,10 @@ import { useTepConfig } from '../../context/TepConfigContext';
 import { useNotifications } from '../../hooks/useNotifications';
 import type { TepHeaders } from '../../api/transactions';
 import type { UserNotification } from '../../types/notifications';
-import type { TagSpecCommentTarget } from '../../types/comments';
+import type { TagSpecComment, TagSpecCommentTarget } from '../../types/comments';
 import { CommentsProvider } from '../../context/CommentsContext';
 import { getTagSpecComments } from '../../api/comments';
+import { flattenReplies } from '../../utils/replyTree';
 import { NotificationItem } from './NotificationItem';
 import { NotificationThreadOpener } from './NotificationThreadOpener';
 
@@ -94,10 +95,10 @@ export function NotificationsButton() {
 
   // Sender enrichment: when the panel opens, fetch the comments for each
   // unique library referenced by a notification (cached per session) and
-  // build a map of commentId → ReportedByUserId so each notification card
-  // can show its sender's avatar/name.
+  // keep the full comment objects so we can derive the actual sender per
+  // notification (comment author vs reply author).
   const fetchedLibrariesRef = useRef<Set<string>>(new Set());
-  const [senderByCommentId, setSenderByCommentId] = useState<Map<string, string>>(new Map());
+  const [commentById, setCommentById] = useState<Map<string, TagSpecComment>>(new Map());
 
   useEffect(() => {
     if (!open || !authToken || !tepHeaders) return;
@@ -124,11 +125,11 @@ export function NotificationsButton() {
       }),
     ).then((pairs) => {
       if (cancelled) return;
-      setSenderByCommentId((prev) => {
+      setCommentById((prev) => {
         const next = new Map(prev);
         for (const [libId, list] of pairs) {
           fetchedLibrariesRef.current.add(libId);
-          for (const c of list) next.set(c.Id, c.ReportedByUserId);
+          for (const c of list) next.set(c.Id, c);
         }
         return next;
       });
@@ -138,6 +139,48 @@ export function NotificationsButton() {
       cancelled = true;
     };
   }, [open, notifications, authToken, tepHeaders]);
+
+  /**
+   * Resolve who triggered a notification. For reply notifications, prefer
+   * the reply author whose CreationDate is closest to the notification's
+   * own CreationDate (and that mentions the recipient when possible).
+   * Falls back to the top-level comment author.
+   */
+  const resolveSender = (n: UserNotification): string | undefined => {
+    const actionId = n.Action?.ActionId;
+    if (!actionId) return undefined;
+    const comment = commentById.get(actionId);
+    if (!comment) return undefined;
+
+    const isReplyNotif = (n.Type ?? '').toUpperCase().includes('REPLY');
+    if (!isReplyNotif) return comment.ReportedByUserId;
+
+    const replies = flattenReplies(comment.Replies);
+    if (replies.length === 0) return comment.ReportedByUserId;
+
+    const mine = userId ?? '';
+    const mentioning = replies.filter((r) => (r.ReportedToUserIds ?? []).includes(mine));
+    const pool = mentioning.length > 0 ? mentioning : replies;
+
+    const notifTime = n.CreationDate ? Date.parse(n.CreationDate) : NaN;
+    if (Number.isNaN(notifTime)) {
+      const sorted = [...pool].sort((a, b) =>
+        (b.CreationDate ?? '').localeCompare(a.CreationDate ?? ''),
+      );
+      return sorted[0]?.UserId ?? comment.ReportedByUserId;
+    }
+
+    let best = pool[0];
+    let bestDelta = Math.abs((Date.parse(best.CreationDate ?? '') || 0) - notifTime);
+    for (const r of pool) {
+      const delta = Math.abs((Date.parse(r.CreationDate ?? '') || 0) - notifTime);
+      if (delta < bestDelta) {
+        best = r;
+        bestDelta = delta;
+      }
+    }
+    return best.UserId;
+  };
 
   const handleOpenNotification = (n: UserNotification) => {
     const open = targetFromNotification(n);
@@ -250,7 +293,7 @@ export function NotificationsButton() {
                   <NotificationItem
                     key={n.Id}
                     notification={n}
-                    senderUserId={n.Action?.ActionId ? senderByCommentId.get(n.Action.ActionId) : undefined}
+                    senderUserId={resolveSender(n)}
                     onMarkStatus={markStatus}
                     onOpen={handleOpenNotification}
                   />
