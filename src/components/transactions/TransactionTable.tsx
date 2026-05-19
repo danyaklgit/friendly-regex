@@ -1584,18 +1584,18 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
               </button>
             )}
             {onHideTagDefs && (() => {
-              const label = selectedIds.size > 1 ? 'Hide Tags' : 'Hide Tag';
+              const label = selectedIds.size > 1 ? 'Hide Tag Specs' : 'Hide Tag Spec';
               const hideBtn = (
                 <button
                   onClick={openHideTagDialog}
                   disabled={selectedTagDefs.length === 0}
-                  className="cursor-pointer text-xs px-2.5 py-1 rounded border border-border-strong bg-surface text-body hover:bg-surface-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="cursor-pointer text-xs px-2.5 py-1 rounded border border-slate-300 dark:border-slate-500 bg-slate-100 dark:bg-slate-700/60 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {label}
                 </button>
               );
               return selectedTagDefs.length === 0 ? (
-                <Tooltip content="No tags on selected rows" placement="bottom">{hideBtn}</Tooltip>
+                <Tooltip content="No tag specs on selected rows" placement="bottom">{hideBtn}</Tooltip>
               ) : hideBtn;
             })()}
             <button
@@ -1623,10 +1623,10 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
         onConfirm={() => {
           if (hideTagDialog?.kind === 'confirm') confirmHideTags([hideTagDialog.def.defId]);
         }}
-        title="Hide tag"
+        title="Hide tag spec"
         message={
           hideTagDialog?.kind === 'confirm'
-            ? `Hide all rows tagged "${hideTagDialog.def.name}"${hideTagDialog.def.version ? ` (v${hideTagDialog.def.version})` : ''}? You can unhide them from the side panel above the table.`
+            ? `Hide all rows matched by tag spec "${hideTagDialog.def.name}"${hideTagDialog.def.version ? ` (v${hideTagDialog.def.version})` : ''}? You can restore it from the side panel above the table.`
             : ''
         }
         confirmLabel="Hide"
@@ -1636,7 +1636,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
       <Modal
         open={hideTagDialog?.kind === 'picker'}
         onClose={() => setHideTagDialog(null)}
-        title="Hide tags"
+        title="Hide tag specs"
         footer={
           <>
             <Button variant="secondary" onClick={() => setHideTagDialog(null)}>Cancel</Button>
@@ -1655,7 +1655,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
         {hideTagDialog?.kind === 'picker' && (
           <div className="space-y-2">
             <p className="text-sm text-body-secondary">
-              The selected rows carry more than one tag. Pick which tags to hide — rows containing any picked tag will disappear from the view.
+              The selected rows are matched by more than one tag spec. Pick which tag specs to hide — every row matched by a picked spec will disappear from the view.
             </p>
             <div className="border border-border rounded-lg divide-y divide-border max-h-72 overflow-auto bg-surface">
               {hideTagDialog.defs.map((def) => {

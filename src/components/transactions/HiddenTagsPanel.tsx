@@ -6,15 +6,13 @@ import { Tooltip } from '../shared/Tooltip';
 import { renderTagTooltip } from './TransactionTable';
 
 export interface HiddenTagItem {
-  /** Stable unique key (rowId + definitionId). */
+  /** Stable unique key (defId). */
   key: string;
-  /** Row identifier this hidden occurrence belongs to. */
-  rowId: string;
-  /** OpsTagSpecDefinitionId — the identity by which the row is hidden. */
+  /** OpsTagSpecDefinitionId — the identity by which rows are hidden. */
   defId: string;
-  /** Tag name as it appears on the row. */
+  /** Tag name as it appears on rows matched by this definition. */
   name: string;
-  /** Matched definition for this occurrence (so badge & tooltip mirror the table cell). */
+  /** Definition object (so badge & tooltip mirror the table cell). */
   def?: TagSpecDefinition;
 }
 
@@ -26,7 +24,7 @@ interface HiddenTagsPanelProps {
   originalDefinitionIds?: Set<string>;
   definitionSourceMap: Map<string, string>;
   definitionVersions: Map<string, DefinitionVersionInfo>;
-  onUnhide: (rowId: string, defId: string, name: string) => void;
+  onUnhide: (defId: string, name: string) => void;
   onUnhideAll: () => void;
   busy?: boolean;
 }
@@ -76,7 +74,7 @@ export function HiddenTagsPanel({
           <div>
             <div className="text-[10px] font-semibold tracking-[0.18em] text-faint uppercase">Triage</div>
             <h2 className="text-sm font-semibold text-heading">
-              Hidden rows ({hiddenCount})
+              Hidden Tag Specs ({hiddenCount})
             </h2>
           </div>
           <div className="flex items-center gap-2">
@@ -108,7 +106,7 @@ export function HiddenTagsPanel({
         <div className="flex-1 min-h-0 overflow-auto">
           {items.length === 0 ? (
             <div className="px-5 py-8 text-sm text-body-secondary text-center">
-              No tags are currently hidden.
+              No tag specs are currently hidden.
             </div>
           ) : (
             <ul className="divide-y divide-border">
@@ -140,7 +138,7 @@ export function HiddenTagsPanel({
                     </div>
                     <button
                       type="button"
-                      onClick={() => onUnhide(item.rowId, item.defId, item.name)}
+                      onClick={() => onUnhide(item.defId, item.name)}
                       disabled={busy}
                       className="cursor-pointer text-xs px-2.5 py-1 rounded border border-border-strong bg-surface text-body hover:bg-surface-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
                     >
