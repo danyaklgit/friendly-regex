@@ -27,7 +27,16 @@ import { parseShareParams, storeShareParams, consumeStoredShareParams, clearShar
 import type { ShareParams } from './utils/shareLink';
 import type { CheckoutState } from './types';
 import type { TepHeaders } from './api/transactions';
+import type { TagSpecCommentTarget } from './types/comments';
 import { getContextValue } from './types/tagSpec';
+
+export interface BacklogNavigation {
+  libraryId: string;
+  definitionId?: string | null;
+  /** Bumped on each emit so StatsTab re-runs its scroll effect even when the
+   *  target is unchanged. */
+  nonce: number;
+}
 
 interface AppShellProps {
   authToken: string | null;
@@ -51,6 +60,17 @@ function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps
   const [shareFilters, setShareFilters] = useState<Record<string, Set<string>> | undefined>();
   const [shareToggles, setShareToggles] = useState<ShareParams['toggles'] | undefined>();
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [backlogNavigation, setBacklogNavigation] = useState<BacklogNavigation | null>(null);
+
+  const handleNavigateToBacklog = useCallback((target: TagSpecCommentTarget) => {
+    setBacklogNavigation({
+      libraryId: target.TagSpecLibraryId,
+      definitionId: target.TagSpecDefinitionId ?? null,
+      nonce: Date.now(),
+    });
+    setActiveTab(0);
+  }, []);
+  const handleBacklogNavigationConsumed = useCallback(() => setBacklogNavigation(null), []);
 
   // On mount, consume share params stored before login
   useEffect(() => {
@@ -206,7 +226,7 @@ function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps
           activeIndex={activeTab}
           onTabChange={handleTabChange}
           tabs={[
-            { label: 'Backlog', content: <StatsTab onViewTransactions={handleViewTransactions} onViewAllTransactions={handleViewAllTransactions} onCheckoutComplete={handleCheckoutComplete} authToken={authToken} tepHeaders={tepHeaders} /> },
+            { label: 'Backlog', content: <StatsTab onViewTransactions={handleViewTransactions} onViewAllTransactions={handleViewAllTransactions} onCheckoutComplete={handleCheckoutComplete} authToken={authToken} tepHeaders={tepHeaders} navigation={backlogNavigation} onNavigationConsumed={handleBacklogNavigationConsumed} /> },
             { label: 'Transactions', content: <TransactionsTab activeCheckout={activeCheckout} onClearPendingDefinition={() => setActiveCheckout(prev => (prev && prev.pendingDefinitionId != null) ? { ...prev, pendingDefinitionId: undefined } : prev)} initialShareFilters={shareFilters} initialShareToggles={shareToggles} operatorName={operatorName} shareDialogOpen={shareDialogOpen} onShareDialogClose={() => setShareDialogOpen(false)} /> },
             ...(isLiveMode && isDevops ? [{ label: 'Integration Logs', content: <IntegrationLogsTab /> }] : []),
             { label: 'Settings', content: <SettingsTab /> },
@@ -228,6 +248,7 @@ function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps
           } : undefined}
           onOpenOnboarding={() => setOnboardingOpen(true)}
           onShare={activeCheckout ? () => setShareDialogOpen(true) : undefined}
+          onNavigateToBacklog={handleNavigateToBacklog}
         />
       </div>
       <UndoChangesDialog

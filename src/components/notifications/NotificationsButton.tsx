@@ -57,7 +57,13 @@ function BellIcon({ ringing }: { ringing: boolean }) {
   );
 }
 
-export function NotificationsButton() {
+interface NotificationsButtonProps {
+  /** When set, the panel opened from a notification shows a "View in
+   *  Backlog" link that calls this with the comment's target. */
+  onNavigateToBacklog?: (target: TagSpecCommentTarget) => void;
+}
+
+export function NotificationsButton({ onNavigateToBacklog }: NotificationsButtonProps = {}) {
   const { userId, getAuthHeaders, isAuthenticated } = useAuth();
   const tepConfig = useTepConfig();
   const [open, setOpen] = useState(false);
@@ -316,6 +322,7 @@ export function NotificationsButton() {
             fallbackTarget={openThread.fallbackTarget}
             authToken={authToken}
             onClose={() => setOpenThread(null)}
+            onNavigateToBacklog={onNavigateToBacklog}
           />
         </CommentsProvider>
       )}

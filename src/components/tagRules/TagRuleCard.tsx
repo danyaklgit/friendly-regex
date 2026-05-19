@@ -21,7 +21,7 @@ export function TagRuleCard({ definition, parentLib, onEdit, onDelete, onExport,
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className="border border-border rounded-lg bg-surface overflow-hidden">
+    <div className="border border-border rounded-lg bg-surface overflow-hidden" data-tagspec-id={definition.Id}>
       <button
         data-tour="tag-rule-card-toggle"
         onClick={() => setExpanded(!expanded)}

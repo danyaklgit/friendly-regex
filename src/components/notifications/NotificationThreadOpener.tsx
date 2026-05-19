@@ -14,6 +14,9 @@ interface NotificationThreadOpenerProps {
   /** Bearer token for the composer's user-list fetch. */
   authToken: string | null;
   onClose: () => void;
+  /** Forwarded to the panel. The notifications popover sets this so users
+   *  can jump from a thread to the matching Backlog row. */
+  onNavigateToBacklog?: (target: TagSpecCommentTarget) => void;
 }
 
 /**
@@ -27,6 +30,7 @@ export function NotificationThreadOpener({
   fallbackTarget,
   authToken,
   onClose,
+  onNavigateToBacklog,
 }: NotificationThreadOpenerProps) {
   const { commentsByTarget, loaded } = useComments();
   const { libraries } = useTagSpecs();
@@ -63,6 +67,7 @@ export function NotificationThreadOpener({
       targetLabel={label}
       authToken={authToken}
       onClose={onClose}
+      onNavigateToBacklog={onNavigateToBacklog}
     />
   );
 }

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { PageHeader } from './PageHeader';
+import type { TagSpecCommentTarget } from '../../types/comments';
 
 interface Tab {
   label: string;
@@ -24,12 +25,13 @@ interface TabContainerProps {
   checkout?: CheckoutInfo;
   onOpenOnboarding?: () => void;
   onShare?: () => void;
+  onNavigateToBacklog?: (target: TagSpecCommentTarget) => void;
 }
 
-export function TabContainer({ tabs, activeIndex, onTabChange, checkout, onOpenOnboarding, onShare }: TabContainerProps) {
+export function TabContainer({ tabs, activeIndex, onTabChange, checkout, onOpenOnboarding, onShare, onNavigateToBacklog }: TabContainerProps) {
   return (
     <div>
-      <PageHeader tabs={tabs} activeIndex={activeIndex} onTabChange={onTabChange} checkout={checkout} onOpenOnboarding={onOpenOnboarding} onShare={onShare} />
+      <PageHeader tabs={tabs} activeIndex={activeIndex} onTabChange={onTabChange} checkout={checkout} onOpenOnboarding={onOpenOnboarding} onShare={onShare} onNavigateToBacklog={onNavigateToBacklog} />
       <div className="max-w-10xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
         {tabs[activeIndex].content}
       </div>

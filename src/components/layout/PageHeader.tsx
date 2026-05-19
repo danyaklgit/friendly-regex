@@ -5,6 +5,7 @@ import { Tooltip } from '../shared/Tooltip';
 import { Button } from '../shared/Button';
 import { Badge } from '../shared/Badge';
 import { NotificationsButton } from '../notifications/NotificationsButton';
+import type { TagSpecCommentTarget } from '../../types/comments';
 
 interface CheckoutInfo {
   bank: string;
@@ -24,9 +25,10 @@ interface PageHeaderProps {
   checkout?: CheckoutInfo;
   onOpenOnboarding?: () => void;
   onShare?: () => void;
+  onNavigateToBacklog?: (target: TagSpecCommentTarget) => void;
 }
 
-export function PageHeader({ tabs, activeIndex, onTabChange, checkout, onOpenOnboarding, onShare }: PageHeaderProps) {
+export function PageHeader({ tabs, activeIndex, onTabChange, checkout, onOpenOnboarding, onShare, onNavigateToBacklog }: PageHeaderProps) {
   const { logout, username, displayName, expiresAt, isAudit, isDevops } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const timeRemaining = useTimeRemaining(expiresAt);
@@ -102,7 +104,7 @@ export function PageHeader({ tabs, activeIndex, onTabChange, checkout, onOpenOnb
               </button>
             </Tooltip>
           )}
-          <NotificationsButton />
+          <NotificationsButton onNavigateToBacklog={onNavigateToBacklog} />
           {onOpenOnboarding && (
             <button
               onClick={onOpenOnboarding}

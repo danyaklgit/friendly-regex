@@ -14,6 +14,9 @@ interface CommentThreadPanelProps {
   targetLabel?: string;
   authToken: string | null;
   onClose: () => void;
+  /** When set, the panel header shows a link that navigates the user to the
+   *  Backlog row this thread is attached to. The panel closes after. */
+  onNavigateToBacklog?: (target: TagSpecCommentTarget) => void;
 }
 
 function levelLabel(target: TagSpecCommentTarget): string {
@@ -48,6 +51,7 @@ export function CommentThreadPanel({
   targetLabel,
   authToken,
   onClose,
+  onNavigateToBacklog,
 }: CommentThreadPanelProps) {
   const closeBtnRef = useRef<HTMLButtonElement | null>(null);
   const focusedOnceRef = useRef(false);
@@ -129,6 +133,21 @@ export function CommentThreadPanel({
               {target ? levelLabel(target) : ''}
               {targetLabel ? ` · ${targetLabel}` : ''}
             </div>
+            {onNavigateToBacklog && target && (
+              <button
+                type="button"
+                onClick={() => {
+                  onNavigateToBacklog(target);
+                  onClose();
+                }}
+                className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-cyan-700 dark:text-cyan-300 hover:underline cursor-pointer"
+              >
+                <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+                  <path d="M5 3h6a1 1 0 0 1 1 1v6M11 3l-7 7" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                View in Backlog
+              </button>
+            )}
           </div>
           <button
             ref={closeBtnRef}

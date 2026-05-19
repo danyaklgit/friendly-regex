@@ -21,12 +21,24 @@ import type { TagSpecLibrary, TagSpecDefinition } from '../../types';
 import { useLocalChanges } from '../../hooks/useLocalChanges';
 import { useTransactionData } from '../../hooks/useTransactionData';
 
+interface BacklogNavigationTarget {
+  libraryId: string;
+  definitionId?: string | null;
+  nonce: number;
+}
+
 interface StatsTabProps {
   onViewTransactions: (bank: string, side: string, definitionId?: string) => void;
   onViewAllTransactions: () => void;
   onCheckoutComplete: (bank: string, side: string) => void;
   authToken: string | null;
   tepHeaders: TepHeaders | null;
+  /** Set when the user clicked "View in Backlog" from a comment thread.
+   *  Expands the matching row, scrolls it into view, and (when defined)
+   *  brings the specific TagSpec card into view too. */
+  navigation?: BacklogNavigationTarget | null;
+  /** Called once the navigation has been processed. */
+  onNavigationConsumed?: () => void;
 }
 
 const sideLabel: Record<string, string> = {
@@ -47,7 +59,7 @@ interface DisplayRow {
   inProgressLib: TagSpecLibrary | undefined;
 }
 
-export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckoutComplete, authToken, tepHeaders }: StatsTabProps) {
+export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckoutComplete, authToken, tepHeaders, navigation, onNavigationConsumed }: StatsTabProps) {
   const { libraries, tagDefinitions, loading, refetchTagSpecs, refetchLibraries, dispatch, taggingProgress, isPairBeingTagged, getTaggingFirstSeen } = useTagSpecs();
   const { usersMap, useDummyData, userId, isAudit } = useAuth();
   const { clearChanges } = useLocalChanges(undefined, undefined);
@@ -83,6 +95,11 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
   const highlightTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info'; duration?: number } | null>(null);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  // Brief cyan glow after navigating from a notification panel so the
+  // user can spot the row / TagSpec they just jumped to.
+  const [highlightedLibraryId, setHighlightedLibraryId] = useState<string | null>(null);
+  const [highlightedDefinitionId, setHighlightedDefinitionId] = useState<string | null>(null);
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Tag rule management state
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; tag: string } | null>(null);
@@ -277,6 +294,70 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
       else next.add(key);
       return next;
     });
+  }, []);
+
+  // When the user clicked "View in Backlog" from a comment thread, expand
+  // the matching row and bring it (plus the specific TagSpec when provided)
+  // into view. Uses rAF so the effect runs after the row has rendered.
+  useEffect(() => {
+    if (!navigation) return;
+    // The comment's libraryId may be either the canonical lib id or the
+    // checked-out in-progress copy. Find the library, then derive the
+    // bank/side (which is the stable row key) and the canonical id used
+    // for the row's React identity / highlight class.
+    const target = libraries.find((l) => l.Id === navigation.libraryId);
+    if (!target) {
+      onNavigationConsumed?.();
+      return;
+    }
+    const bank = getContextValue(target.Context, 'BankSwiftCode') ?? '';
+    const side = getContextValue(target.Context, 'Side') ?? '';
+    const rowKey = `${bank}:${side}`;
+    // Find the canonical (non-in-progress) library for this bank/side, since
+    // that is the one the row uses as `row.library.Id` for its key/highlight.
+    const canonical = libraries.find(
+      (l) =>
+        l.StatusTag !== 'INPROGRESS' &&
+        getContextValue(l.Context, 'BankSwiftCode') === bank &&
+        getContextValue(l.Context, 'Side') === side,
+    );
+    const rowLibraryId = canonical?.Id ?? target.Id;
+    setExpandedRows((prev) => {
+      if (prev.has(rowKey)) return prev;
+      const next = new Set(prev);
+      next.add(rowKey);
+      return next;
+    });
+    const raf1 = requestAnimationFrame(() => {
+      const rowEl = document.querySelector(`tr[data-bank-side="${rowKey}"]`);
+      rowEl?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // Wait one more frame for the expanded content to mount before scrolling
+      // into the specific TagSpec card.
+      requestAnimationFrame(() => {
+        if (navigation.definitionId) {
+          const card = document.querySelector(
+            `[data-tagspec-id="${navigation.definitionId}"]`,
+          );
+          card?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        setHighlightedLibraryId(rowLibraryId);
+        setHighlightedDefinitionId(navigation.definitionId ?? null);
+        if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+        highlightTimerRef.current = setTimeout(() => {
+          setHighlightedLibraryId(null);
+          setHighlightedDefinitionId(null);
+        }, 2800);
+        onNavigationConsumed?.();
+      });
+    });
+    return () => cancelAnimationFrame(raf1);
+  }, [navigation, libraries, onNavigationConsumed]);
+
+  // Clean up highlight timer on unmount.
+  useEffect(() => {
+    return () => {
+      if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+    };
   }, []);
 
   const handleCheckout = useCallback(async (row: DisplayRow) => {
@@ -475,12 +556,13 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                   (row.inProgressLib?.ActiveTagSpecLibId ? taggingProgress[row.inProgressLib.ActiveTagSpecLibId] : undefined);
                 const taggingLockTitle = isBeingTagged ? 'Tagging in progress' : undefined;
                 const isRecentlyChanged = recentlyChangedKeys.has(rowKey);
+                const isNavHighlighted = highlightedLibraryId === row.library.Id;
                 const libIdForComments = displayLib.Id ?? row.library.Id;
                 const rowContent = (
-                  <tr key={row.library.Id} className="group">
+                  <tr key={row.library.Id} className="group" data-library-id={row.library.Id} data-bank-side={rowKey}>
                     <td colSpan={8} className="p-0">
                       {/* Main row — sticky when expanded */}
-                      <div className={`flex items-start transition-colors duration-500 ${isExpanded ? 'sticky top-8.5 z-10 shadow-sm border-b border-border bg-cyan-50 dark:bg-slate-800 ' : ''} ${row.isInProgress && !isExpanded ? 'bg-primary/5' : isExpanded ? '' : 'hover:bg-surface-hover'} ${isRecentlyChanged ? 'bg-amber-100! dark:bg-amber-500/15! ring-1 ring-inset ring-amber-400/60 dark:ring-amber-500/40' : ''}`}>
+                      <div className={`flex items-start transition-colors duration-500 ${isExpanded ? 'sticky top-8.5 z-10 shadow-sm border-b border-border bg-cyan-50 dark:bg-slate-800 ' : ''} ${row.isInProgress && !isExpanded ? 'bg-primary/5' : isExpanded ? '' : 'hover:bg-surface-hover'} ${isRecentlyChanged ? 'bg-amber-100! dark:bg-amber-500/15! ring-1 ring-inset ring-amber-400/60 dark:ring-amber-500/40' : ''} ${isNavHighlighted ? 'bg-cyan-100! dark:bg-cyan-500/15! ring-2 ring-inset ring-cyan-400/70 dark:ring-cyan-400/60' : ''}`}>
                         {/* Expand toggle */}
                         <div className="px-4 py-2.5 w-10 shrink-0">
                           <button
@@ -689,8 +771,15 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                               <p className="text-sm text-faint text-center py-4">No tag definitions in this library.</p>
                             ) : (
                               <div className="space-y-3">
-                                {sorted.map((def) => (
-                                  <div key={def.Id} className={changedIds.has(def.Id) ? 'rounded-lg ring-1 ring-amber-300 bg-amber-50/40 dark:bg-amber-900/10 dark:ring-amber-700' : ''}>
+                                {sorted.map((def) => {
+                                  const isDefHighlighted = highlightedDefinitionId === def.Id;
+                                  const wrapperClass = isDefHighlighted
+                                    ? 'rounded-lg ring-2 ring-cyan-400/70 dark:ring-cyan-400/60 shadow-[0_0_0_4px_rgba(34,211,238,0.18)] transition-all duration-500'
+                                    : changedIds.has(def.Id)
+                                      ? 'rounded-lg ring-1 ring-amber-300 bg-amber-50/40 dark:bg-amber-900/10 dark:ring-amber-700'
+                                      : '';
+                                  return (
+                                  <div key={def.Id} className={wrapperClass}>
                                     <TagRuleCard
                                       definition={def}
                                       parentLib={displayLib}
@@ -701,7 +790,8 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                                       readOnly={!row.isOwnedByMe || isBeingTagged}
                                     />
                                   </div>
-                                ))}
+                                  );
+                                })}
                               </div>
                             )}
                           </div>
