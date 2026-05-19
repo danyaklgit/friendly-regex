@@ -200,6 +200,41 @@ function ListEqDropdown({
     onFiltersChange(updated);
   };
 
+  // Snapshot the selected set the moment the dropdown opens. The displayed
+  // order pins "selected at open" to the top so the operator can scan their
+  // picks, but toggles during this open session don't reorder the list (no
+  // jumping under the cursor). Re-opens take a fresh snapshot.
+  const initialSelectedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (open) initialSelectedRef.current = new Set(selected);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const orderedValues = useMemo(() => {
+    const snapshot = initialSelectedRef.current;
+    return [...definition.Values].sort((a, b) => {
+      const aSel = snapshot.has(a.Column) ? 0 : 1;
+      const bSel = snapshot.has(b.Column) ? 0 : 1;
+      return aSel - bSel;
+    });
+  }, [definition.Values, open]);
+
+  const handleSelectAll = () => {
+    const next = new Set<string>();
+    for (const v of definition.Values) {
+      if (!isDisabled(v)) next.add(v.Column);
+    }
+    const updated = { ...filters };
+    if (next.size === 0) delete updated[key];
+    else updated[key] = next;
+    onFiltersChange(updated);
+  };
+  const handleDeselectAll = () => {
+    const updated = { ...filters };
+    delete updated[key];
+    onFiltersChange(updated);
+  };
+
   return (
     <div ref={ref} className="relative shrink-0">
       <button
@@ -223,8 +258,24 @@ function ListEqDropdown({
               className="fixed z-50 bg-surface border border-border rounded-lg shadow-lg min-w-64"
               style={{ top: panelPos.top, left: panelPos.left }}
             >
+              <div className="flex items-center justify-between gap-2 px-2 py-1.5 border-b border-border-subtle">
+                <button
+                  type="button"
+                  onClick={handleSelectAll}
+                  className="cursor-pointer text-[10px] font-medium text-primary-dark hover:underline"
+                >
+                  Select all
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeselectAll}
+                  className="cursor-pointer text-[10px] font-medium text-muted hover:text-body hover:underline"
+                >
+                  Deselect all
+                </button>
+              </div>
               <div className="p-1.5 max-h-60 overflow-y-auto custom-scrollbar">
-                {definition.Values.map((v) => (
+                {orderedValues.map((v) => (
                   <label
                     key={v.Column}
                     className={`flex items-center gap-2 px-2 py-1.5 text-xs rounded text-black dark:text-white ${
@@ -285,24 +336,87 @@ function StringFromListDropdown({
     if (!open) setSearch('');
   }, [open, isSearchable]);
 
+  // Backend returns Values in insertion / creation order, which leaves newly
+  // added entries pinned at the bottom. Sort alphabetically by Label
+  // (case-insensitive, falling back to Value) so the order stays stable as
+  // tags are added in Settings.
+  const sortedValues = useMemo(() => {
+    return [...definition.Values].sort((a, b) => {
+      const al = (a.Label ?? a.Value ?? '').toLowerCase();
+      const bl = (b.Label ?? b.Value ?? '').toLowerCase();
+      return al.localeCompare(bl);
+    });
+  }, [definition.Values]);
+
   const filteredValues = useMemo(() => {
-    if (!search.trim()) return definition.Values;
+    if (!search.trim()) return sortedValues;
     const term = search.toLowerCase();
-    return definition.Values.filter(
+    return sortedValues.filter(
       (v) => (v.Label ?? v.Value ?? '').toLowerCase().includes(term) ||
              (v.Value ?? '').toLowerCase().includes(term)
     );
-  }, [definition.Values, search]);
+  }, [sortedValues, search]);
 
-  // Keyboard navigation walks the list in its natural rendered order — selected
-  // items stay where they are instead of being pulled to the top.
-  const navigableValues = filteredValues;
+  // Snapshot the selected set the moment the dropdown opens. Selected-at-open
+  // items appear at the top of the rendered list so the operator can scan
+  // their picks; toggling DURING this open session doesn't reorder items
+  // (no jump-under-cursor). A re-open takes a fresh snapshot.
+  const initialSelectedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (open) initialSelectedRef.current = new Set(selected);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  // Keyboard navigation walks the displayed (sorted) list so arrow keys
+  // and the cursor agree on row positions.
+  const navigableValues = useMemo(() => {
+    const snapshot = initialSelectedRef.current;
+    return [...filteredValues].sort((a, b) => {
+      const aSel = snapshot.has(a.Value ?? '') ? 0 : 1;
+      const bSel = snapshot.has(b.Value ?? '') ? 0 : 1;
+      return aSel - bSel;
+    });
+  }, [filteredValues, open]);
 
   const handleToggle = (value: string) => {
     const next = new Set(selected);
     if (next.has(value)) next.delete(value);
     else next.add(value);
 
+    const updated = { ...filters };
+    if (next.size === 0) delete updated[key];
+    else updated[key] = next;
+    onFiltersChange(updated);
+  };
+
+  // Select/Deselect all act on the CURRENT filtered view — so when the user
+  // has typed a search term, Select all only adds the matching values rather
+  // than wiping in 10 000 unrelated entries. With no search, it picks every
+  // value in the definition.
+  const handleSelectAll = () => {
+    const next = new Set(selected);
+    for (const v of filteredValues) {
+      if (v.Value != null) next.add(v.Value);
+    }
+    const updated = { ...filters };
+    if (next.size === 0) delete updated[key];
+    else updated[key] = next;
+    onFiltersChange(updated);
+  };
+  const handleDeselectAll = () => {
+    if (!search.trim()) {
+      // No search → clear the filter entirely.
+      const updated = { ...filters };
+      delete updated[key];
+      onFiltersChange(updated);
+      return;
+    }
+    // Searching → only remove the currently-visible matches; leave other
+    // selections untouched.
+    const next = new Set(selected);
+    for (const v of filteredValues) {
+      if (v.Value != null) next.delete(v.Value);
+    }
     const updated = { ...filters };
     if (next.size === 0) delete updated[key];
     else updated[key] = next;
@@ -392,6 +506,24 @@ function StringFromListDropdown({
                 </div>
               </div>
             )}
+            <div className="flex items-center justify-between gap-2 px-2 py-1.5 border-b border-border-subtle">
+              <button
+                type="button"
+                onClick={handleSelectAll}
+                disabled={filteredValues.length === 0}
+                className="cursor-pointer text-[10px] font-medium text-primary-dark hover:underline disabled:opacity-50 disabled:cursor-not-allowed disabled:no-underline"
+              >
+                Select all{search.trim() ? ' (matches)' : ''}
+              </button>
+              <button
+                type="button"
+                onClick={handleDeselectAll}
+                disabled={selected.size === 0}
+                className="cursor-pointer text-[10px] font-medium text-muted hover:text-body hover:underline disabled:opacity-50 disabled:cursor-not-allowed disabled:no-underline"
+              >
+                Deselect all{search.trim() ? ' (matches)' : ''}
+              </button>
+            </div>
             <div ref={listRef} className="max-h-60 overflow-y-auto custom-scrollbar p-1.5">
               {filteredValues.length === 0 ? (
                 <div className="px-2 py-3 text-xs text-faint text-center">No matches</div>
@@ -775,7 +907,11 @@ function DateFilter({
         {definition.Label}
         {hasActive && (
           <span className="ml-1 opacity-70">
-            ({currentFrom || '...'} - {currentTo || '...'})
+            ({currentFrom && currentTo
+              ? `${currentFrom} - ${currentTo}`
+              : currentFrom
+                ? `From - ${currentFrom}`
+                : `Until - ${currentTo}`})
           </span>
         )}
       </button>
@@ -997,6 +1133,16 @@ function FilterDropdown({
   const activeCount = selected.size;
   const isRangeActive = numericInfo && (rangelow > numericInfo.min || rangeHigh < numericInfo.max);
 
+  // Snapshot of selected at open-time. Selected-at-open values appear at the
+  // top of the rendered list so the operator can scan their picks; toggling
+  // during this open session doesn't reorder items. Re-opens take a fresh
+  // snapshot.
+  const initialSelectedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (open) initialSelectedRef.current = new Set(selected);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
   return (
     <div ref={ref} className="relative">
       <button
@@ -1025,39 +1171,66 @@ function FilterDropdown({
                 />
               </div>
             )}
-            {values.length <= 50 && (
-              <div className="p-1.5 max-h-60 overflow-y-auto custom-scrollbar">
-                {values.map((val) => (
-                  <label
-                    key={val}
-                    className="flex items-center gap-2 px-2 py-1.5 text-xs hover:bg-surface-hover rounded cursor-pointer text-black dark:text-white"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selected.has(val)}
-                      onChange={() => {
-                        const next = new Set(selected);
-                        if (next.has(val)) next.delete(val);
-                        else next.add(val);
-                        onChange(next);
-                        if (numericInfo) {
-                          const selectedNums = Array.from(next).map(Number);
-                          if (selectedNums.length > 0) {
-                            setRangeLow(Math.min(...selectedNums));
-                            setRangeHigh(Math.max(...selectedNums));
-                          } else {
-                            setRangeLow(numericInfo.min);
-                            setRangeHigh(numericInfo.max);
-                          }
-                        }
-                      }}
-                      className="rounded border-border-strong"
-                    />
-                    <span className="truncate">{isNumeric ? Number(val).toLocaleString() : val}</span>
-                  </label>
-                ))}
-              </div>
-            )}
+            {values.length <= 50 && (() => {
+              const snapshot = initialSelectedRef.current;
+              const orderedValues = [...values].sort((a, b) => {
+                const aSel = snapshot.has(a) ? 0 : 1;
+                const bSel = snapshot.has(b) ? 0 : 1;
+                return aSel - bSel;
+              });
+              return (
+                <>
+                  <div className="flex items-center justify-between gap-2 px-2 py-1.5 border-b border-border-subtle">
+                    <button
+                      type="button"
+                      onClick={() => onChange(new Set(values))}
+                      className="cursor-pointer text-[10px] font-medium text-primary-dark hover:underline"
+                    >
+                      Select all
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onChange(new Set())}
+                      disabled={selected.size === 0}
+                      className="cursor-pointer text-[10px] font-medium text-muted hover:text-body hover:underline disabled:opacity-50 disabled:cursor-not-allowed disabled:no-underline"
+                    >
+                      Deselect all
+                    </button>
+                  </div>
+                  <div className="p-1.5 max-h-60 overflow-y-auto custom-scrollbar">
+                    {orderedValues.map((val) => (
+                      <label
+                        key={val}
+                        className="flex items-center gap-2 px-2 py-1.5 text-xs hover:bg-surface-hover rounded cursor-pointer text-black dark:text-white"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selected.has(val)}
+                          onChange={() => {
+                            const next = new Set(selected);
+                            if (next.has(val)) next.delete(val);
+                            else next.add(val);
+                            onChange(next);
+                            if (numericInfo) {
+                              const selectedNums = Array.from(next).map(Number);
+                              if (selectedNums.length > 0) {
+                                setRangeLow(Math.min(...selectedNums));
+                                setRangeHigh(Math.max(...selectedNums));
+                              } else {
+                                setRangeLow(numericInfo.min);
+                                setRangeHigh(numericInfo.max);
+                              }
+                            }
+                          }}
+                          className="rounded border-border-strong"
+                        />
+                        <span className="truncate">{isNumeric ? Number(val).toLocaleString() : val}</span>
+                      </label>
+                    ))}
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </>
       )}

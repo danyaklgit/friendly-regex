@@ -280,21 +280,21 @@ export function CommentDialog({
             <div className="text-sm font-medium text-heading">
               {`Row ${overrideIndex + 1} of ${rowsWithComment.length} already has a comment`}
             </div>
-            <div className="rounded border border-border bg-surface-secondary px-3 py-2 text-xs space-y-1">
-              <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
+            <div className="rounded border border-border bg-surface-secondary px-3 py-2 text-xs space-y-1 min-w-0">
+              <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5">
                 <span className="text-muted">Statement Date</span>
                 <span className="text-body">{formatDate(currentOverrideRow['StatementDate'])}</span>
                 <span className="text-muted">Amount</span>
                 <span className="text-body">{formatAmount(currentOverrideRow['Amount'])}</span>
                 <span className="text-muted">Description</span>
-                <span className="text-body truncate" title={String(currentOverrideRow['Description1'] ?? '')}>
+                <span className="text-body truncate min-w-0" title={String(currentOverrideRow['Description1'] ?? '')}>
                   {String(currentOverrideRow['Description1'] ?? '') || <span className="text-muted">—</span>}
                 </span>
               </div>
             </div>
             <div>
               <div className="text-xs text-muted mb-1">Existing comment</div>
-              <blockquote className="border-l-2 border-border-strong pl-3 text-sm text-body-secondary italic">
+              <blockquote className="border-l-2 border-border-strong pl-3 pr-1 text-sm text-body-secondary italic max-h-32 overflow-y-auto custom-scrollbar break-words whitespace-pre-wrap">
                 {String(currentOverrideRow['Comment'] ?? '')}
               </blockquote>
             </div>

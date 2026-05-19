@@ -1807,6 +1807,31 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                       switch (col.type) {
                         case 'data': {
                           const isHighlighted = highlightSource?.rowIdx === i && highlightSource.field === col.field;
+                          // Comments are free-form and frequently long — clamp the cell to one
+                          // ellipsised line and surface the full text via tooltip on hover so
+                          // the table layout never blows out horizontally.
+                          if (col.field === 'Comment') {
+                            const raw = item.row[col.field];
+                            const full = raw == null ? '' : String(raw);
+                            return (
+                              <td
+                                key={col.key}
+                                className={`px-3 ${cellPy} text-xs text-body-secondary max-w-[28rem] ${stickyBg} ${isHighlighted ? 'ring-1 ring-primary/30 ring-inset bg-primary/5 dark:bg-primary/10' : ''}`}
+                                style={getCellStyle(colIdx, false)}
+                              >
+                                {full ? (
+                                  <Tooltip content={<div className="max-w-md break-words whitespace-pre-wrap">{full}</div>} placement="top">
+                                    <div className="truncate">
+                                      {renderCellContent(col.field, raw)}
+                                    </div>
+                                  </Tooltip>
+                                ) : (
+                                  <span className="text-faint">-</span>
+                                )}
+                                {stickyEdgeShadow(colIdx)}
+                              </td>
+                            );
+                          }
                           return (
                             <td key={col.key} className={`px-3 ${cellPy} text-xs text-body-secondary ${relaxedMode ? 'whitespace-nowrap' : 'max-w-200'} ${stickyBg} ${isHighlighted ? 'ring-1 ring-primary/30 ring-inset bg-primary/5 dark:bg-primary/10' : ''}`} style={getCellStyle(colIdx, false)}>
                               {renderCellContent(col.field, item.row[col.field])}

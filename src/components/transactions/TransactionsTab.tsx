@@ -1707,10 +1707,10 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                 variant="danger_ghost"
                 size="xs"
                 onClick={handleRequestDelete}
-                className="whitespace-nowrap"
+                className="whitespace-nowrap dark:bg-red-500/10 dark:text-red-300 dark:border-red-500/40 dark:hover:bg-red-500/20 dark:hover:border-red-500/60"
                 title="Delete this tag rule"
               >
-                Delete TagSpec
+                Delete
               </Button>
             </div>
           )}

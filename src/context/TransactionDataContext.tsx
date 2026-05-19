@@ -284,7 +284,19 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
         controller.signal,
       );
 
-      const rows = data.Transactions ?? [];
+      const rawRows = data.Transactions ?? [];
+      // Backend returns the dead-end flag under `OpsIsDeadEnd` (with a string
+      // "True" / "False" value), but every row-level read in the app keys off
+      // `IsDeadEnd` as a boolean. Mirror the field on ingest so the badge,
+      // selection-bar state, and sample-mode filter keep working after a
+      // refetch — without forcing every read site to handle both names.
+      const rows = rawRows.map((row) => {
+        if (row['IsDeadEnd'] != null) return row;
+        const ops = row['OpsIsDeadEnd'];
+        if (ops == null) return row;
+        const isDead = typeof ops === 'string' ? ops.toLowerCase() === 'true' : ops === true;
+        return { ...row, IsDeadEnd: isDead };
+      });
       currentPageRef.current = pageIndex;
       setHasMore(rows.length >= effectivePageSize);
 
