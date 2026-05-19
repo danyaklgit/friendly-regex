@@ -77,7 +77,7 @@ export function TagDetailPanel({
         aria-label={definition ? `Details for tag ${definition.Tag}` : 'Tag details'}
         aria-hidden={!open}
         className={`fixed inset-y-0 right-0 z-40 w-full md:w-[44%] lg:w-[38%] max-w-[680px] bg-surface-elevated border-l border-border shadow-[-24px_0_48px_-12px_rgba(15,23,42,0.45)] flex flex-col transition-transform duration-300 ease-out ${
-          open ? 'translate-x-0' : 'translate-x-full'
+          open ? 'translate-x-0' : 'translate-x-[calc(100%+80px)]'
         }`}
       >
         <div className={`absolute inset-y-0 left-0 w-[3px] ${accent.bar}`} aria-hidden />

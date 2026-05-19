@@ -110,7 +110,7 @@ export function CommentThreadPanel({
         aria-label="Comment thread"
         aria-hidden={!open}
         className={`fixed inset-y-0 right-0 z-[70] w-full md:w-[44%] lg:w-[38%] max-w-[640px] bg-surface-elevated border-l border-border shadow-[-24px_0_48px_-12px_rgba(15,23,42,0.45)] flex flex-col transition-transform duration-300 ease-out ${
-          open ? 'translate-x-0' : 'translate-x-full'
+          open ? 'translate-x-0' : 'translate-x-[calc(100%+80px)]'
         }`}
       >
         <header className="sticky top-0 z-10 bg-surface-elevated border-b border-border px-5 py-3.5 flex items-start gap-3">
