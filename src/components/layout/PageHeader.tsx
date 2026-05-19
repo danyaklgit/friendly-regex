@@ -4,6 +4,7 @@ import { useTimeRemaining } from '../../hooks/useTimeRemaining';
 import { Tooltip } from '../shared/Tooltip';
 import { Button } from '../shared/Button';
 import { Badge } from '../shared/Badge';
+import { NotificationsButton } from '../notifications/NotificationsButton';
 
 interface CheckoutInfo {
   bank: string;
@@ -101,6 +102,7 @@ export function PageHeader({ tabs, activeIndex, onTabChange, checkout, onOpenOnb
               </button>
             </Tooltip>
           )}
+          <NotificationsButton />
           {onOpenOnboarding && (
             <button
               onClick={onOpenOnboarding}

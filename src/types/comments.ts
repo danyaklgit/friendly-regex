@@ -14,10 +14,18 @@ export type ReplyStatus = 'ACKNOWLEDGED' | 'RESOLVED' | 'REJECTED';
 export type CommentStatus = 'ACTIVE' | string;
 
 export interface TagSpecCommentReply {
+  /** Server-assigned id. Optional on legacy data; required for reply-to-reply. */
+  Id?: string;
   UserId: string;
   Status: ReplyStatus | string;
   Comment: string;
   CreationDate?: string;
+  /** Set when this reply was posted as a response to another reply. */
+  ParentReplyId?: string | null;
+  /** Mention ids when the reply tags other users. */
+  ReportedToUserIds?: string[];
+  /** Server may return replies nested. Flatten before rendering. */
+  Replies?: TagSpecCommentReply[];
 }
 
 export interface TagSpecComment {
@@ -47,4 +55,5 @@ export interface ReplyPayload {
   UserId: string;
   Status: ReplyStatus | string;
   Comment: string;
+  ReportedToUserIds?: string[];
 }

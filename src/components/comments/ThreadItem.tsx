@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useComments } from '../../context/CommentsContext';
 import { useCommentPermission } from '../../hooks/useCommentPermission';
-import type { ReplyStatus, TagSpecComment } from '../../types/comments';
+import type { ReplyStatus, TagSpecComment, TagSpecCommentReply } from '../../types/comments';
+import { buildReplyTree, countTreeReplies, flattenReplies } from '../../utils/replyTree';
 import { Avatar } from './Avatar';
 import { CommentBody } from './CommentBody';
-import { CommentComposer } from './CommentComposer';
 import { ReplyComposer } from './ReplyComposer';
 import { ReplyItem } from './ReplyItem';
 import { formatCommentDate } from './formatDate';
@@ -18,29 +18,50 @@ interface ThreadItemProps {
   resolved?: boolean;
 }
 
+const REPLY_COLLAPSE_THRESHOLD = 5;
+
 export function ThreadItem({ comment, authToken, defaultCollapsed = false, resolved = false }: ThreadItemProps) {
-  const { userId } = useAuth();
   const { usersMap } = useAuth();
-  const { editComment, addReply, libraryId } = useComments();
-  const { canComment, canReply } = useCommentPermission(libraryId);
+  const { addReply, libraryId } = useComments();
+  const { canReply } = useCommentPermission(libraryId);
 
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
-  const [editing, setEditing] = useState(false);
   const [replying, setReplying] = useState(false);
+  const [replyingToReply, setReplyingToReply] = useState<TagSpecCommentReply | null>(null);
+  const [allRepliesExpanded, setAllRepliesExpanded] = useState(false);
 
   const author = usersMap.get(comment.ReportedByUserId) ?? 'Unknown user';
-  const isOwn = comment.ReportedByUserId === userId;
-  const canEdit = isOwn && canComment;
 
-  const handleEdit = async (body: string, mentionIds: string[]) => {
-    await editComment(comment.Id, comment.Target, body, mentionIds);
-    setEditing(false);
-  };
+  const tree = useMemo(() => buildReplyTree(flattenReplies(comment.Replies)), [comment.Replies]);
+  const totalReplies = useMemo(() => countTreeReplies(tree), [tree]);
+  const needsCollapse = totalReplies > REPLY_COLLAPSE_THRESHOLD;
+  const visibleTree = needsCollapse && !allRepliesExpanded ? tree.slice(-3) : tree;
 
-  const handleReply = async (body: string, status: ReplyStatus) => {
-    await addReply(comment.Id, body, status);
+  const handleReplyToComment = async (body: string, status: ReplyStatus, mentionIds: string[]) => {
+    await addReply(comment.Id, body, status, { mentionIds });
     setReplying(false);
+    setReplyingToReply(null);
   };
+
+  const handleReplyToReplySubmit = async (body: string, status: ReplyStatus, mentionIds: string[]) => {
+    if (!replyingToReply?.Id) return;
+    await addReply(comment.Id, body, status, {
+      parentReplyId: replyingToReply.Id,
+      mentionIds,
+    });
+    setReplying(false);
+    setReplyingToReply(null);
+  };
+
+  const handleReplyToReply = (reply: TagSpecCommentReply) => {
+    if (!reply.Id) return;
+    setReplying(false);
+    setReplyingToReply(reply);
+  };
+
+  const replyTargetAuthor = replyingToReply
+    ? usersMap.get(replyingToReply.UserId) ?? 'Unknown user'
+    : null;
 
   return (
     <article
@@ -69,61 +90,91 @@ export function ThreadItem({ comment, authToken, defaultCollapsed = false, resol
               </button>
             )}
           </div>
-          {!editing && (
-            <div className="mt-1">
-              <CommentBody text={comment.Comment} mentionIds={comment.ReportedToUserIds} />
-            </div>
-          )}
-          {editing && (
-            <div className="mt-2">
-              <CommentComposer
-                authToken={authToken}
-                initialText={comment.Comment}
-                initialMentionIds={comment.ReportedToUserIds ?? []}
-                submitLabel="Save"
-                onCancel={() => setEditing(false)}
-                onSubmit={handleEdit}
-              />
-            </div>
-          )}
-          {!editing && (
+          <div className="mt-1">
+            <CommentBody text={comment.Comment} mentionIds={comment.ReportedToUserIds} />
+          </div>
+          {canReply && (
             <div className="mt-1.5 flex items-center gap-3 text-[11px]">
-              {canReply && (
-                <button
-                  type="button"
-                  className="text-muted hover:text-body cursor-pointer"
-                  onClick={() => setReplying((r) => !r)}
-                >
-                  {replying ? 'Hide reply' : 'Reply'}
-                </button>
-              )}
-              {canEdit && (
-                <button
-                  type="button"
-                  className="text-muted hover:text-body cursor-pointer"
-                  onClick={() => setEditing(true)}
-                >
-                  Edit
-                </button>
-              )}
+              <button
+                type="button"
+                className="text-muted hover:text-body cursor-pointer"
+                onClick={() => {
+                  setReplyingToReply(null);
+                  setReplying((r) => !r);
+                }}
+              >
+                {replying ? 'Hide reply' : 'Reply'}
+              </button>
             </div>
           )}
         </div>
       </header>
 
-      {!collapsed && (comment.Replies?.length ?? 0) > 0 && (
+      {!collapsed && tree.length > 0 && (
         <ol className="mt-3 ml-4 border-l border-border pl-3 space-y-3">
-          {comment.Replies!.map((reply, idx) => (
-            <li key={`${reply.UserId}-${reply.CreationDate ?? idx}`}>
-              <ReplyItem reply={reply} />
+          {needsCollapse && !allRepliesExpanded && (
+            <li>
+              <button
+                type="button"
+                className="text-[11px] font-medium text-cyan-700 dark:text-cyan-300 hover:underline cursor-pointer"
+                onClick={() => setAllRepliesExpanded(true)}
+              >
+                Show {totalReplies - 3} earlier {totalReplies - 3 === 1 ? 'reply' : 'replies'}
+              </button>
             </li>
-          ))}
+          )}
+          {visibleTree.map((node, idx) => {
+            const key = node.reply.Id ?? `${node.reply.UserId}-${node.reply.CreationDate ?? idx}`;
+            return (
+              <li key={key}>
+                <ReplyItem reply={node.reply} onReply={handleReplyToReply} />
+                {node.children.length > 0 && (
+                  <ol className="mt-3 ml-5 border-l border-border pl-3 space-y-3">
+                    {node.children.map((child, cIdx) => {
+                      const ckey = child.reply.Id ?? `${child.reply.UserId}-${child.reply.CreationDate ?? cIdx}`;
+                      return (
+                        <li key={ckey}>
+                          <ReplyItem reply={child.reply} onReply={handleReplyToReply} />
+                        </li>
+                      );
+                    })}
+                  </ol>
+                )}
+              </li>
+            );
+          })}
+          {needsCollapse && allRepliesExpanded && (
+            <li>
+              <button
+                type="button"
+                className="text-[11px] font-medium text-muted hover:text-body cursor-pointer"
+                onClick={() => setAllRepliesExpanded(false)}
+              >
+                Show fewer replies
+              </button>
+            </li>
+          )}
         </ol>
       )}
 
-      {!collapsed && replying && (
+      {!collapsed && (replying || replyingToReply) && (
         <div className="mt-3 ml-4 pl-3 border-l border-border">
-          <ReplyComposer onCancel={() => setReplying(false)} onSubmit={handleReply} />
+          {replyingToReply && replyTargetAuthor && (
+            <div className="mb-2 flex items-center gap-2 text-[11px] text-muted">
+              <span>
+                Replying to <span className="font-medium text-body">{replyTargetAuthor}</span>:
+              </span>
+              <span className="truncate italic max-w-[260px]">“{replyingToReply.Comment}”</span>
+            </div>
+          )}
+          <ReplyComposer
+            authToken={authToken}
+            onCancel={() => {
+              setReplying(false);
+              setReplyingToReply(null);
+            }}
+            onSubmit={replyingToReply ? handleReplyToReplySubmit : handleReplyToComment}
+          />
         </div>
       )}
     </article>

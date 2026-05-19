@@ -153,7 +153,7 @@ describe('comments API helpers', () => {
 
   describe('replyTagSpecComment', () => {
     it.each(['ACKNOWLEDGED', 'RESOLVED', 'REJECTED'])(
-      'sends Status=%s in the reply payload',
+      'sends Status=%s with null ParentReplyId and empty mentions by default',
       async (status) => {
         fetchSpy.mockResolvedValueOnce(jsonResponse({}));
         await replyTagSpecComment(
@@ -168,10 +168,30 @@ describe('comments API helpers', () => {
         const body = JSON.parse(init.body as string);
         expect(body).toEqual({
           CommentId: 'c1',
-          Reply: { UserId: 'u2', Status: status, Comment: 'response' },
+          ParentReplyId: null,
+          ReportedToUserIds: [],
+          Reply: { UserId: 'u2', Status: status, Comment: 'response', ReportedToUserIds: [] },
         });
       },
     );
+
+    it('forwards ParentReplyId and mention ids when provided', async () => {
+      fetchSpy.mockResolvedValueOnce(jsonResponse({}));
+      await replyTagSpecComment(
+        'c1',
+        { UserId: 'u2', Status: 'ACKNOWLEDGED', Comment: 'hey @alice', ReportedToUserIds: ['u3'] },
+        TOKEN,
+        tepHeaders,
+        { parentReplyId: 'r-parent' },
+      );
+
+      const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      const body = JSON.parse(init.body as string);
+      expect(body.CommentId).toBe('c1');
+      expect(body.ParentReplyId).toBe('r-parent');
+      expect(body.ReportedToUserIds).toEqual(['u3']);
+      expect(body.Reply.ReportedToUserIds).toEqual(['u3']);
+    });
 
     it('throws on non-ok response', async () => {
       fetchSpy.mockResolvedValueOnce(jsonResponse({}, 500));

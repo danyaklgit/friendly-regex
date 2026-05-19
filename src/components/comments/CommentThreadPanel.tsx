@@ -4,6 +4,7 @@ import { useComments, useThread } from '../../context/CommentsContext';
 import { useCommentPermission } from '../../hooks/useCommentPermission';
 import type { TagSpecComment, TagSpecCommentTarget } from '../../types/comments';
 import { getTargetLevel } from '../../utils/commentTarget';
+import { flattenReplies } from '../../utils/replyTree';
 import { CommentComposer } from './CommentComposer';
 import { ThreadItem } from './ThreadItem';
 
@@ -29,11 +30,15 @@ function levelLabel(target: TagSpecCommentTarget): string {
   }
 }
 
-/** Latest reply status — used to mark a thread as resolved. */
+/** Latest reply status — used to mark a thread as resolved. We flatten any
+ *  nested replies and pick the chronologically most-recent one. */
 function isResolved(comment: TagSpecComment): boolean {
-  const replies = comment.Replies ?? [];
+  const replies = flattenReplies(comment.Replies);
   if (replies.length === 0) return false;
-  const last = replies[replies.length - 1];
+  const sorted = [...replies].sort((a, b) =>
+    (a.CreationDate ?? '').localeCompare(b.CreationDate ?? ''),
+  );
+  const last = sorted[sorted.length - 1];
   return (last.Status ?? '').toUpperCase() === 'RESOLVED';
 }
 
@@ -46,7 +51,7 @@ export function CommentThreadPanel({
 }: CommentThreadPanelProps) {
   const closeBtnRef = useRef<HTMLButtonElement | null>(null);
   const focusedOnceRef = useRef(false);
-  const { libraryId, addComment, ensureLoaded, loading, error } = useComments();
+  const { libraryId, addComment, refresh, loading, error } = useComments();
   const { canComment, reason } = useCommentPermission(libraryId);
   const threadAll = useThread(target ?? { TagSpecLibraryId: '' });
   const [showResolved, setShowResolved] = useState(false);
@@ -75,10 +80,12 @@ export function CommentThreadPanel({
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
 
-  // Load comments on first open.
+  // Refetch comments every time the panel opens so other users' replies
+  // (especially ones that move a thread between active/resolved) show up
+  // immediately instead of waiting for the page to remount.
   useEffect(() => {
-    if (open) void ensureLoaded();
-  }, [open, ensureLoaded]);
+    if (open) void refresh();
+  }, [open, refresh]);
 
   const { active, resolved } = useMemo(() => {
     const a: TagSpecComment[] = [];

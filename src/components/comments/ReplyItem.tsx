@@ -1,4 +1,6 @@
 import { useAuth } from '../../context/AuthContext';
+import { useCommentPermission } from '../../hooks/useCommentPermission';
+import { useComments } from '../../context/CommentsContext';
 import type { TagSpecCommentReply } from '../../types/comments';
 import { Avatar } from './Avatar';
 import { CommentBody } from './CommentBody';
@@ -6,6 +8,7 @@ import { formatCommentDate } from './formatDate';
 
 interface ReplyItemProps {
   reply: TagSpecCommentReply;
+  onReply?: (reply: TagSpecCommentReply) => void;
 }
 
 const statusStyles: Record<string, string> = {
@@ -20,12 +23,15 @@ const statusLabel: Record<string, string> = {
   REJECTED: 'Rejected',
 };
 
-export function ReplyItem({ reply }: ReplyItemProps) {
+export function ReplyItem({ reply, onReply }: ReplyItemProps) {
   const { usersMap } = useAuth();
+  const { libraryId } = useComments();
+  const { canReply } = useCommentPermission(libraryId);
   const author = usersMap.get(reply.UserId) ?? 'Unknown user';
   const status = (reply.Status ?? 'ACKNOWLEDGED').toUpperCase();
   const style = statusStyles[status] ?? statusStyles.ACKNOWLEDGED;
   const label = statusLabel[status] ?? status;
+  const canShowReplyButton = onReply && canReply && reply.Id;
 
   return (
     <div className="flex gap-2 text-left">
@@ -38,7 +44,16 @@ export function ReplyItem({ reply }: ReplyItemProps) {
             {label}
           </span>
         </div>
-        <CommentBody text={reply.Comment} />
+        <CommentBody text={reply.Comment} mentionIds={reply.ReportedToUserIds} />
+        {canShowReplyButton && (
+          <button
+            type="button"
+            className="mt-1 text-[11px] text-muted hover:text-body cursor-pointer"
+            onClick={() => onReply!(reply)}
+          >
+            Reply
+          </button>
+        )}
       </div>
     </div>
   );

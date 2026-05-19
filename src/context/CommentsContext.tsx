@@ -24,8 +24,12 @@ interface CommentsContextValue {
   /** Fetch on first call; no-op afterwards. The panel calls this on open. */
   ensureLoaded: () => Promise<void>;
   addComment: (target: TagSpecCommentTarget, body: string, mentionIds: string[]) => Promise<void>;
-  editComment: (commentId: string, target: TagSpecCommentTarget, body: string, mentionIds: string[]) => Promise<void>;
-  addReply: (commentId: string, body: string, status: ReplyStatus) => Promise<void>;
+  addReply: (
+    commentId: string,
+    body: string,
+    status: ReplyStatus,
+    options?: { parentReplyId?: string | null; mentionIds?: string[] },
+  ) => Promise<void>;
 }
 
 const CommentsContext = createContext<CommentsContextValue | null>(null);
@@ -107,34 +111,25 @@ export function CommentsProvider({ libraryId, authToken, tepHeaders, eager = fal
     [authToken, tepHeaders, userId, refresh],
   );
 
-  const editComment = useCallback(
-    async (commentId: string, target: TagSpecCommentTarget, body: string, mentionIds: string[]) => {
-      if (!authToken || !tepHeaders || !userId) throw new Error('Not authenticated');
-      await setTagSpecComment(
-        {
-          Id: commentId,
-          Status: 'ACTIVE',
-          Comment: body,
-          ReportedByUserId: userId,
-          ReportedToUserIds: mentionIds,
-          Target: normaliseTarget(target),
-        },
-        authToken,
-        tepHeaders,
-      );
-      await refresh();
-    },
-    [authToken, tepHeaders, userId, refresh],
-  );
-
   const addReply = useCallback(
-    async (commentId: string, body: string, status: ReplyStatus) => {
+    async (
+      commentId: string,
+      body: string,
+      status: ReplyStatus,
+      options?: { parentReplyId?: string | null; mentionIds?: string[] },
+    ) => {
       if (!authToken || !tepHeaders || !userId) throw new Error('Not authenticated');
       await replyTagSpecComment(
         commentId,
-        { UserId: userId, Status: status, Comment: body },
+        {
+          UserId: userId,
+          Status: status,
+          Comment: body,
+          ReportedToUserIds: options?.mentionIds ?? [],
+        },
         authToken,
         tepHeaders,
+        { parentReplyId: options?.parentReplyId ?? null },
       );
       await refresh();
     },
@@ -142,8 +137,8 @@ export function CommentsProvider({ libraryId, authToken, tepHeaders, eager = fal
   );
 
   const value = useMemo(
-    () => ({ libraryId, loaded, loading, error, commentsByTarget, refresh, ensureLoaded, addComment, editComment, addReply }),
-    [libraryId, loaded, loading, error, commentsByTarget, refresh, ensureLoaded, addComment, editComment, addReply],
+    () => ({ libraryId, loaded, loading, error, commentsByTarget, refresh, ensureLoaded, addComment, addReply }),
+    [libraryId, loaded, loading, error, commentsByTarget, refresh, ensureLoaded, addComment, addReply],
   );
 
   return <CommentsContext.Provider value={value}>{children}</CommentsContext.Provider>;

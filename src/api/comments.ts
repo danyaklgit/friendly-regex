@@ -69,13 +69,19 @@ export async function replyTagSpecComment(
   reply: ReplyPayload,
   token: string,
   tepHeaders: TepHeaders,
-  signal?: AbortSignal,
+  options?: { parentReplyId?: string | null; signal?: AbortSignal },
 ): Promise<void> {
+  const mentionIds = reply.ReportedToUserIds ?? [];
   const res = await fetch(`${BASE}/ReplyTagSpecComment`, {
     method: 'POST',
     headers: buildHeaders(token, tepHeaders, 'ReplyTagSpecComment'),
-    body: JSON.stringify({ CommentId: commentId, Reply: reply }),
-    signal,
+    body: JSON.stringify({
+      CommentId: commentId,
+      ParentReplyId: options?.parentReplyId ?? null,
+      ReportedToUserIds: mentionIds,
+      Reply: { ...reply, ReportedToUserIds: mentionIds },
+    }),
+    signal: options?.signal,
   });
   await throwIfNotOk(res, 'Failed to add reply');
 }
