@@ -4,14 +4,23 @@ import { useTagSpecs } from '../../hooks/useTagSpecs';
 import { TagTreePicker } from '../shared/TagTreePicker';
 import { Select } from '../shared/Select';
 import { CERTAINTY_OPTIONS, SIDE_OPTIONS, TXN_TYPE_OPTIONS, BANK_SWIFT_CODE_OPTIONS } from '../../constants/fields';
+import { CommentIconButton } from '../comments/CommentIconButton';
 
 interface StepBasicInfoProps {
   formState: WizardFormState;
   onUpdate: (updates: Partial<Pick<WizardFormState, 'tag' | 'side' | 'bankSwiftCode' | 'transactionTypeCode' | 'statusTag' | 'certaintyLevelTag' | 'validity'>>) => void;
   fromCheckoutContext?: boolean;
+  libraryIdForComments?: string | null;
+  definitionIdForComments?: string;
 }
 
-export function StepBasicInfo({ formState, onUpdate, fromCheckoutContext }: StepBasicInfoProps) {
+export function StepBasicInfo({
+  formState,
+  onUpdate,
+  fromCheckoutContext,
+  libraryIdForComments,
+  definitionIdForComments,
+}: StepBasicInfoProps) {
   const { tagsHierarchy, tagsHierarchyLoading } = useTagSpecs();
   const [touched, setTouched] = useState<Set<string>>(new Set());
   const markTouched = (field: string) => setTouched((prev) => new Set(prev).add(field));
@@ -22,16 +31,32 @@ export function StepBasicInfo({ formState, onUpdate, fromCheckoutContext }: Step
   return (
     <div className="space-y-4">
       <div data-tour="wizard-tag-picker">
-        <TagTreePicker
-          label="Tag"
-          nodes={tagsHierarchy}
-          value={formState.tag}
-          onChange={(tag) => { onUpdate({ tag }); markTouched('tag'); }}
-          loading={tagsHierarchyLoading}
-          required
-          error={isTagError}
-          collapseOnSelect
-        />
+        <div className="flex items-end gap-2">
+          <div className="flex-1">
+            <TagTreePicker
+              label="Tag"
+              nodes={tagsHierarchy}
+              value={formState.tag}
+              onChange={(tag) => { onUpdate({ tag }); markTouched('tag'); }}
+              loading={tagsHierarchyLoading}
+              required
+              error={isTagError}
+              collapseOnSelect
+            />
+          </div>
+          {libraryIdForComments && definitionIdForComments && (
+            <div className="pb-1">
+              <CommentIconButton
+                target={{
+                  TagSpecLibraryId: libraryIdForComments,
+                  TagSpecDefinitionId: definitionIdForComments,
+                }}
+                targetLabel={formState.tag}
+                title="Comments on this TagSpec"
+              />
+            </div>
+          )}
+        </div>
       </div>
 
       <div data-tour="wizard-basic-info-fields" className="space-y-4">

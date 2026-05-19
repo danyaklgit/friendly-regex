@@ -13,6 +13,8 @@ import { Tooltip } from '../shared/Tooltip';
 import { ComparisonModal } from './ComparisonModal';
 import { TaggingStatsCell } from './TaggingStatsCell';
 import { TagRuleCard } from '../tagRules/TagRuleCard';
+import { CommentsProvider } from '../../context/CommentsContext';
+import { CommentIconButton } from '../comments/CommentIconButton';
 import type { TepHeaders, BacklogStatEntry } from '../../api/transactions';
 import { getBacklogStats } from '../../api/transactions';
 import type { TagSpecLibrary, TagSpecDefinition } from '../../types';
@@ -473,7 +475,8 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                   (row.inProgressLib?.ActiveTagSpecLibId ? taggingProgress[row.inProgressLib.ActiveTagSpecLibId] : undefined);
                 const taggingLockTitle = isBeingTagged ? 'Tagging in progress' : undefined;
                 const isRecentlyChanged = recentlyChangedKeys.has(rowKey);
-                return (
+                const libIdForComments = displayLib.Id ?? row.library.Id;
+                const rowContent = (
                   <tr key={row.library.Id} className="group">
                     <td colSpan={8} className="p-0">
                       {/* Main row — sticky when expanded */}
@@ -661,6 +664,14 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                               </svg>
                               Transactions
                             </Button>
+                            {libIdForComments && (
+                              <CommentIconButton
+                                target={{ TagSpecLibraryId: libIdForComments }}
+                                targetLabel={`${bankNameMap.get(row.bank) ?? row.bank} · ${row.side}`}
+                                size="xs"
+                                title="Comments on this bank/side"
+                              />
+                            )}
                           </div>
                         </div>
                       </div>
@@ -698,6 +709,19 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                       })()}
                     </td>
                   </tr>
+                );
+                return libIdForComments ? (
+                  <CommentsProvider
+                    key={row.library.Id}
+                    libraryId={libIdForComments}
+                    authToken={authToken}
+                    tepHeaders={tepHeaders}
+                    eager={isExpanded}
+                  >
+                    {rowContent}
+                  </CommentsProvider>
+                ) : (
+                  rowContent
                 );
               })}
             </tbody>

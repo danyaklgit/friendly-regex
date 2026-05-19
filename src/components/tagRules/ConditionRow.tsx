@@ -2,13 +2,16 @@ import type { RuleExpression } from '../../types';
 import { getRegexDescription } from '../../types/tagSpec';
 import { engregxify } from '../../utils';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
+import { CommentIconButton } from '../comments/CommentIconButton';
 
 interface ConditionRowProps {
   condition: RuleExpression;
   showAnd?: boolean;
+  libraryId?: string;
+  definitionId?: string;
 }
 
-export function ConditionRow({ condition, showAnd }: ConditionRowProps) {
+export function ConditionRow({ condition, showAnd, libraryId, definitionId }: ConditionRowProps) {
   const humanText = getRegexDescription(condition.RegexDetails) || condition.ExpressionPrompt || engregxify(condition.Regex);
 
   return (
@@ -25,6 +28,19 @@ export function ConditionRow({ condition, showAnd }: ConditionRowProps) {
           {humanizeFieldName(condition.SourceField)}
         </span>
         <span className="text-sm text-orange-500 dark:text-orange-300">{humanText}</span>
+        {libraryId && definitionId && condition.ExpressionId && (
+          <span className="ml-auto">
+            <CommentIconButton
+              target={{
+                TagSpecLibraryId: libraryId,
+                TagSpecDefinitionId: definitionId,
+                TagRuleExpressionId: condition.ExpressionId,
+              }}
+              targetLabel={humanizeFieldName(condition.SourceField)}
+              size="xs"
+            />
+          </span>
+        )}
       </div>
     </div>
   );

@@ -15,6 +15,9 @@ interface StepRuleExpressionsProps {
   onConditionSave?: () => void;
   startCollapsed?: boolean;
   readOnly?: boolean;
+  /** Forwarded to nested ConditionEditors so they can render comment icons. */
+  libraryId?: string;
+  definitionId?: string;
 }
 
 export function StepRuleExpressions({
@@ -28,6 +31,8 @@ export function StepRuleExpressions({
   onConditionSave,
   startCollapsed,
   readOnly,
+  libraryId,
+  definitionId,
 }: StepRuleExpressionsProps) {
   // For each rule set, which OTHER rule set has the same canonical conditions
   // (or null when unique). Computed once for all groups so every duplicate
@@ -67,6 +72,8 @@ export function StepRuleExpressions({
               startCollapsed={startCollapsed}
               readOnly={readOnly}
               duplicateOfGroupIndex={duplicateOfIndex[i]}
+              libraryId={libraryId}
+              definitionId={definitionId}
             />
           </div>
         ))

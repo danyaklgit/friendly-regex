@@ -44,6 +44,9 @@ export interface ConditionFormValue {
   values?: string[];
   prefix?: string;
   suffix?: string;
+  /** Backend RuleExpression id, preserved through the form so the comments
+   *  feature can target this rule. Null/undefined for unsaved conditions. */
+  _expressionId?: string | null;
 }
 
 export interface AndGroupFormValue {

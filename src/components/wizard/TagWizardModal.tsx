@@ -3,6 +3,10 @@ import type { WizardFormResult } from '../../hooks/useWizardForm';
 import { useWizardForm } from '../../hooks/useWizardForm';
 import { useTransactionData } from '../../hooks/useTransactionData';
 import { useLovAttributes } from '../../context/LovAttributesContext';
+import { useAuth } from '../../context/AuthContext';
+import { useTepConfig } from '../../context/TepConfigContext';
+import { CommentsProvider } from '../../context/CommentsContext';
+import type { TepHeaders } from '../../api/transactions';
 import { Modal } from '../shared/Modal';
 import { Button } from '../shared/Button';
 import { Tooltip } from '../shared/Tooltip';
@@ -35,7 +39,21 @@ interface TagWizardModalProps {
 export function TagWizardModal({ existingDef, parentLib, initialFormState, initialStep, fromCheckoutContext, onSave, onClose }: TagWizardModalProps) {
   const { fieldMeta } = useTransactionData();
   const { extractionMethods } = useLovAttributes();
+  const auth = useAuth();
+  const tepConfig = useTepConfig();
   const wizard = useWizardForm(existingDef, initialFormState, fieldMeta.sourceFields[0], parentLib, initialStep, extractionMethods);
+
+  const authHeader = auth.getAuthHeaders().Authorization ?? '';
+  const commentsAuthToken = authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : null;
+  const commentsTepHeaders: TepHeaders = {
+    apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
+    userId: auth.userId ?? '',
+    tenantCode: tepConfig.ttpTenantCode,
+    languageCode: tepConfig.languageCode,
+    timeZone: tepConfig.timeZone,
+    requestId: tepConfig.ttpRequestId,
+  };
+  const commentsLibraryId = parentLib?.Id ?? null;
 
   // Each step that surfaces the offending UI gates its own Next button; the
   // final-step Create/Save button gates on the combined state. Two classes of
@@ -124,6 +142,62 @@ export function TagWizardModal({ existingDef, parentLib, initialFormState, initi
     onSave(result);
   };
 
+  const body = (
+    <>
+      <WizardStepIndicator currentStep={wizard.currentStep} onStepClick={wizard.goToStep} canReachStep={canReachStep} />
+
+      {wizard.currentStep === 1 && (
+        <StepBasicInfo
+          formState={wizard.formState}
+          onUpdate={wizard.updateBasicInfo}
+          fromCheckoutContext={fromCheckoutContext}
+          libraryIdForComments={commentsLibraryId}
+          definitionIdForComments={existingDef?.Id}
+        />
+      )}
+
+      {wizard.currentStep === 2 && (
+        <div data-tour="wizard-step-2-content">
+          <StepRuleExpressions
+            ruleGroups={wizard.formState.ruleGroups}
+            onAddGroup={wizard.addRuleGroup}
+            onRemoveGroup={wizard.removeRuleGroup}
+            onCloneGroup={wizard.cloneRuleGroup}
+            onAddCondition={wizard.addCondition}
+            onRemoveCondition={wizard.removeCondition}
+            onUpdateCondition={wizard.updateCondition}
+          />
+        </div>
+      )}
+
+      {wizard.currentStep === 3 && (
+        <StepAttributes
+          attributes={wizard.formState.attributes}
+          onAdd={wizard.addAttribute}
+          onRemove={wizard.removeAttribute}
+          onUpdate={wizard.updateAttribute}
+        />
+      )}
+
+      {wizard.currentStep === 4 && (
+        <StepReview formState={wizard.formState} isEditing={wizard.isEditing} />
+      )}
+    </>
+  );
+
+  const wrappedBody = commentsLibraryId ? (
+    <CommentsProvider
+      libraryId={commentsLibraryId}
+      authToken={commentsAuthToken}
+      tepHeaders={commentsTepHeaders}
+      eager
+    >
+      {body}
+    </CommentsProvider>
+  ) : (
+    body
+  );
+
   return (
     <Modal
       open
@@ -178,38 +252,7 @@ export function TagWizardModal({ existingDef, parentLib, initialFormState, initi
         </>
       }
     >
-      <WizardStepIndicator currentStep={wizard.currentStep} onStepClick={wizard.goToStep} canReachStep={canReachStep} />
-
-      {wizard.currentStep === 1 && (
-        <StepBasicInfo formState={wizard.formState} onUpdate={wizard.updateBasicInfo} fromCheckoutContext={fromCheckoutContext} />
-      )}
-
-      {wizard.currentStep === 2 && (
-        <div data-tour="wizard-step-2-content">
-          <StepRuleExpressions
-            ruleGroups={wizard.formState.ruleGroups}
-            onAddGroup={wizard.addRuleGroup}
-            onRemoveGroup={wizard.removeRuleGroup}
-            onCloneGroup={wizard.cloneRuleGroup}
-            onAddCondition={wizard.addCondition}
-            onRemoveCondition={wizard.removeCondition}
-            onUpdateCondition={wizard.updateCondition}
-          />
-        </div>
-      )}
-
-      {wizard.currentStep === 3 && (
-        <StepAttributes
-          attributes={wizard.formState.attributes}
-          onAdd={wizard.addAttribute}
-          onRemove={wizard.removeAttribute}
-          onUpdate={wizard.updateAttribute}
-        />
-      )}
-
-      {wizard.currentStep === 4 && (
-        <StepReview formState={wizard.formState} isEditing={wizard.isEditing} />
-      )}
+      {wrappedBody}
     </Modal>
   );
 }

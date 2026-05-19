@@ -14,9 +14,12 @@ interface StepAttributesProps {
   readOnly?: boolean;
   suggestedAttributeNames?: { name: string; count: number }[];
   suggestedTagName?: string;
+  /** Forwarded to each AttributeEditor so it can render a comment icon. */
+  libraryId?: string;
+  definitionId?: string;
 }
 
-export function StepAttributes({ attributes, onAdd, onRemove, onUpdate, transactions, startCollapsed, readOnly, suggestedAttributeNames, suggestedTagName }: StepAttributesProps) {
+export function StepAttributes({ attributes, onAdd, onRemove, onUpdate, transactions, startCollapsed, readOnly, suggestedAttributeNames, suggestedTagName, libraryId, definitionId }: StepAttributesProps) {
   // For each attribute, the index of the earlier row sharing its (trimmed,
   // case-insensitive) name, or null when it's unique. Only the later
   // duplicate carries the flag so the original stays clean.
@@ -43,6 +46,8 @@ export function StepAttributes({ attributes, onAdd, onRemove, onUpdate, transact
               isDuplicateName={duplicateOfIndex[i] !== null}
               suggestedAttributeNames={suggestedAttributeNames}
               suggestedTagName={suggestedTagName}
+              libraryId={libraryId}
+              definitionId={definitionId}
             />
           ))}
         </div>

@@ -5,6 +5,7 @@ import { RuleExpressionView } from './RuleExpressionView';
 import { AttributeListView } from './AttributeListView';
 import { Button } from '../shared/Button';
 import { CopyableId } from '../shared/CopyableId';
+import { CommentIconButton } from '../comments/CommentIconButton';
 
 interface TagRuleCardProps {
   definition: TagSpecDefinition;
@@ -30,6 +31,15 @@ export function TagRuleCard({ definition, parentLib, onEdit, onDelete, onExport,
           <span className="text-sm font-semibold text-heading">{definition.Tag}</span>
           <TagMetaBadges definition={definition} parentContext={parentLib?.Context} size="xs" />
           <CopyableId id={definition.Id} />
+          {parentLib?.Id && definition.Id && (
+            <span onClick={(e) => e.stopPropagation()}>
+              <CommentIconButton
+                target={{ TagSpecLibraryId: parentLib.Id, TagSpecDefinitionId: definition.Id }}
+                targetLabel={definition.Tag}
+                size="xs"
+              />
+            </span>
+          )}
         </div>
         <svg
           className={`w-5 h-5 text-faint transition-transform ${expanded ? 'rotate-180' : ''}`}
@@ -56,13 +66,21 @@ export function TagRuleCard({ definition, parentLib, onEdit, onDelete, onExport,
             {/* Tag Rules */}
             <div>
               <h4 className="text-sm font-medium text-body mb-2">Matching Rules</h4>
-              <RuleExpressionView expressions={definition.TagRuleExpressions} />
+              <RuleExpressionView
+                expressions={definition.TagRuleExpressions}
+                libraryId={parentLib?.Id ?? undefined}
+                definitionId={definition.Id}
+              />
             </div>
 
             {/* Attributes */}
             <div>
               <h4 className="text-sm font-medium text-body mb-2">Attributes</h4>
-              <AttributeListView attributes={definition.Attributes} />
+              <AttributeListView
+                attributes={definition.Attributes}
+                libraryId={parentLib?.Id ?? undefined}
+                definitionId={definition.Id}
+              />
             </div>
 
             {/* Actions */}

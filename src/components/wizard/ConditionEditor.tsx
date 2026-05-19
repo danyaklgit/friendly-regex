@@ -9,6 +9,7 @@ import { DATE_SOURCE_FIELDS } from '../../constants/fields';
 import { useTransactionData } from '../../hooks/useTransactionData';
 import { generateExpressionPrompt } from '../../utils/regexify';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
+import { CommentIconButton } from '../comments/CommentIconButton';
 
 const ALLOWED_SOURCE_FIELDS = new Set([
   'AdditionalInformation', 'Amount', 'BankReference', 'CurrencyCode',
@@ -45,6 +46,9 @@ interface ConditionEditorProps {
   /** True when the rule set as a whole is a duplicate of another rule set.
    *  Drives the Save gate (the persistent banner lives on the group). */
   isGroupDuplicate?: boolean;
+  /** Comment scope — passed in from the editor that knows the library + def. */
+  libraryId?: string;
+  definitionId?: string;
 }
 
 
@@ -59,6 +63,8 @@ export function ConditionEditor({
   readOnly,
   isWithinGroupDuplicate,
   isGroupDuplicate,
+  libraryId,
+  definitionId,
 }: ConditionEditorProps) {
   const { fieldMeta, transactions } = useTransactionData();
   const [editing, setEditing] = useState(
@@ -328,6 +334,19 @@ export function ConditionEditor({
               {humanizeFieldName(condition.sourceField)} &rarr; <span className='text-orange-500 dark:text-orange-300'>{preview}</span>
             </p>
           </div>
+        )}
+        {libraryId && definitionId && condition._expressionId && (
+          <span className="self-center">
+            <CommentIconButton
+              target={{
+                TagSpecLibraryId: libraryId,
+                TagSpecDefinitionId: definitionId,
+                TagRuleExpressionId: condition._expressionId,
+              }}
+              targetLabel={humanizeFieldName(condition.sourceField)}
+              size="xs"
+            />
+          </span>
         )}
         {canRemove && !readOnly && (
           <Button variant="ghost" size="xs" onClick={onRemove} className=" text-faint hover:text-red-500">

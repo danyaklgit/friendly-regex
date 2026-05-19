@@ -33,6 +33,21 @@ export function fromExistingDefinition(
     ...attr,
     _originalRegex: def.Attributes[i].AttributeRuleExpression.Regex || undefined,
   }));
+  // Re-inject the RuleExpression backend ids on each condition so the comments
+  // feature can pinpoint a rule. Order is preserved by `cloneRulesAndAttributesFrom`.
+  // Existing libraries persist `ExpressionId: null` for rule conditions (only
+  // attributes get auto-generated ids today), so fall back to a deterministic
+  // position-based id derived from the parent definition. Stable across reloads
+  // for any rule whose position hasn't changed.
+  const ruleGroupsWithIds = ruleGroups.map((g, gi) => ({
+    ...g,
+    conditions: g.conditions.map((c, ci) => ({
+      ...c,
+      _expressionId:
+        def.TagRuleExpressions[gi]?.[ci]?.ExpressionId
+        || (def.Id ? `${def.Id}-rule-${gi}-${ci}` : null),
+    })),
+  }));
   return {
     tag: def.Tag,
     side: parentLib ? (getContextValue(parentLib.Context, 'Side') ?? 'CR') : 'CR',
@@ -41,7 +56,7 @@ export function fromExistingDefinition(
     statusTag: def.StatusTag,
     certaintyLevelTag: def.CertaintyLevelTag,
     validity: { ...def.Validity },
-    ruleGroups,
+    ruleGroups: ruleGroupsWithIds,
     attributes: attributesWithOriginalRegex,
   };
 }

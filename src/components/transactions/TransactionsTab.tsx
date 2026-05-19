@@ -51,6 +51,8 @@ import { TagDetailPanel } from './TagDetailPanel';
 import { HiddenTagsPanel } from './HiddenTagsPanel';
 import { useTepConfig } from '../../context/TepConfigContext';
 import type { TepHeaders } from '../../api/transactions';
+import { CommentsProvider } from '../../context/CommentsContext';
+import { CommentIconButton } from '../comments/CommentIconButton';
 
 interface ShareTogglesInput {
   compactMode: boolean;
@@ -1328,7 +1330,21 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       {/* )} */}
 
       {/* Rule builder panel */}
-      {builderOpen && (
+      {builderOpen && (() => {
+        const ruleBuilderLibraryId = editingParentLib?.Id ?? null;
+        const ruleBuilderAuthHeader = getAuthHeaders().Authorization ?? '';
+        const ruleBuilderAuthToken = ruleBuilderAuthHeader.startsWith('Bearer ')
+          ? ruleBuilderAuthHeader.slice('Bearer '.length)
+          : null;
+        const ruleBuilderTepHeaders: TepHeaders = {
+          apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
+          userId: userId ?? '',
+          tenantCode: tepConfig.ttpTenantCode,
+          languageCode: tepConfig.languageCode,
+          timeZone: tepConfig.timeZone,
+          requestId: tepConfig.ttpRequestId,
+        };
+        const builderPanel = (
         <div data-tour="rule-builder-panel" ref={builderRef} className="flex flex-col mb-6 border border-primary/20 rounded-xl bg-primary/5 overflow-hidden">
           {isReadOnly && ownerName && (
             <div className="flex items-center px-5 py-2 bg-amber-50 border-b border-amber-200 dark:bg-amber-900/20 dark:border-amber-700">
@@ -1360,6 +1376,16 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                       </span>
                       {currentTagId && (
                         <CopyableId id={currentTagId} truncateAt={12} tone="default" />
+                      )}
+                      {editingParentLib?.Id && editingDef?.Id && (
+                        <CommentIconButton
+                          target={{
+                            TagSpecLibraryId: editingParentLib.Id,
+                            TagSpecDefinitionId: editingDef.Id,
+                          }}
+                          targetLabel={editingDef.Tag}
+                          size="xs"
+                        />
                       )}
                     </div>
                   </div>
@@ -1494,6 +1520,8 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
               </h4>
               <StepRuleExpressions
                 ruleGroups={builder.formState.ruleGroups}
+                libraryId={editingParentLib?.Id ?? undefined}
+                definitionId={editingDef?.Id}
                 onAddGroup={tagClickState
                   ? () => {
                       builder.addRuleGroup();
@@ -1541,6 +1569,8 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
               </h4>
               <StepAttributes
                 attributes={builder.formState.attributes}
+                libraryId={editingParentLib?.Id ?? undefined}
+                definitionId={editingDef?.Id}
                 onAdd={builder.addAttribute}
                 onRemove={builder.removeAttribute}
                 onUpdate={builder.updateAttribute}
@@ -1657,7 +1687,20 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
             </div>
           )}
         </div>
-      )}
+        );
+        return ruleBuilderLibraryId ? (
+          <CommentsProvider
+            libraryId={ruleBuilderLibraryId}
+            authToken={ruleBuilderAuthToken}
+            tepHeaders={ruleBuilderTepHeaders}
+            eager
+          >
+            {builderPanel}
+          </CommentsProvider>
+        ) : (
+          builderPanel
+        );
+      })()}
 
       {hiddenRowTags.size > 0 && (
         <div className="flex items-center px-4 py-2 border-y border-border bg-surface-secondary">

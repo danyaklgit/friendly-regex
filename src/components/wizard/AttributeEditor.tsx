@@ -16,6 +16,7 @@ import { describeLiteralBoundary } from '../../utils/engregxify';
 import { applyTransformation } from '../../utils/transformations';
 import { AttributeFormModal } from '../attributes/AttributeFormModal';
 import { TransformationList } from './TransformationList';
+import { CommentIconButton } from '../comments/CommentIconButton';
 
 const ALLOWED_SOURCE_FIELDS = new Set([
   'AdditionalInformation', 'Amount', 'BankReference', 'CurrencyCode',
@@ -63,6 +64,9 @@ interface AttributeEditorProps {
   suggestedAttributeNames?: { name: string; count: number }[];
   /** Canonical tag name used in the section header copy. */
   suggestedTagName?: string;
+  /** Comment scope — when both are provided, a comment icon is shown for this attribute. */
+  libraryId?: string;
+  definitionId?: string;
 }
 
 /**
@@ -103,7 +107,7 @@ function BoundaryHintIcon({
   );
 }
 
-export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, startCollapsed, readOnly, isDuplicateName, suggestedAttributeNames, suggestedTagName }: AttributeEditorProps) {
+export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, startCollapsed, readOnly, isDuplicateName, suggestedAttributeNames, suggestedTagName, libraryId, definitionId }: AttributeEditorProps) {
   const { fieldMeta } = useTransactionData();
   const { activeAttributes, validationClasses, validationOptions, lovOptions, lovLookup, createNewAttribute, transformationMethods, extractionMethods } = useLovAttributes();
   const [showDistinct, setShowDistinct] = useState(false);
@@ -530,6 +534,17 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                 )}
               </p>
             </div>
+            {libraryId && definitionId && attribute.attributeTag && (
+              <CommentIconButton
+                target={{
+                  TagSpecLibraryId: libraryId,
+                  TagSpecDefinitionId: definitionId,
+                  AttributeTag: attribute.attributeTag,
+                }}
+                targetLabel={attribute.attributeTag}
+                size="xs"
+              />
+            )}
             {!readOnly && (
               <Button variant="ghost" size="xs" onClick={onRemove} className="text-red-400 hover:text-red-500 shrink-0">
                 Remove Attribute
@@ -1009,6 +1024,17 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
               >
                 See all distinct values ({distinctValues.length})
               </Button>
+            )}
+            {libraryId && definitionId && attribute.attributeTag && (
+              <CommentIconButton
+                target={{
+                  TagSpecLibraryId: libraryId,
+                  TagSpecDefinitionId: definitionId,
+                  AttributeTag: attribute.attributeTag,
+                }}
+                targetLabel={attribute.attributeTag}
+                size="xs"
+              />
             )}
             {!readOnly && (
               <Button variant="ghost" size="xs" onClick={onRemove} className="ml-1 text-red-400 hover:text-red-500">

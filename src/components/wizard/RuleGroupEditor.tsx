@@ -24,6 +24,9 @@ interface RuleGroupEditorProps {
    *  re-opening one of the conditions, and the Save button on every condition
    *  is disabled while the duplicate remains. */
   duplicateOfGroupIndex?: number | null;
+  /** Forwarded to each ConditionEditor so it can render a comment icon. */
+  libraryId?: string;
+  definitionId?: string;
 }
 
 export function RuleGroupEditor({
@@ -39,6 +42,8 @@ export function RuleGroupEditor({
   startCollapsed,
   readOnly,
   duplicateOfGroupIndex,
+  libraryId,
+  definitionId,
 }: RuleGroupEditorProps) {
   const [isExpanded, setIsExpanded] = useState(!startCollapsed);
 
@@ -148,6 +153,8 @@ export function RuleGroupEditor({
                     readOnly={readOnly}
                     isWithinGroupDuplicate={isWithinGroupDuplicate}
                     isGroupDuplicate={duplicateOfGroupIndex != null}
+                    libraryId={libraryId}
+                    definitionId={definitionId}
                   />
                 );
               })}

@@ -3,9 +3,11 @@ import { AndGroupCard } from './AndGroupCard';
 
 interface RuleExpressionViewProps {
   expressions: TagRuleExpressions;
+  libraryId?: string;
+  definitionId?: string;
 }
 
-export function RuleExpressionView({ expressions }: RuleExpressionViewProps) {
+export function RuleExpressionView({ expressions, libraryId, definitionId }: RuleExpressionViewProps) {
   return (
     <div className="space-y-0">
       {expressions.map((group, i) => (
@@ -19,7 +21,7 @@ export function RuleExpressionView({ expressions }: RuleExpressionViewProps) {
               <div className="flex-1 border-t border-border" />
             </div>
           )}
-          <AndGroupCard group={group} index={i} />
+          <AndGroupCard group={group} index={i} libraryId={libraryId} definitionId={definitionId} />
         </div>
       ))}
     </div>

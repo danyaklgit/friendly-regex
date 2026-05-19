@@ -2,12 +2,15 @@ import type { TagAttribute } from '../../types';
 import { getRegexDescription } from '../../types/tagSpec';
 import { engregxify } from '../../utils';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
+import { CommentIconButton } from '../comments/CommentIconButton';
 
 interface AttributeRuleRowProps {
   attribute: TagAttribute;
+  libraryId?: string;
+  definitionId?: string;
 }
 
-export function AttributeRuleRow({ attribute }: AttributeRuleRowProps) {
+export function AttributeRuleRow({ attribute, libraryId, definitionId }: AttributeRuleRowProps) {
   const humanText =
     getRegexDescription(attribute.AttributeRuleExpression.RegexDetails) ||
     attribute.AttributeRuleExpression.ExpressionPrompt ||
@@ -27,6 +30,17 @@ export function AttributeRuleRow({ attribute }: AttributeRuleRowProps) {
         </span>
         {humanText}
       </div>
+      {libraryId && definitionId && (
+        <CommentIconButton
+          target={{
+            TagSpecLibraryId: libraryId,
+            TagSpecDefinitionId: definitionId,
+            AttributeTag: attribute.AttributeTag,
+          }}
+          targetLabel={attribute.AttributeTag}
+          size="xs"
+        />
+      )}
     </div>
   );
 }
