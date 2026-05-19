@@ -537,7 +537,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     if (hiddenRowTags.size === 0) setHiddenTagsPanelOpen(false);
   }, [hiddenRowTags]);
 
-  const rowTagKey = (rowId: string, tag: string) => `${rowId}::${tag}`;
+  const rowDefKey = (rowId: string, defId: string) => `${rowId}::${defId}`;
 
   // Live mode: fetch from API when filters or extraFilters change.
   // While a Backlog "edit" navigation is pending, skip auto-fetch — handleTagClick
@@ -775,46 +775,51 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     [transactions, allLibraries, tempDefinition, editingDef, tagClickState, builderOpen, builderHasContent, isLiveMode]
   );
 
-  // Hidden tag occurrences for the side panel — one entry per (row, tagName)
-  // tuple so the panel mirrors how badges appear in the table cell, instead
-  // of collapsing same-named hides into a single chip.
+  // Hidden tag occurrences for the side panel — one entry per
+  // (row, definitionId) tuple so same-named tags sourced from different
+  // definitions stay distinguishable, and unhiding one definition's row
+  // doesn't restore another definition that shares the tag name.
   const hiddenTagItems = useMemo(() => {
-    if (hiddenRowTags.size === 0) return [] as Array<{ key: string; rowId: string; name: string; def?: TagSpecDefinition }>;
+    if (hiddenRowTags.size === 0) return [] as Array<{ key: string; rowId: string; defId: string; name: string; def?: TagSpecDefinition }>;
     const identifier = fieldMeta.identifierField;
-    const out: Array<{ key: string; rowId: string; name: string; def?: TagSpecDefinition }> = [];
+    const out: Array<{ key: string; rowId: string; defId: string; name: string; def?: TagSpecDefinition }> = [];
     for (const item of analyzedData) {
       const rowId = String(item.row[identifier] ?? item.row['Id'] ?? '');
       item.analysis.tags.forEach((tag, ti) => {
-        const key = rowTagKey(rowId, tag);
-        if (!hiddenRowTags.has(key)) return;
         const def = item.analysis.matchedDefinitions[ti];
-        out.push({ key, rowId, name: tag, def });
+        if (!def) return;
+        const key = rowDefKey(rowId, def.Id);
+        if (!hiddenRowTags.has(key)) return;
+        out.push({ key, rowId, defId: def.Id, name: tag, def });
       });
     }
     return out;
   }, [hiddenRowTags, analyzedData, fieldMeta.identifierField]);
 
-  // Hide each (row × tag) instance for every analyzed row whose tags match
-  // one of the picked names. This is what the operator-facing "Hide Tag"
-  // action triggers: hide all matching rows. Unhiding from the side panel
-  // can then remove individual occurrences.
-  const hideTagNames = useCallback((names: string[]) => {
-    if (names.length === 0) return;
-    const nameSet = new Set(names);
+  // Hide each (row × definition) instance for every analyzed row whose
+  // matched definitions include one of the picked definition IDs. Keying by
+  // OpsTagSpecDefinitionId (rather than the tag name) keeps two definitions
+  // that share a tag name independent of each other.
+  const hideTagDefs = useCallback((defIds: string[]) => {
+    if (defIds.length === 0) return;
+    const defSet = new Set(defIds);
     const identifier = fieldMeta.identifierField;
     const keysToAdd: string[] = [];
+    let primaryName: string | null = null;
     for (const item of analyzedData) {
       const rowId = String(item.row[identifier] ?? item.row['Id'] ?? '');
-      for (const tag of item.analysis.tags) {
-        if (nameSet.has(tag)) keysToAdd.push(rowTagKey(rowId, tag));
-      }
+      item.analysis.matchedDefinitions.forEach((def, ti) => {
+        if (!def || !defSet.has(def.Id)) return;
+        keysToAdd.push(rowDefKey(rowId, def.Id));
+        if (primaryName === null) primaryName = item.analysis.tags[ti] ?? def.Tag;
+      });
     }
     if (keysToAdd.length === 0) return;
     setHideBusy(true);
     setToast({
-      message: names.length === 1
-        ? `Hiding tag '${names[0]}'…`
-        : `Hiding ${names.length} tags…`,
+      message: defIds.length === 1 && primaryName
+        ? `Hiding tag '${primaryName}'…`
+        : `Hiding ${defIds.length} tags…`,
       type: 'success',
     });
     window.setTimeout(() => {
@@ -825,16 +830,16 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       });
       setHideBusy(false);
       setToast({
-        message: names.length === 1
-          ? `Tag '${names[0]}' hidden on ${keysToAdd.length} row${keysToAdd.length === 1 ? '' : 's'}`
+        message: defIds.length === 1 && primaryName
+          ? `Tag '${primaryName}' hidden on ${keysToAdd.length} row${keysToAdd.length === 1 ? '' : 's'}`
           : `${keysToAdd.length} row tag${keysToAdd.length === 1 ? '' : 's'} hidden`,
         type: 'success',
       });
     }, 250);
   }, [analyzedData, fieldMeta.identifierField]);
 
-  const unhideRowTag = useCallback((rowId: string, name: string) => {
-    const key = rowTagKey(rowId, name);
+  const unhideRowDef = useCallback((rowId: string, defId: string, name: string) => {
+    const key = rowDefKey(rowId, defId);
     setHideBusy(true);
     setToast({ message: `Unhiding tag '${name}'…`, type: 'success' });
     window.setTimeout(() => {
@@ -895,14 +900,14 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       result = result.filter((item) => item.row['TransactionTypeCode'] === builder.formState.transactionTypeCode);
     }
 
-    // Drop rows carrying any tag hidden for that specific row. Hide Tag is a
-    // pure view-layer filter — server payload is unchanged so the operator
-    // can toggle individual rows back from the side panel.
+    // Drop rows carrying any (row, definitionId) pair hidden by the operator.
+    // Hide Tag is a pure view-layer filter — server payload is unchanged so
+    // the operator can toggle individual rows back from the side panel.
     if (hiddenRowTags.size > 0) {
       const identifier = fieldMeta.identifierField;
       result = result.filter((item) => {
         const rowId = String(item.row[identifier] ?? item.row['Id'] ?? '');
-        return !item.analysis.tags.some((t) => hiddenRowTags.has(rowTagKey(rowId, t)));
+        return !item.analysis.matchedDefinitions.some((d) => d && hiddenRowTags.has(rowDefKey(rowId, d.Id)));
       });
     }
 
@@ -1751,7 +1756,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         onFlagDeadEnd={!isReadOnly && !tagClickState?.showingAll && !tagClickState?.rulesetApplied ? flagDeadEnd : undefined}
         onFlagDeadEndWithComment={!isReadOnly && !tagClickState?.showingAll && !tagClickState?.rulesetApplied ? flagDeadEndWithComment : undefined}
         onSetComments={!isReadOnly && !tagClickState?.showingAll && !tagClickState?.rulesetApplied ? setComments : undefined}
-        onHideTags={!isReadOnly && !tagClickState?.showingAll && !tagClickState?.rulesetApplied ? hideTagNames : undefined}
+        onHideTagDefs={!isReadOnly && !tagClickState?.showingAll && !tagClickState?.rulesetApplied ? hideTagDefs : undefined}
         showAttributes={showAttributes}
         relaxedMode={relaxedMode}
         hiddenColumns={tableHiddenColumns}
@@ -1976,7 +1981,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         originalDefinitionIds={originalDefinitionIds}
         definitionSourceMap={definitionSourceMap}
         definitionVersions={definitionVersions}
-        onUnhide={unhideRowTag}
+        onUnhide={unhideRowDef}
         onUnhideAll={unhideAllTags}
         busy={hideBusy}
       />

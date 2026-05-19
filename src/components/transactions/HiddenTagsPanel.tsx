@@ -6,10 +6,12 @@ import { Tooltip } from '../shared/Tooltip';
 import { renderTagTooltip } from './TransactionTable';
 
 export interface HiddenTagItem {
-  /** Stable unique key (rowId + tagName). */
+  /** Stable unique key (rowId + definitionId). */
   key: string;
   /** Row identifier this hidden occurrence belongs to. */
   rowId: string;
+  /** OpsTagSpecDefinitionId — the identity by which the row is hidden. */
+  defId: string;
   /** Tag name as it appears on the row. */
   name: string;
   /** Matched definition for this occurrence (so badge & tooltip mirror the table cell). */
@@ -24,7 +26,7 @@ interface HiddenTagsPanelProps {
   originalDefinitionIds?: Set<string>;
   definitionSourceMap: Map<string, string>;
   definitionVersions: Map<string, DefinitionVersionInfo>;
-  onUnhide: (rowId: string, name: string) => void;
+  onUnhide: (rowId: string, defId: string, name: string) => void;
   onUnhideAll: () => void;
   busy?: boolean;
 }
@@ -138,7 +140,7 @@ export function HiddenTagsPanel({
                     </div>
                     <button
                       type="button"
-                      onClick={() => onUnhide(item.rowId, item.name)}
+                      onClick={() => onUnhide(item.rowId, item.defId, item.name)}
                       disabled={busy}
                       className="cursor-pointer text-xs px-2.5 py-1 rounded border border-border-strong bg-surface text-body hover:bg-surface-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
                     >

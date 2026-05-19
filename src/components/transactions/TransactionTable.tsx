@@ -34,7 +34,7 @@ interface TransactionTableProps {
   onFlagDeadEnd?: (ids: string[], value: boolean) => Promise<void>;
   onFlagDeadEndWithComment?: (ids: string[], value: boolean, entries?: SetTransactionsCommentEntry[]) => Promise<void>;
   onSetComments?: (entries: SetTransactionsCommentEntry[]) => Promise<void>;
-  onHideTags?: (tagNames: string[]) => void;
+  onHideTagDefs?: (defIds: string[]) => void;
   showAttributes?: boolean;
   relaxedMode?: boolean;
   hiddenColumns?: Set<string>;
@@ -471,7 +471,7 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
 
 export type { ColumnDef };
 
-export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, definitionSourceMap, definitionVersions, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, onFlagDeadEndWithComment, onSetComments, onHideTags, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, accentHue = 190, onRowContextMenu, originalEditingDef, activeDefinitionId }: TransactionTableProps) {
+export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, definitionSourceMap, definitionVersions, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, onFlagDeadEndWithComment, onSetComments, onHideTagDefs, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, accentHue = 190, onRowContextMenu, originalEditingDef, activeDefinitionId }: TransactionTableProps) {
   const { fieldMeta } = useTransactionData();
   const { lovLookup } = useLovAttributes();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -578,40 +578,59 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     setSelectedIds(new Set());
   }, [data.length]);
 
-  // Hide Tag action state. The picker covers the multi-tag case; single-tag
-  // and zero-tag cases route through the confirm dialog and the disabled
-  // button respectively.
+  // Hide Tag action state. Keyed by OpsTagSpecDefinitionId so two definitions
+  // that happen to share a tag name stay independent — picking one only
+  // hides that definition's rows. The picker covers the multi-def case;
+  // single-def and zero-def cases route through the confirm dialog and the
+  // disabled button respectively.
+  type HideTagDef = { defId: string; name: string; version?: number };
   const [hideTagDialog, setHideTagDialog] = useState<
-    | { kind: 'confirm'; name: string }
-    | { kind: 'picker'; names: string[]; picked: Set<string> }
+    | { kind: 'confirm'; def: HideTagDef }
+    | { kind: 'picker'; defs: HideTagDef[]; picked: Set<string /* defId */> }
     | null
   >(null);
 
-  const selectedTagNames = useMemo(() => {
-    if (selectedIds.size === 0) return [] as string[];
-    const s = new Set<string>();
+  const selectedTagDefs = useMemo(() => {
+    if (selectedIds.size === 0) return [] as HideTagDef[];
+    const map = new Map<string, HideTagDef>();
     for (const id of selectedIds) {
       const item = data.find((d) => getRowId(d.row) === id);
-      item?.analysis?.tags?.forEach((t) => s.add(t));
+      if (!item) continue;
+      item.analysis.matchedDefinitions.forEach((def, ti) => {
+        if (!def || map.has(def.Id)) return;
+        const version = definitionVersions?.get(def.Id)?.version;
+        map.set(def.Id, {
+          defId: def.Id,
+          name: item.analysis.tags[ti] ?? def.Tag,
+          version,
+        });
+      });
     }
-    return [...s].sort();
-  }, [selectedIds, data, getRowId]);
+    return [...map.values()].sort((a, b) => {
+      const byName = a.name.localeCompare(b.name);
+      return byName !== 0 ? byName : (a.version ?? 0) - (b.version ?? 0);
+    });
+  }, [selectedIds, data, getRowId, definitionVersions]);
 
   const openHideTagDialog = useCallback(() => {
-    if (selectedTagNames.length === 0) return;
-    if (selectedTagNames.length === 1) {
-      setHideTagDialog({ kind: 'confirm', name: selectedTagNames[0] });
+    if (selectedTagDefs.length === 0) return;
+    if (selectedTagDefs.length === 1) {
+      setHideTagDialog({ kind: 'confirm', def: selectedTagDefs[0] });
     } else {
-      setHideTagDialog({ kind: 'picker', names: selectedTagNames, picked: new Set(selectedTagNames) });
+      setHideTagDialog({
+        kind: 'picker',
+        defs: selectedTagDefs,
+        picked: new Set(selectedTagDefs.map((d) => d.defId)),
+      });
     }
-  }, [selectedTagNames]);
+  }, [selectedTagDefs]);
 
-  const confirmHideTags = useCallback((names: string[]) => {
-    if (!onHideTags || names.length === 0) return;
-    onHideTags(names);
+  const confirmHideTags = useCallback((defIds: string[]) => {
+    if (!onHideTagDefs || defIds.length === 0) return;
+    onHideTagDefs(defIds);
     setSelectedIds(new Set());
     setHideTagDialog(null);
-  }, [onHideTags]);
+  }, [onHideTagDefs]);
 
   const theadRef = useRef<HTMLTableSectionElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -1564,18 +1583,18 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                 Add Comment
               </button>
             )}
-            {onHideTags && (() => {
+            {onHideTagDefs && (() => {
               const label = selectedIds.size > 1 ? 'Hide Tags' : 'Hide Tag';
               const hideBtn = (
                 <button
                   onClick={openHideTagDialog}
-                  disabled={selectedTagNames.length === 0}
+                  disabled={selectedTagDefs.length === 0}
                   className="cursor-pointer text-xs px-2.5 py-1 rounded border border-border-strong bg-surface text-body hover:bg-surface-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {label}
                 </button>
               );
-              return selectedTagNames.length === 0 ? (
+              return selectedTagDefs.length === 0 ? (
                 <Tooltip content="No tags on selected rows" placement="bottom">{hideBtn}</Tooltip>
               ) : hideBtn;
             })()}
@@ -1602,12 +1621,12 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
         open={hideTagDialog?.kind === 'confirm'}
         onClose={() => setHideTagDialog(null)}
         onConfirm={() => {
-          if (hideTagDialog?.kind === 'confirm') confirmHideTags([hideTagDialog.name]);
+          if (hideTagDialog?.kind === 'confirm') confirmHideTags([hideTagDialog.def.defId]);
         }}
         title="Hide tag"
         message={
           hideTagDialog?.kind === 'confirm'
-            ? `Hide all rows tagged "${hideTagDialog.name}"? You can unhide them from the chip strip above the table.`
+            ? `Hide all rows tagged "${hideTagDialog.def.name}"${hideTagDialog.def.version ? ` (v${hideTagDialog.def.version})` : ''}? You can unhide them from the side panel above the table.`
             : ''
         }
         confirmLabel="Hide"
@@ -1639,11 +1658,11 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
               The selected rows carry more than one tag. Pick which tags to hide — rows containing any picked tag will disappear from the view.
             </p>
             <div className="border border-border rounded-lg divide-y divide-border max-h-72 overflow-auto bg-surface">
-              {hideTagDialog.names.map((name) => {
-                const checked = hideTagDialog.picked.has(name);
+              {hideTagDialog.defs.map((def) => {
+                const checked = hideTagDialog.picked.has(def.defId);
                 return (
                   <label
-                    key={name}
+                    key={def.defId}
                     className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-surface-hover text-body"
                   >
                     <input
@@ -1653,12 +1672,17 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                         setHideTagDialog((prev) => {
                           if (!prev || prev.kind !== 'picker') return prev;
                           const next = new Set(prev.picked);
-                          if (next.has(name)) next.delete(name); else next.add(name);
+                          if (next.has(def.defId)) next.delete(def.defId); else next.add(def.defId);
                           return { ...prev, picked: next };
                         });
                       }}
                     />
-                    <span className="text-sm">{name}</span>
+                    <span className="text-sm">
+                      {def.name}
+                      {def.version != null && (
+                        <span className="ml-1.5 text-[10px] text-faint">v{def.version}</span>
+                      )}
+                    </span>
                   </label>
                 );
               })}
