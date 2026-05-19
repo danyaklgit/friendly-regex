@@ -582,6 +582,12 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
 
   const [visibleCount, setVisibleCount] = useState(BATCH_SIZE);
   const [wizardOpen, setWizardOpen] = useState(false);
+  // True while the TagSpecLibrarySave request is in flight. Disables the
+  // wizard's Save button + keeps the modal open so the operator can see the
+  // pending state instead of being dropped back to the table before the
+  // backend has persisted the rule (which would cause GetMT940Transactions
+  // to return stale, untagged rows).
+  const [savingTagSpec, setSavingTagSpec] = useState(false);
   const [wizardInitialState, setWizardInitialState] = useState<WizardFormState | undefined>(undefined);
   const [editingDef, setEditingDef] = useState<TagSpecDefinition | undefined>(undefined);
   const [editingParentLib, setEditingParentLib] = useState<TagSpecLibrary | undefined>(undefined);
@@ -1033,6 +1039,59 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   }, [deleteTarget, dispatch, builder, tagClickState, baseFilters]);
 
   const handleWizardSave = useCallback(async (result: WizardFormResult) => {
+    // Persist to the backend FIRST. In live mode `analyzeRow` defers to the
+    // row's OpsTag* fields for saved libraries, so any GetMT940Transactions
+    // call fired before TagSpecLibrarySave completes comes back with rows
+    // tagged under the old rule set. Doing the dispatch / wizard close /
+    // filter reset only after the save ensures the refetch (triggered by
+    // setFilters below, or the explicit fetchPage when there's no filter
+    // change to piggyback on) hits a backend that already has the new rule.
+    if (activeCheckout) {
+      setSavingTagSpec(true);
+      try {
+        await refreshIfNeeded();
+        const authHeaders = getAuthHeaders();
+        const token = authHeaders.Authorization?.replace('Bearer ', '') ?? '';
+        if (token) {
+          const tepHeaders: TepHeaders = {
+            apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
+            userId: userId ?? '',
+            tenantCode: tepConfig.ttpTenantCode,
+            languageCode: tepConfig.languageCode,
+            timeZone: tepConfig.timeZone,
+            requestId: tepConfig.ttpRequestId,
+          };
+          // Find the inProgressLib and apply the change manually (dispatch is
+          // async in React batching).
+          const currentLib = libraries.find(
+            (l) =>
+              l.StatusTag === 'INPROGRESS' &&
+              getContextValue(l.Context, 'BankSwiftCode') === activeCheckout.bank &&
+              getContextValue(l.Context, 'Side') === activeCheckout.side
+          );
+          if (currentLib) {
+            const isEditing = !!editingDef;
+            const updatedDefs = isEditing
+              ? currentLib.TagSpecDefinitions.map((d) => d.Id === result.definition.Id ? result.definition : d)
+              : [...currentLib.TagSpecDefinitions, result.definition];
+            const libToSave = { ...currentLib, TagSpecDefinitions: updatedDefs };
+            await tagSpecLibrarySave(libToSave, token, tepHeaders);
+            // Re-baseline the local cache so baseline + current both reflect
+            // what's now on the server, preventing stale draft state from
+            // overriding fresh API responses on future fetches.
+            saveBaseline(libToSave);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to save tag spec library:', err);
+        setToast({ message: `Failed to save tag '${result.definition.Tag}'. Please try again.`, type: 'error' });
+        setSavingTagSpec(false);
+        return; // Keep the wizard open so the operator can retry.
+      }
+      setSavingTagSpec(false);
+    }
+
+    // Save succeeded — now safe to flip the local state.
     if (editingDef) {
       dispatch({ type: 'UPDATE', payload: result });
       setToast({ message: `Tag '${result.definition.Tag}' updated`, type: 'success' });
@@ -1049,49 +1108,16 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     setBuilderOpen(false);
     builder.resetForm();
     if (tagClickState !== null) {
+      // Filter change naturally triggers the live-mode fetchPage useEffect,
+      // which now hits a backend that already has the saved rule.
       setFilters({ ...baseFilters, ...tagClickState.preFilters });
       setTagClickState(null);
+    } else if (isLiveMode) {
+      // No filter change to piggyback on — explicitly refetch so the freshly
+      // saved rule's tags appear on the transactions list immediately.
+      fetchPage(outgoingFilters, false, incrementalPagination ? undefined : 0, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined);
     }
-
-    // Persist to API immediately
-    if (activeCheckout) {
-      try {
-        await refreshIfNeeded();
-        const authHeaders = getAuthHeaders();
-        const token = authHeaders.Authorization?.replace('Bearer ', '') ?? '';
-        if (token) {
-          const tepHeaders: TepHeaders = {
-            apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
-            userId: userId ?? '',
-            tenantCode: tepConfig.ttpTenantCode,
-            languageCode: tepConfig.languageCode,
-            timeZone: tepConfig.timeZone,
-            requestId: tepConfig.ttpRequestId,
-          };
-          // Find the inProgressLib and apply the change manually (dispatch is async in React batching)
-          const currentLib = libraries.find(
-            (l) =>
-              l.StatusTag === 'INPROGRESS' &&
-              getContextValue(l.Context, 'BankSwiftCode') === activeCheckout.bank &&
-              getContextValue(l.Context, 'Side') === activeCheckout.side
-          );
-          if (currentLib) {
-            const isEditing = !!editingDef;
-            const updatedDefs = isEditing
-              ? currentLib.TagSpecDefinitions.map((d) => d.Id === result.definition.Id ? result.definition : d)
-              : [...currentLib.TagSpecDefinitions, result.definition];
-            const libToSave = { ...currentLib, TagSpecDefinitions: updatedDefs };
-            await tagSpecLibrarySave(libToSave, token, tepHeaders);
-            // Re-baseline the local cache so baseline + current both reflect what's now on the server,
-            // preventing stale draft state from overriding fresh API responses on future fetches.
-            saveBaseline(libToSave);
-          }
-        }
-      } catch (err) {
-        console.error('Failed to save tag spec library:', err);
-      }
-    }
-  }, [dispatch, builder, editingDef, tagClickState, baseFilters, activeCheckout, libraries, refreshIfNeeded, getAuthHeaders, userId, tepConfig, saveBaseline]);
+  }, [dispatch, builder, editingDef, tagClickState, baseFilters, activeCheckout, libraries, refreshIfNeeded, getAuthHeaders, userId, tepConfig, saveBaseline, isLiveMode, outgoingFilters, fetchPage, incrementalPagination, activeExtraFilters]);
 
   const handleWizardClose = useCallback(() => {
     setWizardOpen(false);
@@ -1921,6 +1947,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
           fromCheckoutContext={wizardFromCheckout}
           onSave={handleWizardSave}
           onClose={handleWizardClose}
+          saving={savingTagSpec}
         />
       )}
 

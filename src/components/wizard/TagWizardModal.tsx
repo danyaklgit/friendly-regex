@@ -34,9 +34,13 @@ interface TagWizardModalProps {
   fromCheckoutContext?: boolean;
   onSave: (result: WizardFormResult) => void;
   onClose: () => void;
+  /** True while the parent is awaiting the TagSpecLibrarySave round-trip —
+   *  disables the Save button + Cancel so the modal can't be dismissed
+   *  mid-flight, and surfaces a spinner on the Save button. */
+  saving?: boolean;
 }
 
-export function TagWizardModal({ existingDef, parentLib, initialFormState, initialStep, fromCheckoutContext, onSave, onClose }: TagWizardModalProps) {
+export function TagWizardModal({ existingDef, parentLib, initialFormState, initialStep, fromCheckoutContext, onSave, onClose, saving = false }: TagWizardModalProps) {
   const { fieldMeta } = useTransactionData();
   const { extractionMethods } = useLovAttributes();
   const auth = useAuth();
@@ -201,17 +205,17 @@ export function TagWizardModal({ existingDef, parentLib, initialFormState, initi
   return (
     <Modal
       open
-      onClose={onClose}
+      onClose={saving ? () => {} : onClose}
       fullHeight
       title={wizard.isEditing ? `Edit Rule: ${existingDef?.Tag} (${existingDef?.Id})` : 'Create New Rule'}
       footer={
         <>
-          <Button data-tour="wizard-cancel-button" variant="ghost" onClick={onClose}>
+          <Button data-tour="wizard-cancel-button" variant="ghost" onClick={onClose} disabled={saving}>
             Cancel
           </Button>
           <div className="flex-1" />
           {wizard.currentStep > 1 && (
-            <Button data-tour="wizard-back-button" variant="secondary" onClick={wizard.goBack}>
+            <Button data-tour="wizard-back-button" variant="secondary" onClick={wizard.goBack} disabled={saving}>
               Back
             </Button>
           )}
@@ -225,7 +229,7 @@ export function TagWizardModal({ existingDef, parentLib, initialFormState, initi
                 </span>
               </Tooltip>
             ) : (
-              <Button data-tour="wizard-next-button" variant="primary" onClick={wizard.goNext} disabled={!canProceed()}>
+              <Button data-tour="wizard-next-button" variant="primary" onClick={wizard.goNext} disabled={!canProceed() || saving}>
                 Next
               </Button>
             )
@@ -245,8 +249,22 @@ export function TagWizardModal({ existingDef, parentLib, initialFormState, initi
               </span>
             </Tooltip>
           ) : (
-            <Button data-tour="wizard-create-button" variant="primary" onClick={handleFinish}>
-              {wizard.isEditing ? 'Save Changes' : 'Create Rule'}
+            <Button
+              data-tour="wizard-create-button"
+              variant="primary"
+              onClick={handleFinish}
+              disabled={saving}
+              className="inline-flex items-center gap-2"
+            >
+              {saving && (
+                <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              )}
+              {saving
+                ? (wizard.isEditing ? 'Saving…' : 'Creating…')
+                : (wizard.isEditing ? 'Save Changes' : 'Create Rule')}
             </Button>
           )}
         </>
