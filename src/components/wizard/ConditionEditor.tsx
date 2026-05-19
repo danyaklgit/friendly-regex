@@ -12,10 +12,9 @@ import { humanizeFieldName } from '../../utils/humanizeFieldName';
 import { CommentIconButton } from '../comments/CommentIconButton';
 
 const ALLOWED_SOURCE_FIELDS = new Set([
-  'AdditionalInformation', 'Amount', 'BankReference', 'CurrencyCode',
-  'Description1', 'Description2', 'EntryDate', 'FundsCode',
-  'IBAN', 'StatementDate', 'TransactionDetails', 'TransactionStatusIndicator',
-  'ValueDate',
+  'AdditionalInformation', 'BankReference', 'CurrencyCode',
+  'Description1', 'Description2',
+  'IBAN', 'TransactionDetails',
 ]);
 
 // Date/numeric source fields surface a restricted operation set: only Equals
