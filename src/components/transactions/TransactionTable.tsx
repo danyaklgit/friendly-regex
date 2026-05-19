@@ -1445,10 +1445,15 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
       className="rounded-lg border border-border flex flex-col relative"
       style={{
         maxHeight: `calc(100vh - 17.3rem${builderHeight > 0 ? ` - ${builderHeight + 25}px` : ''})`,
-        // Only reserve a tall minimum for the loading-skeleton case; once
-        // real rows are rendered let the card shrink to content so a single
-        // result doesn't trail empty whitespace below it.
-        minHeight: data.length === 0 ? '300px' : undefined,
+        // Scale the minimum with row count so a one-row result doesn't trail
+        // empty whitespace, while many-row sets still get a tall floor that
+        // the maxHeight above will then clamp. Empty-data case (loading
+        // skeleton) keeps the full 300px. Per-row estimate matches typical
+        // compact-mode row heights; relaxed mode just yields a slightly
+        // larger card, no regression.
+        minHeight: data.length === 0
+          ? '300px'
+          : `${Math.min(300, 60 + data.length * 36)}px`,
       }}
     >
       {/* Column Search spotlight */}
