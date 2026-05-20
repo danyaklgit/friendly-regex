@@ -23,7 +23,10 @@ export interface TransactionDataContextValue {
   loading: boolean;
   hasMore: boolean;
   totalTransactionsCount: number | null;
-  fetchPage: (filters: Record<string, Set<string>>, append: boolean, pageIndex?: number, pageSize?: number, extraFilters?: FilterProperty[]) => Promise<void>;
+  /** Fetches a page of transactions. Resolves with the rows that were just
+   *  loaded (the new chunk in append mode, or the full page in replace mode).
+   *  Resolves with an empty array on abort, error, or non-live mode. */
+  fetchPage: (filters: Record<string, Set<string>>, append: boolean, pageIndex?: number, pageSize?: number, extraFilters?: FilterProperty[]) => Promise<TransactionRow[]>;
   fetchCount: (filters: Record<string, Set<string>>, extraFilters?: FilterProperty[]) => Promise<number | null>;
   trimLoadedTransactions: (count: number) => void;
   filterDefinitions: FilterDefinition[];
@@ -235,15 +238,15 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
     if (results.size > 0) setDecimalMaxValues(results);
   }, [isLiveMode, getAuthHeaders, refreshIfNeeded, userId, tepConfig]);
 
-  const fetchPage = useCallback(async (filters: Record<string, Set<string>>, append: boolean, explicitPage?: number, pageSize?: number, extraFilters?: FilterProperty[]) => {
-    if (!isLiveMode) return;
+  const fetchPage = useCallback(async (filters: Record<string, Set<string>>, append: boolean, explicitPage?: number, pageSize?: number, extraFilters?: FilterProperty[]): Promise<TransactionRow[]> => {
+    if (!isLiveMode) return [];
 
     // Auto-refresh session if <5 min remaining
     await refreshIfNeeded();
 
     const authHeaders = getAuthHeaders();
     const token = authHeaders.Authorization?.replace('Bearer ', '') ?? '';
-    if (!token) return;
+    if (!token) return [];
 
     const tepHeaders: TepHeaders = {
       apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
@@ -314,9 +317,11 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
         setTransactions(rows);
         loadedCountRef.current = rows.length;
       }
+      return rows;
     } catch (err) {
-      if ((err as Error).name === 'AbortError') return;
+      if ((err as Error).name === 'AbortError') return [];
       console.error('Failed to fetch transactions:', err);
+      return [];
     } finally {
       // Only clear loading if this controller is still the active one
       // (i.e. it wasn't replaced by a newer fetch)

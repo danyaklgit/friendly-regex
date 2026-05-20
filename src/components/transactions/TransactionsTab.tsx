@@ -1892,18 +1892,16 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         // Compute backward and forward batch lists once so the skeleton placeholders
         // mirror the actual button layout (e.g. don't draw four backward boxes when
         // only one backward button would render).
-        // Raw values from store / server.
+        // Raw counts (rows actually fetched from server / classic page size).
         const loadedRaw = isLiveMode ? transactions.length : visibleCount;
         const totalRaw = isLiveMode ? (totalTransactionsCount ?? transactions.length) : filteredLen;
-        // Display values account for client-side Hide-Tag-Spec filter so the
-        // footer matches the rows the user actually sees in the table.
+        // Display counts subtract hidden-spec rows so the footer matches what
+        // the user actually sees in the table. The +N / -N buttons still
+        // operate on raw row counts (predictable, no overfetch overshoot).
         const loadedNow = Math.max(0, loadedRaw - hiddenLoadedCount);
         const totalNow = Math.max(0, totalRaw - hiddenLoadedCount);
-        // Overfetch ratio: when hidden specs are active, +N must request more
-        // than N rows from the server because some will be dropped by the
-        // filter. Use the current visible/loaded ratio as the estimate.
-        const visibleRatio = loadedRaw > 0 ? Math.max(0.01, (loadedRaw - hiddenLoadedCount) / loadedRaw) : 1;
-        const removable = Math.max(0, loadedNow - BATCH_SIZE);
+        // Removable uses raw values — the -N control trims raw rows.
+        const removable = Math.max(0, loadedRaw - BATCH_SIZE);
         const backBatches = (() => {
           const b = [500, 200, 50, 25].filter((x) => x <= removable);
           if (b.length === 0 && removable > 0) b.unshift(removable);
@@ -1954,15 +1952,58 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                 <>
                   <span className="text-border">|</span>
                   {fwdBatches.map((size) => (
-                    <Button key={size} variant="outline" size="xs" onClick={() => {
-                      if (isLiveMode) {
-                        // Overfetch to compensate for rows the Hide-Tag-Spec
-                        // filter will drop, so +N yields ~N more *visible*
-                        // rows. With no hidden specs this is a no-op (ratio=1).
-                        const fetchSize = Math.ceil(size / visibleRatio);
-                        fetchPage(outgoingFilters, true, undefined, fetchSize, activeExtraFilters.length > 0 ? activeExtraFilters : undefined);
-                      } else {
+                    <Button key={size} variant="outline" size="xs" onClick={async () => {
+                      if (!isLiveMode) {
                         setVisibleCount((c) => c + size);
+                        return;
+                      }
+                      const extras = activeExtraFilters.length > 0 ? activeExtraFilters : undefined;
+                      if (hiddenDefIds.size === 0) {
+                        await fetchPage(outgoingFilters, true, undefined, size, extras);
+                        return;
+                      }
+                      // Hide-Tag-Spec is a view-layer filter the backend
+                      // doesn't know about. To deliver +N *visible* rows we
+                      // fetch in batches, sizing each one from the observed
+                      // visible-ratio so far. The moment we cross the
+                      // target mid-batch we stop AND trim the remaining raw
+                      // rows from the store — so the visible delta lands on
+                      // exactly N (no overshoot). Capped at 6 iterations as
+                      // a sanity limit against pathological hide ratios.
+                      let visibleAdded = 0;
+                      let rawFetchedThisClick = 0;
+                      let attempts = 0;
+                      const maxAttempts = 6;
+                      let done = false;
+                      while (!done && visibleAdded < size && attempts < maxAttempts) {
+                        const remaining = size - visibleAdded;
+                        let fetchSize: number;
+                        if (attempts === 0 || rawFetchedThisClick === 0) {
+                          fetchSize = size;
+                        } else {
+                          const observedRatio = visibleAdded / rawFetchedThisClick;
+                          fetchSize = Math.max(1, Math.min(size, Math.ceil(remaining / Math.max(0.05, observedRatio))));
+                        }
+                        const newRows = await fetchPage(outgoingFilters, true, undefined, fetchSize, extras);
+                        if (newRows.length === 0) break;
+                        rawFetchedThisClick += newRows.length;
+                        for (let i = 0; i < newRows.length; i++) {
+                          const a = analyzeRow(newRows[i], allLibraries, isLiveMode);
+                          if (!a.matchedDefinitions.some((d) => hiddenDefIds.has(d.Id))) {
+                            visibleAdded++;
+                          }
+                          if (visibleAdded >= size) {
+                            // Drop any raw rows in this batch that came AFTER
+                            // the one that hit the target. They were just
+                            // appended to the store; trim them off so the
+                            // visible total lands exactly on N.
+                            const excess = newRows.length - 1 - i;
+                            if (excess > 0) trimLoadedTransactions(excess);
+                            done = true;
+                            break;
+                          }
+                        }
+                        attempts++;
                       }
                     }}>
                       +{size.toLocaleString()}
