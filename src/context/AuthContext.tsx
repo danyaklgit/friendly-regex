@@ -21,6 +21,9 @@ interface AuthContextValue {
   useDummyData: boolean;
   expiresAt: number | null;
   showSessionWarning: boolean;
+  /** Unix ms when the inactivity grace window expires (warningArmedAt +
+   *  INACTIVITY_GRACE_MS). Null while no warning is showing. */
+  graceDeadline: number | null;
   usersMap: Map<string, string>;
   login: (username: string, password: string, useDummy?: boolean) => Promise<LoginResult>;
   loginWith2fa: (username: string, hashedPassword: string, code: string) => Promise<LoginResult>;
@@ -55,12 +58,14 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 const STORAGE_KEY = 'auth_session';
 const USERS_MAP_KEY = 'tep:usersMap';
-const WARNING_BEFORE_MS = 60_000; // show warning 1 minute before expiry
-const AUTO_REFRESH_THRESHOLD_MS = 5 * 60_000; // auto-refresh when <5 min remaining
-// If the user has interacted within this window when the session is about to
-// expire, refresh silently instead of prompting. Anything older falls through
-// to the warning modal so the operator can decide.
-const ACTIVITY_AUTO_EXTEND_MS = 20 * 60_000;
+// Backend-token refresh threshold: refresh proactively when <5 min of token
+// life remains. Unrelated to the user-facing inactivity model below.
+const AUTO_REFRESH_THRESHOLD_MS = 5 * 60_000;
+// Inactivity-based session policy. Activity is any pointer / key / touch /
+// scroll input AND any authenticated API call routed through refreshIfNeeded.
+const INACTIVITY_TIMEOUT_MS = 30 * 60_000; // 30 min idle → force logout
+const INACTIVITY_WARN_AT_MS = 25 * 60_000; // 25 min idle → warning modal
+const INACTIVITY_GRACE_MS = INACTIVITY_TIMEOUT_MS - INACTIVITY_WARN_AT_MS; // 5 min
 
 function loadSession(): StoredAuth | null {
   try {
@@ -92,8 +97,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const sessionRef = useRef(session);
   sessionRef.current = session;
 
-  // Last user activity timestamp — drives silent session refresh when the
-  // warning is about to fire. Re-armed on pointer / keyboard / touch input.
+  // Last user activity timestamp — drives the inactivity timeout. Re-armed
+  // on any pointer / keyboard / touch / scroll input as well as authenticated
+  // API calls (via refreshIfNeeded).
   const lastActivityRef = useRef<number>(Date.now());
   useEffect(() => {
     const bump = () => { lastActivityRef.current = Date.now(); };
@@ -101,6 +107,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     events.forEach((e) => window.addEventListener(e, bump, { passive: true }));
     return () => events.forEach((e) => window.removeEventListener(e, bump));
   }, []);
+
+  // Deadline by which the user must respond to the warning modal before being
+  // auto-logged-out. Null while no warning is showing. Exposed so the modal
+  // can render an accurate countdown.
+  const [graceDeadline, setGraceDeadline] = useState<number | null>(null);
 
   const isAuthenticated = session !== null;
   const username = session?.username ?? null;
@@ -112,52 +123,62 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const useDummyData = session?.useDummyData ?? false;
   const expiresAt = session?.expiresAt ?? null;
 
-  // Forward-ref so the warning timer (declared before refreshSession) can call
-  // it. Set further down once refreshSession is constructed.
-  const refreshSessionRef = useRef<() => Promise<boolean>>(async () => false);
+  // Forward-ref to logout so the inactivity tick (declared before logout) can
+  // invoke it on grace expiry. Set further down once logout is constructed.
+  const logoutRef = useRef<() => void>(() => {});
 
-  // Dual timers: warning at 1min before, logout at expiry. If the user has
-  // been active within ACTIVITY_AUTO_EXTEND_MS when the warning would fire,
-  // refresh the token silently instead of prompting them.
+  // Inactivity-based warning + auto-logout. Single 1s interval re-reads
+  // lastActivityRef each tick. We arm the warning at ≥25 min idle and force a
+  // logout when the 5 min grace window elapses with no fresh activity.
   useEffect(() => {
     if (!session) {
       setShowSessionWarning(false);
+      setGraceDeadline(null);
       return;
     }
 
-    const remaining = session.expiresAt - Date.now();
-    if (remaining <= 0) {
-      setSession(null);
-      localStorage.removeItem(STORAGE_KEY);
-      return;
-    }
+    let warningArmedAt: number | null = null;
 
-    const timers: ReturnType<typeof setTimeout>[] = [];
-
-    const handleWarning = () => {
-      const sinceActive = Date.now() - lastActivityRef.current;
-      if (sinceActive <= ACTIVITY_AUTO_EXTEND_MS) {
-        void refreshSessionRef.current();
+    const tick = () => {
+      const now = Date.now();
+      const idleMs = now - lastActivityRef.current;
+      if (warningArmedAt == null) {
+        if (idleMs >= INACTIVITY_WARN_AT_MS) {
+          warningArmedAt = now;
+          setGraceDeadline(now + INACTIVITY_GRACE_MS);
+          setShowSessionWarning(true);
+        }
         return;
       }
-      setShowSessionWarning(true);
+      // Warning is showing. If activity bumped lastActivityRef at or after
+      // warningArmedAt, the user came back — clear the warning. Otherwise
+      // count down the grace window. (>= rather than > so a bump that lands
+      // in the same millisecond the warning armed still dismisses it.)
+      if (lastActivityRef.current >= warningArmedAt) {
+        warningArmedAt = null;
+        setShowSessionWarning(false);
+        setGraceDeadline(null);
+      } else if (now - warningArmedAt >= INACTIVITY_GRACE_MS) {
+        warningArmedAt = null;
+        setShowSessionWarning(false);
+        setGraceDeadline(null);
+        logoutRef.current();
+      }
     };
 
-    // Warning timer
-    const warningIn = remaining - WARNING_BEFORE_MS;
-    if (warningIn > 0) {
-      timers.push(setTimeout(handleWarning, warningIn));
-    } else {
-      handleWarning();
-    }
+    const id = setInterval(tick, 1_000);
+    return () => clearInterval(id);
+  }, [session]);
 
-    // Logout timer
-    timers.push(setTimeout(() => {
-      setSession(null);
-      localStorage.removeItem(STORAGE_KEY);
-    }, remaining));
-
-    return () => timers.forEach(clearTimeout);
+  // Backend-token safety net: if the access token's own expiry is hit without
+  // a refresh (with inactivity-driven logout + refreshIfNeeded this should
+  // effectively never fire), force a logout so we don't sit on a dead token.
+  useEffect(() => {
+    if (!session) return;
+    const remaining = session.expiresAt - Date.now();
+    if (remaining <= 0) { logoutRef.current(); return; }
+    const id = setTimeout(() => logoutRef.current(), remaining);
+    return () => clearTimeout(id);
   }, [session]);
 
   const login = useCallback(async (user: string, pass: string, useDummy = true): Promise<LoginResult> => {
@@ -326,7 +347,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
 
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newSession));
+      // A successful refresh implies user-driven action ("Get More Time" or
+      // a deep-link API touch). Reset the inactivity clock so the warning
+      // tears down on the next tick and the 25-min window restarts cleanly.
+      lastActivityRef.current = Date.now();
       setShowSessionWarning(false);
+      setGraceDeadline(null);
       setSession(newSession);
       return true;
     } catch {
@@ -335,11 +361,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [logout]);
 
-  // Keep the forward-ref in sync so the warning timer can call the latest
-  // refreshSession (which itself closes over `logout`).
+  // Keep the forward-ref in sync so the inactivity tick can call the latest
+  // logout (which itself closes over `session`).
   useEffect(() => {
-    refreshSessionRef.current = refreshSession;
-  }, [refreshSession]);
+    logoutRef.current = logout;
+  }, [logout]);
 
   const dismissWarning = useCallback(() => {
     setShowSessionWarning(false);
@@ -353,7 +379,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshingRef = useRef(false);
   const refreshIfNeeded = useCallback(async () => {
     const s = sessionRef.current;
-    if (!s || refreshingRef.current) return;
+    if (!s) return;
+    // Any authenticated API call counts as user activity for the
+    // inactivity model — even if we don't actually need to refresh.
+    lastActivityRef.current = Date.now();
+    if (refreshingRef.current) return;
     const remaining = s.expiresAt - Date.now();
     if (remaining > AUTO_REFRESH_THRESHOLD_MS) return;
     refreshingRef.current = true;
@@ -366,7 +396,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={{
-      isAuthenticated, username, displayName, userId, role, isAudit, isDevops, useDummyData, expiresAt, showSessionWarning, usersMap,
+      isAuthenticated, username, displayName, userId, role, isAudit, isDevops, useDummyData, expiresAt, showSessionWarning, graceDeadline, usersMap,
       login, loginWith2fa, logout, refreshSession, dismissWarning, getAuthHeaders, refreshIfNeeded,
     }}>
       {children}

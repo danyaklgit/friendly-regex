@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import { AuthProvider, useAuth } from './AuthContext';
 
@@ -211,5 +211,130 @@ describe('AuthContext.isDevops', () => {
     expect(screen.getByTestId('role').textContent).toBe('audit');
     expect(screen.getByTestId('audit').textContent).toBe('true');
     expect(screen.getByTestId('devops').textContent).toBe('false');
+  });
+});
+
+describe('AuthContext.inactivityTimeout', () => {
+  // Mirror the constants in AuthContext.tsx so the assertions stay aligned
+  // with the production timing if the constants are ever tweaked there too.
+  const WARN_AT_MS = 25 * 60_000;
+  const TIMEOUT_MS = 30 * 60_000;
+  const GRACE_MS = TIMEOUT_MS - WARN_AT_MS;
+
+  function seedSession(opts: Partial<{ expiresInMs: number }> = {}) {
+    const expiresInMs = opts.expiresInMs ?? 60 * 60_000; // 1 hour, well past TIMEOUT
+    localStorage.setItem(
+      'auth_session',
+      JSON.stringify({
+        accessToken: 'tok',
+        refreshToken: 'r',
+        expiresAt: Date.now() + expiresInMs,
+        username: 'u@x.com',
+        displayName: 'U',
+        userId: 'u1',
+        role: null,
+        useDummyData: false,
+      }),
+    );
+  }
+
+  function InactivityProbe() {
+    const { showSessionWarning, isAuthenticated, graceDeadline } = useAuth();
+    return (
+      <div>
+        <span data-testid="auth">{String(isAuthenticated)}</span>
+        <span data-testid="warning">{String(showSessionWarning)}</span>
+        <span data-testid="grace">{graceDeadline == null ? 'null' : 'set'}</span>
+      </div>
+    );
+  }
+
+  function renderInactivityProbe() {
+    return render(
+      <AuthProvider>
+        <InactivityProbe />
+      </AuthProvider>,
+    );
+  }
+
+  beforeEach(() => {
+    localStorage.clear();
+    vi.clearAllMocks();
+    // logout() fire-and-forgets logoutApi(...).catch(...), so the mock must
+    // return a Promise.
+    vi.mocked(identity.logoutApi).mockResolvedValue(undefined);
+    vi.useFakeTimers({ shouldAdvanceTime: false });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('does not show the warning before 25 min of inactivity', () => {
+    seedSession();
+    renderInactivityProbe();
+    expect(screen.getByTestId('auth').textContent).toBe('true');
+    expect(screen.getByTestId('warning').textContent).toBe('false');
+
+    // Just under the warning threshold.
+    act(() => { vi.advanceTimersByTime(WARN_AT_MS - 1_000); });
+    expect(screen.getByTestId('warning').textContent).toBe('false');
+    expect(screen.getByTestId('grace').textContent).toBe('null');
+  });
+
+  it('shows the warning at 25 min idle and sets a grace deadline', () => {
+    seedSession();
+    renderInactivityProbe();
+
+    act(() => { vi.advanceTimersByTime(WARN_AT_MS); });
+    expect(screen.getByTestId('warning').textContent).toBe('true');
+    expect(screen.getByTestId('grace').textContent).toBe('set');
+  });
+
+  it('forces logout after the 5 min grace window with no response', () => {
+    seedSession();
+    renderInactivityProbe();
+
+    act(() => { vi.advanceTimersByTime(WARN_AT_MS); });
+    expect(screen.getByTestId('warning').textContent).toBe('true');
+
+    act(() => { vi.advanceTimersByTime(GRACE_MS); });
+    expect(screen.getByTestId('auth').textContent).toBe('false');
+    expect(screen.getByTestId('warning').textContent).toBe('false');
+    expect(localStorage.getItem('auth_session')).toBe(null);
+  });
+
+  it('dismisses the warning if activity resumes during the grace window', () => {
+    seedSession();
+    renderInactivityProbe();
+
+    act(() => { vi.advanceTimersByTime(WARN_AT_MS); });
+    expect(screen.getByTestId('warning').textContent).toBe('true');
+
+    // Simulate user activity (the provider listens to window events).
+    act(() => {
+      window.dispatchEvent(new Event('mousedown'));
+      vi.advanceTimersByTime(1_000);
+    });
+    expect(screen.getByTestId('warning').textContent).toBe('false');
+    expect(screen.getByTestId('auth').textContent).toBe('true');
+  });
+
+  it('keeps the warning suppressed indefinitely while the user is active', () => {
+    // 24 h token so the expiresAt safety-net doesn't bite during the cycles.
+    seedSession({ expiresInMs: 24 * 60 * 60_000 });
+    renderInactivityProbe();
+
+    // 5 cycles of (24 min idle, then bump) — total elapsed >> 30 min, but
+    // never 25 min consecutively idle.
+    for (let i = 0; i < 5; i++) {
+      act(() => {
+        vi.advanceTimersByTime(WARN_AT_MS - 60_000);
+        window.dispatchEvent(new Event('keydown'));
+        vi.advanceTimersByTime(1_000);
+      });
+      expect(screen.getByTestId('warning').textContent).toBe('false');
+    }
+    expect(screen.getByTestId('auth').textContent).toBe('true');
   });
 });

@@ -2,30 +2,27 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-// Mock the auth context
+// Mock the auth context. The modal now consumes `graceDeadline` directly and
+// runs its own countdown internally instead of leaning on useTimeRemaining.
 const mockRefreshSession = vi.fn().mockResolvedValue(true);
 const mockLogout = vi.fn();
+const fixedGraceDeadline = Date.now() + 5 * 60_000; // 5:00 ahead
 vi.mock('../../context/AuthContext', () => ({
   useAuth: () => ({
     showSessionWarning: true,
-    expiresAt: Date.now() + 60_000,
+    graceDeadline: fixedGraceDeadline,
     refreshSession: mockRefreshSession,
     logout: mockLogout,
   }),
 }));
 
-// Mock the time remaining hook
-vi.mock('../../hooks/useTimeRemaining', () => ({
-  useTimeRemaining: () => 'Session expires in 0m 59s',
-}));
-
 import { SessionWarningModal } from './SessionWarningModal';
 
 describe('SessionWarningModal', () => {
-  it('renders the modal with session expiring message', () => {
+  it('renders the modal with the inactivity countdown', () => {
     render(<SessionWarningModal />);
     expect(screen.getByText('Session Expiring')).toBeDefined();
-    expect(screen.getByText('Session expires in 0m 59s')).toBeDefined();
+    expect(screen.getByText(/^Logging out in \d+:\d{2}$/)).toBeDefined();
   });
 
   it('renders Get More Time button', () => {
