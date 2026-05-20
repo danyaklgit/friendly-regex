@@ -86,6 +86,11 @@ const DEFAULT_COLUMN_ORDER = [
   'data:Comment',
 ];
 
+/** Synthetic ID for the rule-builder live preview definition. Rows that
+ *  only match this definition have no real tag yet, so surfaces like the
+ *  "Hide Tag Specs" action must ignore it when collecting hideable defs. */
+export const PREVIEW_TEMP_DEF_ID = 'preview-temp';
+
 export const ALLOWED_COLUMN_KEYS = new Set([
   'data:Sequence',
   'data:StatementDate',
@@ -598,6 +603,9 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
       if (!item) continue;
       item.analysis.matchedDefinitions.forEach((def, ti) => {
         if (!def || map.has(def.Id)) return;
+        // The rule-builder preview pill represents a draft tag, not a real
+        // tag spec — there's nothing to hide for it.
+        if (def.Id === PREVIEW_TEMP_DEF_ID) return;
         const version = definitionVersions?.get(def.Id)?.version;
         map.set(def.Id, {
           defId: def.Id,

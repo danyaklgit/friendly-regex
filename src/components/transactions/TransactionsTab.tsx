@@ -26,7 +26,7 @@ import { SearchableSelect } from '../shared/SearchableSelect';
 import { regexify, regexifyExtraction, generateExpressionPrompt, generateExtractionPrompt } from '../../utils/regexify';
 import { generateExpressionId } from '../../utils/uuid';
 import { getContextValue } from '../../types/tagSpec';
-import { TransactionTable, ColumnPicker, ALLOWED_COLUMN_KEYS, DEFAULT_VISIBLE_COLUMN_KEYS, renderTagTooltip, type ColumnDef } from './TransactionTable';
+import { TransactionTable, ColumnPicker, ALLOWED_COLUMN_KEYS, DEFAULT_VISIBLE_COLUMN_KEYS, PREVIEW_TEMP_DEF_ID, renderTagTooltip, type ColumnDef } from './TransactionTable';
 import { TagBadge } from './TagBadge';
 import { StepRuleExpressions } from '../wizard/StepRuleExpressions';
 import { StepAttributes } from '../wizard/StepAttributes';
@@ -89,7 +89,7 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
   const hasTransactionType = formState.transactionTypeCode.trim().length > 0;
   if (!hasCondition && !hasAttribute && !hasTransactionType) return null;
 
-  const id = 'preview-temp';
+  const id = PREVIEW_TEMP_DEF_ID;
   return {
     Id: id,
     Tag: 'Preview',
