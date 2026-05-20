@@ -1176,14 +1176,6 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     setWizardFromCheckout(false);
     setBuilderOpen(false);
     builder.resetForm();
-
-    // The saved tag changes the available filter options (e.g. tag-name and
-    // certainty filters key off the live definitions), so refresh GetFilters
-    // before re-fetching the transaction list on return to the table.
-    if (isLiveMode) {
-      await fetchFilterDefinitions();
-    }
-
     if (tagClickState !== null) {
       // Filter change naturally triggers the live-mode fetchPage useEffect,
       // which now hits a backend that already has the saved rule.
@@ -1194,7 +1186,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       // saved rule's tags appear on the transactions list immediately.
       fetchPage(outgoingFilters, false, incrementalPagination ? undefined : 0, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined);
     }
-  }, [dispatch, builder, editingDef, tagClickState, baseFilters, activeCheckout, libraries, refreshIfNeeded, getAuthHeaders, userId, tepConfig, saveBaseline, isLiveMode, outgoingFilters, fetchPage, incrementalPagination, activeExtraFilters, fetchFilterDefinitions]);
+  }, [dispatch, builder, editingDef, tagClickState, baseFilters, activeCheckout, libraries, refreshIfNeeded, getAuthHeaders, userId, tepConfig, saveBaseline, isLiveMode, outgoingFilters, fetchPage, incrementalPagination, activeExtraFilters]);
 
   const handleWizardClose = useCallback(() => {
     setWizardOpen(false);

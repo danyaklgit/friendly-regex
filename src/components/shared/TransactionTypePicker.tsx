@@ -104,18 +104,16 @@ export function TransactionTypePicker({ value, onChange, filterDefinitions, disa
       return txnDef.Values.map((v) => ({
         value: v.Value ?? '',
         label: v.Label ?? v.Value ?? '',
-        sublabel: v.SubLabel ?? undefined,
       }));
     }
-    return TXN_TYPE_OPTIONS.map((t) => ({ value: t, label: t, sublabel: undefined }));
+    return TXN_TYPE_OPTIONS.map((t) => ({ value: t, label: t }));
   }, [filterDefinitions]);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return options;
     const term = search.toLowerCase();
     return options.filter(
-      (o) => o.label.toLowerCase().includes(term) || o.value.toLowerCase().includes(term) ||
-             (o.sublabel ?? '').toLowerCase().includes(term)
+      (o) => o.label.toLowerCase().includes(term) || o.value.toLowerCase().includes(term)
     );
   }, [options, search]);
 
@@ -228,7 +226,6 @@ export function TransactionTypePicker({ value, onChange, filterDefinitions, disa
                     <span className="min-w-0">
                       <span className={`block font-medium truncate ${value === opt.value ? 'text-primary' : 'text-heading'}`}>{opt.value}</span>
                       {hasDistinctLabel && <span className="block text-[10px] text-muted truncate">{opt.label}</span>}
-                      {opt.sublabel && <span className="block text-[10px] text-faint truncate">{opt.sublabel}</span>}
                     </span>
                   </button>
                 );

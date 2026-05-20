@@ -1988,6 +1988,12 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                                         const badge = (
                                           <TagBadge
                                             tag={tag}
+                                            // Prefer the definition the row actually matched; only
+                                            // fall back to name-lookup when no matched def is
+                                            // available. Two definitions can share a Tag name with
+                                            // different certainty, in which case name-lookup picks
+                                            // the wrong one and the badge color drifts from the
+                                            // tooltip's stated level.
                                             certainty={matchedDef?.CertaintyLevelTag ?? getCertainty(tag)}
                                             isUserCreated={isUserCreated}
                                             version={versionInfo?.version}
