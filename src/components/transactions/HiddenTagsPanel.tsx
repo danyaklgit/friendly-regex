@@ -70,23 +70,8 @@ export function HiddenTagsPanel({
           open ? 'translate-x-0' : 'translate-x-[calc(100%+80px)]'
         }`}
       >
-        <header className="sticky top-0 z-10 bg-surface-elevated border-b border-border px-5 py-3 flex items-center justify-between">
-          <div>
-            <h2 className="text-sm font-semibold text-heading">
-              Hidden Tag Specs ({hiddenCount})
-            </h2>
-          </div>
-          <div className="flex items-center gap-2">
-            {hiddenCount > 0 && (
-              <button
-                type="button"
-                onClick={onUnhideAll}
-                disabled={busy}
-                className="cursor-pointer text-xs px-2.5 py-1 rounded border border-border-strong bg-surface text-body hover:bg-surface-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Unhide all
-              </button>
-            )}
+        <header className="sticky top-0 z-10 bg-surface-elevated border-b border-border px-5 pt-2 pb-4">
+          <div className="flex justify-end mb-4">
             <button
               ref={closeBtnRef}
               type="button"
@@ -99,6 +84,21 @@ export function HiddenTagsPanel({
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-heading">
+              Hidden Tag Specs ({hiddenCount})
+            </h2>
+            {hiddenCount > 0 && (
+              <button
+                type="button"
+                onClick={onUnhideAll}
+                disabled={busy}
+                className="cursor-pointer text-xs px-2.5 py-1 rounded border border-border-strong bg-surface text-body hover:bg-surface-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Unhide all
+              </button>
+            )}
           </div>
         </header>
 
