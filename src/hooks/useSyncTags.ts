@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { useTagSpecs } from './useTagSpecs';
+import { useTransactionData } from './useTransactionData';
 import { useAuth } from '../context/AuthContext';
 import { useTepConfig } from '../context/TepConfigContext';
 import { saveTagsHierarchy } from '../api/tagsHierarchy';
@@ -7,6 +8,7 @@ import type { TepHeaders } from '../api/transactions';
 
 export function useSyncTags() {
   const { rawHierarchyNodes, hierarchyWrapper, setOriginalRawNodes, refetchHierarchy } = useTagSpecs();
+  const { fetchFilterDefinitions } = useTransactionData();
   const { getAuthHeaders, userId, useDummyData } = useAuth();
   const tepConfig = useTepConfig();
 
@@ -37,5 +39,9 @@ export function useSyncTags() {
     const payload = { ...hierarchyWrapper, TagsHierarchy: rawHierarchyNodes };
     await saveTagsHierarchy(authToken, tepHeaders, payload);
     await refetchHierarchy();
-  }, [hierarchyWrapper, rawHierarchyNodes, useDummyData, getAuthHeaders, userId, tepConfig, setOriginalRawNodes, refetchHierarchy]);
+    // Tags are an input to the Transactions filter bar (tag dropdown options
+    // come from /get-filters, not the hierarchy itself). Invalidate the
+    // cached filter definitions so newly-synced tags appear without a reload.
+    await fetchFilterDefinitions();
+  }, [hierarchyWrapper, rawHierarchyNodes, useDummyData, getAuthHeaders, userId, tepConfig, setOriginalRawNodes, refetchHierarchy, fetchFilterDefinitions]);
 }
