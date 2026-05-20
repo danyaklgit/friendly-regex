@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useTagSpecs } from './useTagSpecs';
 
 export interface CommentPermission {
   canComment: boolean;
@@ -10,39 +9,21 @@ export interface CommentPermission {
 
 /**
  * Permission rules for the comment feature:
- *  - canComment: current user is the library's operator AND the library is INPROGRESS.
- *  - canReply: any authenticated user.
+ *  - Any authenticated non-audit user can comment and reply on any TagSpec.
+ *  - Audit users cannot comment or reply at all.
+ * The `libraryId` argument is retained for call-site stability — the rule no
+ * longer depends on checkout / operator state.
  */
-export function useCommentPermission(libraryId: string | null | undefined): CommentPermission {
-  const { userId, isAuthenticated, isAudit } = useAuth();
-  const { libraries } = useTagSpecs();
+export function useCommentPermission(_libraryId: string | null | undefined): CommentPermission {
+  const { isAuthenticated, isAudit } = useAuth();
 
   return useMemo<CommentPermission>(() => {
-    const canReply = isAuthenticated && !isAudit;
-    if (!canReply) {
-      return { canComment: false, canReply: false, reason: 'Sign in to reply' };
+    if (!isAuthenticated) {
+      return { canComment: false, canReply: false, reason: 'Sign in to comment' };
     }
-    if (!libraryId) {
-      return { canComment: false, canReply: true, reason: 'No library context' };
-    }
-    const lib = libraries.find((l) => l.Id === libraryId);
-    if (!lib) {
-      return { canComment: false, canReply: true, reason: 'Library not found' };
-    }
-    if (lib.StatusTag !== 'INPROGRESS') {
-      return {
-        canComment: false,
-        canReply: true,
-        reason: 'Library is not checked out',
-      };
-    }
-    if (lib.OperatorId !== userId) {
-      return {
-        canComment: false,
-        canReply: true,
-        reason: 'Only the current operator can post new comments',
-      };
+    if (isAudit) {
+      return { canComment: false, canReply: false, reason: 'Audit users cannot comment' };
     }
     return { canComment: true, canReply: true };
-  }, [isAuthenticated, isAudit, libraries, libraryId, userId]);
+  }, [isAuthenticated, isAudit]);
 }

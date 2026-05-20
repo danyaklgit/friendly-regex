@@ -9,10 +9,28 @@ interface ConditionRowProps {
   showAnd?: boolean;
   libraryId?: string;
   definitionId?: string;
+  /** Position-based fallback inputs so comments can pin to rules that haven't
+   *  been assigned a backend ExpressionId yet (existing libraries persist it
+   *  as null). Matches the synthetic id format used by useWizardForm. */
+  groupIndex?: number;
+  conditionIndex?: number;
 }
 
-export function ConditionRow({ condition, showAnd, libraryId, definitionId }: ConditionRowProps) {
+export function ConditionRow({
+  condition,
+  showAnd,
+  libraryId,
+  definitionId,
+  groupIndex,
+  conditionIndex,
+}: ConditionRowProps) {
   const humanText = getRegexDescription(condition.RegexDetails) || condition.ExpressionPrompt || engregxify(condition.Regex);
+
+  const expressionTargetId =
+    condition.ExpressionId
+    || (definitionId != null && groupIndex != null && conditionIndex != null
+      ? `${definitionId}-rule-${groupIndex}-${conditionIndex}`
+      : null);
 
   return (
     <div>
@@ -28,13 +46,13 @@ export function ConditionRow({ condition, showAnd, libraryId, definitionId }: Co
           {humanizeFieldName(condition.SourceField)}
         </span>
         <span className="text-sm text-orange-500 dark:text-orange-300">{humanText}</span>
-        {libraryId && definitionId && condition.ExpressionId && (
+        {libraryId && definitionId && expressionTargetId && (
           <span className="ml-auto">
             <CommentIconButton
               target={{
                 TagSpecLibraryId: libraryId,
                 TagSpecDefinitionId: definitionId,
-                TagRuleExpressionId: condition.ExpressionId,
+                TagRuleExpressionId: expressionTargetId,
               }}
               targetLabel={humanizeFieldName(condition.SourceField)}
               size="xs"

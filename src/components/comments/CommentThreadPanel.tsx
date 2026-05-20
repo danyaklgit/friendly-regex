@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useComments, useThread } from '../../context/CommentsContext';
 import { useCommentPermission } from '../../hooks/useCommentPermission';
+import { useAuth } from '../../context/AuthContext';
 import type { TagSpecComment, TagSpecCommentTarget } from '../../types/comments';
 import { getTargetLevel } from '../../utils/commentTarget';
 import { flattenReplies } from '../../utils/replyTree';
@@ -57,6 +58,7 @@ export function CommentThreadPanel({
   const focusedOnceRef = useRef(false);
   const { libraryId, addComment, refresh, loading, error } = useComments();
   const { canComment, reason } = useCommentPermission(libraryId);
+  const { isAudit } = useAuth();
   const threadAll = useThread(target ?? { TagSpecLibraryId: '' });
   const [showResolved, setShowResolved] = useState(false);
 
@@ -163,6 +165,15 @@ export function CommentThreadPanel({
         </header>
 
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+          {isAudit ? (
+            <div className="text-center mt-12 px-6">
+              <p className="text-sm font-medium text-body">Comments unavailable</p>
+              <p className="text-xs text-muted mt-1">
+                Audit users cannot view or post TagSpec comments.
+              </p>
+            </div>
+          ) : (
+            <>
           {target && (
             <section>
               {canComment ? (
@@ -235,6 +246,8 @@ export function CommentThreadPanel({
                 </ol>
               )}
             </section>
+          )}
+            </>
           )}
         </div>
       </aside>

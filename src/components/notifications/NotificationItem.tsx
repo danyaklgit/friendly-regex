@@ -3,6 +3,7 @@ import type { UserNotification, NotificationStatus } from '../../types/notificat
 import { formatCommentDate } from '../comments/formatDate';
 import { Avatar } from '../comments/Avatar';
 import { useAuth } from '../../context/AuthContext';
+import { Tooltip } from '../shared/Tooltip';
 
 interface NotificationItemProps {
   notification: UserNotification;
@@ -87,9 +88,11 @@ export function NotificationItem({ notification, senderUserId, onMarkStatus, onO
               </div>
             )}
             <div className="flex items-baseline gap-2">
-              <p className={`text-sm truncate ${isUnread ? 'font-semibold text-body' : 'font-medium text-body-secondary'}`}>
-                {notification.Title}
-              </p>
+              <Tooltip content={notification.Title} placement="top">
+                <p className={`text-sm truncate min-w-0 ${isUnread ? 'font-semibold text-body' : 'font-medium text-body-secondary'}`}>
+                  {notification.Title}
+                </p>
+              </Tooltip>
               <span className="ml-auto text-[10px] text-muted whitespace-nowrap">
                 {formatCommentDate(notification.CreationDate)}
               </span>

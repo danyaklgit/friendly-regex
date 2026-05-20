@@ -57,6 +57,10 @@ const STORAGE_KEY = 'auth_session';
 const USERS_MAP_KEY = 'tep:usersMap';
 const WARNING_BEFORE_MS = 60_000; // show warning 1 minute before expiry
 const AUTO_REFRESH_THRESHOLD_MS = 5 * 60_000; // auto-refresh when <5 min remaining
+// If the user has interacted within this window when the session is about to
+// expire, refresh silently instead of prompting. Anything older falls through
+// to the warning modal so the operator can decide.
+const ACTIVITY_AUTO_EXTEND_MS = 20 * 60_000;
 
 function loadSession(): StoredAuth | null {
   try {
@@ -88,6 +92,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const sessionRef = useRef(session);
   sessionRef.current = session;
 
+  // Last user activity timestamp — drives silent session refresh when the
+  // warning is about to fire. Re-armed on pointer / keyboard / touch input.
+  const lastActivityRef = useRef<number>(Date.now());
+  useEffect(() => {
+    const bump = () => { lastActivityRef.current = Date.now(); };
+    const events: (keyof WindowEventMap)[] = ['mousedown', 'keydown', 'touchstart', 'scroll', 'pointermove'];
+    events.forEach((e) => window.addEventListener(e, bump, { passive: true }));
+    return () => events.forEach((e) => window.removeEventListener(e, bump));
+  }, []);
+
   const isAuthenticated = session !== null;
   const username = session?.username ?? null;
   const displayName = session?.displayName ?? null;
@@ -98,7 +112,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const useDummyData = session?.useDummyData ?? false;
   const expiresAt = session?.expiresAt ?? null;
 
-  // Dual timers: warning at 1min before, logout at expiry
+  // Forward-ref so the warning timer (declared before refreshSession) can call
+  // it. Set further down once refreshSession is constructed.
+  const refreshSessionRef = useRef<() => Promise<boolean>>(async () => false);
+
+  // Dual timers: warning at 1min before, logout at expiry. If the user has
+  // been active within ACTIVITY_AUTO_EXTEND_MS when the warning would fire,
+  // refresh the token silently instead of prompting them.
   useEffect(() => {
     if (!session) {
       setShowSessionWarning(false);
@@ -114,12 +134,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const timers: ReturnType<typeof setTimeout>[] = [];
 
+    const handleWarning = () => {
+      const sinceActive = Date.now() - lastActivityRef.current;
+      if (sinceActive <= ACTIVITY_AUTO_EXTEND_MS) {
+        void refreshSessionRef.current();
+        return;
+      }
+      setShowSessionWarning(true);
+    };
+
     // Warning timer
     const warningIn = remaining - WARNING_BEFORE_MS;
     if (warningIn > 0) {
-      timers.push(setTimeout(() => setShowSessionWarning(true), warningIn));
+      timers.push(setTimeout(handleWarning, warningIn));
     } else {
-      setShowSessionWarning(true);
+      handleWarning();
     }
 
     // Logout timer
@@ -305,6 +334,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return false;
     }
   }, [logout]);
+
+  // Keep the forward-ref in sync so the warning timer can call the latest
+  // refreshSession (which itself closes over `logout`).
+  useEffect(() => {
+    refreshSessionRef.current = refreshSession;
+  }, [refreshSession]);
 
   const dismissWarning = useCallback(() => {
     setShowSessionWarning(false);

@@ -60,6 +60,7 @@ export function CommentIconButton({ target, targetLabel, size = 'sm', title }: C
     : null;
 
   if (!commentsCtx || !target) return null;
+  if (auth.isAudit) return null;
 
   const hasComments = count > 0;
   const dim = size === 'xs' ? 'h-5 w-5' : 'h-6 w-6';

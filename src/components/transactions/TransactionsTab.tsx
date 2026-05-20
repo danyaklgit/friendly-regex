@@ -46,6 +46,7 @@ import { TransactionTypePicker } from '../shared/TransactionTypePicker';
 import { tagSpecLibrarySave } from '../../api/tagSpecSave';
 import { ShareLinkDialog } from '../shared/ShareLinkDialog';
 import { RowContextMenu } from './RowContextMenu';
+import { CommentDialog, type CommentDialogResult } from './CommentDialog';
 import { ViewContextModal } from './ViewContextModal';
 import { TagDetailPanel } from './TagDetailPanel';
 import { HiddenTagsPanel } from './HiddenTagsPanel';
@@ -313,6 +314,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const [hideBusy, setHideBusy] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ row: TransactionRow; x: number; y: number } | null>(null);
   const [contextModalRow, setContextModalRow] = useState<TransactionRow | null>(null);
+  const [singleRowCommentRow, setSingleRowCommentRow] = useState<TransactionRow | null>(null);
   const shareFiltersConsumed = useRef(false);
   const shareFiltersRef = useRef(initialShareFilters);
   const shareTogglesRef = useRef(initialShareToggles);
@@ -1980,9 +1982,22 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
           x={contextMenu.x}
           y={contextMenu.y}
           onViewContext={() => { setContextModalRow(contextMenu.row); setContextMenu(null); }}
+          onComment={!isAudit ? () => { setSingleRowCommentRow(contextMenu.row); setContextMenu(null); } : undefined}
           onClose={() => setContextMenu(null)}
         />
       )}
+
+      <CommentDialog
+        open={!!singleRowCommentRow}
+        mode="comment-only"
+        selectedRows={singleRowCommentRow ? [singleRowCommentRow] : []}
+        onClose={() => setSingleRowCommentRow(null)}
+        onConfirm={async (result: CommentDialogResult) => {
+          if (result.skipped) return;
+          if (result.entries.length > 0) await setComments(result.entries);
+        }}
+      />
+
 
       <TagDetailPanel
         open={!!previewDef}

@@ -20,6 +20,8 @@ export function AndGroupCard({ group, index, libraryId, definitionId }: AndGroup
             showAnd={i > 0}
             libraryId={libraryId}
             definitionId={definitionId}
+            groupIndex={index}
+            conditionIndex={i}
           />
         ))}
       </div>
