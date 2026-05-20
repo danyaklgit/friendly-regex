@@ -170,13 +170,39 @@ function ListEqDropdown({
   const activeLabels = definition.Values.filter((v) => selected.has(v.Column)).map((v) => v.Label);
   const hasActive = activeLabels.length > 0;
 
-  // DisabledBy logic from API: format "Column:<columnName>"
+  // Reverse index: for each target column T, the columns whose DisabledBy
+  // points at T. Used to make the mutual-exclusion symmetric — if value A
+  // declares DisabledBy: Column:B, then selecting A must also disable B (not
+  // just the other way around).
+  const reverseDisablers = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const v of definition.Values) {
+      if (!v.DisabledBy) continue;
+      const match = v.DisabledBy.match(/^Column:(.+)$/);
+      if (!match) continue;
+      const target = match[1];
+      if (!map.has(target)) map.set(target, new Set());
+      map.get(target)!.add(v.Column);
+    }
+    return map;
+  }, [definition.Values]);
+
+  // DisabledBy logic from API: format "Column:<columnName>". Applied
+  // symmetrically — a value is disabled when either (a) its DisabledBy points
+  // at a selected column, or (b) any selected column declares it as its
+  // DisabledBy target.
   const isDisabled = (v: typeof definition.Values[number]) => {
-    if (!v.DisabledBy) return false;
-    const match = v.DisabledBy.match(/^Column:(.+)$/);
-    if (!match) return false;
-    const disablingColumn = match[1];
-    return selected.has(disablingColumn);
+    if (v.DisabledBy) {
+      const match = v.DisabledBy.match(/^Column:(.+)$/);
+      if (match && selected.has(match[1])) return true;
+    }
+    const disablers = reverseDisablers.get(v.Column);
+    if (disablers) {
+      for (const d of disablers) {
+        if (selected.has(d)) return true;
+      }
+    }
+    return false;
   };
 
   const handleToggle = (column: string) => {
@@ -191,6 +217,14 @@ function ListEqDropdown({
         if (!v.DisabledBy) continue;
         const match = v.DisabledBy.match(/^Column:(.+)$/);
         if (match && match[1] === column) next.delete(v.Column);
+      }
+      // Reverse: if the newly selected value declares a DisabledBy target,
+      // drop the target from the selection too (handles inconsistent state
+      // such as filters restored from a share link).
+      const clicked = definition.Values.find((vv) => vv.Column === column);
+      if (clicked?.DisabledBy) {
+        const match = clicked.DisabledBy.match(/^Column:(.+)$/);
+        if (match) next.delete(match[1]);
       }
     }
 
