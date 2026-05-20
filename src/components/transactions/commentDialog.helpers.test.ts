@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { splitRows, buildPayload, hasComment, getRowId } from './commentDialog.helpers';
+import {
+  splitRows,
+  hasComment,
+  getRowId,
+  getRowComment,
+  distinctComments,
+  buildApplyAllPayload,
+  buildReviewPayload,
+} from './commentDialog.helpers';
 import type { TransactionRow } from '../../types';
 
 function r(id: string, comment?: string | null): TransactionRow {
@@ -32,106 +40,111 @@ describe('getRowId', () => {
   });
 });
 
-describe('splitRows', () => {
-  it('all rows without comments → 1 bulk step, no override steps', () => {
-    const result = splitRows([r('a'), r('b'), r('c')]);
-    expect(result.rowsWithoutComment).toHaveLength(3);
-    expect(result.rowsWithComment).toHaveLength(0);
-    expect(result.hasBulkStep).toBe(true);
-    expect(result.totalSteps).toBe(1);
-  });
-
-  it('all rows with comments → no bulk step, N override steps', () => {
-    const result = splitRows([r('a', 'x'), r('b', 'y')]);
-    expect(result.rowsWithoutComment).toHaveLength(0);
-    expect(result.rowsWithComment).toHaveLength(2);
-    expect(result.hasBulkStep).toBe(false);
-    expect(result.totalSteps).toBe(2);
-  });
-
-  it('mixed → 1 bulk step + per-conflict override steps', () => {
-    const result = splitRows([r('a'), r('b', 'x'), r('c'), r('d', 'y')]);
-    expect(result.rowsWithoutComment).toHaveLength(2);
-    expect(result.rowsWithComment).toHaveLength(2);
-    expect(result.hasBulkStep).toBe(true);
-    expect(result.totalSteps).toBe(3);
-  });
-
-  it('empty input → no steps', () => {
-    const result = splitRows([]);
-    expect(result.hasBulkStep).toBe(false);
-    expect(result.totalSteps).toBe(0);
+describe('getRowComment', () => {
+  it('returns the comment string, or empty when missing/null', () => {
+    expect(getRowComment(r('a', 'note'))).toBe('note');
+    expect(getRowComment(r('a'))).toBe('');
+    expect(getRowComment(r('a', null))).toBe('');
   });
 });
 
-describe('buildPayload', () => {
-  it('includes all rows without comments when bulkComment is set', () => {
-    const payload = buildPayload({
-      rowsWithoutComment: [r('a'), r('b')],
-      bulkComment: 'hello',
-      perRowComments: new Map(),
-    });
-    expect(payload).toEqual([
-      { Id: 'a', Comment: 'hello' },
-      { Id: 'b', Comment: 'hello' },
+describe('splitRows', () => {
+  it('mixed → rowsWithoutComment and rowsWithComment', () => {
+    const result = splitRows([r('a'), r('b', 'x'), r('c'), r('d', 'y')]);
+    expect(result.rowsWithoutComment.map(getRowId)).toEqual(['a', 'c']);
+    expect(result.rowsWithComment.map(getRowId)).toEqual(['b', 'd']);
+  });
+});
+
+describe('distinctComments', () => {
+  it('dedupes by trimmed comment with counts, in first-appearance order', () => {
+    const result = distinctComments([
+      r('a', 'Refund processed'),
+      r('b', 'Pending review'),
+      r('c', '  Refund processed  '),
+      r('d'),
+    ]);
+    expect(result).toEqual([
+      { comment: 'Refund processed', count: 2 },
+      { comment: 'Pending review', count: 1 },
     ]);
   });
 
-  it('skips bulk entries when bulkComment is empty/whitespace', () => {
-    const payload = buildPayload({
+  it('ignores rows without a comment', () => {
+    expect(distinctComments([r('a'), r('b', '')])).toEqual([]);
+  });
+});
+
+describe('buildApplyAllPayload', () => {
+  it('writes the same trimmed comment to every row', () => {
+    const payload = buildApplyAllPayload([r('a'), r('b', 'old'), r('c')], '  done  ');
+    expect(payload).toEqual([
+      { Id: 'a', Comment: 'done' },
+      { Id: 'b', Comment: 'done' },
+      { Id: 'c', Comment: 'done' },
+    ]);
+  });
+});
+
+describe('buildReviewPayload', () => {
+  it('applies the bulk comment to the comment-less rows', () => {
+    const payload = buildReviewPayload({
       rowsWithoutComment: [r('a'), r('b')],
+      bulkComment: '  hi ',
+      perRow: new Map(),
+    });
+    expect(payload).toEqual([
+      { Id: 'a', Comment: 'hi' },
+      { Id: 'b', Comment: 'hi' },
+    ]);
+  });
+
+  it('skips the bulk comment when empty', () => {
+    const payload = buildReviewPayload({
+      rowsWithoutComment: [r('a')],
       bulkComment: '   ',
-      perRowComments: new Map(),
+      perRow: new Map(),
     });
     expect(payload).toEqual([]);
   });
 
-  it('trims bulkComment before using it', () => {
-    const payload = buildPayload({
-      rowsWithoutComment: [r('a')],
-      bulkComment: '  hi  ',
-      perRowComments: new Map(),
-    });
-    expect(payload).toEqual([{ Id: 'a', Comment: 'hi' }]);
-  });
-
-  it('includes only overwritten per-row entries (Keep is absent)', () => {
-    const payload = buildPayload({
+  it('replaces a per-row comment with the edited text', () => {
+    const payload = buildReviewPayload({
       rowsWithoutComment: [],
       bulkComment: '',
-      perRowComments: new Map([['x', 'override']]),
+      perRow: new Map([['x', 'replacement']]),
     });
-    expect(payload).toEqual([{ Id: 'x', Comment: 'override' }]);
+    expect(payload).toEqual([{ Id: 'x', Comment: 'replacement' }]);
   });
 
-  it('combines bulk and per-row entries', () => {
-    const payload = buildPayload({
-      rowsWithoutComment: [r('a'), r('b')],
+  it('emits a null Comment when a per-row entry is cleared', () => {
+    const payload = buildReviewPayload({
+      rowsWithoutComment: [],
+      bulkComment: '',
+      perRow: new Map([['x', null]]),
+    });
+    expect(payload).toEqual([{ Id: 'x', Comment: null }]);
+  });
+
+  it('omits per-row entries that are absent (kept) or empty-after-trim', () => {
+    const payload = buildReviewPayload({
+      rowsWithoutComment: [],
+      bulkComment: '',
+      perRow: new Map([['x', '   ']]),
+    });
+    expect(payload).toEqual([]);
+  });
+
+  it('combines bulk, replace, and clear entries', () => {
+    const payload = buildReviewPayload({
+      rowsWithoutComment: [r('a')],
       bulkComment: 'bulk',
-      perRowComments: new Map([['c', 'specific']]),
+      perRow: new Map<string, string | null>([['b', 'edited'], ['c', null]]),
     });
     expect(payload).toEqual([
       { Id: 'a', Comment: 'bulk' },
-      { Id: 'b', Comment: 'bulk' },
-      { Id: 'c', Comment: 'specific' },
+      { Id: 'b', Comment: 'edited' },
+      { Id: 'c', Comment: null },
     ]);
-  });
-
-  it('returns empty payload when nothing changed', () => {
-    const payload = buildPayload({
-      rowsWithoutComment: [r('a'), r('b')],
-      bulkComment: '',
-      perRowComments: new Map(),
-    });
-    expect(payload).toEqual([]);
-  });
-
-  it('skips per-row entries with empty/whitespace comments', () => {
-    const payload = buildPayload({
-      rowsWithoutComment: [],
-      bulkComment: '',
-      perRowComments: new Map([['x', '  ']]),
-    });
-    expect(payload).toEqual([]);
   });
 });
