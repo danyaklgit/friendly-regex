@@ -1459,11 +1459,18 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     return () => document.removeEventListener('keydown', handler);
   }, [columnSearchOpen]);
 
+  // Approximate rendered height of the selection action bar (`px-4 py-2`
+  // around text-xs buttons + border). When it's visible we add this to both
+  // the container's floor and its ceiling so the body keeps its row budget
+  // instead of getting squeezed into a scroll region.
+  const ACTION_BAR_H = 40;
+  const actionBarOffset = hasSelection && onFlagDeadEnd ? ACTION_BAR_H : 0;
+
   return (
     <div
       className="rounded-lg border border-border flex flex-col relative"
       style={{
-        maxHeight: `calc(100vh - 17.3rem${builderHeight > 0 ? ` - ${builderHeight + 25}px` : ''})`,
+        maxHeight: `calc(100vh - 17.3rem${builderHeight > 0 ? ` - ${builderHeight + 25}px` : ''}${actionBarOffset ? ` + ${actionBarOffset}px` : ''})`,
         // Scale the minimum with row count so a one-row result doesn't trail
         // empty whitespace, while many-row sets still get a tall floor that
         // the maxHeight above will then clamp. Empty-data case (loading
@@ -1472,7 +1479,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
         // larger card, no regression.
         minHeight: data.length === 0
           ? '300px'
-          : `${Math.min(300, 60 + data.length * 36)}px`,
+          : `${Math.min(300, 60 + data.length * 36) + actionBarOffset}px`,
       }}
     >
       {/* Column Search spotlight */}
