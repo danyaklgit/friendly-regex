@@ -131,8 +131,8 @@ const SIDE_AMOUNT_FIELDS = new Set(['Side', 'Amount']);
 const DATE_FIELDS = new Set(['StatementDate', 'EntryDate', 'ValueDate']);
 const DATE_COLUMN_LABELS: Record<string, string> = {
   StatementDate: 'Statement Date',
-  EntryDate: 'Entry',
-  ValueDate: 'Value',
+  EntryDate: 'Entry Date',
+  ValueDate: 'Value Date',
 };
 
 function getColumnLabel(col: ColumnDef): string {
