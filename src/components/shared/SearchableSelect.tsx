@@ -31,6 +31,13 @@ interface SearchableSelectProps {
   disabled?: boolean;
   label?: string;
   clearable?: boolean;
+  /** When true, appends a red asterisk to the label (matches the Input
+   *  component's required-marker convention). Purely visual — validation is
+   *  the caller's responsibility. */
+  required?: boolean;
+  /** When true, paints the trigger border with the destructive tone so the
+   *  user can see at a glance which required field is still blank. */
+  error?: boolean;
   /** Extra classes for the trigger button. Use `!`-prefixed utilities to
    *  override defaults (e.g. `!py-1`, `!text-xs`). */
   triggerClassName?: string;
@@ -46,6 +53,8 @@ export function SearchableSelect({
   disabled,
   label,
   clearable,
+  required,
+  error,
   triggerClassName,
 }: SearchableSelectProps) {
   const [open, setOpen] = useState(false);
@@ -113,14 +122,20 @@ export function SearchableSelect({
   return (
     <div ref={ref} className="relative flex flex-col gap-1">
       {label && (
-        <label className="text-xs font-medium text-body pl-1">{label}</label>
+        <label className="text-xs font-medium text-body pl-1">
+          {label}
+          {required && <span className="text-red-500 dark:text-rose-300 ml-0.5">*</span>}
+        </label>
       )}
       <button
         ref={triggerRef}
         type="button"
         onClick={() => !disabled && setOpen(!open)}
         disabled={disabled}
-        className={`w-full flex items-center justify-between gap-1.5 rounded-lg border border-input-border bg-input-bg px-3 py-2 text-sm text-heading focus:outline-none focus:ring-1 focus:ring-primary transition-colors ${
+        aria-invalid={error || undefined}
+        className={`w-full flex items-center justify-between gap-1.5 rounded-lg border ${
+          error ? 'border-red-500 dark:border-rose-400 focus:ring-red-500 dark:focus:ring-rose-400' : 'border-input-border focus:ring-primary'
+        } bg-input-bg px-3 py-2 text-sm text-heading focus:outline-none focus:ring-1 transition-colors ${
           disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
         } ${!value ? 'text-placeholder' : ''} ${triggerClassName ?? ''}`}
       >

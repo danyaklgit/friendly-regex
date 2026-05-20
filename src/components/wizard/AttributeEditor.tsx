@@ -568,6 +568,8 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
             options={attributeNameOptions}
             placeholder="Select attribute…"
             disabled={readOnly}
+            required={!readOnly}
+            error={!readOnly && attribute.attributeTag.trim().length === 0}
             onCreateNew={readOnly ? undefined : () => setCreateAttrOpen(true)}
             createNewLabel="+ Create New Attribute"
           />
@@ -614,6 +616,8 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
               onChange={(val) => onUpdate({ sourceField: val })}
               options={fieldMeta.sourceFields.filter((f) => ALLOWED_SOURCE_FIELDS.has(f)).map((f) => ({ value: f, label: humanizeFieldName(f) })).sort((a, b) => a.label.localeCompare(b.label))}
               disabled={readOnly}
+              required={!readOnly}
+              error={!readOnly && (!attribute.sourceField || attribute.sourceField.trim().length === 0)}
             />
             <SearchableSelect
               label="Extraction Method"
@@ -635,6 +639,8 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                 ...extractionMethods.map((m) => ({ value: m.key, label: m.label, sublabel: m.description })),
               ]}
               disabled={readOnly}
+              required={!readOnly}
+              error={!readOnly && (!attribute.extractionOperation || attribute.extractionOperation.trim().length === 0)}
             />
           </div>
 
@@ -926,11 +932,13 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
           {/* ── Footer: actions ── */}
           <div className="border-t border-border-subtle pt-3 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              {attribute.attributeTag.trim().length > 0 && !readOnly && hasChanges && (
+              {!readOnly && (
                 <>
-                  <Button variant="secondary" size="xs" onClick={handleDiscard} className="min-w-16 text-center shrink-0">
-                    Discard
-                  </Button>
+                  {hasChanges && attribute.attributeTag.trim().length > 0 && (
+                    <Button variant="secondary" size="xs" onClick={handleDiscard} className="min-w-16 text-center shrink-0">
+                      Discard
+                    </Button>
+                  )}
                   {canSaveAttribute && !isDuplicateName ? (
                     <Button
                       variant="primary"
