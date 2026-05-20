@@ -1988,7 +1988,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                                         const badge = (
                                           <TagBadge
                                             tag={tag}
-                                            certainty={getCertainty(tag)}
+                                            certainty={matchedDef?.CertaintyLevelTag ?? getCertainty(tag)}
                                             isUserCreated={isUserCreated}
                                             version={versionInfo?.version}
                                             onClick={onTagClick ? () => onTagClick(tag, defId) : undefined}
