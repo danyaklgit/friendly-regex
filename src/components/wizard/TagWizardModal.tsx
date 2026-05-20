@@ -41,7 +41,7 @@ interface TagWizardModalProps {
 }
 
 export function TagWizardModal({ existingDef, parentLib, initialFormState, initialStep, fromCheckoutContext, onSave, onClose, saving = false }: TagWizardModalProps) {
-  const { fieldMeta } = useTransactionData();
+  const { fieldMeta, transactions } = useTransactionData();
   const { extractionMethods } = useLovAttributes();
   const auth = useAuth();
   const tepConfig = useTepConfig();
@@ -180,6 +180,7 @@ export function TagWizardModal({ existingDef, parentLib, initialFormState, initi
           onAdd={wizard.addAttribute}
           onRemove={wizard.removeAttribute}
           onUpdate={wizard.updateAttribute}
+          transactions={transactions}
         />
       )}
 
