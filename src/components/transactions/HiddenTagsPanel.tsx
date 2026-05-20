@@ -72,7 +72,6 @@ export function HiddenTagsPanel({
       >
         <header className="sticky top-0 z-10 bg-surface-elevated border-b border-border px-5 py-3 flex items-center justify-between">
           <div>
-            <div className="text-[10px] font-semibold tracking-[0.18em] text-faint uppercase">Triage</div>
             <h2 className="text-sm font-semibold text-heading">
               Hidden Tag Specs ({hiddenCount})
             </h2>

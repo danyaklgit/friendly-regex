@@ -973,6 +973,19 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     return result;
   }, [analyzedData, showOnlyUntagged, showOnlyMultiTagged, showOnlyDeadEnd, filters, isLiveMode, builderOpen, builder.formState.transactionTypeCode, hiddenDefIds]);
 
+  // Count of loaded rows that match any hidden tag spec. Drives the "live
+  // total minus hidden" adjustment in the Transactions header AND the
+  // pagination footer counts; also used to overfetch +N batches so the
+  // requested increment is met in terms of VISIBLE rows.
+  const hiddenLoadedCount = useMemo(() => {
+    if (hiddenDefIds.size === 0) return 0;
+    let n = 0;
+    for (const item of analyzedData) {
+      if (item.analysis.matchedDefinitions.some((d) => d && hiddenDefIds.has(d.Id))) n++;
+    }
+    return n;
+  }, [hiddenDefIds, analyzedData]);
+
   // Reset visible count / page when filtered data length changes
   // In live + classic pagination mode, data replaces on every page nav — don't reset page from here
   const filteredLen = filteredData.length;
@@ -1309,7 +1322,20 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       <div data-tour="transactions-header" className="flex items-center justify-between mb-1 min-h-10">
         <div className='flex flex-col md:flex-row items-start justify-end md:items-center gap-2'>
           <h2 className="text-base font-semibold text-heading">Transactions</h2>
-          <span className='text-sm mr-5 min-w-10 text-primary-dark'>({builderOpen && builderHasContent ? filteredData.length.toLocaleString() : isLiveMode && totalTransactionsCount != null ? totalTransactionsCount.toLocaleString() : filteredData.length})</span>
+          {(() => {
+            // Live-mode total comes from the server and doesn't know about
+            // the client-side Hide-Tag-Spec filter. Deduct the count of
+            // loaded rows matched by hidden definitions so the header
+            // reflects what's actually in the table after triage.
+            const displayed = builderOpen && builderHasContent
+              ? filteredData.length
+              : isLiveMode && totalTransactionsCount != null
+                ? Math.max(0, totalTransactionsCount - hiddenLoadedCount)
+                : filteredData.length;
+            return (
+              <span className='text-sm mr-5 min-w-10 text-primary-dark'>({displayed.toLocaleString()})</span>
+            );
+          })()}
           <div className="flex items-center gap-4">
             <Toggle label="Compact mode" checked={relaxedMode} onChange={setRelaxedMode} />
             <Toggle label="Incremental pagination" checked={incrementalPagination} onChange={(v) => {
@@ -1866,8 +1892,17 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         // Compute backward and forward batch lists once so the skeleton placeholders
         // mirror the actual button layout (e.g. don't draw four backward boxes when
         // only one backward button would render).
-        const loadedNow = isLiveMode ? transactions.length : visibleCount;
-        const totalNow = isLiveMode ? (totalTransactionsCount ?? transactions.length) : filteredLen;
+        // Raw values from store / server.
+        const loadedRaw = isLiveMode ? transactions.length : visibleCount;
+        const totalRaw = isLiveMode ? (totalTransactionsCount ?? transactions.length) : filteredLen;
+        // Display values account for client-side Hide-Tag-Spec filter so the
+        // footer matches the rows the user actually sees in the table.
+        const loadedNow = Math.max(0, loadedRaw - hiddenLoadedCount);
+        const totalNow = Math.max(0, totalRaw - hiddenLoadedCount);
+        // Overfetch ratio: when hidden specs are active, +N must request more
+        // than N rows from the server because some will be dropped by the
+        // filter. Use the current visible/loaded ratio as the estimate.
+        const visibleRatio = loadedRaw > 0 ? Math.max(0.01, (loadedRaw - hiddenLoadedCount) / loadedRaw) : 1;
         const removable = Math.max(0, loadedNow - BATCH_SIZE);
         const backBatches = (() => {
           const b = [500, 200, 50, 25].filter((x) => x <= removable);
@@ -1921,7 +1956,11 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                   {fwdBatches.map((size) => (
                     <Button key={size} variant="outline" size="xs" onClick={() => {
                       if (isLiveMode) {
-                        fetchPage(outgoingFilters, true, undefined, size, activeExtraFilters.length > 0 ? activeExtraFilters : undefined);
+                        // Overfetch to compensate for rows the Hide-Tag-Spec
+                        // filter will drop, so +N yields ~N more *visible*
+                        // rows. With no hidden specs this is a no-op (ratio=1).
+                        const fetchSize = Math.ceil(size / visibleRatio);
+                        fetchPage(outgoingFilters, true, undefined, fetchSize, activeExtraFilters.length > 0 ? activeExtraFilters : undefined);
                       } else {
                         setVisibleCount((c) => c + size);
                       }
