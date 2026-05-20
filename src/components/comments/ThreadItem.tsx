@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useComments } from '../../context/CommentsContext';
 import { useCommentPermission } from '../../hooks/useCommentPermission';
@@ -16,19 +16,57 @@ interface ThreadItemProps {
   /** When true, only the header is shown; user expands to see replies. */
   defaultCollapsed?: boolean;
   resolved?: boolean;
+  /** When true, scroll the item into view on mount and pulse a highlight ring
+   *  so the user can immediately see which comment was referenced by the
+   *  notification that opened the panel. */
+  focused?: boolean;
+  /** When set, highlight the matching reply instead of the parent comment.
+   *  The parent expands automatically so the reply is visible. */
+  focusReplyId?: string | null;
 }
 
 const REPLY_COLLAPSE_THRESHOLD = 5;
 
-export function ThreadItem({ comment, authToken, defaultCollapsed = false, resolved = false }: ThreadItemProps) {
+export function ThreadItem({
+  comment,
+  authToken,
+  defaultCollapsed = false,
+  resolved = false,
+  focused = false,
+  focusReplyId = null,
+}: ThreadItemProps) {
   const { usersMap } = useAuth();
   const { addReply, libraryId } = useComments();
   const { canReply } = useCommentPermission(libraryId);
 
-  const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  // Focused items (whether the comment itself or one of its replies) start
+  // expanded — the user clicked a notification to see them, so collapsing
+  // would hide the very thing they came here for.
+  const shouldStartExpanded = focused || focusReplyId != null;
+  const [collapsed, setCollapsed] = useState(shouldStartExpanded ? false : defaultCollapsed);
   const [replying, setReplying] = useState(false);
   const [replyingToReply, setReplyingToReply] = useState<TagSpecCommentReply | null>(null);
-  const [allRepliesExpanded, setAllRepliesExpanded] = useState(false);
+  // If the focused reply lives among the older replies that the threshold
+  // hides, expand them so it can be highlighted.
+  const flatReplies = useMemo(() => flattenReplies(comment.Replies), [comment.Replies]);
+  const focusReplyInHiddenTail = useMemo(() => {
+    if (!focusReplyId) return false;
+    const idx = flatReplies.findIndex((r) => r.Id === focusReplyId);
+    if (idx < 0) return false;
+    // The default visible window is the last 3 when total > REPLY_COLLAPSE_THRESHOLD.
+    return flatReplies.length > REPLY_COLLAPSE_THRESHOLD && idx < flatReplies.length - 3;
+  }, [focusReplyId, flatReplies]);
+  const [allRepliesExpanded, setAllRepliesExpanded] = useState(focusReplyInHiddenTail);
+
+  const rootRef = useRef<HTMLElement | null>(null);
+  const [pulseRing, setPulseRing] = useState(false);
+  useEffect(() => {
+    if (!focused || !rootRef.current) return;
+    rootRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setPulseRing(true);
+    const t = setTimeout(() => setPulseRing(false), 2_400);
+    return () => clearTimeout(t);
+  }, [focused, comment.Id]);
 
   const author = usersMap.get(comment.ReportedByUserId) ?? 'Unknown user';
 
@@ -65,10 +103,11 @@ export function ThreadItem({ comment, authToken, defaultCollapsed = false, resol
 
   return (
     <article
+      ref={rootRef}
       data-tour="thread-item"
-      className={`rounded-lg border text-left ${
+      className={`rounded-lg border text-left transition-shadow duration-500 ${
         resolved ? 'border-emerald-300/60 bg-emerald-50/40 dark:bg-emerald-900/10' : 'border-border bg-surface'
-      } px-3 py-2.5`}
+      } ${pulseRing ? 'ring-2 ring-cyan-400/80 dark:ring-cyan-300/70 shadow-[0_0_0_4px_rgba(34,211,238,0.18)]' : ''} px-3 py-2.5`}
     >
       <header className="flex items-start gap-2">
         <Avatar userId={comment.ReportedByUserId} displayName={author} size="md" />
@@ -129,14 +168,22 @@ export function ThreadItem({ comment, authToken, defaultCollapsed = false, resol
             const key = node.reply.Id ?? `${node.reply.UserId}-${node.reply.CreationDate ?? idx}`;
             return (
               <li key={key}>
-                <ReplyItem reply={node.reply} onReply={handleReplyToReply} />
+                <ReplyItem
+                  reply={node.reply}
+                  onReply={handleReplyToReply}
+                  focused={focusReplyId != null && node.reply.Id === focusReplyId}
+                />
                 {node.children.length > 0 && (
                   <ol className="mt-3 ml-5 border-l border-border pl-3 space-y-3">
                     {node.children.map((child, cIdx) => {
                       const ckey = child.reply.Id ?? `${child.reply.UserId}-${child.reply.CreationDate ?? cIdx}`;
                       return (
                         <li key={ckey}>
-                          <ReplyItem reply={child.reply} onReply={handleReplyToReply} />
+                          <ReplyItem
+                            reply={child.reply}
+                            onReply={handleReplyToReply}
+                            focused={focusReplyId != null && child.reply.Id === focusReplyId}
+                          />
                         </li>
                       );
                     })}

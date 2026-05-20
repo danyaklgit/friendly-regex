@@ -18,6 +18,12 @@ interface CommentThreadPanelProps {
   /** When set, the panel header shows a link that navigates the user to the
    *  Backlog row this thread is attached to. The panel closes after. */
   onNavigateToBacklog?: (target: TagSpecCommentTarget) => void;
+  /** When set (e.g. when opened from a notification), the thread item whose
+   *  Id matches is scrolled into view and briefly highlighted. */
+  focusCommentId?: string | null;
+  /** When the notification points at a reply rather than the parent comment,
+   *  highlight that specific reply instead of the whole thread. */
+  focusReplyId?: string | null;
 }
 
 function levelLabel(target: TagSpecCommentTarget): string {
@@ -53,6 +59,8 @@ export function CommentThreadPanel({
   authToken,
   onClose,
   onNavigateToBacklog,
+  focusCommentId,
+  focusReplyId,
 }: CommentThreadPanelProps) {
   const closeBtnRef = useRef<HTMLButtonElement | null>(null);
   const focusedOnceRef = useRef(false);
@@ -103,6 +111,13 @@ export function CommentThreadPanel({
     r.sort(byDateDesc);
     return { active: a, resolved: r };
   }, [threadAll]);
+
+  // If the focused comment lives in the resolved bucket, expand that section
+  // automatically so the highlight is visible without an extra click.
+  useEffect(() => {
+    if (!focusCommentId) return;
+    if (resolved.some((c) => c.Id === focusCommentId)) setShowResolved(true);
+  }, [focusCommentId, resolved]);
 
   const handlePost = async (body: string, mentionIds: string[]) => {
     if (!target) return;
@@ -221,11 +236,20 @@ export function CommentThreadPanel({
 
           {active.length > 0 && (
             <ol className="space-y-3">
-              {active.map((c) => (
-                <li key={c.Id}>
-                  <ThreadItem comment={c} authToken={authToken} />
-                </li>
-              ))}
+              {active.map((c) => {
+                const isParent = focusCommentId ? c.Id === focusCommentId : false;
+                return (
+                  <li key={c.Id}>
+                    <ThreadItem
+                      comment={c}
+                      authToken={authToken}
+                      // Pulse the comment only when no specific reply is targeted.
+                      focused={isParent && !focusReplyId}
+                      focusReplyId={isParent ? focusReplyId : null}
+                    />
+                  </li>
+                );
+              })}
             </ol>
           )}
 
@@ -240,11 +264,21 @@ export function CommentThreadPanel({
               </button>
               {showResolved && (
                 <ol className="space-y-3">
-                  {resolved.map((c) => (
-                    <li key={c.Id}>
-                      <ThreadItem comment={c} authToken={authToken} resolved defaultCollapsed />
-                    </li>
-                  ))}
+                  {resolved.map((c) => {
+                    const isParent = focusCommentId ? c.Id === focusCommentId : false;
+                    return (
+                      <li key={c.Id}>
+                        <ThreadItem
+                          comment={c}
+                          authToken={authToken}
+                          resolved
+                          defaultCollapsed
+                          focused={isParent && !focusReplyId}
+                          focusReplyId={isParent ? focusReplyId : null}
+                        />
+                      </li>
+                    );
+                  })}
                 </ol>
               )}
             </section>

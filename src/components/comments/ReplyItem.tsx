@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useCommentPermission } from '../../hooks/useCommentPermission';
 import { useComments } from '../../context/CommentsContext';
@@ -9,6 +10,10 @@ import { formatCommentDate } from './formatDate';
 interface ReplyItemProps {
   reply: TagSpecCommentReply;
   onReply?: (reply: TagSpecCommentReply) => void;
+  /** When true, scroll into view and pulse a highlight ring so the user can
+   *  immediately see which reply was referenced by the notification that
+   *  opened the panel. */
+  focused?: boolean;
 }
 
 const statusStyles: Record<string, string> = {
@@ -23,7 +28,7 @@ const statusLabel: Record<string, string> = {
   REJECTED: 'Rejected',
 };
 
-export function ReplyItem({ reply, onReply }: ReplyItemProps) {
+export function ReplyItem({ reply, onReply, focused = false }: ReplyItemProps) {
   const { usersMap } = useAuth();
   const { libraryId } = useComments();
   const { canReply } = useCommentPermission(libraryId);
@@ -33,8 +38,25 @@ export function ReplyItem({ reply, onReply }: ReplyItemProps) {
   const label = statusLabel[status] ?? status;
   const canShowReplyButton = onReply && canReply && reply.Id;
 
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [pulseRing, setPulseRing] = useState(false);
+  useEffect(() => {
+    if (!focused || !rootRef.current) return;
+    rootRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setPulseRing(true);
+    const t = setTimeout(() => setPulseRing(false), 2_400);
+    return () => clearTimeout(t);
+  }, [focused, reply.Id]);
+
   return (
-    <div className="flex gap-2 text-left">
+    <div
+      ref={rootRef}
+      className={`flex gap-2 text-left rounded-md transition-shadow duration-500 ${
+        pulseRing
+          ? 'ring-2 ring-cyan-400/80 dark:ring-cyan-300/70 shadow-[0_0_0_4px_rgba(34,211,238,0.18)] -mx-1 px-1 py-1'
+          : ''
+      }`}
+    >
       <Avatar userId={reply.UserId} displayName={author} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 text-[11px] text-muted mb-0.5">

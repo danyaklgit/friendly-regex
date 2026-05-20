@@ -8,6 +8,10 @@ import { CommentThreadPanel } from '../comments/CommentThreadPanel';
 interface NotificationThreadOpenerProps {
   /** The comment's id from Action.ActionId. */
   commentId: string;
+  /** For reply notifications, the id of the specific reply to highlight
+   *  inside the parent comment's thread. Null when the notification refers
+   *  to the top-level comment itself. */
+  replyId: string | null;
   /** Fallback target used until the library finishes loading (or if the
    *  exact comment isn't found). */
   fallbackTarget: TagSpecCommentTarget;
@@ -27,6 +31,7 @@ interface NotificationThreadOpenerProps {
  */
 export function NotificationThreadOpener({
   commentId,
+  replyId,
   fallbackTarget,
   authToken,
   onClose,
@@ -68,6 +73,8 @@ export function NotificationThreadOpener({
       authToken={authToken}
       onClose={onClose}
       onNavigateToBacklog={onNavigateToBacklog}
+      focusCommentId={commentId}
+      focusReplyId={replyId}
     />
   );
 }

@@ -4,7 +4,7 @@ import { useTepConfig } from '../../context/TepConfigContext';
 import { useNotifications } from '../../hooks/useNotifications';
 import type { TepHeaders } from '../../api/transactions';
 import type { UserNotification } from '../../types/notifications';
-import type { TagSpecComment, TagSpecCommentTarget } from '../../types/comments';
+import type { TagSpecComment, TagSpecCommentReply, TagSpecCommentTarget } from '../../types/comments';
 import { CommentsProvider } from '../../context/CommentsContext';
 import { getTagSpecComments } from '../../api/comments';
 import { flattenReplies } from '../../utils/replyTree';
@@ -15,6 +15,10 @@ interface OpenThread {
   libraryId: string;
   /** The TagSpecComment id we want to surface — used to pick the exact target. */
   commentId: string;
+  /** When the source notification is a reply notification, the id of the
+   *  specific reply within `commentId`'s thread that should be highlighted.
+   *  Null for top-level comment notifications. */
+  replyId: string | null;
   /** Fallback target used until comments load (or if the id isn't found). */
   fallbackTarget: TagSpecCommentTarget;
 }
@@ -35,7 +39,102 @@ function targetFromNotification(n: UserNotification): OpenThread | null {
     TagRuleExpressionId: payload['TagRuleExpressionId'] ?? null,
     AttributeTag: payload['AttributeTag'] ?? null,
   };
-  return { libraryId, commentId: action.ActionId, fallbackTarget };
+  return { libraryId, commentId: action.ActionId, replyId: null, fallbackTarget };
+}
+
+/** Strip @-mention markup ("@[Name](id)" or similar) and collapse whitespace
+ *  so notification Body and reply Comment can be compared as plain text. */
+function normaliseCommentText(s: string | null | undefined): string {
+  if (!s) return '';
+  return s
+    .replace(/@\[[^\]]+\]\([^)]+\)/g, (match) => {
+      // @[Name](id) → "@Name"
+      const name = match.slice(2, match.indexOf(']'));
+      return `@${name}`;
+    })
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+/**
+ * For reply notifications the backend identifies the parent comment via
+ * Action.ActionId but does not tag the specific reply. Pick the reply by
+ * matching the notification Body to the reply's own text — that's the most
+ * reliable signal. Falls back to closest-timestamp only when text matching
+ * is ambiguous (multiple replies with the same body, or no body at all).
+ */
+function resolveReplyForNotification(
+  n: UserNotification,
+  comment: TagSpecComment,
+  currentUserId: string | null,
+): TagSpecCommentReply | null {
+  const isReplyNotif = (n.Type ?? '').toUpperCase().includes('REPLY');
+  if (!isReplyNotif) return null;
+  const replies = flattenReplies(comment.Replies);
+  if (replies.length === 0) return null;
+
+  const notifBody = normaliseCommentText(n.Body);
+
+  // 1. Exact-text match against the notification body. If exactly one reply
+  //    matches we're done — this is the deterministic path the backend
+  //    enables by including the reply text in Body.
+  if (notifBody) {
+    const exact = replies.filter((r) => normaliseCommentText(r.Comment) === notifBody);
+    if (exact.length === 1) return exact[0];
+    if (exact.length > 1) {
+      // Same text posted twice — disambiguate by closest timestamp.
+      return pickClosestByTime(exact, n.CreationDate) ?? exact[0];
+    }
+
+    // 2. Substring match either direction (handles "User replied: <text>"
+    //    style bodies, or bodies that include only a snippet).
+    const containing = replies.filter((r) => {
+      const replyText = normaliseCommentText(r.Comment);
+      if (!replyText) return false;
+      return notifBody.includes(replyText) || replyText.includes(notifBody);
+    });
+    if (containing.length === 1) return containing[0];
+    if (containing.length > 1) {
+      return pickClosestByTime(containing, n.CreationDate) ?? containing[0];
+    }
+  }
+
+  // 3. Fall back to closest-timestamp across all replies. Mentioning the
+  //    recipient is used only as a final tie-breaker, never as a pre-filter
+  //    (a thread can produce a notification for the recipient even when the
+  //    triggering reply doesn't @-mention them).
+  const closest = pickClosestByTime(replies, n.CreationDate);
+  if (!closest) return null;
+  const mine = currentUserId ?? '';
+  if (mine && (closest.ReportedToUserIds ?? []).includes(mine)) return closest;
+  // If the closest-in-time reply does mention the user, prefer it; otherwise
+  // also accept it — it's still the best signal we have.
+  return closest;
+}
+
+function pickClosestByTime(
+  pool: TagSpecCommentReply[],
+  notifDate: string | undefined,
+): TagSpecCommentReply | null {
+  if (pool.length === 0) return null;
+  const notifTime = notifDate ? Date.parse(notifDate) : NaN;
+  if (Number.isNaN(notifTime)) {
+    const sorted = [...pool].sort((a, b) =>
+      (b.CreationDate ?? '').localeCompare(a.CreationDate ?? ''),
+    );
+    return sorted[0] ?? null;
+  }
+  let best = pool[0];
+  let bestDelta = Math.abs((Date.parse(best.CreationDate ?? '') || 0) - notifTime);
+  for (const r of pool) {
+    const delta = Math.abs((Date.parse(r.CreationDate ?? '') || 0) - notifTime);
+    if (delta < bestDelta) {
+      best = r;
+      bestDelta = delta;
+    }
+  }
+  return best;
 }
 
 function BellIcon({ ringing }: { ringing: boolean }) {
@@ -147,45 +246,18 @@ export function NotificationsButton({ onNavigateToBacklog }: NotificationsButton
   }, [open, notifications, authToken, tepHeaders]);
 
   /**
-   * Resolve who triggered a notification. For reply notifications, prefer
-   * the reply author whose CreationDate is closest to the notification's
-   * own CreationDate (and that mentions the recipient when possible).
-   * Falls back to the top-level comment author.
+   * Resolve who triggered a notification. For reply notifications, uses the
+   * same heuristic as `resolveReplyForNotification` so the sender name and
+   * the highlighted reply always agree.
    */
   const resolveSender = (n: UserNotification): string | undefined => {
     const actionId = n.Action?.ActionId;
     if (!actionId) return undefined;
     const comment = commentById.get(actionId);
     if (!comment) return undefined;
-
-    const isReplyNotif = (n.Type ?? '').toUpperCase().includes('REPLY');
-    if (!isReplyNotif) return comment.ReportedByUserId;
-
-    const replies = flattenReplies(comment.Replies);
-    if (replies.length === 0) return comment.ReportedByUserId;
-
-    const mine = userId ?? '';
-    const mentioning = replies.filter((r) => (r.ReportedToUserIds ?? []).includes(mine));
-    const pool = mentioning.length > 0 ? mentioning : replies;
-
-    const notifTime = n.CreationDate ? Date.parse(n.CreationDate) : NaN;
-    if (Number.isNaN(notifTime)) {
-      const sorted = [...pool].sort((a, b) =>
-        (b.CreationDate ?? '').localeCompare(a.CreationDate ?? ''),
-      );
-      return sorted[0]?.UserId ?? comment.ReportedByUserId;
-    }
-
-    let best = pool[0];
-    let bestDelta = Math.abs((Date.parse(best.CreationDate ?? '') || 0) - notifTime);
-    for (const r of pool) {
-      const delta = Math.abs((Date.parse(r.CreationDate ?? '') || 0) - notifTime);
-      if (delta < bestDelta) {
-        best = r;
-        bestDelta = delta;
-      }
-    }
-    return best.UserId;
+    const reply = resolveReplyForNotification(n, comment, userId);
+    if (reply) return reply.UserId;
+    return comment.ReportedByUserId;
   };
 
   const handleOpenNotification = (n: UserNotification) => {
@@ -194,6 +266,15 @@ export function NotificationsButton({ onNavigateToBacklog }: NotificationsButton
       void markStatus(n.Id, 'READ');
     }
     if (open) {
+      const comment = commentById.get(open.commentId);
+      if (comment) {
+        const reply = resolveReplyForNotification(n, comment, userId);
+        if (reply?.Id) {
+          setOpenThread({ ...open, replyId: reply.Id });
+          setOpen(false);
+          return;
+        }
+      }
       setOpenThread(open);
       setOpen(false);
     }
@@ -354,6 +435,7 @@ export function NotificationsButton({ onNavigateToBacklog }: NotificationsButton
         >
           <NotificationThreadOpener
             commentId={openThread.commentId}
+            replyId={openThread.replyId}
             fallbackTarget={openThread.fallbackTarget}
             authToken={authToken}
             onClose={() => setOpenThread(null)}
