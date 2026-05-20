@@ -257,6 +257,45 @@ describe('TransactionTypePicker', () => {
     expect(screen.getByPlaceholderText(/search swift/i)).toBeDefined();
   });
 
+  it('renders the SubLabel beneath the option in the dropdown', async () => {
+    const user = userEvent.setup();
+    const defs: FilterDefinition[] = [
+      {
+        Tag: 'TransactionTypeCode',
+        Label: 'Transaction Type',
+        Type: 'LIST',
+        Operand: null,
+        Values: [
+          { Column: 'TTC', Value: 'TRF', Label: 'TRF', SubLabel: 'Transfer', Operand: null, DisabledBy: null },
+        ],
+      },
+    ];
+    render(<TransactionTypePicker value="" onChange={noop} filterDefinitions={defs} />);
+    await user.click(screen.getByRole('button'));
+    expect(screen.getByText('Transfer')).toBeDefined();
+  });
+
+  it('filters options by SubLabel search text', async () => {
+    const user = userEvent.setup();
+    const defs: FilterDefinition[] = [
+      {
+        Tag: 'TransactionTypeCode',
+        Label: 'Transaction Type',
+        Type: 'LIST',
+        Operand: null,
+        Values: [
+          { Column: 'TTC', Value: 'TRF', Label: 'TRF', SubLabel: 'Transfer', Operand: null, DisabledBy: null },
+          { Column: 'TTC', Value: 'CHK', Label: 'CHK', SubLabel: 'Cheque', Operand: null, DisabledBy: null },
+        ],
+      },
+    ];
+    render(<TransactionTypePicker value="" onChange={noop} filterDefinitions={defs} />);
+    await user.click(screen.getByRole('button'));
+    await user.type(screen.getByPlaceholderText(/search swift/i), 'cheq');
+    expect(screen.queryByText('Transfer')).toBeNull();
+    expect(screen.getByText('Cheque')).toBeDefined();
+  });
+
   it('clears search when dropdown is closed', async () => {
     const user = userEvent.setup();
     const defs: FilterDefinition[] = [

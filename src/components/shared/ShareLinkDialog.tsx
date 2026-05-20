@@ -4,22 +4,11 @@ import { Button } from './Button';
 import { buildShareUrl } from '../../utils/shareLink';
 import type { ShareToggles } from '../../utils/shareLink';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
+import { resolveFilterValueLabel } from '../../utils/resolveFilterValueLabel';
 import { useTransactionData } from '../../hooks/useTransactionData';
 import type { FilterDefinition } from '../../api/transactions';
 
 const NOTE_MAX_LENGTH = 500;
-
-/** Resolve a stored filter value to the human-readable Label used in the filter UI. Falls back to the raw value. */
-function resolveValueLabel(key: string, value: string, defs: FilterDefinition[]): string {
-  if (!defs.length) return value;
-  if (key.startsWith('__') || key.endsWith('_GTE') || key.endsWith('_LTE')) return value;
-  const column = key.startsWith('data:') ? key.slice(5) : key;
-  const def = defs.find(
-    (d) => d.Tag === key || d.Tag === column || d.Values.some((v) => v.Column === column),
-  );
-  const match = def?.Values.find((v) => v.Column === value || v.Value === value);
-  return match?.Label ?? value;
-}
 
 interface ShareLinkDialogProps {
   open: boolean;
@@ -56,7 +45,7 @@ function summarizeFilters(
         : key.endsWith('_GTE') ? `${humanizeFieldName(key.replace(/_GTE$/, ''))} (min)`
         : key.endsWith('_LTE') ? `${humanizeFieldName(key.replace(/_LTE$/, ''))} (max)`
         : humanizeFieldName(key));
-    const resolved = [...values].map((v) => resolveValueLabel(key, v, defs));
+    const resolved = [...values].map((v) => resolveFilterValueLabel(key, v, defs));
     entries.push({ label, values: resolved });
   }
   return entries;

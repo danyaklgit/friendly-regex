@@ -170,13 +170,39 @@ function ListEqDropdown({
   const activeLabels = definition.Values.filter((v) => selected.has(v.Column)).map((v) => v.Label);
   const hasActive = activeLabels.length > 0;
 
-  // DisabledBy logic from API: format "Column:<columnName>"
+  // Reverse index: for each target column T, the columns whose DisabledBy
+  // points at T. Used to make the mutual-exclusion symmetric — if value A
+  // declares DisabledBy: Column:B, then selecting A must also disable B (not
+  // just the other way around).
+  const reverseDisablers = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const v of definition.Values) {
+      if (!v.DisabledBy) continue;
+      const match = v.DisabledBy.match(/^Column:(.+)$/);
+      if (!match) continue;
+      const target = match[1];
+      if (!map.has(target)) map.set(target, new Set());
+      map.get(target)!.add(v.Column);
+    }
+    return map;
+  }, [definition.Values]);
+
+  // DisabledBy logic from API: format "Column:<columnName>". Applied
+  // symmetrically — a value is disabled when either (a) its DisabledBy points
+  // at a selected column, or (b) any selected column declares it as its
+  // DisabledBy target.
   const isDisabled = (v: typeof definition.Values[number]) => {
-    if (!v.DisabledBy) return false;
-    const match = v.DisabledBy.match(/^Column:(.+)$/);
-    if (!match) return false;
-    const disablingColumn = match[1];
-    return selected.has(disablingColumn);
+    if (v.DisabledBy) {
+      const match = v.DisabledBy.match(/^Column:(.+)$/);
+      if (match && selected.has(match[1])) return true;
+    }
+    const disablers = reverseDisablers.get(v.Column);
+    if (disablers) {
+      for (const d of disablers) {
+        if (selected.has(d)) return true;
+      }
+    }
+    return false;
   };
 
   const handleToggle = (column: string) => {
@@ -191,6 +217,14 @@ function ListEqDropdown({
         if (!v.DisabledBy) continue;
         const match = v.DisabledBy.match(/^Column:(.+)$/);
         if (match && match[1] === column) next.delete(v.Column);
+      }
+      // Reverse: if the newly selected value declares a DisabledBy target,
+      // drop the target from the selection too (handles inconsistent state
+      // such as filters restored from a share link).
+      const clicked = definition.Values.find((vv) => vv.Column === column);
+      if (clicked?.DisabledBy) {
+        const match = clicked.DisabledBy.match(/^Column:(.+)$/);
+        if (match) next.delete(match[1]);
       }
     }
 
@@ -368,26 +402,17 @@ function StringFromListDropdown({
     if (!open) setSearch('');
   }, [open, isSearchable]);
 
-  // Backend returns Values in insertion / creation order, which leaves newly
-  // added entries pinned at the bottom. Sort alphabetically by Label
-  // (case-insensitive, falling back to Value) so the order stays stable as
-  // tags are added in Settings.
-  const sortedValues = useMemo(() => {
-    return [...definition.Values].sort((a, b) => {
-      const al = (a.Label ?? a.Value ?? '').toLowerCase();
-      const bl = (b.Label ?? b.Value ?? '').toLowerCase();
-      return al.localeCompare(bl);
-    });
-  }, [definition.Values]);
-
+  // Render filter values in the exact order the backend returns them — no
+  // front-end sorting.
   const filteredValues = useMemo(() => {
-    if (!search.trim()) return sortedValues;
+    if (!search.trim()) return definition.Values;
     const term = search.toLowerCase();
-    return sortedValues.filter(
+    return definition.Values.filter(
       (v) => (v.Label ?? v.Value ?? '').toLowerCase().includes(term) ||
-             (v.Value ?? '').toLowerCase().includes(term)
+             (v.Value ?? '').toLowerCase().includes(term) ||
+             (v.SubLabel ?? '').toLowerCase().includes(term)
     );
-  }, [sortedValues, search]);
+  }, [definition.Values, search]);
 
   // Split the filtered list into a "Selected" group at the top and an
   // "Available" group below. Items move between groups only when the user
@@ -554,7 +579,6 @@ function StringFromListDropdown({
                 <div className="px-2 py-3 text-xs text-faint text-center">No matches</div>
               ) : (() => {
                 const renderRow = (v: typeof filteredValues[number], idx: number) => {
-                  const hasDistinctLabel = v.Label && v.Label !== v.Value;
                   const isSelected = selected.has(v.Value ?? '');
                   const isHighlighted = idx === highlightIndex;
                   const baseBg = isSelected ? 'bg-primary/5' : '';
@@ -575,8 +599,8 @@ function StringFromListDropdown({
                         className="rounded border-border-strong shrink-0 mt-0.5"
                       />
                       <span className="min-w-0">
-                        <span className="block text-black dark:text-white font-medium truncate">{v.Value}</span>
-                        {hasDistinctLabel && <span className="block text-[10px] text-muted truncate">{v.Label}</span>}
+                        <span className="block text-black dark:text-white font-medium truncate">{v.Label || v.Value}</span>
+                        {v.SubLabel && <span className="block text-[10px] text-muted truncate">{v.SubLabel}</span>}
                       </span>
                     </label>
                   );

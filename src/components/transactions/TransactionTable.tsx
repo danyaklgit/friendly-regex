@@ -86,6 +86,11 @@ const DEFAULT_COLUMN_ORDER = [
   'data:Comment',
 ];
 
+/** Synthetic ID for the rule-builder live preview definition. Rows that
+ *  only match this definition have no real tag yet, so surfaces like the
+ *  "Hide Tag Specs" action must ignore it when collecting hideable defs. */
+export const PREVIEW_TEMP_DEF_ID = 'preview-temp';
+
 export const ALLOWED_COLUMN_KEYS = new Set([
   'data:Sequence',
   'data:StatementDate',
@@ -131,8 +136,8 @@ const SIDE_AMOUNT_FIELDS = new Set(['Side', 'Amount']);
 const DATE_FIELDS = new Set(['StatementDate', 'EntryDate', 'ValueDate']);
 const DATE_COLUMN_LABELS: Record<string, string> = {
   StatementDate: 'Statement Date',
-  EntryDate: 'Entry',
-  ValueDate: 'Value',
+  EntryDate: 'Entry Date',
+  ValueDate: 'Value Date',
 };
 
 function getColumnLabel(col: ColumnDef): string {
@@ -598,6 +603,9 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
       if (!item) continue;
       item.analysis.matchedDefinitions.forEach((def, ti) => {
         if (!def || map.has(def.Id)) return;
+        // The rule-builder preview pill represents a draft tag, not a real
+        // tag spec — there's nothing to hide for it.
+        if (def.Id === PREVIEW_TEMP_DEF_ID) return;
         const version = definitionVersions?.get(def.Id)?.version;
         map.set(def.Id, {
           defId: def.Id,
@@ -1459,11 +1467,18 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     return () => document.removeEventListener('keydown', handler);
   }, [columnSearchOpen]);
 
+  // Approximate rendered height of the selection action bar (`px-4 py-2`
+  // around text-xs buttons + border). When it's visible we add this to both
+  // the container's floor and its ceiling so the body keeps its row budget
+  // instead of getting squeezed into a scroll region.
+  const ACTION_BAR_H = 40;
+  const actionBarOffset = hasSelection && onFlagDeadEnd ? ACTION_BAR_H : 0;
+
   return (
     <div
       className="rounded-lg border border-border flex flex-col relative"
       style={{
-        maxHeight: `calc(100vh - 17.3rem${builderHeight > 0 ? ` - ${builderHeight + 25}px` : ''})`,
+        maxHeight: `calc(100vh - 17.3rem${builderHeight > 0 ? ` - ${builderHeight + 25}px` : ''}${actionBarOffset ? ` + ${actionBarOffset}px` : ''})`,
         // Scale the minimum with row count so a one-row result doesn't trail
         // empty whitespace, while many-row sets still get a tall floor that
         // the maxHeight above will then clamp. Empty-data case (loading
@@ -1472,7 +1487,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
         // larger card, no regression.
         minHeight: data.length === 0
           ? '300px'
-          : `${Math.min(300, 60 + data.length * 36)}px`,
+          : `${Math.min(300, 60 + data.length * 36) + actionBarOffset}px`,
       }}
     >
       {/* Column Search spotlight */}

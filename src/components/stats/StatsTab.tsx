@@ -827,7 +827,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
         onClose={() => setRollbackTarget(null)}
         onConfirm={handleRollbackConfirm}
         title="Rollback Changes"
-        message={`Are you want to roll back to the production version of ${rollbackTarget?.bank ?? ''} / ${rollbackTarget?.side ?? ''} ? This cannot be undone.`}
+        message={`Are you sure you want to roll back to the production version of ${rollbackTarget?.bank ?? ''} / ${rollbackTarget?.side ?? ''}? This cannot be undone.`}
         confirmLabel="Rollback"
         variant="danger_ghost"
       />

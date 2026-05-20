@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { TransactionRow } from '../../types';
 import { Modal } from '../shared/Modal';
-import { buildPayload, getRowId, splitRows, type CommentPayloadEntry } from './commentDialog.helpers';
+import { buildReviewPayload, getRowId, splitRows, type CommentPayloadEntry } from './commentDialog.helpers';
 
 export type CommentDialogResult =
   | { skipped: true }
@@ -143,10 +143,10 @@ export function CommentDialog({
     const finalPerRow = new Map(perRowComments);
     if (!opts?.keepCurrent) persistCurrentDraft(finalPerRow);
 
-    const entries = buildPayload({
+    const entries = buildReviewPayload({
       rowsWithoutComment,
       bulkComment,
-      perRowComments: finalPerRow,
+      perRow: finalPerRow,
     });
 
     if (mode === 'comment-only' && entries.length === 0) {
@@ -171,7 +171,7 @@ export function CommentDialog({
   const pendingEntriesCount = (() => {
     const preview = new Map(perRowComments);
     persistCurrentDraft(preview);
-    return buildPayload({ rowsWithoutComment, bulkComment, perRowComments: preview }).length;
+    return buildReviewPayload({ rowsWithoutComment, bulkComment, perRow: preview }).length;
   })();
 
   const confirmDisabled =
