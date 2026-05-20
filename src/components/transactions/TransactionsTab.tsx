@@ -309,7 +309,36 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // spec removes every row matched by that definition from the current view;
   // unhiding restores all rows in one shot. The panel groups by tag spec so
   // the operator sees one chip per hidden definition, not one per row.
-  const [hiddenDefIds, setHiddenDefIds] = useState<Set<string>>(new Set());
+  // Persisted to sessionStorage alongside the checkout's bank/side so:
+  //  - Navigating between tabs (which unmounts TransactionsTab — TabContainer
+  //    only renders the active tab) doesn't lose the set.
+  //  - A page refresh during the same browser-tab session is also preserved.
+  //  - Releasing / checking-in / switching to a different bank or side
+  //    discards the set (handled by the bank/side-change effect below).
+  // The state is initialised synchronously from storage in the useState lazy
+  // initializer so the very first render already has the restored ids —
+  // critical, because a separate restore-via-useEffect would race with the
+  // persistence effect on mount and wipe the storage.
+  const HIDDEN_DEF_IDS_STORAGE_KEY = 'tep:hiddenDefIds';
+  const [hiddenDefIds, setHiddenDefIds] = useState<Set<string>>(() => {
+    const currBank = activeCheckout?.bank ?? null;
+    const currSide = activeCheckout?.side ?? null;
+    if (!currBank) return new Set();
+    try {
+      const raw = sessionStorage.getItem(HIDDEN_DEF_IDS_STORAGE_KEY);
+      if (!raw) return new Set();
+      const stored = JSON.parse(raw) as { bank?: string; side?: string; ids?: string[] } | null;
+      if (
+        stored &&
+        stored.bank === currBank &&
+        stored.side === currSide &&
+        Array.isArray(stored.ids)
+      ) {
+        return new Set(stored.ids);
+      }
+    } catch { /* fall through to empty */ }
+    return new Set();
+  });
   const [hiddenTagsPanelOpen, setHiddenTagsPanelOpen] = useState(false);
   const [hideBusy, setHideBusy] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ row: TransactionRow; x: number; y: number } | null>(null);
@@ -526,14 +555,39 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [baseFilters]);
 
-  // Clear hidden tag specs whenever the active checkout changes. Covers
-  // release, check-in, and switching to a different bank/side —
-  // TransactionsTab does not unmount across these transitions, so the reset
-  // has to be explicit.
+  // Clear hidden tag specs when the checkout actually changes (release,
+  // check-in, switching to a different bank/side). The initial-render
+  // restore is handled by the useState lazy initializer above, so this
+  // effect skips its mount-time fire — only a genuine change of bank/side
+  // triggers the wipe.
+  const lastCheckoutRef = useRef<{ bank: string | null; side: string | null }>({
+    bank: activeCheckout?.bank ?? null,
+    side: activeCheckout?.side ?? null,
+  });
   useEffect(() => {
+    const prev = lastCheckoutRef.current;
+    const curr = { bank: activeCheckout?.bank ?? null, side: activeCheckout?.side ?? null };
+    if (prev.bank === curr.bank && prev.side === curr.side) return;
+    lastCheckoutRef.current = curr;
     setHiddenDefIds(new Set());
     setHiddenTagsPanelOpen(false);
   }, [activeCheckout?.bank, activeCheckout?.side]);
+
+  // Persist the set on every change, scoped to the current checkout.
+  useEffect(() => {
+    const currBank = activeCheckout?.bank ?? null;
+    const currSide = activeCheckout?.side ?? null;
+    try {
+      if (hiddenDefIds.size === 0 || currBank == null) {
+        sessionStorage.removeItem(HIDDEN_DEF_IDS_STORAGE_KEY);
+      } else {
+        sessionStorage.setItem(
+          HIDDEN_DEF_IDS_STORAGE_KEY,
+          JSON.stringify({ bank: currBank, side: currSide, ids: [...hiddenDefIds] }),
+        );
+      }
+    } catch { /* storage disabled — in-memory state still works */ }
+  }, [hiddenDefIds, activeCheckout?.bank, activeCheckout?.side]);
 
   // Close the side panel once the last hidden tag spec is removed so it
   // doesn't linger as an empty drawer.
