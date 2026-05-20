@@ -1,6 +1,7 @@
 import { Button } from './Button';
 // import { ToggleBadge } from './ShareLinkDialog';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
+import { resolveFilterValueLabel } from '../../utils/resolveFilterValueLabel';
 import type { ShareParams } from '../../utils/shareLink';
 import { useTransactionData } from '../../hooks/useTransactionData';
 import type { FilterDefinition } from '../../api/transactions';
@@ -21,18 +22,6 @@ function formatFilterKey(key: string, defs: FilterDefinition[]): string {
   if (key.endsWith('_GTE')) return `${humanizeFieldName(key.replace(/_GTE$/, ''))} (min)`;
   if (key.endsWith('_LTE')) return `${humanizeFieldName(key.replace(/_LTE$/, ''))} (max)`;
   return humanizeFieldName(key);
-}
-
-/** Resolve a stored filter value to the human-readable Label used in the filter UI. Falls back to the raw value. */
-function resolveValueLabel(key: string, value: string, defs: FilterDefinition[]): string {
-  if (!defs.length) return value;
-  if (key.startsWith('__') || key.endsWith('_GTE') || key.endsWith('_LTE')) return value;
-  const column = key.startsWith('data:') ? key.slice(5) : key;
-  const def = defs.find(
-    (d) => d.Tag === key || d.Tag === column || d.Values.some((v) => v.Column === column),
-  );
-  const match = def?.Values.find((v) => v.Column === value || v.Value === value);
-  return match?.Label ?? value;
 }
 
 export function SharedLinkBanner({ share, onDismiss }: SharedLinkBannerProps) {
@@ -81,7 +70,7 @@ export function SharedLinkBanner({ share, onDismiss }: SharedLinkBannerProps) {
                   >
                     <span className="font-medium shrink-0">{formatFilterKey(key, filterDefinitions)}:</span>
                     <span className="truncate">
-                      {[...values].map((v) => resolveValueLabel(key, v, filterDefinitions)).join(', ')}
+                      {[...values].map((v) => resolveFilterValueLabel(key, v, filterDefinitions)).join(', ')}
                     </span>
                   </span>
                 ))}

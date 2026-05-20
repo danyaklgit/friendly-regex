@@ -65,6 +65,7 @@ export interface FilterValue {
   Column: string;
   Value: string | null;
   Label: string;
+  SubLabel?: string | null;
   Operand: string | null;
   DisabledBy: string | null;
 }

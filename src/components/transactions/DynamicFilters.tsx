@@ -368,26 +368,17 @@ function StringFromListDropdown({
     if (!open) setSearch('');
   }, [open, isSearchable]);
 
-  // Backend returns Values in insertion / creation order, which leaves newly
-  // added entries pinned at the bottom. Sort alphabetically by Label
-  // (case-insensitive, falling back to Value) so the order stays stable as
-  // tags are added in Settings.
-  const sortedValues = useMemo(() => {
-    return [...definition.Values].sort((a, b) => {
-      const al = (a.Label ?? a.Value ?? '').toLowerCase();
-      const bl = (b.Label ?? b.Value ?? '').toLowerCase();
-      return al.localeCompare(bl);
-    });
-  }, [definition.Values]);
-
+  // Render filter values in the exact order the backend returns them — no
+  // front-end sorting.
   const filteredValues = useMemo(() => {
-    if (!search.trim()) return sortedValues;
+    if (!search.trim()) return definition.Values;
     const term = search.toLowerCase();
-    return sortedValues.filter(
+    return definition.Values.filter(
       (v) => (v.Label ?? v.Value ?? '').toLowerCase().includes(term) ||
-             (v.Value ?? '').toLowerCase().includes(term)
+             (v.Value ?? '').toLowerCase().includes(term) ||
+             (v.SubLabel ?? '').toLowerCase().includes(term)
     );
-  }, [sortedValues, search]);
+  }, [definition.Values, search]);
 
   // Split the filtered list into a "Selected" group at the top and an
   // "Available" group below. Items move between groups only when the user
@@ -554,7 +545,6 @@ function StringFromListDropdown({
                 <div className="px-2 py-3 text-xs text-faint text-center">No matches</div>
               ) : (() => {
                 const renderRow = (v: typeof filteredValues[number], idx: number) => {
-                  const hasDistinctLabel = v.Label && v.Label !== v.Value;
                   const isSelected = selected.has(v.Value ?? '');
                   const isHighlighted = idx === highlightIndex;
                   const baseBg = isSelected ? 'bg-primary/5' : '';
@@ -575,8 +565,8 @@ function StringFromListDropdown({
                         className="rounded border-border-strong shrink-0 mt-0.5"
                       />
                       <span className="min-w-0">
-                        <span className="block text-black dark:text-white font-medium truncate">{v.Value}</span>
-                        {hasDistinctLabel && <span className="block text-[10px] text-muted truncate">{v.Label}</span>}
+                        <span className="block text-black dark:text-white font-medium truncate">{v.Label || v.Value}</span>
+                        {v.SubLabel && <span className="block text-[10px] text-muted truncate">{v.SubLabel}</span>}
                       </span>
                     </label>
                   );
