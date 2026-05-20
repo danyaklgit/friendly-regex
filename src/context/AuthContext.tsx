@@ -126,6 +126,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Forward-ref to logout so the inactivity tick (declared before logout) can
   // invoke it on grace expiry. Set further down once logout is constructed.
   const logoutRef = useRef<() => void>(() => {});
+  // Forward-ref to refreshSession so the proactive-refresh effect (declared
+  // before refreshSession) can call it. Set further down.
+  const refreshSessionRef = useRef<() => Promise<boolean>>(async () => false);
 
   // Inactivity-based warning + auto-logout. Single 1s interval re-reads
   // lastActivityRef each tick. We arm the warning at ≥25 min idle and force a
@@ -170,9 +173,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(id);
   }, [session]);
 
-  // Backend-token safety net: if the access token's own expiry is hit without
-  // a refresh (with inactivity-driven logout + refreshIfNeeded this should
-  // effectively never fire), force a logout so we don't sit on a dead token.
+  // Proactive token refresh. Without this, an idle user's access token would
+  // expire at the backend-issued lifetime (which can be much shorter than 30
+  // min) and the safety net below would log them out with no warning. We
+  // schedule a silent refresh AUTO_REFRESH_THRESHOLD_MS before expiry; on
+  // success the session update re-runs this effect and the next refresh is
+  // scheduled. The inactivity model is then the only thing that can drive a
+  // user-facing logout.
+  useEffect(() => {
+    if (!session) return;
+    const remaining = session.expiresAt - Date.now();
+    const refreshIn = remaining - AUTO_REFRESH_THRESHOLD_MS;
+    if (refreshIn <= 0) {
+      void refreshSessionRef.current();
+      return;
+    }
+    const id = setTimeout(() => { void refreshSessionRef.current(); }, refreshIn);
+    return () => clearTimeout(id);
+  }, [session]);
+
+  // Backend-token safety net: if the proactive refresh ever fails to extend
+  // expiresAt in time, force a logout rather than sit on a dead token. With
+  // the keepalive above this effectively never fires in practice.
   useEffect(() => {
     if (!session) return;
     const remaining = session.expiresAt - Date.now();
@@ -347,10 +369,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
 
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newSession));
-      // A successful refresh implies user-driven action ("Get More Time" or
-      // a deep-link API touch). Reset the inactivity clock so the warning
-      // tears down on the next tick and the 25-min window restarts cleanly.
-      lastActivityRef.current = Date.now();
+      // Do NOT bump lastActivityRef here — refreshSession is now also called
+      // proactively in the background (token keepalive), which must not
+      // reset the inactivity clock or an idle user would never time out.
+      // User-initiated refreshes (e.g. clicking "Get More Time") get an
+      // activity bump from the DOM mousedown listener naturally.
       setShowSessionWarning(false);
       setGraceDeadline(null);
       setSession(newSession);
@@ -366,6 +389,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     logoutRef.current = logout;
   }, [logout]);
+
+  // Same pattern for refreshSession so the proactive-refresh keepalive picks
+  // up the latest implementation (which closes over `logout`).
+  useEffect(() => {
+    refreshSessionRef.current = refreshSession;
+  }, [refreshSession]);
 
   const dismissWarning = useCallback(() => {
     setShowSessionWarning(false);

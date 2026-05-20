@@ -320,6 +320,34 @@ describe('AuthContext.inactivityTimeout', () => {
     expect(screen.getByTestId('auth').textContent).toBe('true');
   });
 
+  it('proactively refreshes a short-lived backend token so an idle user is not logged out before the inactivity warning fires', async () => {
+    // Backend issues a 10-min token. Without the proactive keepalive the
+    // safety-net would fire logout at the 10-min mark, well before the
+    // 25-min inactivity warning. With keepalive, the session stays alive
+    // past the original token-expiry boundary.
+    vi.mocked(identity.refreshTokenApi).mockResolvedValue({
+      tokenType: 'Bearer',
+      accessToken: 'tok2',
+      refreshToken: 'r2',
+      expiresIn: 600, // 10 min
+    });
+    seedSession({ expiresInMs: 10 * 60_000 });
+    renderInactivityProbe();
+
+    // Advance past the proactive-refresh point (5 min) and the original
+    // token-expiry (10 min). Two stepped awaits so the refresh promise can
+    // settle before the safety-net timer is reached.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(6 * 60_000);
+    });
+    expect(screen.getByTestId('auth').textContent).toBe('true');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5 * 60_000);
+    });
+    expect(screen.getByTestId('auth').textContent).toBe('true');
+    expect(screen.getByTestId('warning').textContent).toBe('false');
+  });
+
   it('keeps the warning suppressed indefinitely while the user is active', () => {
     // 24 h token so the expiresAt safety-net doesn't bite during the cycles.
     seedSession({ expiresInMs: 24 * 60 * 60_000 });
