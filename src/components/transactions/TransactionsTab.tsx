@@ -1323,17 +1323,24 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         <div className='flex flex-col md:flex-row items-start justify-end md:items-center gap-2'>
           <h2 className="text-base font-semibold text-heading">Transactions</h2>
           {(() => {
-            // Live-mode total comes from the server and doesn't know about
-            // the client-side Hide-Tag-Spec filter. Deduct the count of
-            // loaded rows matched by hidden definitions so the header
-            // reflects what's actually in the table after triage.
+            // Header count is the raw dataset size — matches the footer's
+            // "N total" and the +N action buttons. Client-side hiding is a
+            // view filter, not a dataset filter, so we don't subtract it
+            // here. When hiding leaves the table empty, surface that
+            // explicitly with an "all hidden" hint next to the number.
             const displayed = builderOpen && builderHasContent
               ? filteredData.length
               : isLiveMode && totalTransactionsCount != null
-                ? Math.max(0, totalTransactionsCount - hiddenLoadedCount)
+                ? totalTransactionsCount
                 : filteredData.length;
+            const allHidden =
+              !builderOpen
+              && hiddenLoadedCount > 0
+              && filteredData.length === 0;
             return (
-              <span className='text-sm mr-5 min-w-10 text-primary-dark'>({displayed.toLocaleString()})</span>
+              <span className='text-sm mr-5 min-w-10 text-primary-dark whitespace-nowrap'>
+                ({displayed.toLocaleString()}{allHidden ? ' · all hidden' : ''})
+              </span>
             );
           })()}
           <div className="flex items-center gap-4">
