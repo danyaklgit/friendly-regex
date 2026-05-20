@@ -60,6 +60,7 @@ export function MentionAutocomplete({
     <div
       ref={containerRef}
       role="listbox"
+      data-tour="mention-autocomplete"
       className="absolute z-50 mt-1 w-72 rounded-md border border-border bg-surface-elevated shadow-lg overflow-hidden"
     >
       <ul className="max-h-60 overflow-y-auto">

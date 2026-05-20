@@ -200,15 +200,48 @@ export function NotificationsButton({ onNavigateToBacklog }: NotificationsButton
   };
 
   // Outside click + Escape closes the popover.
+  // Exception: clicks inside intro.js tooltips/overlays (used by the onboarding
+  // tour) do not close the popover. Without this carve-out, pressing Next in
+  // the Notifications tour would immediately dismiss the drawer because the
+  // tooltip is portalled to <body> and counts as "outside" wrapperRef.
   useEffect(() => {
     if (!open) return;
+    const isInsideIntroJs = (target: Node | null): boolean => {
+      let el: Node | null = target;
+      while (el && el !== document) {
+        if (el instanceof HTMLElement) {
+          const cls = el.classList;
+          if (
+            cls.contains('introjs-tooltip') ||
+            cls.contains('introjs-tooltipReferenceLayer') ||
+            cls.contains('introjs-helperLayer') ||
+            cls.contains('introjs-overlay') ||
+            cls.contains('introjs-button')
+          ) {
+            return true;
+          }
+        }
+        el = (el as Node).parentNode;
+      }
+      return false;
+    };
     const onDocClick = (e: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        wrapperRef.current &&
+        !wrapperRef.current.contains(target) &&
+        !isInsideIntroJs(target)
+      ) {
         setOpen(false);
       }
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
+      // Don't close on Escape while a tour is running; intro.js owns Escape to
+      // exit the tour cleanly. The tour engine will close the popover itself
+      // when the tour ends.
+      if (e.key === 'Escape' && !document.querySelector('.introjs-tooltip')) {
+        setOpen(false);
+      }
     };
     document.addEventListener('mousedown', onDocClick);
     window.addEventListener('keydown', onKey);
@@ -224,6 +257,7 @@ export function NotificationsButton({ onNavigateToBacklog }: NotificationsButton
     <div ref={wrapperRef} className="relative">
       <button
         type="button"
+        data-tour="notifications-bell"
         onClick={() => setOpen((o) => !o)}
         title={unreadCount > 0 ? `${unreadCount} unread notification${unreadCount === 1 ? '' : 's'}` : 'Notifications'}
         aria-label={unreadCount > 0 ? `${unreadCount} unread notifications` : 'Notifications'}
@@ -244,6 +278,7 @@ export function NotificationsButton({ onNavigateToBacklog }: NotificationsButton
         <div
           role="dialog"
           aria-label="Notifications"
+          data-tour="notifications-drawer"
           className="absolute right-0 top-[calc(100%+8px)] z-50 w-[380px] max-h-[520px] bg-surface-elevated border border-border rounded-lg shadow-[0_24px_48px_-12px_rgba(15,23,42,0.45)] flex flex-col overflow-hidden"
         >
           <header className="flex items-center justify-between px-4 py-3 border-b border-border bg-surface-elevated">

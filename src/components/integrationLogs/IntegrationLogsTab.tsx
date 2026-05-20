@@ -394,7 +394,7 @@ export function IntegrationLogsTab() {
     filters.toDate !== '';
 
   return (
-    <div className="p-4 space-y-4">
+    <div data-tour="integration-logs-tab" className="p-4 space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold text-heading">Integration Logs</h1>
@@ -499,9 +499,10 @@ export function IntegrationLogsTab() {
                   </td>
                 </tr>
               ) : (
-                items.map((log) => (
+                items.map((log, idx) => (
                   <tr
                     key={log.Id}
+                    {...(idx === 0 ? { 'data-tour': 'integration-logs-row' } : {})}
                     className={`group border-t border-border hover:bg-surface-hover transition-colors ${
                       loading ? 'opacity-60' : ''
                     }`}
@@ -535,6 +536,7 @@ export function IntegrationLogsTab() {
                           <Button
                             variant="outline"
                             size="xs"
+                            data-tour={idx === 0 ? 'integration-logs-rerun' : undefined}
                             onClick={() => setConfirmRerun(log)}
                           >
                             Rerun

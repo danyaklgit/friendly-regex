@@ -61,7 +61,7 @@ export function LovsPage() {
   }
 
   return (
-    <div className="flex h-full -m-4">
+    <div className="flex h-full -m-4" data-tour="lovs-page">
       <LovCategoryList
         lists={visibleLists}
         selectedTag={selectedTag}

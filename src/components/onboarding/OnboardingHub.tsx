@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import introJs from 'intro.js';
 import './introjs-theme.css';
 import { tours } from './tourSteps';
+import { useAuth } from '../../context/AuthContext';
 
 interface OnboardingHubProps {
   open: boolean;
@@ -12,6 +13,19 @@ interface OnboardingHubProps {
 
 export function OnboardingHub({ open, onClose, onTabChange }: OnboardingHubProps) {
   const instanceRef = useRef<ReturnType<typeof introJs> | null>(null);
+  const { isAudit, isDevops } = useAuth();
+
+  // Filter tour topics by role. Tours flagged `requiresRole: 'devops'` only
+  // appear for users with that role. Audit users still see every other tour
+  // because we narrate read-only across the board (mutating steps are skipped
+  // by the engine via `auditSkip`).
+  const visibleTours = useMemo(
+    () =>
+      Object.entries(tours).filter(([, t]) =>
+        !t.requiresRole || (t.requiresRole === 'devops' && isDevops),
+      ),
+    [isDevops],
+  );
 
   // When the component unmounts (e.g. session expired and user is logged out), exit any
   // running tour so intro.js cleans up its DOM elements and body attributes.
@@ -21,13 +35,30 @@ export function OnboardingHub({ open, onClose, onTabChange }: OnboardingHubProps
     };
   }, []);
 
+  // Resolve a step's target tab (by label or numeric index) to the current
+  // DOM index. Tabs are role-dependent (DevOps users have an extra
+  // Integration Logs tab that shifts Settings from index 2 to 3), so we read
+  // the rendered tab buttons and match by label text. Returns -1 if the
+  // requested label isn't currently rendered.
+  const resolveStepTab = (step: import('./tourSteps').TourStepDef): number | undefined => {
+    if (step.tabLabel) {
+      const buttons = Array.from(document.querySelectorAll('header nav button'));
+      const idx = buttons.findIndex((b) => b.textContent?.trim() === step.tabLabel);
+      return idx >= 0 ? idx : undefined;
+    }
+    return step.tab;
+  };
+
   const launchTour = (topicKey: string) => {
     onClose();
     const topic = tours[topicKey];
     const steps = topic.steps;
 
-    // Switch to the first required tab, then wait for the DOM to settle
-    const firstTab = steps.find((s) => s.tab !== undefined)?.tab ?? 1;
+    // Switch to the first required tab, then wait for the DOM to settle.
+    // Use label resolution so DevOps users (who have an extra Integration Logs
+    // tab) end up on the right destination.
+    const firstStepWithTab = steps.find((s) => s.tabLabel !== undefined || s.tab !== undefined);
+    const firstTab = firstStepWithTab ? resolveStepTab(firstStepWithTab) ?? 1 : 1;
     onTabChange(firstTab);
 
     setTimeout(() => {
@@ -104,8 +135,9 @@ export function OnboardingHub({ open, onClose, onTabChange }: OnboardingHubProps
           document.body.removeAttribute('data-introjs-in-wizard');
         }
 
-        if (stepDef?.tab !== undefined) {
-          onTabChange(stepDef.tab);
+        const targetTab = resolveStepTab(stepDef);
+        if (targetTab !== undefined) {
+          onTabChange(targetTab);
         }
         // Always re-query the element — intro.js sets element=floatingPlaceholder and
         // position="floating" when an element isn't in the DOM at start() time.
@@ -129,6 +161,15 @@ export function OnboardingHub({ open, onClose, onTabChange }: OnboardingHubProps
         }
 
         const stepDef = steps[currentStepIdx];
+
+        // Audit role: any step that would mutate data is skipped automatically.
+        // We schedule a microtask-deferred nextStep() so intro.js can finish
+        // rendering the placeholder before we transition off it.
+        if (isAudit && stepDef?.auditSkip) {
+          const t = setTimeout(() => instance.nextStep(), 50);
+          cleanupInteractive = () => clearTimeout(t);
+          return;
+        }
 
         // Hide the helperLayer for any step that has no element — there is nothing to highlight,
         // and leaving it visible causes a stale bounding-box to show from a prior step.
@@ -246,9 +287,25 @@ export function OnboardingHub({ open, onClose, onTabChange }: OnboardingHubProps
           let i = 0;
           let current = '';
           const simTimers: ReturnType<typeof setTimeout>[] = [];
-          const nativeSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+          // Pick the right native value setter based on element type. React tracks
+          // controlled-component values via these setters; using the input setter
+          // on a textarea (or vice-versa) silently drops the write.
+          const getNativeValueSetter = (el: Element) => {
+            const proto =
+              el instanceof HTMLTextAreaElement
+                ? HTMLTextAreaElement.prototype
+                : HTMLInputElement.prototype;
+            return Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+          };
+          // Bring the target into view inside whichever ancestor owns the scroll
+          // (the comment thread panel has its own scrollable container, so
+          // window.scrollTo is not enough). scrollIntoView traverses up to the
+          // nearest scrollable parent and centers the target.
+          const initialEl = document.querySelector(target) as HTMLElement | null;
+          initialEl?.scrollIntoView({ block: 'center', behavior: 'instant' });
+          initialEl?.focus({ preventScroll: true });
           const typeNext = () => {
-            const input = document.querySelector(target) as HTMLInputElement | null;
+            const input = document.querySelector(target) as (HTMLInputElement | HTMLTextAreaElement) | null;
             if (!input || i >= value.length) {
               window.scrollTo({ top: savedScrollY, left: savedScrollX, behavior: 'instant' });
               document.body.removeAttribute('data-introjs-simulating');
@@ -256,7 +313,8 @@ export function OnboardingHub({ open, onClose, onTabChange }: OnboardingHubProps
               return;
             }
             current += value[i++];
-            nativeSetter?.call(input, current);
+            const setter = getNativeValueSetter(input);
+            setter?.call(input, current);
             input.dispatchEvent(new Event('input', { bubbles: true }));
             simTimers.push(setTimeout(typeNext, charDelay));
           };
@@ -272,7 +330,15 @@ export function OnboardingHub({ open, onClose, onTabChange }: OnboardingHubProps
           document.body.setAttribute('data-introjs-simulating', 'true');
           const simTimers: ReturnType<typeof setTimeout>[] = [];
           let lastAt = 0;
-          const nativeSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+          // Element-type-aware native value setter (see simulateType above for
+          // why this matters with React + textareas).
+          const getNativeValueSetter = (el: Element) => {
+            const proto =
+              el instanceof HTMLTextAreaElement
+                ? HTMLTextAreaElement.prototype
+                : HTMLInputElement.prototype;
+            return Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+          };
           // Snapshot scroll position so any click-triggered browser scroll can be undone
           const savedScrollX = window.scrollX;
           const savedScrollY = window.scrollY;
@@ -325,10 +391,15 @@ export function OnboardingHub({ open, onClose, onTabChange }: OnboardingHubProps
                   }
                 }
               } else if (action.type === 'type' && action.value !== undefined) {
-                const inputEl = el as HTMLInputElement;
+                const inputEl = el as HTMLInputElement | HTMLTextAreaElement;
+                const setter = getNativeValueSetter(inputEl);
+                // Scroll the textarea into view inside whichever ancestor owns
+                // the scroll (e.g. the comment thread panel) before typing so
+                // the user can see characters land.
+                inputEl.scrollIntoView({ block: 'center', behavior: 'instant' });
                 if (action.value === '') {
                   // Clear the input
-                  nativeSetter?.call(inputEl, '');
+                  setter?.call(inputEl, '');
                   inputEl.dispatchEvent(new Event('input', { bubbles: true }));
                 } else {
                   let ci = 0;
@@ -336,7 +407,7 @@ export function OnboardingHub({ open, onClose, onTabChange }: OnboardingHubProps
                   const typeChar = () => {
                     if (ci >= (action.value?.length ?? 0)) return;
                     cur += action.value![ci++];
-                    nativeSetter?.call(inputEl, cur);
+                    setter?.call(inputEl, cur);
                     inputEl.dispatchEvent(new Event('input', { bubbles: true }));
                     if (ci < (action.value?.length ?? 0)) simTimers.push(setTimeout(typeChar, 45));
                   };
@@ -567,24 +638,40 @@ export function OnboardingHub({ open, onClose, onTabChange }: OnboardingHubProps
 
               {/* Topic grid */}
               <div className="p-4 grid grid-cols-2 gap-2.5">
-                {Object.entries(tours).map(([key, topic], i) => (
-                  <motion.button
-                    key={key}
-                    className="flex items-start gap-3 p-3.5 rounded-xl border border-border bg-surface-secondary hover:bg-surface-hover hover:border-primary/40 transition-all text-left cursor-pointer group"
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.05 + i * 0.045, type: 'spring', stiffness: 400, damping: 26 }}
-                    onClick={() => launchTour(key)}
-                  >
-                    <span className="text-lg mt-0.5 select-none">{topic.icon}</span>
-                    <div>
-                      <p className="text-xs font-semibold text-heading leading-snug group-hover:text-primary transition-colors">
-                        {topic.label}
-                      </p>
-                      <p className="text-[11px] text-muted mt-0.5 leading-snug">{topic.description}</p>
-                    </div>
-                  </motion.button>
-                ))}
+                {visibleTours.map(([key, topic], i) => {
+                  // Audit chip: shown whenever the tour contains any mutating step
+                  // (auditSkip flagged). Tells the user the tour will narrate
+                  // read-only and skip simulations.
+                  const hasMutatingStep = topic.steps.some((s) => s.auditSkip);
+                  return (
+                    <motion.button
+                      key={key}
+                      className="flex items-start gap-3 p-3.5 rounded-xl border border-border bg-surface-secondary hover:bg-surface-hover hover:border-primary/40 transition-all text-left cursor-pointer group"
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.05 + i * 0.045, type: 'spring', stiffness: 400, damping: 26 }}
+                      onClick={() => launchTour(key)}
+                    >
+                      <span className="text-lg mt-0.5 select-none">{topic.icon}</span>
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-heading leading-snug group-hover:text-primary transition-colors flex items-center gap-1.5 flex-wrap">
+                          <span>{topic.label}</span>
+                          {topic.requiresRole === 'devops' && (
+                            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wide bg-cyan-100 text-cyan-700 dark:bg-cyan-900/50 dark:text-cyan-300 ring-1 ring-cyan-300/60 dark:ring-cyan-700/60">
+                              DevOps
+                            </span>
+                          )}
+                          {isAudit && hasMutatingStep && (
+                            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wide bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 ring-1 ring-slate-300/60 dark:ring-slate-600/60">
+                              Audit · read-only
+                            </span>
+                          )}
+                        </p>
+                        <p className="text-[11px] text-muted mt-0.5 leading-snug">{topic.description}</p>
+                      </div>
+                    </motion.button>
+                  );
+                })}
               </div>
 
               {/* Footer hint */}

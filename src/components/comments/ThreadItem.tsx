@@ -65,6 +65,7 @@ export function ThreadItem({ comment, authToken, defaultCollapsed = false, resol
 
   return (
     <article
+      data-tour="thread-item"
       className={`rounded-lg border text-left ${
         resolved ? 'border-emerald-300/60 bg-emerald-50/40 dark:bg-emerald-900/10' : 'border-border bg-surface'
       } px-3 py-2.5`}
@@ -97,6 +98,7 @@ export function ThreadItem({ comment, authToken, defaultCollapsed = false, resol
             <div className="mt-1.5 flex items-center gap-3 text-[11px]">
               <button
                 type="button"
+                data-tour="thread-reply-button"
                 className="text-muted hover:text-body cursor-pointer"
                 onClick={() => {
                   setReplyingToReply(null);

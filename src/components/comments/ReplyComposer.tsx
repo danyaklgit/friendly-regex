@@ -140,9 +140,10 @@ export function ReplyComposer({ authToken, onSubmit, onCancel }: ReplyComposerPr
   };
 
   return (
-    <div className="relative">
+    <div className="relative" data-tour="reply-composer">
       <textarea
         ref={textareaRef}
+        data-tour="reply-composer-textarea"
         value={text}
         onChange={handleChange}
         onKeyDown={handleKey}

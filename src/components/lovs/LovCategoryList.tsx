@@ -27,7 +27,7 @@ export function LovCategoryList({ lists, selectedTag, onSelect }: LovCategoryLis
   }, [lists, filter]);
 
   return (
-    <div className="w-56 shrink-0 border-r border-border bg-surface-secondary/30 py-2 px-1.5 flex flex-col gap-2">
+    <div data-tour="lov-category-list" className="w-56 shrink-0 border-r border-border bg-surface-secondary/30 py-2 px-1.5 flex flex-col gap-2">
       <div className="px-1">
         <div className="relative">
           <svg

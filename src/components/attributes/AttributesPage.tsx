@@ -62,7 +62,7 @@ export function AttributesPage() {
   const getEnDetail = (attr: BackendAttribute) => attr.Details.find((d) => d.LanguageCode === 'en');
 
   return (
-    <div className="flex flex-col min-h-0 flex-1">
+    <div className="flex flex-col min-h-0 flex-1" data-tour="attributes-page">
       <div className="flex items-center gap-3 mb-4 shrink-0">
         <div className="relative flex-1 max-w-sm">
           <svg
@@ -73,6 +73,7 @@ export function AttributesPage() {
           </svg>
           <input
             type="text"
+            data-tour="attributes-search"
             placeholder="Search attributes..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -81,7 +82,7 @@ export function AttributesPage() {
         </div>
         <div className="flex items-center gap-2 ml-auto">
           {!isAudit && (
-            <Button variant="primary" size="sm" onClick={handleCreate}>
+            <Button variant="primary" size="sm" onClick={handleCreate} data-tour="attributes-create-button">
               + Create Attribute
             </Button>
           )}
@@ -95,7 +96,7 @@ export function AttributesPage() {
           {search ? 'No attributes match your search.' : 'No attributes found.'}
         </div>
       ) : (
-        <div className="flex-1 min-h-0 overflow-auto custom-scrollbar border border-border rounded-lg">
+        <div className="flex-1 min-h-0 overflow-auto custom-scrollbar border border-border rounded-lg" data-tour="attributes-table">
           <table className="min-w-full divide-y divide-divide">
             <thead className="bg-surface-secondary sticky top-0 z-20">
               <tr>

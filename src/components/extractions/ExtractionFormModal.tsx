@@ -94,15 +94,16 @@ export function ExtractionFormModal({ open, onClose, onSave, existing }: Extract
       title={isEdit ? 'Edit Extraction' : 'Create New Extraction'}
       footer={
         <>
-          <Button variant="ghost" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button variant="primary" onClick={handleSave} disabled={!canSave || saving}>
+          <Button variant="ghost" onClick={onClose} disabled={saving} data-tour="extraction-form-cancel">Cancel</Button>
+          <Button variant="primary" onClick={handleSave} disabled={!canSave || saving} data-tour="extraction-form-submit">
             {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Create'}
           </Button>
         </>
       }
     >
-      <div className="space-y-4">
+      <div className="space-y-4" data-tour="extraction-form">
         <Input
+          data-tour="extraction-form-regex"
           label="Regex"
           value={regex}
           onChange={(e) => setRegex(e.target.value)}
@@ -135,6 +136,7 @@ export function ExtractionFormModal({ open, onClose, onSave, existing }: Extract
           <div className="space-y-3">
             <p className="text-xs font-semibold text-body-secondary">English</p>
             <Input
+              data-tour="extraction-form-name-en"
               label="Name"
               value={nameEn}
               onChange={(e) => setNameEn(e.target.value)}
@@ -143,6 +145,7 @@ export function ExtractionFormModal({ open, onClose, onSave, existing }: Extract
               maxLength={100}
             />
             <Input
+              data-tour="extraction-form-desc-en"
               label="Short Description"
               value={shortDescEn}
               onChange={(e) => setShortDescEn(e.target.value)}

@@ -559,7 +559,10 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                 const isNavHighlighted = highlightedLibraryId === row.library.Id;
                 const libIdForComments = displayLib.Id ?? row.library.Id;
                 const rowContent = (
-                  <tr key={row.library.Id} className="group" data-library-id={row.library.Id} data-bank-side={rowKey}>
+                  <tr key={row.library.Id} className="group" data-library-id={row.library.Id} data-bank-side={rowKey} {...(row.isOwnedByMe ? { 'data-tour': 'my-checkout-row' } : {})}>
+                    {row.isOwnedByMe && isRecentlyChanged && (
+                      <td data-tour="row-just-checked-out" aria-hidden hidden />
+                    )}
                     <td colSpan={8} className="p-0">
                       {/* Main row — sticky when expanded */}
                       <div className={`flex items-start transition-colors duration-500 ${isExpanded ? 'sticky top-8.5 z-10 shadow-sm border-b border-border bg-cyan-50 dark:bg-slate-800 ' : ''} ${row.isInProgress && !isExpanded ? 'bg-primary/5' : isExpanded ? '' : 'hover:bg-surface-hover'} ${isRecentlyChanged ? 'bg-amber-100! dark:bg-amber-500/15! ring-1 ring-inset ring-amber-400/60 dark:ring-amber-500/40' : ''} ${isNavHighlighted ? 'bg-cyan-100! dark:bg-cyan-500/15! ring-2 ring-inset ring-cyan-400/70 dark:ring-cyan-400/60' : ''}`}>

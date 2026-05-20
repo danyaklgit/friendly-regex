@@ -67,6 +67,7 @@ export function NotificationItem({ notification, senderUserId, onMarkStatus, onO
     >
       <button
         type="button"
+        data-tour="notification-card"
         onClick={handleOpen}
         disabled={!onOpen}
         className="block w-full text-left cursor-pointer disabled:cursor-default"

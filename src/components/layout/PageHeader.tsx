@@ -95,6 +95,7 @@ export function PageHeader({ tabs, activeIndex, onTabChange, checkout, onOpenOnb
             <Tooltip content="Share current view" placement="bottom">
               <button
                 onClick={onShare}
+                data-tour="share-icon"
                 className="text-muted hover:text-heading transition-colors cursor-pointer p-1"
                 aria-label="Share current view"
               >

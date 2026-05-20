@@ -82,7 +82,7 @@ export function ExtractionsPage() {
   const getEnDetail = (ext: BackendExtraction) => ext.Details.find((d) => d.LanguageCode === 'en');
 
   return (
-    <div className="flex flex-col min-h-0 flex-1">
+    <div className="flex flex-col min-h-0 flex-1" data-tour="extractions-page">
       <div className="flex items-center gap-3 mb-4 shrink-0">
         <div className="relative flex-1 max-w-sm">
           <svg
@@ -93,6 +93,7 @@ export function ExtractionsPage() {
           </svg>
           <input
             type="text"
+            data-tour="extractions-search"
             placeholder="Search extractions..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -101,7 +102,7 @@ export function ExtractionsPage() {
         </div>
         <div className="flex items-center gap-2 ml-auto">
           {!isAudit && (
-            <Button variant="primary" size="sm" onClick={handleCreate}>
+            <Button variant="primary" size="sm" onClick={handleCreate} data-tour="extractions-create-button">
               + Create Extraction
             </Button>
           )}
@@ -115,7 +116,7 @@ export function ExtractionsPage() {
           {search ? 'No extractions match your search.' : 'No extractions found.'}
         </div>
       ) : (
-        <div className="flex-1 min-h-0 overflow-auto custom-scrollbar border border-border rounded-lg">
+        <div className="flex-1 min-h-0 overflow-auto custom-scrollbar border border-border rounded-lg" data-tour="extractions-table">
           <table className="min-w-full divide-y divide-divide">
             <thead className="bg-surface-secondary sticky top-0 z-20">
               <tr>
@@ -126,7 +127,7 @@ export function ExtractionsPage() {
               </tr>
             </thead>
             <tbody className="bg-surface divide-y divide-divide">
-              {filtered.map((ext) => {
+              {filtered.map((ext, idx) => {
                 const en = getEnDetail(ext);
                 return (
                   <tr key={ext.Id} className="group hover:bg-surface-hover transition-colors">
@@ -138,6 +139,7 @@ export function ExtractionsPage() {
                         <div className="inline-flex items-center gap-1">
                           <button
                             type="button"
+                            data-tour={idx === 0 ? 'extraction-row-edit' : undefined}
                             onClick={() => handleEdit(ext)}
                             className="p-1.5 rounded hover:bg-primary/10 text-muted hover:text-primary transition-colors cursor-pointer"
                             title="Edit"

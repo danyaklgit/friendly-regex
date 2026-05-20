@@ -95,14 +95,14 @@ export function AttributeFormModal({ open, onClose, onSave, existing }: Attribut
       title={isEdit ? 'Edit Attribute' : 'Create New Attribute'}
       footer={
         <>
-          <Button variant="ghost" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button variant="primary" onClick={handleSave} disabled={!canSave || saving}>
+          <Button variant="ghost" onClick={onClose} disabled={saving} data-tour="attribute-form-cancel">Cancel</Button>
+          <Button variant="primary" onClick={handleSave} disabled={!canSave || saving} data-tour="attribute-form-submit">
             {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Create'}
           </Button>
         </>
       }
     >
-      <div className="space-y-4">
+      <div className="space-y-4" data-tour="attribute-form">
         <div className="grid grid-cols-2 gap-4">
           <div className={`min-w-0 rounded-lg p-3 border ${duplicateAttribute ? 'bg-red-50 dark:bg-rose-900/20 border-red-400 dark:border-rose-400' : 'bg-surface-secondary border-border'}`}>
             <p className="text-xs font-semibold text-muted mb-2">Value (Auto Generated)</p>
@@ -130,13 +130,13 @@ export function AttributeFormModal({ open, onClose, onSave, existing }: Attribut
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-3">
             <p className="text-xs font-semibold text-body-secondary">English</p>
-            <Input label="Name" value={nameEn} onChange={(e) => setNameEn(e.target.value)} placeholder="e.g. Bank Name" required maxLength={100} error={!!duplicateAttribute} />
-            <Input label="Short Description" value={shortDescEn} onChange={(e) => setShortDescEn(e.target.value)} placeholder="Brief description" required />
+            <Input data-tour="attribute-form-name-en" label="Name" value={nameEn} onChange={(e) => setNameEn(e.target.value)} placeholder="e.g. Bank Name" required maxLength={100} error={!!duplicateAttribute} />
+            <Input data-tour="attribute-form-desc-en" label="Short Description" value={shortDescEn} onChange={(e) => setShortDescEn(e.target.value)} placeholder="Brief description" required />
           </div>
           <div className="space-y-3">
             <p className="text-xs font-semibold text-body-secondary">Arabic</p>
-            <Input label="Name" value={nameAr} onChange={(e) => setNameAr(e.target.value)} placeholder="e.g. اسم البنك" dir="rtl" required maxLength={100} />
-            <Input label="Short Description" value={shortDescAr} onChange={(e) => setShortDescAr(e.target.value)} placeholder="وصف مختصر" dir="rtl" required />
+            <Input data-tour="attribute-form-name-ar" label="Name" value={nameAr} onChange={(e) => setNameAr(e.target.value)} placeholder="e.g. اسم البنك" dir="rtl" required maxLength={100} />
+            <Input data-tour="attribute-form-desc-ar" label="Short Description" value={shortDescAr} onChange={(e) => setShortDescAr(e.target.value)} placeholder="وصف مختصر" dir="rtl" required />
           </div>
         </div>
       </div>

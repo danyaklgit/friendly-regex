@@ -158,9 +158,10 @@ export function CommentComposer({
   }, [text, mentionIds, users, onSubmit]);
 
   return (
-    <div className="relative">
+    <div className="relative" data-tour="comment-composer">
       <textarea
         ref={textareaRef}
+        data-tour="comment-composer-textarea"
         value={text}
         onChange={handleChange}
         onKeyDown={handleKey}

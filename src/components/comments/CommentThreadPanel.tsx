@@ -122,6 +122,7 @@ export function CommentThreadPanel({
         role="dialog"
         aria-label="Comment thread"
         aria-hidden={!open}
+        data-tour="comment-thread-panel"
         className={`fixed inset-y-0 right-0 z-[70] w-full md:w-[44%] lg:w-[38%] max-w-[640px] bg-surface-elevated border-l border-border shadow-[-24px_0_48px_-12px_rgba(15,23,42,0.45)] flex flex-col transition-transform duration-300 ease-out ${
           open ? 'translate-x-0' : 'translate-x-[calc(100%+80px)]'
         }`}
@@ -154,6 +155,7 @@ export function CommentThreadPanel({
           <button
             ref={closeBtnRef}
             type="button"
+            data-tour="comment-thread-close"
             onClick={onClose}
             aria-label="Close comment panel"
             className="p-1.5 rounded hover:bg-surface-hover text-muted hover:text-body cursor-pointer"

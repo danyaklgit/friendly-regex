@@ -74,6 +74,7 @@ export function CommentIconButton({ target, targetLabel, size = 'sm', title }: C
     <>
       <button
         type="button"
+        data-tour="tag-comment-icon"
         onClick={(e) => {
           e.stopPropagation();
           setOpen(true);
