@@ -200,24 +200,18 @@ function ListEqDropdown({
     onFiltersChange(updated);
   };
 
-  // Snapshot the selected set the moment the dropdown opens. The displayed
-  // order pins "selected at open" to the top so the operator can scan their
-  // picks, but toggles during this open session don't reorder the list (no
-  // jumping under the cursor). Re-opens take a fresh snapshot.
-  const initialSelectedRef = useRef<Set<string>>(new Set());
-  useEffect(() => {
-    if (open) initialSelectedRef.current = new Set(selected);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
-  const orderedValues = useMemo(() => {
-    const snapshot = initialSelectedRef.current;
-    return [...definition.Values].sort((a, b) => {
-      const aSel = snapshot.has(a.Column) ? 0 : 1;
-      const bSel = snapshot.has(b.Column) ? 0 : 1;
-      return aSel - bSel;
-    });
-  }, [definition.Values, open]);
+  // Split the list into a "Selected" group at the top and an "Available"
+  // group below, preserving the definition's original order within each
+  // group. Items move between groups only on user toggle, so the list never
+  // shifts under the cursor unexpectedly.
+  const { selectedValues, availableValues } = useMemo(() => {
+    const sel: typeof definition.Values = [];
+    const avail: typeof definition.Values = [];
+    for (const v of definition.Values) {
+      (selected.has(v.Column) ? sel : avail).push(v);
+    }
+    return { selectedValues: sel, availableValues: avail };
+  }, [definition.Values, selected]);
 
   const handleSelectAll = () => {
     const next = new Set<string>();
@@ -275,25 +269,63 @@ function ListEqDropdown({
                 </button>
               </div>
               <div className="p-1.5 max-h-60 overflow-y-auto custom-scrollbar">
-                {orderedValues.map((v) => (
-                  <label
-                    key={v.Column}
-                    className={`flex items-center gap-2 px-2 py-1.5 text-xs rounded text-black dark:text-white ${
-                      isDisabled(v)
-                        ? 'opacity-50 cursor-not-allowed'
-                        : 'hover:bg-surface-hover cursor-pointer'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      disabled={isDisabled(v)}
-                      checked={selected.has(v.Column)}
-                      onChange={() => handleToggle(v.Column)}
-                      className="rounded border-border-strong"
-                    />
-                    <span>{v.Label}</span>
-                  </label>
-                ))}
+                {selectedValues.length > 0 && (
+                  <>
+                    <div className="px-2 pt-1 pb-0.5 text-[9px] font-semibold uppercase tracking-wider text-faint">
+                      Selected ({selectedValues.length})
+                    </div>
+                    {selectedValues.map((v) => (
+                      <label
+                        key={v.Column}
+                        className={`flex items-center gap-2 px-2 py-1.5 text-xs rounded text-black dark:text-white ${
+                          isDisabled(v)
+                            ? 'opacity-50 cursor-not-allowed'
+                            : 'hover:bg-surface-hover cursor-pointer'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          disabled={isDisabled(v)}
+                          checked
+                          onChange={() => handleToggle(v.Column)}
+                          className="rounded border-border-strong"
+                        />
+                        <span>{v.Label}</span>
+                      </label>
+                    ))}
+                    {availableValues.length > 0 && (
+                      <div className="my-1 border-t border-border-subtle" />
+                    )}
+                  </>
+                )}
+                {availableValues.length > 0 && (
+                  <>
+                    {selectedValues.length > 0 && (
+                      <div className="px-2 pt-1 pb-0.5 text-[9px] font-semibold uppercase tracking-wider text-faint">
+                        Available
+                      </div>
+                    )}
+                    {availableValues.map((v) => (
+                      <label
+                        key={v.Column}
+                        className={`flex items-center gap-2 px-2 py-1.5 text-xs rounded text-black dark:text-white ${
+                          isDisabled(v)
+                            ? 'opacity-50 cursor-not-allowed'
+                            : 'hover:bg-surface-hover cursor-pointer'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          disabled={isDisabled(v)}
+                          checked={false}
+                          onChange={() => handleToggle(v.Column)}
+                          className="rounded border-border-strong"
+                        />
+                        <span>{v.Label}</span>
+                      </label>
+                    ))}
+                  </>
+                )}
               </div>
             </div>,
             document.body
@@ -357,26 +389,19 @@ function StringFromListDropdown({
     );
   }, [sortedValues, search]);
 
-  // Snapshot the selected set the moment the dropdown opens. Selected-at-open
-  // items appear at the top of the rendered list so the operator can scan
-  // their picks; toggling DURING this open session doesn't reorder items
-  // (no jump-under-cursor). A re-open takes a fresh snapshot.
-  const initialSelectedRef = useRef<Set<string>>(new Set());
-  useEffect(() => {
-    if (open) initialSelectedRef.current = new Set(selected);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
-  // Keyboard navigation walks the displayed (sorted) list so arrow keys
-  // and the cursor agree on row positions.
-  const navigableValues = useMemo(() => {
-    const snapshot = initialSelectedRef.current;
-    return [...filteredValues].sort((a, b) => {
-      const aSel = snapshot.has(a.Value ?? '') ? 0 : 1;
-      const bSel = snapshot.has(b.Value ?? '') ? 0 : 1;
-      return aSel - bSel;
-    });
-  }, [filteredValues, open]);
+  // Split the filtered list into a "Selected" group at the top and an
+  // "Available" group below. Items move between groups only when the user
+  // toggles their checkbox, so the list never shifts under the cursor in the
+  // middle of selecting adjacent rows. Keyboard navigation walks Selected
+  // first, then Available — matching the visual order.
+  const { selectedFiltered, availableFiltered, navigableValues } = useMemo(() => {
+    const sel: typeof filteredValues = [];
+    const avail: typeof filteredValues = [];
+    for (const v of filteredValues) {
+      (selected.has(v.Value ?? '') ? sel : avail).push(v);
+    }
+    return { selectedFiltered: sel, availableFiltered: avail, navigableValues: [...sel, ...avail] };
+  }, [filteredValues, selected]);
 
   const handleToggle = (value: string) => {
     const next = new Set(selected);
@@ -527,8 +552,8 @@ function StringFromListDropdown({
             <div ref={listRef} className="max-h-60 overflow-y-auto custom-scrollbar p-1.5">
               {filteredValues.length === 0 ? (
                 <div className="px-2 py-3 text-xs text-faint text-center">No matches</div>
-              ) : (
-                navigableValues.map((v, idx) => {
+              ) : (() => {
+                const renderRow = (v: typeof filteredValues[number], idx: number) => {
                   const hasDistinctLabel = v.Label && v.Label !== v.Value;
                   const isSelected = selected.has(v.Value ?? '');
                   const isHighlighted = idx === highlightIndex;
@@ -555,8 +580,33 @@ function StringFromListDropdown({
                       </span>
                     </label>
                   );
-                })
-              )}
+                };
+                return (
+                  <>
+                    {selectedFiltered.length > 0 && (
+                      <>
+                        <div className="px-2 pt-1 pb-0.5 text-[9px] font-semibold uppercase tracking-wider text-faint">
+                          Selected ({selectedFiltered.length})
+                        </div>
+                        {selectedFiltered.map((v, i) => renderRow(v, i))}
+                        {availableFiltered.length > 0 && (
+                          <div className="my-1 border-t border-border-subtle" />
+                        )}
+                      </>
+                    )}
+                    {availableFiltered.length > 0 && (
+                      <>
+                        {selectedFiltered.length > 0 && (
+                          <div className="px-2 pt-1 pb-0.5 text-[9px] font-semibold uppercase tracking-wider text-faint">
+                            Available
+                          </div>
+                        )}
+                        {availableFiltered.map((v, i) => renderRow(v, selectedFiltered.length + i))}
+                      </>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           </div>
         </>
@@ -1133,15 +1183,10 @@ function FilterDropdown({
   const activeCount = selected.size;
   const isRangeActive = numericInfo && (rangelow > numericInfo.min || rangeHigh < numericInfo.max);
 
-  // Snapshot of selected at open-time. Selected-at-open values appear at the
-  // top of the rendered list so the operator can scan their picks; toggling
-  // during this open session doesn't reorder items. Re-opens take a fresh
-  // snapshot.
-  const initialSelectedRef = useRef<Set<string>>(new Set());
-  useEffect(() => {
-    if (open) initialSelectedRef.current = new Set(selected);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  // Split into "Selected" / "Available" groups so the eye can find existing
+  // picks without breaking the cursor target when the user toggles. Items
+  // only move between groups in direct response to a user click.
+  // (Computed inline in the render where `values` is in scope.)
 
   return (
     <div ref={ref} className="relative">
@@ -1172,12 +1217,37 @@ function FilterDropdown({
               </div>
             )}
             {values.length <= 50 && (() => {
-              const snapshot = initialSelectedRef.current;
-              const orderedValues = [...values].sort((a, b) => {
-                const aSel = snapshot.has(a) ? 0 : 1;
-                const bSel = snapshot.has(b) ? 0 : 1;
-                return aSel - bSel;
-              });
+              const selectedValues = values.filter((v) => selected.has(v));
+              const availableValues = values.filter((v) => !selected.has(v));
+              const renderRow = (val: string) => (
+                <label
+                  key={val}
+                  className="flex items-center gap-2 px-2 py-1.5 text-xs hover:bg-surface-hover rounded cursor-pointer text-black dark:text-white"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected.has(val)}
+                    onChange={() => {
+                      const next = new Set(selected);
+                      if (next.has(val)) next.delete(val);
+                      else next.add(val);
+                      onChange(next);
+                      if (numericInfo) {
+                        const selectedNums = Array.from(next).map(Number);
+                        if (selectedNums.length > 0) {
+                          setRangeLow(Math.min(...selectedNums));
+                          setRangeHigh(Math.max(...selectedNums));
+                        } else {
+                          setRangeLow(numericInfo.min);
+                          setRangeHigh(numericInfo.max);
+                        }
+                      }
+                    }}
+                    className="rounded border-border-strong"
+                  />
+                  <span className="truncate">{isNumeric ? Number(val).toLocaleString() : val}</span>
+                </label>
+              );
               return (
                 <>
                   <div className="flex items-center justify-between gap-2 px-2 py-1.5 border-b border-border-subtle">
@@ -1198,35 +1268,27 @@ function FilterDropdown({
                     </button>
                   </div>
                   <div className="p-1.5 max-h-60 overflow-y-auto custom-scrollbar">
-                    {orderedValues.map((val) => (
-                      <label
-                        key={val}
-                        className="flex items-center gap-2 px-2 py-1.5 text-xs hover:bg-surface-hover rounded cursor-pointer text-black dark:text-white"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selected.has(val)}
-                          onChange={() => {
-                            const next = new Set(selected);
-                            if (next.has(val)) next.delete(val);
-                            else next.add(val);
-                            onChange(next);
-                            if (numericInfo) {
-                              const selectedNums = Array.from(next).map(Number);
-                              if (selectedNums.length > 0) {
-                                setRangeLow(Math.min(...selectedNums));
-                                setRangeHigh(Math.max(...selectedNums));
-                              } else {
-                                setRangeLow(numericInfo.min);
-                                setRangeHigh(numericInfo.max);
-                              }
-                            }
-                          }}
-                          className="rounded border-border-strong"
-                        />
-                        <span className="truncate">{isNumeric ? Number(val).toLocaleString() : val}</span>
-                      </label>
-                    ))}
+                    {selectedValues.length > 0 && (
+                      <>
+                        <div className="px-2 pt-1 pb-0.5 text-[9px] font-semibold uppercase tracking-wider text-faint">
+                          Selected ({selectedValues.length})
+                        </div>
+                        {selectedValues.map(renderRow)}
+                        {availableValues.length > 0 && (
+                          <div className="my-1 border-t border-border-subtle" />
+                        )}
+                      </>
+                    )}
+                    {availableValues.length > 0 && (
+                      <>
+                        {selectedValues.length > 0 && (
+                          <div className="px-2 pt-1 pb-0.5 text-[9px] font-semibold uppercase tracking-wider text-faint">
+                            Available
+                          </div>
+                        )}
+                        {availableValues.map(renderRow)}
+                      </>
+                    )}
                   </div>
                 </>
               );
