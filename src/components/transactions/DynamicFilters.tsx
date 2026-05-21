@@ -395,6 +395,45 @@ function StringFromListDropdown({
   const hasActive = selected.size > 0;
   const isSearchable = definition.IsFilterSearchable === true;
 
+  // Visual-feedback delay before a freshly-checked value jumps from the
+  // Available section up to the Selected section. The checkbox flips
+  // immediately so the user can see the tick; the section move (and any
+  // upstream onFiltersChange side effects) waits SELECT_COMMIT_DELAY_MS.
+  // A single shared timer batches any clicks that arrive during the window.
+  const SELECT_COMMIT_DELAY_MS = 500;
+  const [pendingSelect, setPendingSelect] = useState<Set<string>>(new Set());
+  const commitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const filtersRef = useRef(filters);
+  useEffect(() => { filtersRef.current = filters; }, [filters]);
+
+  const cancelPendingTimer = () => {
+    if (commitTimerRef.current) {
+      clearTimeout(commitTimerRef.current);
+      commitTimerRef.current = null;
+    }
+  };
+
+  useEffect(() => () => cancelPendingTimer(), []);
+
+  const schedulePendingCommit = () => {
+    if (commitTimerRef.current) return;
+    commitTimerRef.current = setTimeout(() => {
+      commitTimerRef.current = null;
+      setPendingSelect((current) => {
+        if (current.size === 0) return current;
+        const currentFilters = filtersRef.current;
+        const currentSelected = currentFilters[key] ?? new Set<string>();
+        const nextSelected = new Set(currentSelected);
+        for (const v of current) nextSelected.add(v);
+        const updated = { ...currentFilters };
+        if (nextSelected.size === 0) delete updated[key];
+        else updated[key] = nextSelected;
+        onFiltersChange(updated);
+        return new Set();
+      });
+    }, SELECT_COMMIT_DELAY_MS);
+  };
+
   useEffect(() => {
     if (open && isSearchable) {
       setTimeout(() => searchInputRef.current?.focus(), 0);
@@ -429,14 +468,31 @@ function StringFromListDropdown({
   }, [filteredValues, selected]);
 
   const handleToggle = (value: string) => {
-    const next = new Set(selected);
-    if (next.has(value)) next.delete(value);
-    else next.add(value);
-
-    const updated = { ...filters };
-    if (next.size === 0) delete updated[key];
-    else updated[key] = next;
-    onFiltersChange(updated);
+    // Already committed to Selected → deselect immediately (no delay on the
+    // way out, only on the way in).
+    if (selected.has(value)) {
+      const next = new Set(selected);
+      next.delete(value);
+      const updated = { ...filters };
+      if (next.size === 0) delete updated[key];
+      else updated[key] = next;
+      onFiltersChange(updated);
+      return;
+    }
+    // Already pending a delayed commit → user changed their mind, cancel it.
+    if (pendingSelect.has(value)) {
+      setPendingSelect((prev) => {
+        if (!prev.has(value)) return prev;
+        const next = new Set(prev);
+        next.delete(value);
+        if (next.size === 0) cancelPendingTimer();
+        return next;
+      });
+      return;
+    }
+    // Fresh select → show the tick now, schedule the move for 500ms later.
+    setPendingSelect((prev) => new Set(prev).add(value));
+    schedulePendingCommit();
   };
 
   // Select/Deselect all act on the CURRENT filtered view — so when the user
@@ -444,6 +500,8 @@ function StringFromListDropdown({
   // than wiping in 10 000 unrelated entries. With no search, it picks every
   // value in the definition.
   const handleSelectAll = () => {
+    cancelPendingTimer();
+    setPendingSelect(new Set());
     const next = new Set(selected);
     for (const v of filteredValues) {
       if (v.Value != null) next.add(v.Value);
@@ -454,6 +512,8 @@ function StringFromListDropdown({
     onFiltersChange(updated);
   };
   const handleDeselectAll = () => {
+    cancelPendingTimer();
+    setPendingSelect(new Set());
     if (!search.trim()) {
       // No search → clear the filter entirely.
       const updated = { ...filters };
@@ -579,11 +639,15 @@ function StringFromListDropdown({
                 <div className="px-2 py-3 text-xs text-faint text-center">No matches</div>
               ) : (() => {
                 const renderRow = (v: typeof filteredValues[number], idx: number) => {
-                  const isSelected = selected.has(v.Value ?? '');
+                  const valueKey = v.Value ?? '';
+                  const isSelected = selected.has(valueKey);
+                  // Show the tick immediately for values whose move to the
+                  // Selected section is queued behind the 500ms commit timer.
+                  const isVisuallyChecked = isSelected || pendingSelect.has(valueKey);
                   const isHighlighted = idx === highlightIndex;
-                  const baseBg = isSelected ? 'bg-primary/5' : '';
+                  const baseBg = isVisuallyChecked ? 'bg-primary/5' : '';
                   const hoverBg = isHighlighted
-                    ? (isSelected ? 'bg-primary/15' : 'bg-primary/10')
+                    ? (isVisuallyChecked ? 'bg-primary/15' : 'bg-primary/10')
                     : 'hover:bg-surface-hover';
                   return (
                     <label
@@ -594,8 +658,8 @@ function StringFromListDropdown({
                     >
                       <input
                         type="checkbox"
-                        checked={isSelected}
-                        onChange={() => handleToggle(v.Value ?? '')}
+                        checked={isVisuallyChecked}
+                        onChange={() => handleToggle(valueKey)}
                         className="rounded border-border-strong shrink-0 mt-0.5"
                       />
                       <span className="min-w-0">
