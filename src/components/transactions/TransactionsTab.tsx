@@ -48,6 +48,7 @@ import { ShareLinkDialog } from '../shared/ShareLinkDialog';
 import { RowContextMenu } from './RowContextMenu';
 import { CommentDialog, type CommentDialogResult } from './CommentDialog';
 import { ViewContextModal } from './ViewContextModal';
+import { OtherDefinitionsTransactionsModal } from './OtherDefinitionsTransactionsModal';
 import { TagDetailPanel } from './TagDetailPanel';
 import { HiddenTagsPanel } from './HiddenTagsPanel';
 import { useTepConfig } from '../../context/TepConfigContext';
@@ -343,6 +344,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const [hideBusy, setHideBusy] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ row: TransactionRow; x: number; y: number } | null>(null);
   const [contextModalRow, setContextModalRow] = useState<TransactionRow | null>(null);
+  const [otherDefsModalOpen, setOtherDefsModalOpen] = useState(false);
   const [singleRowCommentRow, setSingleRowCommentRow] = useState<TransactionRow | null>(null);
   const shareFiltersConsumed = useRef(false);
   const shareFiltersRef = useRef(initialShareFilters);
@@ -1256,22 +1258,37 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         // The live-mode fetch effect will pick up the new activeExtraFilters
         // (scoped by definition ID) after state settles — no need to fire the
         // page fetch directly here (it would just be aborted by the effect).
-
-        // Background: fetch count by tag name, scoped to the current bank/side.
-        // Use `baseFilters` directly (not `filters`) because when this effect
-        // fires on Backlog edit navigation right after filterDefinitions load,
-        // `filters` may still hold the stale pre-live-mode column-name keys
-        // (translateFilters drops those). TransactionTypeCode is intentionally
-        // excluded so we see all rows carrying this tag for the pair.
-        const tagNameFilter: FilterProperty[] = [
-          { ColumnName: 'OpsTag|OpsMultiTags.Tag', Value: tagName, Operand: 'IN' },
-        ];
-        fetchCount(baseFilters ?? {}, tagNameFilter).then((count) => {
-          setTagClickState((prev) => prev ? { ...prev, tagNameCount: count } : prev);
-        });
+        // The tagNameCount refresh runs in a separate effect below, keyed on
+        // `filters` so it re-fires when the operator narrows the table.
       }
     }
-  }, [libraries, builder, isLiveMode, filterDefinitions, filters, baseFilters, fetchPage, fetchCount, extractionMethods]);
+  }, [libraries, builder, isLiveMode, filterDefinitions, baseFilters, extractionMethods]);
+
+  // Recompute tagNameCount (the "rows tagged with this name across the bank/side"
+  // count powering the delta-banner) whenever the operator's filters change.
+  // Respects user filters per UX request — passing `filters` (rather than the
+  // bank/side-only `baseFilters`) so currency/date-range/etc. narrow the count.
+  // `fetchCount` runs `translateFilters` internally, so stale pre-live-mode
+  // keys are dropped before hitting the backend. The deps deliberately key on
+  // the inner fields of tagClickState (not the whole object) so that the
+  // tagNameCount setter below doesn't loop the effect.
+  const tagClickName = tagClickState?.tagName;
+  const countableTagClick = !!tagClickState
+    && !tagClickState.showingAll
+    && !tagClickState.rulesetApplied;
+  useEffect(() => {
+    if (!isLiveMode) return;
+    if (!countableTagClick || !tagClickName) return;
+    const tagNameFilter: FilterProperty[] = [
+      { ColumnName: 'OpsTag|OpsMultiTags.Tag', Value: tagClickName, Operand: 'IN' },
+    ];
+    let cancelled = false;
+    fetchCount(filters, tagNameFilter).then((count) => {
+      if (cancelled) return;
+      setTagClickState((prev) => (prev && prev.tagName === tagClickName ? { ...prev, tagNameCount: count } : prev));
+    });
+    return () => { cancelled = true; };
+  }, [isLiveMode, fetchCount, filters, tagClickName, countableTagClick]);
 
   // Auto-open a definition's rule builder when navigating from the Backlog with a pendingDefinitionId.
   // Wait for both libraries and (in live mode) filter definitions to load so handleTagClick
@@ -1781,21 +1798,29 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
               </button>
             )}
 
-            {/* Before Apply Rules: show "other transactions" link */}
-            {tagClickState && !tagClickState.showingAll && !tagClickState.rulesetApplied &&
-              tagClickState.tagNameCount !== null && (
-              <button
-                className='text-[11px] text-amber-600 dark:text-amber-400 hover:underline cursor-pointer'
-                onClick={() => {
-                  if (!tagClickState) return;
-                  const tagNameFilter = new Set([tagClickState.tagName]);
-                  setFilters({ ...tagClickState.preFilters, [tagClickState.tagFilterKey]: tagNameFilter });
-                  setTagClickState((prev) => prev ? { ...prev, showingAll: true } : prev);
-                }}
-              >
-                {tagClickState.tagNameCount.toLocaleString()} transaction{tagClickState.tagNameCount !== 1 ? 's' : ''} have this tag — click to show all
-              </button>
-            )}
+            {/* Before Apply Rules: surface only the DELTA between the rows
+                tagged with this name (across the bank/side, respecting user
+                filters) and the rows visible in the table (scoped to this
+                definition). The delta represents rows tagged via another
+                definition that happens to share the same name — opening the
+                modal lets the operator inspect those without mutating the
+                table they're editing. */}
+            {(() => {
+              if (!tagClickState) return null;
+              if (tagClickState.showingAll || tagClickState.rulesetApplied) return null;
+              if (tagClickState.tagNameCount === null) return null;
+              const rawTotal = totalTransactionsCount ?? 0;
+              const delta = tagClickState.tagNameCount - rawTotal;
+              if (delta <= 0) return null;
+              return (
+                <button
+                  className='text-[11px] text-amber-600 dark:text-amber-400 hover:underline cursor-pointer'
+                  onClick={() => setOtherDefsModalOpen(true)}
+                >
+                  {delta.toLocaleString()} other transaction{delta !== 1 ? 's' : ''} share this tag — click to view
+                </button>
+              );
+            })()}
           </span>
 
           {!isReadOnly && editingDef && (
@@ -2190,6 +2215,34 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
             open
             onClose={() => setContextModalRow(null)}
             transaction={contextModalRow}
+            authToken={token}
+            tepHeaders={tepHeaders}
+            visibleColumns={visibleTableColumns}
+            libraries={effectiveLibraries}
+          />
+        );
+      })()}
+
+      {otherDefsModalOpen && tagClickState
+        && !tagClickState.showingAll && !tagClickState.rulesetApplied
+        && (() => {
+        const authHeaders = getAuthHeaders();
+        const token = authHeaders.Authorization?.replace('Bearer ', '') ?? '';
+        const tepHeaders: TepHeaders = {
+          apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
+          userId: userId ?? '',
+          tenantCode: tepConfig.ttpTenantCode,
+          languageCode: tepConfig.languageCode,
+          timeZone: tepConfig.timeZone,
+          requestId: tepConfig.ttpRequestId,
+        };
+        return (
+          <OtherDefinitionsTransactionsModal
+            open
+            onClose={() => setOtherDefsModalOpen(false)}
+            tagName={tagClickState.tagName}
+            currentDefinitionId={tagClickState.definitionId}
+            filters={filters}
             authToken={token}
             tepHeaders={tepHeaders}
             visibleColumns={visibleTableColumns}
