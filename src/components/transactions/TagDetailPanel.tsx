@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { TagSpecDefinition, TagAttribute, TransactionRow, CertaintyLevelTag } from '../../types';
 import { Badge } from '../shared/Badge';
 import { CopyableId } from '../shared/CopyableId';
@@ -45,9 +45,14 @@ export function TagDetailPanel({
   onClose,
 }: TagDetailPanelProps) {
   const closeBtnRef = useRef<HTMLButtonElement | null>(null);
+  const [expanded, setExpanded] = useState(false);
   const { rows, loading, error } = useTagSampleTransactions(
     open && definition ? definition.Id : null,
   );
+
+  // Reset expand state every time the drawer closes, so the next open starts
+  // in its default side-drawer width rather than springing back up full-page.
+  useEffect(() => { if (!open) setExpanded(false); }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -76,7 +81,11 @@ export function TagDetailPanel({
         role="dialog"
         aria-label={definition ? `Details for tag ${definition.Tag}` : 'Tag details'}
         aria-hidden={!open}
-        className={`fixed inset-y-0 right-0 z-40 w-full md:w-[44%] lg:w-[38%] max-w-[680px] bg-surface-elevated border-l border-border shadow-[-24px_0_48px_-12px_rgba(15,23,42,0.45)] flex flex-col transition-transform duration-300 ease-out ${
+        className={`fixed inset-y-0 right-0 z-40 bg-surface-elevated border-l border-border shadow-[-24px_0_48px_-12px_rgba(15,23,42,0.45)] flex flex-col transition-[transform,width] duration-300 ease-out ${
+          expanded
+            ? 'w-full'
+            : 'w-full md:w-[min(44vw,680px)] lg:w-[min(38vw,680px)]'
+        } ${
           open ? 'translate-x-0' : 'translate-x-[calc(100%+80px)]'
         }`}
       >
@@ -126,28 +135,59 @@ export function TagDetailPanel({
                     </Badge>
                   </div>
                 </div>
-                <button
-                  ref={closeBtnRef}
-                  type="button"
-                  onClick={onClose}
-                  aria-label="Close tag details"
-                  className="shrink-0 p-1.5 rounded-md hover:bg-surface-tertiary text-body-secondary hover:text-body transition-colors"
-                >
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
+                <div className="shrink-0 flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setExpanded((v) => !v)}
+                    aria-label={expanded ? 'Collapse to side drawer' : 'Expand to full page'}
+                    title={expanded ? 'Collapse to side drawer' : 'Expand to full page'}
+                    aria-pressed={expanded}
+                    className="p-1.5 rounded-md hover:bg-surface-tertiary text-body-secondary hover:text-body transition-colors cursor-pointer"
                   >
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </button>
+                    {expanded ? (
+                      // Collapse: L-brackets at the inner corners, diagonals
+                      // running from those corners out to the screen corners
+                      // (matches Lucide's "minimize-2").
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <polyline points="20 10 14 10 14 4" />
+                        <polyline points="4 14 10 14 10 20" />
+                        <line x1="14" y1="10" x2="21" y2="3" />
+                        <line x1="3" y1="21" x2="10" y2="14" />
+                      </svg>
+                    ) : (
+                      // Expand: L-brackets at the outer corners, diagonals
+                      // running inward toward the center (Lucide "maximize-2").
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <polyline points="15 3 21 3 21 9" />
+                        <polyline points="9 21 3 21 3 15" />
+                        <line x1="21" y1="3" x2="14" y2="10" />
+                        <line x1="3" y1="21" x2="10" y2="14" />
+                      </svg>
+                    )}
+                  </button>
+                  <button
+                    ref={closeBtnRef}
+                    type="button"
+                    onClick={onClose}
+                    aria-label="Close tag details"
+                    className="p-1.5 rounded-md hover:bg-surface-tertiary text-body-secondary hover:text-body transition-colors cursor-pointer"
+                  >
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
               </div>
             </header>
 
