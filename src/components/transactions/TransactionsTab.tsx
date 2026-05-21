@@ -1351,20 +1351,24 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
             // Header count is the raw dataset size — matches the footer's
             // "N total" and the +N action buttons. Client-side hiding is a
             // view filter, not a dataset filter, so we don't subtract it
-            // here. When hiding leaves the table empty, surface that
-            // explicitly with an "all hidden" hint next to the number.
+            // here. Instead, surface the hidden count next to the number:
+            //   · 30 hidden     → some loaded rows are hidden
+            //   · all hidden    → every loaded row is hidden (table empty)
+            //   (no suffix)     → nothing is hidden
             const displayed = builderOpen && builderHasContent
               ? filteredData.length
               : isLiveMode && totalTransactionsCount != null
                 ? totalTransactionsCount
                 : filteredData.length;
-            const allHidden =
-              !builderOpen
-              && hiddenLoadedCount > 0
-              && filteredData.length === 0;
+            const hiddenSuffix = (() => {
+              if (builderOpen) return '';
+              if (hiddenLoadedCount <= 0) return '';
+              if (filteredData.length === 0) return ' · all hidden';
+              return ` · ${hiddenLoadedCount.toLocaleString()} hidden`;
+            })();
             return (
               <span className='text-sm mr-5 min-w-10 text-primary-dark whitespace-nowrap'>
-                ({displayed.toLocaleString()}{allHidden ? ' · all hidden' : ''})
+                ({displayed.toLocaleString()}{hiddenSuffix})
               </span>
             );
           })()}
@@ -1420,6 +1424,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                 data-tour="open-rule-builder"
                 variant="secondary"
                 size="xs"
+                className="whitespace-nowrap"
                 onClick={() => {
                   setShowOnlyUntagged(false)
                   setShowOnlyMultiTagged(false)
@@ -1435,6 +1440,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                     data-tour="open-rule-builder"
                     variant="secondary"
                     size="xs"
+                    className="whitespace-nowrap"
                     disabled
                   >
                     Create a Rule
