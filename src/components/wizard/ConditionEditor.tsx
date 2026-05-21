@@ -320,6 +320,24 @@ export function ConditionEditor({
                   value={condition.value}
                   disabled={readOnly}
                   onChange={(e) => onUpdate({ value: e.target.value })}
+                  onPaste={(e) => {
+                    // Clipboards often carry a leading space from selection
+                    // gestures (double-click word grab, drag-select past the
+                    // start). If the paste lands at the start of an empty or
+                    // whitespace-only field, strip the leading whitespace so
+                    // the value doesn't quietly include it.
+                    const input = e.currentTarget;
+                    const pasted = e.clipboardData.getData('text');
+                    const start = input.selectionStart ?? input.value.length;
+                    const end = input.selectionEnd ?? input.value.length;
+                    const before = input.value.slice(0, start);
+                    if (/^\s*$/.test(before) && /^\s/.test(pasted)) {
+                      e.preventDefault();
+                      const cleaned = pasted.replace(/^\s+/, '');
+                      const newValue = before + cleaned + input.value.slice(end);
+                      onUpdate({ value: newValue });
+                    }
+                  }}
                 />
               )}
             </div>

@@ -56,6 +56,17 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
   const currentPageRef = useRef(0);
   const loadedCountRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
+  // Mirror filterDefinitions into a ref so `fetchPage` / `fetchCount` can read
+  // them without listing the array in their dependency arrays. Listing them
+  // would churn the callback identity every time GetFilters returns, which
+  // re-fires every downstream effect that has fetchPage as a dep — and that
+  // includes the live-fetch effect in TransactionsTab, causing GetMT940Transactions
+  // to fire on every manual filter refresh. Translating with a stale snapshot
+  // is harmless: filter keys map to the same backend column names, and the
+  // next legitimate fetch (filter change, scope change, save) picks up the
+  // refreshed defs from the ref.
+  const filterDefinitionsRef = useRef<FilterDefinition[]>([]);
+  useEffect(() => { filterDefinitionsRef.current = filterDefinitions; }, [filterDefinitions]);
 
   const fieldMetaRef = useRef<FieldMeta | null>(null);
   const fieldMeta = useMemo(() => {
@@ -278,7 +289,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
     try {
       const data = await getTransactions(
         {
-          FilteringProperties: [...translateFilters(filters, filterDefinitions), ...(extraFilters ?? [])],
+          FilteringProperties: [...translateFilters(filters, filterDefinitionsRef.current), ...(extraFilters ?? [])],
           SortingProperties: DEFAULT_SORTING,
           Pagination: { PageIndex: pageIndex, PageSize: effectivePageSize },
         },
@@ -329,7 +340,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
         setLoading(false);
       }
     }
-  }, [isLiveMode, getAuthHeaders, refreshIfNeeded, userId, tepConfig, filterDefinitions]);
+  }, [isLiveMode, getAuthHeaders, refreshIfNeeded, userId, tepConfig]);
 
   const fetchCount = useCallback(async (filters: Record<string, Set<string>>, extraFilters?: FilterProperty[]): Promise<number | null> => {
     if (!isLiveMode) return null;
@@ -348,7 +359,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
     try {
       const data = await getTransactions(
         {
-          FilteringProperties: [...translateFilters(filters, filterDefinitions), ...(extraFilters ?? [])],
+          FilteringProperties: [...translateFilters(filters, filterDefinitionsRef.current), ...(extraFilters ?? [])],
           SortingProperties: DEFAULT_SORTING,
           Pagination: { PageIndex: 0, PageSize: 1 },
         },
@@ -359,7 +370,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
     } catch {
       return null;
     }
-  }, [isLiveMode, getAuthHeaders, refreshIfNeeded, userId, tepConfig, filterDefinitions]);
+  }, [isLiveMode, getAuthHeaders, refreshIfNeeded, userId, tepConfig]);
 
   // Abort pending requests on unmount
   useEffect(() => () => { abortRef.current?.abort(); }, []);
