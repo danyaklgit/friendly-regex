@@ -158,17 +158,78 @@ function ListEqDropdown({
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  // The panel is portaled into <body> with position:fixed, so we have to
+  // re-anchor it to the trigger button whenever the layout under the trigger
+  // changes — page scroll, window resize, OR an ancestor like the rule
+  // builder opening/closing and pushing the trigger up/down. Without this,
+  // the panel stays nailed to its initial viewport position while the
+  // trigger drifts away, breaking the visual connection.
   useEffect(() => {
-    if (open && ref.current) {
+    if (!open) return;
+    const updatePosition = () => {
+      if (!ref.current) return;
       const rect = ref.current.getBoundingClientRect();
       setPanelPos({ top: rect.bottom + 4, left: rect.left });
+    };
+    updatePosition();
+    // capture:true catches scroll on inner scrollable ancestors too, not
+    // just window scroll.
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(updatePosition);
+      ro.observe(document.body);
     }
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+      ro?.disconnect();
+    };
   }, [open]);
 
   const key = definition.Tag;
   const selected = filters[key] ?? new Set<string>();
   const activeLabels = definition.Values.filter((v) => selected.has(v.Column)).map((v) => v.Label);
   const hasActive = activeLabels.length > 0;
+
+  // Same visual-feedback delay as StringFromListDropdown: flip the checkbox
+  // tick immediately on click, but wait 500ms before the row reorders into
+  // the Selected section. A single shared timer batches clicks within the
+  // window so adjacent rows don't reflow under the cursor mid-selection.
+  const SELECT_COMMIT_DELAY_MS = 500;
+  const [pendingSelect, setPendingSelect] = useState<Set<string>>(new Set());
+  const commitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const filtersRef = useRef(filters);
+  useEffect(() => { filtersRef.current = filters; }, [filters]);
+
+  const cancelPendingTimer = () => {
+    if (commitTimerRef.current) {
+      clearTimeout(commitTimerRef.current);
+      commitTimerRef.current = null;
+    }
+  };
+
+  useEffect(() => () => cancelPendingTimer(), []);
+
+  const schedulePendingCommit = () => {
+    if (commitTimerRef.current) return;
+    commitTimerRef.current = setTimeout(() => {
+      commitTimerRef.current = null;
+      setPendingSelect((current) => {
+        if (current.size === 0) return current;
+        const currentFilters = filtersRef.current;
+        const currentSelected = currentFilters[key] ?? new Set<string>();
+        const nextSelected = new Set(currentSelected);
+        for (const v of current) nextSelected.add(v);
+        const updated = { ...currentFilters };
+        if (nextSelected.size === 0) delete updated[key];
+        else updated[key] = nextSelected;
+        onFiltersChange(updated);
+        return new Set();
+      });
+    }, SELECT_COMMIT_DELAY_MS);
+  };
 
   // Reverse index: for each target column T, the columns whose DisabledBy
   // points at T. Used to make the mutual-exclusion symmetric — if value A
@@ -190,48 +251,84 @@ function ListEqDropdown({
   // DisabledBy logic from API: format "Column:<columnName>". Applied
   // symmetrically — a value is disabled when either (a) its DisabledBy points
   // at a selected column, or (b) any selected column declares it as its
-  // DisabledBy target.
+  // DisabledBy target. Pending-but-not-yet-committed selections count too,
+  // so a value the user just clicked also disables its conflict targets
+  // immediately (matches the visible tick).
+  const effectivelySelected = (col: string) => selected.has(col) || pendingSelect.has(col);
   const isDisabled = (v: typeof definition.Values[number]) => {
     if (v.DisabledBy) {
       const match = v.DisabledBy.match(/^Column:(.+)$/);
-      if (match && selected.has(match[1])) return true;
+      if (match && effectivelySelected(match[1])) return true;
     }
     const disablers = reverseDisablers.get(v.Column);
     if (disablers) {
       for (const d of disablers) {
-        if (selected.has(d)) return true;
+        if (effectivelySelected(d)) return true;
       }
     }
     return false;
   };
 
   const handleToggle = (column: string) => {
-    const next = new Set(selected);
-    if (next.has(column)) {
+    // Already in Selected → deselect immediately (no delay on the way out).
+    if (selected.has(column)) {
+      const next = new Set(selected);
       next.delete(column);
-    } else {
-      next.add(column);
-      // Remove any selected values that become disabled by this new selection
-      for (const v of definition.Values) {
-        if (v.Column === column) continue;
-        if (!v.DisabledBy) continue;
-        const match = v.DisabledBy.match(/^Column:(.+)$/);
-        if (match && match[1] === column) next.delete(v.Column);
+      const updated = { ...filters };
+      if (next.size === 0) delete updated[key];
+      else updated[key] = next;
+      onFiltersChange(updated);
+      return;
+    }
+    // Already pending → user changed their mind, cancel the queued commit.
+    if (pendingSelect.has(column)) {
+      setPendingSelect((prev) => {
+        if (!prev.has(column)) return prev;
+        const next = new Set(prev);
+        next.delete(column);
+        if (next.size === 0) cancelPendingTimer();
+        return next;
+      });
+      return;
+    }
+    // Fresh select. Collect conflict columns (DisabledBy targets, both
+    // directions), drop them from both selected and pending immediately so
+    // the disabled state visibly kicks in, then queue the new value behind
+    // the 500ms commit timer.
+    const conflictsToRemove = new Set<string>();
+    const clicked = definition.Values.find((vv) => vv.Column === column);
+    if (clicked?.DisabledBy) {
+      const match = clicked.DisabledBy.match(/^Column:(.+)$/);
+      if (match) conflictsToRemove.add(match[1]);
+    }
+    for (const v of definition.Values) {
+      if (v.Column === column) continue;
+      if (!v.DisabledBy) continue;
+      const match = v.DisabledBy.match(/^Column:(.+)$/);
+      if (match && match[1] === column) conflictsToRemove.add(v.Column);
+    }
+
+    if (conflictsToRemove.size > 0) {
+      const next = new Set(selected);
+      let changed = false;
+      for (const c of conflictsToRemove) {
+        if (next.has(c)) { next.delete(c); changed = true; }
       }
-      // Reverse: if the newly selected value declares a DisabledBy target,
-      // drop the target from the selection too (handles inconsistent state
-      // such as filters restored from a share link).
-      const clicked = definition.Values.find((vv) => vv.Column === column);
-      if (clicked?.DisabledBy) {
-        const match = clicked.DisabledBy.match(/^Column:(.+)$/);
-        if (match) next.delete(match[1]);
+      if (changed) {
+        const updated = { ...filters };
+        if (next.size === 0) delete updated[key];
+        else updated[key] = next;
+        onFiltersChange(updated);
       }
     }
 
-    const updated = { ...filters };
-    if (next.size === 0) delete updated[key];
-    else updated[key] = next;
-    onFiltersChange(updated);
+    setPendingSelect((prev) => {
+      const next = new Set(prev);
+      for (const c of conflictsToRemove) next.delete(c);
+      next.add(column);
+      return next;
+    });
+    schedulePendingCommit();
   };
 
   // Split the list into a "Selected" group at the top and an "Available"
@@ -248,6 +345,8 @@ function ListEqDropdown({
   }, [definition.Values, selected]);
 
   const handleSelectAll = () => {
+    cancelPendingTimer();
+    setPendingSelect(new Set());
     const next = new Set<string>();
     for (const v of definition.Values) {
       if (!isDisabled(v)) next.add(v.Column);
@@ -258,6 +357,8 @@ function ListEqDropdown({
     onFiltersChange(updated);
   };
   const handleDeselectAll = () => {
+    cancelPendingTimer();
+    setPendingSelect(new Set());
     const updated = { ...filters };
     delete updated[key];
     onFiltersChange(updated);
@@ -351,7 +452,7 @@ function ListEqDropdown({
                         <input
                           type="checkbox"
                           disabled={isDisabled(v)}
-                          checked={false}
+                          checked={pendingSelect.has(v.Column)}
                           onChange={() => handleToggle(v.Column)}
                           className="rounded border-border-strong"
                         />
@@ -1122,11 +1223,34 @@ function ShowOnlyDropdown({
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  // The panel is portaled into <body> with position:fixed, so we have to
+  // re-anchor it to the trigger button whenever the layout under the trigger
+  // changes — page scroll, window resize, OR an ancestor like the rule
+  // builder opening/closing and pushing the trigger up/down. Without this,
+  // the panel stays nailed to its initial viewport position while the
+  // trigger drifts away, breaking the visual connection.
   useEffect(() => {
-    if (open && ref.current) {
+    if (!open) return;
+    const updatePosition = () => {
+      if (!ref.current) return;
       const rect = ref.current.getBoundingClientRect();
       setPanelPos({ top: rect.bottom + 4, left: rect.left });
+    };
+    updatePosition();
+    // capture:true catches scroll on inner scrollable ancestors too, not
+    // just window scroll.
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(updatePosition);
+      ro.observe(document.body);
     }
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+      ro?.disconnect();
+    };
   }, [open]);
 
   const activeLabels = [
