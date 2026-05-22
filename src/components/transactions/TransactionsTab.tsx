@@ -173,6 +173,20 @@ const BATCH_SIZE = 50;
 // shared constant keeps identity stable across renders so dependent effects don't re-fire.
 const EMPTY_FILTERS: Record<string, Set<string>> = {};
 
+// A row is hidden when any of its analyzeRow-resolved matched definitions
+// is in the hidden set. Hide is per-def-Id (CLAUDE.md gotcha #3), so a row
+// that re-evaluates to a non-hidden def via local rules stays visible even
+// when its persisted backend tag references a hidden def.
+function isRowHidden(
+  matchedDefinitions: ReadonlyArray<{ Id: string } | undefined | null>,
+  hiddenDefIds: ReadonlySet<string>,
+): boolean {
+  for (const d of matchedDefinitions) {
+    if (d && hiddenDefIds.has(d.Id)) return true;
+  }
+  return false;
+}
+
 
 export function TransactionsTab({ activeCheckout, onClearPendingDefinition, initialShareFilters, initialShareToggles, operatorName, shareDialogOpen: shareDialogOpenProp, onShareDialogClose }: TransactionsTabProps) {
   const { libraries, tagDefinitions, originalDefinitionIds, dispatch, isPairBeingTagged } = useTagSpecs();
@@ -968,7 +982,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     // the operator can restore the spec from the side panel.
     if (hiddenDefIds.size > 0) {
       result = result.filter(
-        (item) => !item.analysis.matchedDefinitions.some((d) => d && hiddenDefIds.has(d.Id)),
+        (item) => !isRowHidden(item.analysis.matchedDefinitions, hiddenDefIds),
       );
     }
 
@@ -978,19 +992,144 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // Count of loaded rows that match any hidden tag spec. Drives the "live
   // total minus hidden" adjustment in the Transactions header AND the
   // pagination footer counts; also used to overfetch +N batches so the
-  // requested increment is met in terms of VISIBLE rows.
+  // requested increment is met in terms of VISIBLE rows. Mirrors the
+  // backend's OpsTagSpecDefinitionId IN filter logic (used by
+  // hiddenTotalCount) so loadedNow and totalNow stay on the same scope.
   const hiddenLoadedCount = useMemo(() => {
     if (hiddenDefIds.size === 0) return 0;
     let n = 0;
     for (const item of analyzedData) {
-      if (item.analysis.matchedDefinitions.some((d) => d && hiddenDefIds.has(d.Id))) n++;
+      if (isRowHidden(item.analysis.matchedDefinitions, hiddenDefIds)) n++;
     }
     return n;
   }, [hiddenDefIds, analyzedData]);
 
+  // True count of rows in the current filter scope that match a hidden
+  // definition — fetched from the backend, not bounded by what's loaded.
+  // Drives the header's "· N hidden" suffix so it doesn't drift with
+  // pagination state. `hiddenLoadedCount` is still the right number for the
+  // visible-row math and +N overfetch — see filteredData / fetchPage callers.
+  const [hiddenTotalCount, setHiddenTotalCount] = useState<number>(0);
+  useEffect(() => {
+    if (!isLiveMode) {
+      // Sample mode loads everything client-side, so hiddenLoadedCount IS
+      // the true hidden count — no backend call required.
+      setHiddenTotalCount(hiddenLoadedCount);
+      return;
+    }
+    if (hiddenDefIds.size === 0) {
+      setHiddenTotalCount(0);
+      return;
+    }
+    // Multi-value `IN` uses pipe-joined Value, matching the codebase
+    // convention in translateFilters (LIST/IN branch joins selected values
+    // with '|'). Comma here would be interpreted as a literal substring
+    // and silently return 0.
+    const hiddenFilter: FilterProperty[] = [
+      {
+        ColumnName: 'OpsTagSpecDefinitionId|OpsMultiTags.TagSpecDefinitionId',
+        Value: [...hiddenDefIds].join('|'),
+        Operand: 'IN',
+      },
+    ];
+    let cancelled = false;
+    fetchCount(filters, hiddenFilter).then((count) => {
+      if (cancelled) return;
+      setHiddenTotalCount(count ?? 0);
+    });
+    return () => { cancelled = true; };
+  }, [isLiveMode, filters, hiddenDefIds, fetchCount, hiddenLoadedCount]);
+
+  // Deliver +N visible rows. Always appends with the default page size so
+  // pageIndex in fetchPage (derived from loadedCount/pageSize) increments
+  // cleanly — varying pageSize mid-session would round back to an already-
+  // fetched page and produce duplicate rows. Two loops in one path:
+  //   - When no hide filter is active, every appended row counts as
+  //     visible; we stop as soon as visibleAdded >= size.
+  //   - When the hide filter is active, only rows that survive the
+  //     client-side hide check count toward visibleAdded; the loop keeps
+  //     fetching pages until we hit size or the backend is exhausted.
+  // Excess raw rows beyond the target are trimmed so the visible delta
+  // lands on exactly N.
+  const loadNVisible = useCallback(async (size: number) => {
+    if (!isLiveMode) {
+      setVisibleCount((c) => c + size);
+      return;
+    }
+    const extras = activeExtraFilters.length > 0 ? activeExtraFilters : undefined;
+    const hasHideFilter = hiddenDefIds.size > 0;
+    let visibleAdded = 0;
+    let attempts = 0;
+    const totalBackend = totalTransactionsCount ?? transactions.length;
+    const remainingBackend = Math.max(0, totalBackend - transactions.length);
+    const maxAttempts = Math.max(1, Math.ceil(remainingBackend / BATCH_SIZE) + 2);
+    let done = false;
+    while (!done && visibleAdded < size && attempts < maxAttempts) {
+      // Don't pass pageSize — let fetchPage use PAGE_SIZE so pageIndex
+      // increments cleanly from one append to the next.
+      const newRows = await fetchPage(outgoingFilters, true, undefined, undefined, extras);
+      if (newRows.length === 0) break;
+      for (let i = 0; i < newRows.length; i++) {
+        const isVisible = hasHideFilter
+          ? !isRowHidden(analyzeRow(newRows[i], allLibraries, isLiveMode).matchedDefinitions, hiddenDefIds)
+          : true;
+        if (isVisible) visibleAdded++;
+        if (visibleAdded >= size) {
+          const excess = newRows.length - 1 - i;
+          if (excess > 0) trimLoadedTransactions(excess);
+          done = true;
+          break;
+        }
+      }
+      attempts++;
+    }
+  }, [isLiveMode, activeExtraFilters, hiddenDefIds, fetchPage, outgoingFilters, transactions.length, totalTransactionsCount, allLibraries, trimLoadedTransactions]);
+
+  // Auto-fetch when the hide-tag-spec filter swallows every loaded row but
+  // the backend says visible rows still exist (loadedNow === 0, totalNow > 0).
+  // Without this, the table sits empty on "No transactions found" even
+  // though the header reads "1 of N visible" — the operator would have to
+  // click +1 themselves. The signature ref ensures we only fire once per
+  // (loaded, filters, hidden) snapshot; if loadNVisible appends raw rows
+  // that are still all hidden, transactions.length changes and the signature
+  // advances, re-firing until visible rows surface or the backend is
+  // exhausted (`liveHasMore` flips false).
+  const autoFetchSignatureRef = useRef<string>('');
+  useEffect(() => {
+    if (!isLiveMode || loading || builderOpen) return;
+    if (hiddenDefIds.size === 0) return;
+    if (!liveHasMore) return;
+    const loadedRaw = transactions.length;
+    const totalRaw = totalTransactionsCount ?? loadedRaw;
+    const loadedNow = Math.max(0, loadedRaw - hiddenLoadedCount);
+    const totalNow = Math.max(0, totalRaw - hiddenTotalCount);
+    if (loadedNow > 0 || totalNow === 0) return;
+    const sig = `${loadedRaw}|${totalRaw}|${hiddenTotalCount}|${[...hiddenDefIds].sort().join(',')}`;
+    if (autoFetchSignatureRef.current === sig) return;
+    autoFetchSignatureRef.current = sig;
+    loadNVisible(Math.min(BATCH_SIZE, Math.max(1, totalNow)));
+  }, [isLiveMode, loading, builderOpen, hiddenDefIds, transactions.length, totalTransactionsCount, hiddenLoadedCount, hiddenTotalCount, liveHasMore, loadNVisible]);
+
   // Reset visible count / page when filtered data length changes
   // In live + classic pagination mode, data replaces on every page nav — don't reset page from here
   const filteredLen = filteredData.length;
+
+  // Displayed loaded / total / hidden counts shared between the header label
+  // and the pagination footer. Client filter (matchedDefinitions) is
+  // authoritative for what the operator sees, so loadedNow drives the
+  // invariant. The backend's hiddenTotalCount can over-count when persisted
+  // tag IDs reference hidden defs that re-evaluate to non-hidden ones via
+  // analyzeRow — clamp the displayed hidden so `loadedNow + hidden = total`
+  // and `loadedNow <= totalNow` always hold.
+  const displayCounts = useMemo(() => {
+    const loadedRaw = isLiveMode ? transactions.length : visibleCount;
+    const totalRaw = isLiveMode ? (totalTransactionsCount ?? transactions.length) : filteredLen;
+    const loadedNow = Math.max(0, loadedRaw - hiddenLoadedCount);
+    const hiddenDisplay = Math.min(hiddenTotalCount, Math.max(0, totalRaw - loadedNow));
+    const totalNow = Math.max(loadedNow, totalRaw - hiddenDisplay);
+    return { loadedRaw, totalRaw, loadedNow, totalNow, hiddenDisplay };
+  }, [isLiveMode, transactions.length, visibleCount, totalTransactionsCount, filteredLen, hiddenLoadedCount, hiddenTotalCount]);
+
   useEffect(() => {
     if (isLiveMode && !incrementalPagination) return; // page managed by nav controls + filter effect
     setVisibleCount(BATCH_SIZE);
@@ -1348,13 +1487,12 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         <div className='flex flex-col md:flex-row items-start justify-end md:items-center gap-2'>
           <h2 className="text-base font-semibold text-heading">Transactions</h2>
           {(() => {
-            // Header count is the raw dataset size — matches the footer's
-            // "N total" and the +N action buttons. Client-side hiding is a
-            // view filter, not a dataset filter, so we don't subtract it
-            // here. Instead, surface the hidden count next to the number:
-            //   · 30 hidden     → some loaded rows are hidden
-            //   · all hidden    → every loaded row is hidden (table empty)
-            //   (no suffix)     → nothing is hidden
+            // Header count is the raw backend total for the current filter
+            // scope. The "· N hidden" suffix is the BACKEND-aware count of
+            // rows in the same filter scope that match a hidden definition —
+            // not bounded by what's loaded — so it doesn't drift on
+            // pagination. "all hidden" surfaces when hidden covers the
+            // entire filter scope.
             const displayed = builderOpen && builderHasContent
               ? filteredData.length
               : isLiveMode && totalTransactionsCount != null
@@ -1362,9 +1500,9 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                 : filteredData.length;
             const hiddenSuffix = (() => {
               if (builderOpen) return '';
-              if (hiddenLoadedCount <= 0) return '';
-              if (filteredData.length === 0) return ' · all hidden';
-              return ` · ${hiddenLoadedCount.toLocaleString()} hidden`;
+              if (displayCounts.hiddenDisplay <= 0) return '';
+              if (displayed > 0 && displayCounts.hiddenDisplay >= displayed) return ' · all hidden';
+              return ` · ${displayCounts.hiddenDisplay.toLocaleString()} hidden`;
             })();
             return (
               <span className='text-sm mr-5 min-w-10 text-primary-dark whitespace-nowrap'>
@@ -1958,22 +2096,25 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       {!(filteredLen === 0 && !loading) && (() => {
         // Compute backward and forward batch lists once so the skeleton placeholders
         // mirror the actual button layout (e.g. don't draw four backward boxes when
-        // only one backward button would render).
-        // Raw counts (rows actually fetched from server / classic page size).
-        const loadedRaw = isLiveMode ? transactions.length : visibleCount;
-        const totalRaw = isLiveMode ? (totalTransactionsCount ?? transactions.length) : filteredLen;
-        // Display counts subtract hidden-spec rows so the footer matches what
-        // the user actually sees in the table. The +N / -N buttons still
-        // operate on raw row counts (predictable, no overfetch overshoot).
-        const loadedNow = Math.max(0, loadedRaw - hiddenLoadedCount);
-        const totalNow = Math.max(0, totalRaw - hiddenLoadedCount);
-        // Removable uses raw values — the -N control trims raw rows.
-        const removable = Math.max(0, loadedRaw - BATCH_SIZE);
+        // only one backward button would render). loaded / total / hidden are
+        // shared with the header label via displayCounts so both surfaces are
+        // self-consistent (loadedNow <= totalNow always).
+        const { loadedRaw, loadedNow, totalNow } = displayCounts;
+        // Removable in visible scope — the -N buttons are sized to the
+        // operator's perceived count, not the raw buffer. The actual trim
+        // call scales by the observed visible/raw ratio below.
+        const removable = Math.max(0, loadedNow - BATCH_SIZE);
         const backBatches = (() => {
           const b = [500, 200, 50, 25].filter((x) => x <= removable);
           if (b.length === 0 && removable > 0) b.unshift(removable);
           return b;
         })();
+        // "Remaining" drives the forward +N batch buttons. Use visible
+        // scope (totalNow / loadedNow) so the offered increments match
+        // what the operator can actually surface — asking for +25 when
+        // only 13 more visible rows exist would either undershoot the
+        // request or burn overfetch attempts hitting the cap. The
+        // overfetch loop still consumes raw rows under the hood.
         const remaining = Math.max(0, totalNow - loadedNow);
         const fwdBatches = (() => {
           const b = [25, 50, 200, 500].filter((x) => x <= remaining);
@@ -2000,8 +2141,21 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                 <>
                   {backBatches.map((size) => (
                     <Button key={`back-${size}`} variant="outline" size="xs" onClick={() => {
-                      if (isLiveMode) trimLoadedTransactions(size);
-                      else setVisibleCount((c) => Math.max(BATCH_SIZE, c - size));
+                      if (!isLiveMode) {
+                        setVisibleCount((c) => Math.max(BATCH_SIZE, c - size));
+                        return;
+                      }
+                      if (hiddenDefIds.size === 0 || loadedNow === 0) {
+                        trimLoadedTransactions(size);
+                        return;
+                      }
+                      // Scale the raw trim by the observed visible ratio so
+                      // the operator's "-N" reduces visible rows by N (not
+                      // raw rows by N, which would barely move the visible
+                      // count when most rows are hidden).
+                      const visibleRatio = Math.max(0.05, loadedNow / loadedRaw);
+                      const rawTrim = Math.min(loadedRaw, Math.ceil(size / visibleRatio));
+                      trimLoadedTransactions(rawTrim);
                     }}>
                       &minus;{size.toLocaleString()}
                     </Button>
@@ -2019,60 +2173,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                 <>
                   <span className="text-border">|</span>
                   {fwdBatches.map((size) => (
-                    <Button key={size} variant="outline" size="xs" onClick={async () => {
-                      if (!isLiveMode) {
-                        setVisibleCount((c) => c + size);
-                        return;
-                      }
-                      const extras = activeExtraFilters.length > 0 ? activeExtraFilters : undefined;
-                      if (hiddenDefIds.size === 0) {
-                        await fetchPage(outgoingFilters, true, undefined, size, extras);
-                        return;
-                      }
-                      // Hide-Tag-Spec is a view-layer filter the backend
-                      // doesn't know about. To deliver +N *visible* rows we
-                      // fetch in batches, sizing each one from the observed
-                      // visible-ratio so far. The moment we cross the
-                      // target mid-batch we stop AND trim the remaining raw
-                      // rows from the store — so the visible delta lands on
-                      // exactly N (no overshoot). Capped at 6 iterations as
-                      // a sanity limit against pathological hide ratios.
-                      let visibleAdded = 0;
-                      let rawFetchedThisClick = 0;
-                      let attempts = 0;
-                      const maxAttempts = 6;
-                      let done = false;
-                      while (!done && visibleAdded < size && attempts < maxAttempts) {
-                        const remaining = size - visibleAdded;
-                        let fetchSize: number;
-                        if (attempts === 0 || rawFetchedThisClick === 0) {
-                          fetchSize = size;
-                        } else {
-                          const observedRatio = visibleAdded / rawFetchedThisClick;
-                          fetchSize = Math.max(1, Math.min(size, Math.ceil(remaining / Math.max(0.05, observedRatio))));
-                        }
-                        const newRows = await fetchPage(outgoingFilters, true, undefined, fetchSize, extras);
-                        if (newRows.length === 0) break;
-                        rawFetchedThisClick += newRows.length;
-                        for (let i = 0; i < newRows.length; i++) {
-                          const a = analyzeRow(newRows[i], allLibraries, isLiveMode);
-                          if (!a.matchedDefinitions.some((d) => hiddenDefIds.has(d.Id))) {
-                            visibleAdded++;
-                          }
-                          if (visibleAdded >= size) {
-                            // Drop any raw rows in this batch that came AFTER
-                            // the one that hit the target. They were just
-                            // appended to the store; trim them off so the
-                            // visible total lands exactly on N.
-                            const excess = newRows.length - 1 - i;
-                            if (excess > 0) trimLoadedTransactions(excess);
-                            done = true;
-                            break;
-                          }
-                        }
-                        attempts++;
-                      }
-                    }}>
+                    <Button key={size} variant="outline" size="xs" onClick={() => loadNVisible(size)}>
                       +{size.toLocaleString()}
                     </Button>
                   ))}
