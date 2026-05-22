@@ -1040,30 +1040,26 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     return () => { cancelled = true; };
   }, [isLiveMode, filters, hiddenDefIds, fetchCount, hiddenLoadedCount]);
 
-  // Hide-Tag-Spec is a view-layer filter the backend doesn't know about.
-  // To deliver +N *visible* rows we fetch additional backend pages and
-  // count how many survive the client-side hide filter, stopping once
-  // we've accumulated N visible. Each append call uses the default page
-  // size — varying the size mid-session would break the pageIndex math
-  // in fetchPage (which derives pageIndex from loadedCount/pageSize) and
-  // cause overlapping fetches with duplicate rows.
+  // Deliver +N visible rows. Always appends with the default page size so
+  // pageIndex in fetchPage (derived from loadedCount/pageSize) increments
+  // cleanly — varying pageSize mid-session would round back to an already-
+  // fetched page and produce duplicate rows. Two loops in one path:
+  //   - When no hide filter is active, every appended row counts as
+  //     visible; we stop as soon as visibleAdded >= size.
+  //   - When the hide filter is active, only rows that survive the
+  //     client-side hide check count toward visibleAdded; the loop keeps
+  //     fetching pages until we hit size or the backend is exhausted.
+  // Excess raw rows beyond the target are trimmed so the visible delta
+  // lands on exactly N.
   const loadNVisible = useCallback(async (size: number) => {
     if (!isLiveMode) {
       setVisibleCount((c) => c + size);
       return;
     }
     const extras = activeExtraFilters.length > 0 ? activeExtraFilters : undefined;
-    if (hiddenDefIds.size === 0) {
-      await fetchPage(outgoingFilters, true, undefined, size, extras);
-      return;
-    }
+    const hasHideFilter = hiddenDefIds.size > 0;
     let visibleAdded = 0;
     let attempts = 0;
-    // Backend has at most `totalTransactionsCount` rows; cap loop iterations
-    // by how many default-sized pages would exhaust the backend, plus a
-    // small safety margin. With BATCH_SIZE=50 and 1000 rows total that's 20
-    // iterations max — but `newRows.length === 0` breaks earlier in
-    // practice.
     const totalBackend = totalTransactionsCount ?? transactions.length;
     const remainingBackend = Math.max(0, totalBackend - transactions.length);
     const maxAttempts = Math.max(1, Math.ceil(remainingBackend / BATCH_SIZE) + 2);
@@ -1074,10 +1070,10 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       const newRows = await fetchPage(outgoingFilters, true, undefined, undefined, extras);
       if (newRows.length === 0) break;
       for (let i = 0; i < newRows.length; i++) {
-        const a = analyzeRow(newRows[i], allLibraries, isLiveMode);
-        if (!isRowHidden(a.matchedDefinitions, hiddenDefIds)) {
-          visibleAdded++;
-        }
+        const isVisible = hasHideFilter
+          ? !isRowHidden(analyzeRow(newRows[i], allLibraries, isLiveMode).matchedDefinitions, hiddenDefIds)
+          : true;
+        if (isVisible) visibleAdded++;
         if (visibleAdded >= size) {
           const excess = newRows.length - 1 - i;
           if (excess > 0) trimLoadedTransactions(excess);
