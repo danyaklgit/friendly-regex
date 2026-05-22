@@ -15,9 +15,12 @@ import { TaggingStatsCell } from './TaggingStatsCell';
 import { TagRuleCard } from '../tagRules/TagRuleCard';
 import { CommentsProvider } from '../../context/CommentsContext';
 import { CommentIconButton } from '../comments/CommentIconButton';
+import { CommentSearchTrigger } from '../comments/CommentSearchTrigger';
+import { CommentSearchPanel } from '../comments/CommentSearchPanel';
 import type { TepHeaders, BacklogStatEntry } from '../../api/transactions';
 import { getBacklogStats } from '../../api/transactions';
 import type { TagSpecLibrary, TagSpecDefinition } from '../../types';
+import type { TagSpecCommentTarget } from '../../types/comments';
 import { useLocalChanges } from '../../hooks/useLocalChanges';
 import { useTransactionData } from '../../hooks/useTransactionData';
 
@@ -39,6 +42,9 @@ interface StatsTabProps {
   navigation?: BacklogNavigationTarget | null;
   /** Called once the navigation has been processed. */
   onNavigationConsumed?: () => void;
+  /** Forwarded to the comment search panel so clicking "View in Backlog"
+   *  from a search result's thread reuses the same row-highlight flow. */
+  onNavigateToBacklog?: (target: TagSpecCommentTarget) => void;
 }
 
 const sideLabel: Record<string, string> = {
@@ -59,7 +65,7 @@ interface DisplayRow {
   inProgressLib: TagSpecLibrary | undefined;
 }
 
-export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckoutComplete, authToken, tepHeaders, navigation, onNavigationConsumed }: StatsTabProps) {
+export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckoutComplete, authToken, tepHeaders, navigation, onNavigationConsumed, onNavigateToBacklog }: StatsTabProps) {
   const { libraries, tagDefinitions, loading, refetchTagSpecs, refetchLibraries, dispatch, taggingProgress, isPairBeingTagged, getTaggingFirstSeen } = useTagSpecs();
   const { usersMap, useDummyData, userId, isAudit } = useAuth();
   const { clearChanges } = useLocalChanges(undefined, undefined);
@@ -87,6 +93,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [rollbackTarget, setRollbackTarget] = useState<DisplayRow | null>(null);
   const [compareTarget, setCompareTarget] = useState<DisplayRow | null>(null);
+  const [searchPanelOpen, setSearchPanelOpen] = useState(false);
 
   // Rows whose checkout state just changed — kept for 5s so the user can
   // visually catch the transition (e.g. "Active" → "In Progress" on checkout).
@@ -502,6 +509,9 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
             className="hidden"
             onChange={handleImport}
           />
+          {isLiveMode && (
+            <CommentSearchTrigger onClick={() => setSearchPanelOpen(true)} title="Search comments" />
+          )}
           {!isAudit && (
             <Button data-tour="backlog-import-button" variant="ghost" size="xs" onClick={() => fileInputRef.current?.click()}>
               Import
@@ -860,6 +870,13 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
       {toast && (
         <Toast message={toast.message} type={toast.type} duration={toast.duration} onClose={() => setToast(null)} />
       )}
+
+      <CommentSearchPanel
+        open={searchPanelOpen}
+        target={null}
+        onClose={() => setSearchPanelOpen(false)}
+        onNavigateToBacklog={onNavigateToBacklog}
+      />
     </div>
   );
 }

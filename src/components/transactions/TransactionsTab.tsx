@@ -57,6 +57,9 @@ import { useTepConfig } from '../../context/TepConfigContext';
 import type { TepHeaders } from '../../api/transactions';
 import { CommentsProvider } from '../../context/CommentsContext';
 import { CommentIconButton } from '../comments/CommentIconButton';
+import { CommentSearchTrigger } from '../comments/CommentSearchTrigger';
+import { CommentSearchPanel } from '../comments/CommentSearchPanel';
+import type { TagSpecCommentTarget } from '../../types/comments';
 
 interface ShareTogglesInput {
   compactMode: boolean;
@@ -283,6 +286,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   );
   const [builderOpen, setBuilderOpen] = useState(false);
   const [lovBrowserOpen, setLovBrowserOpen] = useState(false);
+  const [searchPanelOpen, setSearchPanelOpen] = useState(false);
   const builderRef = useRef<HTMLDivElement>(null);
   const [builderHeight, setBuilderHeight] = useState(0);
   const [showOnlyUntagged, setShowOnlyUntagged] = useState(false);
@@ -1712,6 +1716,9 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                 </svg>
               </button>
             )}
+            {isLiveMode && inProgressLib?.Id && (
+              <CommentSearchTrigger onClick={() => setSearchPanelOpen(true)} title="Search comments" size="sm" />
+            )}
             {tableColumns.length > 0 && (
               <ColumnPicker columns={tableColumns} hiddenColumns={effectiveHiddenColumns} onChange={setHiddenColumns} columnOrder={columnOrder} onColumnOrderChange={setColumnOrder} defaultHiddenColumns={defaultHiddenColumns} onReset={handleColumnReset} lockedVisibleKeys={forcedSideColumnKeys} />
             )}
@@ -2462,6 +2469,19 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
           />
         );
       })()}
+
+      {isLiveMode && inProgressLib?.Id && (
+        <CommentSearchPanel
+          open={searchPanelOpen}
+          target={{
+            TagSpecLibraryId: inProgressLib.Id,
+            TagSpecDefinitionId: null,
+            TagRuleExpressionId: null,
+            AttributeTag: null,
+          } satisfies TagSpecCommentTarget}
+          onClose={() => setSearchPanelOpen(false)}
+        />
+      )}
     </div>
   );
 }
