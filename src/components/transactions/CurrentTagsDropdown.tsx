@@ -7,6 +7,9 @@ import type { TagSpecDefinition } from '../../types';
 export interface CurrentTagEntry {
   id: string;
   def?: TagSpecDefinition;
+  /** Version badge shown on the TagBadge when the same tag name has multiple
+   *  definitions in the current library (matches the table's overlay). */
+  version?: number;
 }
 
 interface CurrentTagsDropdownProps {
@@ -113,7 +116,7 @@ export function CurrentTagsDropdown({ entries, selectedIds, onChange }: CurrentT
   const hasActive = selectedCount > 0;
 
   const renderRow = (entry: CurrentTagEntry) => {
-    const { id, def } = entry;
+    const { id, def, version } = entry;
     const tagName = def?.Tag ?? '(unknown)';
     const certainty = def?.CertaintyLevelTag ?? 'HIGH';
     const unresolved = !def;
@@ -132,7 +135,7 @@ export function CurrentTagsDropdown({ entries, selectedIds, onChange }: CurrentT
           className="rounded border-border-strong shrink-0"
         />
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          <TagBadge tag={tagName} certainty={certainty} />
+          <TagBadge tag={tagName} certainty={certainty} version={version} />
           {unresolved && (
             <span className="text-[10px] text-muted italic truncate">
               Not in current library
@@ -148,13 +151,13 @@ export function CurrentTagsDropdown({ entries, selectedIds, onChange }: CurrentT
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        title="Tag specs currently matching transactions in this bank/side"
+        title="Tag specs detected on transactions in this bank/side"
         className="text-xs px-3 py-1.5 rounded-lg border bg-primary border-primary text-white hover:opacity-90 transition-opacity inline-flex items-center gap-1.5 whitespace-nowrap"
       >
         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5a2 2 0 011.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
         </svg>
-        Current Tags
+        Detected Tag Specs
         <span className="ml-0.5 px-1.5 py-0.5 rounded-full bg-white/20 text-[10px] font-semibold leading-none">
           {hasActive ? `${selectedCount}/${entries.length}` : entries.length}
         </span>
