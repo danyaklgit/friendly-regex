@@ -1114,13 +1114,19 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // Definitions not in the cache stay surfaced by raw Id so the operator
   // can still scope the table; the modal renders an "(unknown)" badge.
   const matchingTagEntries = useMemo(() => {
-    if (matchingTagDefIds.length === 0) return [] as Array<{ id: string; def?: TagSpecDefinition }>;
+    if (matchingTagDefIds.length === 0) {
+      return [] as Array<{ id: string; def?: TagSpecDefinition; version?: number }>;
+    }
     const byId = new Map<string, TagSpecDefinition>();
     for (const lib of allLibraries) {
       for (const def of lib.TagSpecDefinitions) byId.set(def.Id, def);
     }
-    return matchingTagDefIds.map((id) => ({ id, def: byId.get(id) }));
-  }, [matchingTagDefIds, allLibraries]);
+    return matchingTagDefIds.map((id) => ({
+      id,
+      def: byId.get(id),
+      version: definitionVersions.get(id)?.version,
+    }));
+  }, [matchingTagDefIds, allLibraries, definitionVersions]);
 
   // Deliver +N visible rows. Always appends with the default page size so
   // pageIndex in fetchPage (derived from loadedCount/pageSize) increments
