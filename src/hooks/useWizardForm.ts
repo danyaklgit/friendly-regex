@@ -270,7 +270,7 @@ export function useWizardForm(
             'sourceField', 'extractionOperation', 'prefix', 'suffix', 'pattern',
             'numChars', 'toStr', 'toStart', 'occurrence', 'startingPosition',
             'fromPosition', 'prefixOccurrence', 'suffixOccurrence', 'verifyValue',
-            'suffixOrEndOfInput',
+            'suffixOrEndOfInput', 'tillEndOfInput',
           ];
           const extractionChanged = extractionFields.some((f) => f in updates);
           return extractionChanged

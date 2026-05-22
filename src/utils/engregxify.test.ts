@@ -306,6 +306,30 @@ describe('decomposeExtractionRegex', () => {
     });
   });
 
+  it('extract_skip_take round-trips from `^.{n}(.{y})`', () => {
+    expect(decomposeExtractionRegex('^.{40}(.{10})')).toEqual({
+      operation: 'extract_skip_take',
+      fromPosition: 40,
+      numChars: 10,
+    });
+  });
+
+  it('extract_skip_take round-trips from `^.{n}(.*)` as till-end-of-input', () => {
+    expect(decomposeExtractionRegex('^.{40}(.*)')).toEqual({
+      operation: 'extract_skip_take',
+      fromPosition: 40,
+      tillEndOfInput: true,
+    });
+  });
+
+  it('extract_skip_take with a zero skip: `^(.{y})`', () => {
+    expect(decomposeExtractionRegex('^(.{10})')).toEqual({
+      operation: 'extract_skip_take',
+      fromPosition: 0,
+      numChars: 10,
+    });
+  });
+
   // Case A: ^(.*) and ^([\s\S]*)$ both collapse to extract_full_field — they
   // behave identically on single-line transaction text.
   it.each([

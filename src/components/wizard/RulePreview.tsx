@@ -75,6 +75,17 @@ export function RulePreview({ ruleGroups, attributes }: RulePreviewProps) {
                       prefix: a.prefix,
                       suffix: a.suffix,
                       pattern: a.pattern,
+                      verifyValue: a.verifyValue,
+                      numChars: a.numChars,
+                      toStr: a.toStr,
+                      toStart: a.toStart,
+                      occurrence: a.occurrence,
+                      startingPosition: a.startingPosition,
+                      fromPosition: a.fromPosition,
+                      prefixOccurrence: a.prefixOccurrence,
+                      suffixOccurrence: a.suffixOccurrence,
+                      suffixOrEndOfInput: a.suffixOrEndOfInput,
+                      tillEndOfInput: a.tillEndOfInput,
                     })}
                   </span>
                 </p>
