@@ -444,8 +444,8 @@ export function TagsHierarchyTab() {
                             ${isInactive ? 'opacity-50' : ''}
                             ${getLeafBgClass(leaf.Tag)}`}
                         >
-                          <span className="font-medium text-heading">{highlightText(leaf.Tag, query)}</span>
-                          <span className="ml-2 text-muted text-xs truncate">— {highlightText(getNodeName(leaf), query)}</span>
+                          <span className="font-medium text-heading truncate min-w-0">{highlightText(getNodeName(leaf), query)}</span>
+                          <span className="ml-2 text-xs text-muted shrink-0">({highlightText(leaf.Tag, query)})</span>
 
                           <span className="ml-auto flex items-center gap-2 flex-shrink-0">
                             {isNew && <Badge variant="info">NEW</Badge>}
