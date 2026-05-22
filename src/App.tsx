@@ -226,7 +226,7 @@ function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps
           activeIndex={activeTab}
           onTabChange={handleTabChange}
           tabs={[
-            { label: 'Backlog', content: <StatsTab onViewTransactions={handleViewTransactions} onViewAllTransactions={handleViewAllTransactions} onCheckoutComplete={handleCheckoutComplete} authToken={authToken} tepHeaders={tepHeaders} navigation={backlogNavigation} onNavigationConsumed={handleBacklogNavigationConsumed} /> },
+            { label: 'Backlog', content: <StatsTab onViewTransactions={handleViewTransactions} onViewAllTransactions={handleViewAllTransactions} onCheckoutComplete={handleCheckoutComplete} authToken={authToken} tepHeaders={tepHeaders} navigation={backlogNavigation} onNavigationConsumed={handleBacklogNavigationConsumed} onNavigateToBacklog={handleNavigateToBacklog} /> },
             { label: 'Transactions', content: <TransactionsTab activeCheckout={activeCheckout} onClearPendingDefinition={() => setActiveCheckout(prev => (prev && prev.pendingDefinitionId != null) ? { ...prev, pendingDefinitionId: undefined } : prev)} initialShareFilters={shareFilters} initialShareToggles={shareToggles} operatorName={operatorName} shareDialogOpen={shareDialogOpen} onShareDialogClose={() => setShareDialogOpen(false)} /> },
             ...(isLiveMode && isDevops ? [{ label: 'Integration Logs', content: <IntegrationLogsTab /> }] : []),
             { label: 'Settings', content: <SettingsTab /> },

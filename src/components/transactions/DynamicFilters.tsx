@@ -37,6 +37,7 @@ interface DynamicFiltersProps {
   showOnlyDeadEnd: boolean;
   onShowOnlyDeadEndChange: (value: boolean) => void;
   baseFilters?: FilterState;
+  leadingActionSlot?: ReactNode;
   endSlot?: ReactNode;
   isLiveMode?: boolean;
   filterDefinitions?: FilterDefinition[];
@@ -1561,6 +1562,7 @@ export function DynamicFilters({
   showOnlyDeadEnd,
   onShowOnlyDeadEndChange,
   baseFilters,
+  leadingActionSlot,
   endSlot,
   isLiveMode,
   filterDefinitions,
@@ -1715,6 +1717,7 @@ export function DynamicFilters({
     <div className="mb-3">
       {expanded && (
         <div data-tour="filters-bar" className="flex flex-wrap items-center gap-2 mt-2 p-3 bg-surface-secondary rounded-lg border border-border">
+          {leadingActionSlot}
           {/* Live mode: locked BankSwiftCode pill (not in API filter definitions) */}
           {/* {isLiveMode && lockedColumns?.has('BankSwiftCode') && filters['BankSwiftCode'] && (
             <div className="text-xs px-3 py-1.5 rounded-lg border border-border bg-surface-tertiary text-muted cursor-not-allowed flex items-center gap-1.5">

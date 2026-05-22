@@ -160,6 +160,18 @@ describe('isCompleteAttribute', () => {
     expect(isCompleteAttribute({ ...base, numChars: 4 })).toBe(true);
   });
 
+  it('requires a take count (> 0) or tillEndOfInput for extract_skip_take', () => {
+    const base = completeAttr({
+      extractionOperation: 'extract_skip_take' as AttributeFormValue['extractionOperation'],
+      prefix: undefined,
+      fromPosition: 40,
+    });
+    expect(isCompleteAttribute({ ...base, numChars: undefined, tillEndOfInput: undefined })).toBe(false);
+    expect(isCompleteAttribute({ ...base, numChars: 0 })).toBe(false);
+    expect(isCompleteAttribute({ ...base, numChars: 10 })).toBe(true);
+    expect(isCompleteAttribute({ ...base, tillEndOfInput: true })).toBe(true);
+  });
+
   it('passes the canonical fully-filled extract_after attribute', () => {
     expect(isCompleteAttribute(completeAttr())).toBe(true);
   });

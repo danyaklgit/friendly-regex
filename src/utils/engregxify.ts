@@ -616,6 +616,8 @@ export function decomposeExtractionRegex(regex: string): {
   pattern?: string;
   suffixOrEndOfInput?: boolean;
   numChars?: number;
+  fromPosition?: number;
+  tillEndOfInput?: boolean;
 } {
   // 1. Lookarounds anywhere → matching pattern. Lookbehinds and lookaheads
   //    can't be expressed as literal prefix/suffix, so the entire regex stays
@@ -645,6 +647,25 @@ export function decomposeExtractionRegex(regex: string): {
   const lastNCharsMatch = regex.match(/^\(\.\{(\d+)\}\)\$$/);
   if (lastNCharsMatch) {
     return { operation: 'extract_last_n_chars', numChars: Number(lastNCharsMatch[1]) };
+  }
+
+  // 3c. Skip n and take y / till end: `^.{n}(.{y})` or `^.{n}(.*)`. The leading
+  //     `^` plus an explicit `.{n}` skip keep it distinct from extract_after and
+  //     extract_full_field. Must precede the between/after branches below, which
+  //     would otherwise route `^.{n}(.*)` to extract_matching (the `^.{n}`
+  //     prefix "looks like regex"). The skip-0 forms collapse elsewhere:
+  //     `^(.*)` → extract_full_field (step 3); `^(.{y})` is handled just below.
+  const skipTakeMatch = regex.match(/^\^\.\{(\d+)\}\((?:\.\{(\d+)\}|\.\*)\)$/);
+  if (skipTakeMatch) {
+    const fromPosition = Number(skipTakeMatch[1]);
+    return skipTakeMatch[2] !== undefined
+      ? { operation: 'extract_skip_take', fromPosition, numChars: Number(skipTakeMatch[2]) }
+      : { operation: 'extract_skip_take', fromPosition, tillEndOfInput: true };
+  }
+  // Skip-0 take-y: `^(.{y})` (the skip prefix is omitted when n is 0).
+  const skipTakeNoSkipMatch = regex.match(/^\^\(\.\{(\d+)\}\)$/);
+  if (skipTakeNoSkipMatch) {
+    return { operation: 'extract_skip_take', fromPosition: 0, numChars: Number(skipTakeNoSkipMatch[1]) };
   }
 
   // 4. Extract between: prefix(.*?)suffix — try the suffix-with-end-of-input

@@ -1117,6 +1117,13 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
         return `Extract after '${decomposed.prefix ?? ''}'`;
       case 'extract_before':
         return `Extract before '${decomposed.suffix ?? ''}'`;
+      case 'extract_skip_take': {
+        const n = decomposed.fromPosition ?? 0;
+        const take = decomposed.tillEndOfInput || !decomposed.numChars
+          ? 'everything till end of input'
+          : `${decomposed.numChars} character${decomposed.numChars === 1 ? '' : 's'}`;
+        return `Skip ${n} character${n === 1 ? '' : 's'}, then take ${take}`;
+      }
       case 'extract_matching':
       default:
         return `Extract matching '${decomposed.pattern || expr.Regex}'`;

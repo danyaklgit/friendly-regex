@@ -155,7 +155,7 @@ export function regexifyExtraction(
     prefix?: string; suffix?: string; pattern?: string; verifyValue?: string;
     numChars?: number; toStr?: string; toStart?: boolean; occurrence?: number; startingPosition?: number;
     fromPosition?: number; prefixOccurrence?: number; suffixOccurrence?: number;
-    suffixOrEndOfInput?: boolean;
+    suffixOrEndOfInput?: boolean; tillEndOfInput?: boolean;
   }
 ): string {
   if (operation.startsWith('predefined:')) {
@@ -232,6 +232,18 @@ export function regexifyExtraction(
       }
       return '(.*)';
     }
+    case 'extract_skip_take': {
+      // Skip the first N chars (start-anchored) then capture: a fixed `numChars`
+      // window, or everything to end-of-input when `tillEndOfInput`. The N=0
+      // skip is omitted (no `.{0}`), matching the extract_substring convention.
+      // With no count and no till-end flag, degrade to capturing the rest so the
+      // rule stays compilable while the operator finishes filling it in.
+      const skip = params.fromPosition && params.fromPosition > 0 ? `.{${params.fromPosition}}` : '';
+      if (!params.tillEndOfInput && params.numChars && params.numChars > 0) {
+        return `^${skip}(.{${params.numChars}})`;
+      }
+      return `^${skip}(.*)`;
+    }
     case 'extract_between_and_verify':
       return `${escapeRegex(params.prefix ?? '')}(.*?)${escapeRegex(params.suffix ?? '')}`;
     case 'extract_full_field':
@@ -290,7 +302,7 @@ export function generateExtractionPrompt(
     prefix?: string; suffix?: string; pattern?: string; verifyValue?: string;
     numChars?: number; toStr?: string; toStart?: boolean; occurrence?: number; startingPosition?: number;
     fromPosition?: number; prefixOccurrence?: number; suffixOccurrence?: number;
-    suffixOrEndOfInput?: boolean;
+    suffixOrEndOfInput?: boolean; tillEndOfInput?: boolean;
   }
 ): string {
   if (operation.startsWith('predefined:')) {
@@ -339,6 +351,14 @@ export function generateExtractionPrompt(
       return params.numChars && params.numChars > 0
         ? `Extract last ${params.numChars} character${params.numChars === 1 ? '' : 's'}`
         : 'Extract last n characters';
+    case 'extract_skip_take': {
+      const n = params.fromPosition && params.fromPosition > 0 ? params.fromPosition : 0;
+      const skip = `Skip ${n} character${n === 1 ? '' : 's'}`;
+      if (!params.tillEndOfInput && params.numChars && params.numChars > 0) {
+        return `${skip}, then take ${params.numChars} character${params.numChars === 1 ? '' : 's'}`;
+      }
+      return `${skip}, then take everything till end of input`;
+    }
     case 'extract_between_and_verify':
       return `Extract between '${params.prefix ?? ''}' and '${params.suffix ?? ''}', verify = '${params.verifyValue ?? ''}'`;
     case 'extract_full_field':

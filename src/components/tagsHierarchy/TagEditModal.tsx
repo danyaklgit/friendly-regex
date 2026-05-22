@@ -86,8 +86,9 @@ export function TagEditModal({ open, onClose, editingNode, allNodes, onSave }: T
     });
   }, [tagLeaves, parentSearch]);
 
+  // Case-sensitive: tag codes are stored and compared exactly as entered.
   const tagExists = useMemo(
-    () => isCreate && allNodes.some((n) => n.Tag.toUpperCase() === tag.trim().toUpperCase()),
+    () => isCreate && allNodes.some((n) => n.Tag === tag.trim()),
     [isCreate, allNodes, tag],
   );
 

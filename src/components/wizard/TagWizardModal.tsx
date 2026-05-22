@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { TagSpecDefinition, TagSpecLibrary, WizardFormState, WizardStep } from '../../types';
 import type { WizardFormResult } from '../../hooks/useWizardForm';
 import { useWizardForm } from '../../hooks/useWizardForm';
@@ -7,9 +8,12 @@ import { useAuth } from '../../context/AuthContext';
 import { useTepConfig } from '../../context/TepConfigContext';
 import { CommentsProvider } from '../../context/CommentsContext';
 import type { TepHeaders } from '../../api/transactions';
+import type { TagSpecCommentTarget } from '../../types/comments';
 import { Modal } from '../shared/Modal';
 import { Button } from '../shared/Button';
 import { Tooltip } from '../shared/Tooltip';
+import { CommentSearchTrigger } from '../comments/CommentSearchTrigger';
+import { CommentSearchPanel } from '../comments/CommentSearchPanel';
 import { WizardStepIndicator } from './WizardStepIndicator';
 import { StepBasicInfo } from './StepBasicInfo';
 import { StepRuleExpressions } from './StepRuleExpressions';
@@ -41,11 +45,12 @@ interface TagWizardModalProps {
 }
 
 export function TagWizardModal({ existingDef, parentLib, initialFormState, initialStep, fromCheckoutContext, onSave, onClose, saving = false }: TagWizardModalProps) {
-  const { fieldMeta, transactions } = useTransactionData();
+  const { fieldMeta, transactions, isLiveMode } = useTransactionData();
   const { extractionMethods } = useLovAttributes();
   const auth = useAuth();
   const tepConfig = useTepConfig();
   const wizard = useWizardForm(existingDef, initialFormState, fieldMeta.sourceFields[0], parentLib, initialStep, extractionMethods);
+  const [searchPanelOpen, setSearchPanelOpen] = useState(false);
 
   const authHeader = auth.getAuthHeaders().Authorization ?? '';
   const commentsAuthToken = authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : null;
@@ -203,12 +208,26 @@ export function TagWizardModal({ existingDef, parentLib, initialFormState, initi
     body
   );
 
+  const searchTarget: TagSpecCommentTarget | null = commentsLibraryId
+    ? {
+        TagSpecLibraryId: commentsLibraryId,
+        TagSpecDefinitionId: null,
+        TagRuleExpressionId: null,
+        AttributeTag: null,
+      }
+    : null;
+
   return (
     <Modal
       open
       onClose={saving ? () => {} : onClose}
       fullHeight
       title={wizard.isEditing ? `Edit Rule: ${existingDef?.Tag} (${existingDef?.Id})` : 'Create New Rule'}
+      headerAction={
+        isLiveMode && searchTarget && !saving ? (
+          <CommentSearchTrigger onClick={() => setSearchPanelOpen(true)} title="Search comments" size="sm" />
+        ) : undefined
+      }
       footer={
         <>
           <Button data-tour="wizard-cancel-button" variant="ghost" onClick={onClose} disabled={saving}>
@@ -272,6 +291,13 @@ export function TagWizardModal({ existingDef, parentLib, initialFormState, initi
       }
     >
       {wrappedBody}
+      {searchTarget && (
+        <CommentSearchPanel
+          open={searchPanelOpen}
+          target={searchTarget}
+          onClose={() => setSearchPanelOpen(false)}
+        />
+      )}
     </Modal>
   );
 }

@@ -16,6 +16,7 @@ import {
   hasIncompleteAttribute,
 } from '../../utils/attributeFingerprint';
 import type { FilterProperty } from '../../api/transactions';
+import { getAllTransactionTags } from '../../api/transactions';
 import { useWizardForm, fromExistingDefinition } from '../../hooks/useWizardForm';
 import type { TagSpecDefinition, TagSpecLibrary, AnalyzedTransaction, WizardFormState, RuleExpression, CheckoutState, TransactionRow } from '../../types';
 import type { WizardFormResult } from '../../hooks/useWizardForm';
@@ -49,12 +50,16 @@ import { RowContextMenu } from './RowContextMenu';
 import { CommentDialog, type CommentDialogResult } from './CommentDialog';
 import { ViewContextModal } from './ViewContextModal';
 import { OtherDefinitionsTransactionsModal } from './OtherDefinitionsTransactionsModal';
+import { CurrentTagsDropdown } from './CurrentTagsDropdown';
 import { TagDetailPanel } from './TagDetailPanel';
 import { HiddenTagsPanel } from './HiddenTagsPanel';
 import { useTepConfig } from '../../context/TepConfigContext';
 import type { TepHeaders } from '../../api/transactions';
 import { CommentsProvider } from '../../context/CommentsContext';
 import { CommentIconButton } from '../comments/CommentIconButton';
+import { CommentSearchTrigger } from '../comments/CommentSearchTrigger';
+import { CommentSearchPanel } from '../comments/CommentSearchPanel';
+import type { TagSpecCommentTarget } from '../../types/comments';
 
 interface ShareTogglesInput {
   compactMode: boolean;
@@ -131,6 +136,7 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
           prefixOccurrence: attr.prefixOccurrence,
           suffixOccurrence: attr.suffixOccurrence,
           suffixOrEndOfInput: attr.suffixOrEndOfInput,
+          tillEndOfInput: attr.tillEndOfInput,
         };
         const prompt = generateExtractionPrompt(attr.extractionOperation, params);
         // Prefer the backend's original regex when the user hasn't edited
@@ -281,6 +287,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   );
   const [builderOpen, setBuilderOpen] = useState(false);
   const [lovBrowserOpen, setLovBrowserOpen] = useState(false);
+  const [searchPanelOpen, setSearchPanelOpen] = useState(false);
   const builderRef = useRef<HTMLDivElement>(null);
   const [builderHeight, setBuilderHeight] = useState(0);
   const [showOnlyUntagged, setShowOnlyUntagged] = useState(false);
@@ -381,6 +388,11 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     originalFormState: WizardFormState;       // builder state at tag-click time (for discard)
   } | null>(null);
 
+  // IDs picked from the Current Tags dropdown. Multi-select; joined by '|'
+  // into an OpsTagSpecDefinitionId IN filter when non-empty (see
+  // activeExtraFilters below).
+  const [currentTagFilterIds, setCurrentTagFilterIds] = useState<Set<string>>(new Set());
+
   // Extra filters injected into API calls (definition-ID scoping, REGEX ruleset, or transaction type from builder).
   // Narrow the deps to the exact fields of tagClickState we read, so downstream
   // updates (e.g. tagNameCount from the background count fetch) don't churn the
@@ -407,6 +419,17 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       // (applied via `filters`) is what the user wants to broaden to.
       return [];
     }
+    // Current Tags multi-select scope. Multi-value IN goes as a pipe-joined
+    // Value (CLAUDE.md gotcha #15) — same shape used by the SHOW ONLY filter
+    // and the hidden-tag-count call. Skipped while the rule builder is open
+    // so the builder's own preview scoping isn't fought over the same column.
+    if (!builderOpen && currentTagFilterIds.size > 0) {
+      return [{
+        ColumnName: 'OpsTagSpecDefinitionId|OpsMultiTags.TagSpecDefinitionId',
+        Value: [...currentTagFilterIds].join('|'),
+        Operand: 'IN',
+      }];
+    }
     const extra: FilterProperty[] = [];
     if (builderOpen && builder.formState.transactionTypeCode) {
       extra.push({ ColumnName: 'TransactionTypeCode', Value: builder.formState.transactionTypeCode, Operand: 'EQ' });
@@ -421,7 +444,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       if (regex) extra.push(regex);
     }
     return extra;
-  }, [tagClickDefinitionId, tagClickRulesetApplied, tagClickShowingAll, tagClickRulesetFilters, builderOpen, builder.formState]);
+  }, [tagClickDefinitionId, tagClickRulesetApplied, tagClickShowingAll, tagClickRulesetFilters, builderOpen, builder.formState, currentTagFilterIds]);
 
   // When the API call is scoped by TagSpecDefinitionId, the definition itself
   // implies bank/side via its parent library — don't also send bank/side filters.
@@ -1040,6 +1063,65 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     return () => { cancelled = true; };
   }, [isLiveMode, filters, hiddenDefIds, fetchCount, hiddenLoadedCount]);
 
+  // Matching Tag Specs: fire GetAllTransactionTags eagerly when the operator
+  // enters Transactions with an active checkout. The result is the unique set
+  // of OpsTagSpecIds that currently match transactions for the checked-out
+  // bank/side context. Surfaces in the filter row as a distinct pill and
+  // drives the picker modal. The call is gated on isLiveMode + activeCheckout
+  // so audit / sample / no-checkout sessions are no-ops.
+  const [matchingTagDefIds, setMatchingTagDefIds] = useState<string[]>([]);
+  useEffect(() => {
+    if (!isLiveMode || !activeCheckout) {
+      setMatchingTagDefIds([]);
+      return;
+    }
+    const controller = new AbortController();
+    (async () => {
+      try {
+        await refreshIfNeeded();
+        const authHeader = getAuthHeaders().Authorization ?? '';
+        const token = authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : '';
+        if (!token) return;
+        const tepHeaders: TepHeaders = {
+          apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
+          userId: userId ?? '',
+          tenantCode: tepConfig.ttpTenantCode,
+          languageCode: tepConfig.languageCode,
+          timeZone: tepConfig.timeZone,
+          requestId: tepConfig.ttpRequestId,
+        };
+        const filteringProperties: FilterProperty[] = [
+          { ColumnName: 'BankSwiftCode', Value: activeCheckout.bank, Operand: 'EQ' },
+          { ColumnName: 'Side', Value: activeCheckout.side, Operand: 'EQ' },
+        ];
+        const ids = await getAllTransactionTags(
+          { FilteringProperties: filteringProperties },
+          token,
+          tepHeaders,
+          controller.signal,
+        );
+        setMatchingTagDefIds(ids);
+      } catch (err) {
+        if ((err as Error).name !== 'AbortError') {
+          console.error('GetAllTransactionTags failed', err);
+        }
+      }
+    })();
+    return () => controller.abort();
+  }, [isLiveMode, activeCheckout, refreshIfNeeded, getAuthHeaders, userId, tepConfig]);
+
+  // Resolve matching IDs to definitions via the local libraries cache.
+  // Definitions not in the cache stay surfaced by raw Id so the operator
+  // can still scope the table; the modal renders an "(unknown)" badge.
+  const matchingTagEntries = useMemo(() => {
+    if (matchingTagDefIds.length === 0) return [] as Array<{ id: string; def?: TagSpecDefinition }>;
+    const byId = new Map<string, TagSpecDefinition>();
+    for (const lib of allLibraries) {
+      for (const def of lib.TagSpecDefinitions) byId.set(def.Id, def);
+    }
+    return matchingTagDefIds.map((id) => ({ id, def: byId.get(id) }));
+  }, [matchingTagDefIds, allLibraries]);
+
   // Deliver +N visible rows. Always appends with the default page size so
   // pageIndex in fetchPage (derived from loadedCount/pageSize) increments
   // cleanly — varying pageSize mid-session would round back to an already-
@@ -1609,6 +1691,13 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         filterDefinitionsLoading={filterDefinitionsLoading}
         decimalMaxValues={decimalMaxValues}
         disabledFilterTags={tagClickState?.showingAll && tagClickState.tagFilterKey ? new Set([tagClickState.tagFilterKey]) : undefined}
+        leadingActionSlot={isLiveMode && activeCheckout && matchingTagEntries.length > 0 ? (
+          <CurrentTagsDropdown
+            entries={matchingTagEntries}
+            selectedIds={currentTagFilterIds}
+            onChange={setCurrentTagFilterIds}
+          />
+        ) : null}
         endSlot={(isLiveMode || tableColumns.length > 0) ? (
           <div className="flex items-center gap-2">
             {isLiveMode && (
@@ -1627,6 +1716,9 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582M20 20v-5h-.581M5.062 9A8.001 8.001 0 0119.418 7M18.938 15A8.001 8.001 0 014.582 17" />
                 </svg>
               </button>
+            )}
+            {isLiveMode && inProgressLib?.Id && (
+              <CommentSearchTrigger onClick={() => setSearchPanelOpen(true)} title="Search comments" size="sm" />
             )}
             {tableColumns.length > 0 && (
               <ColumnPicker columns={tableColumns} hiddenColumns={effectiveHiddenColumns} onChange={setHiddenColumns} columnOrder={columnOrder} onColumnOrderChange={setColumnOrder} defaultHiddenColumns={defaultHiddenColumns} onReset={handleColumnReset} lockedVisibleKeys={forcedSideColumnKeys} />
@@ -2378,6 +2470,19 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
           />
         );
       })()}
+
+      {isLiveMode && inProgressLib?.Id && (
+        <CommentSearchPanel
+          open={searchPanelOpen}
+          target={{
+            TagSpecLibraryId: inProgressLib.Id,
+            TagSpecDefinitionId: null,
+            TagRuleExpressionId: null,
+            AttributeTag: null,
+          } satisfies TagSpecCommentTarget}
+          onClose={() => setSearchPanelOpen(false)}
+        />
+      )}
     </div>
   );
 }

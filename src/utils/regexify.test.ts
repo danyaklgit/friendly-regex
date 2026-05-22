@@ -205,6 +205,37 @@ describe('regexifyExtraction', () => {
     expect('AB'.match(re)).toBeNull();
   });
 
+  it('extract_skip_take: skip n then take y → ^.{n}(.{y})', () => {
+    expect(regexifyExtraction('extract_skip_take', { fromPosition: 40, numChars: 10 }))
+      .toBe('^.{40}(.{10})');
+  });
+
+  it('extract_skip_take: skip n then take to end of input → ^.{n}(.*)', () => {
+    expect(regexifyExtraction('extract_skip_take', { fromPosition: 40, tillEndOfInput: true }))
+      .toBe('^.{40}(.*)');
+  });
+
+  it('extract_skip_take: tillEndOfInput overrides any take count', () => {
+    expect(regexifyExtraction('extract_skip_take', { fromPosition: 40, numChars: 10, tillEndOfInput: true }))
+      .toBe('^.{40}(.*)');
+  });
+
+  it('extract_skip_take: a zero/absent skip omits the .{n} prefix', () => {
+    expect(regexifyExtraction('extract_skip_take', { numChars: 10 })).toBe('^(.{10})');
+    expect(regexifyExtraction('extract_skip_take', { fromPosition: 0, tillEndOfInput: true })).toBe('^(.*)');
+  });
+
+  it('extract_skip_take: degrades to capturing the rest when no take is set', () => {
+    expect(regexifyExtraction('extract_skip_take', { fromPosition: 40 })).toBe('^.{40}(.*)');
+  });
+
+  it('extract_skip_take: round-trips through new RegExp to grab the window after the skip', () => {
+    const reTake = new RegExp(regexifyExtraction('extract_skip_take', { fromPosition: 4, numChars: 3 }));
+    expect('ABCD123ZZ'.match(reTake)?.[1]).toBe('123');
+    const reRest = new RegExp(regexifyExtraction('extract_skip_take', { fromPosition: 4, tillEndOfInput: true }));
+    expect('ABCD123ZZ'.match(reRest)?.[1]).toBe('123ZZ');
+  });
+
   it('extract_between with suffixOrEndOfInput emits `(?:<suffix>|$)`', () => {
     // The dominant production shape: 373 rules in the seed file use this.
     expect(regexifyExtraction('extract_between', {
