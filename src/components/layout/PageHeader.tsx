@@ -1,11 +1,19 @@
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useLovAttributes } from '../../context/LovAttributesContext';
 import { useTimeRemaining } from '../../hooks/useTimeRemaining';
 import { Tooltip } from '../shared/Tooltip';
 import { Button } from '../shared/Button';
 import { Badge } from '../shared/Badge';
 import { NotificationsButton } from '../notifications/NotificationsButton';
 import type { TagSpecCommentTarget } from '../../types/comments';
+
+const SIDE_LABELS: Record<string, string> = {
+  CR: 'Credit',
+  DR: 'Debit',
+  RC: 'Rev. Credit',
+  RD: 'Rev. Debit',
+};
 
 interface CheckoutInfo {
   bank: string;
@@ -31,7 +39,14 @@ interface PageHeaderProps {
 export function PageHeader({ tabs, activeIndex, onTabChange, checkout, onOpenOnboarding, onShare, onNavigateToBacklog }: PageHeaderProps) {
   const { logout, username, displayName, expiresAt, isAudit, isDevops } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { lovLookup } = useLovAttributes();
   const timeRemaining = useTimeRemaining(expiresAt);
+
+  // Resolve friendly bank / side names from the BANKS LOV and the fixed side
+  // map. Falls back to the raw code when the lookup misses, so a missing LOV
+  // entry never blanks the indicator.
+  const bankName = checkout ? (lovLookup.get('BANKS')?.get(checkout.bank) ?? checkout.bank) : '';
+  const sideName = checkout ? (SIDE_LABELS[checkout.side] ?? checkout.side) : '';
 
   return (
     <header className="bg-surface border-b border-border">
@@ -56,7 +71,14 @@ export function PageHeader({ tabs, activeIndex, onTabChange, checkout, onOpenOnb
         {checkout && (
           <div data-tour="checkout-active-indicator" className="flex items-center gap-3 ml-auto shrink-0">
             <span className="text-sm text-primary-dark whitespace-nowrap">
-              <span className="font-semibold">{checkout.isReadOnly ? "You're viewing" : "You're working on"}</span> {checkout.bank} - {checkout.side}
+              <span className="font-semibold">{checkout.isReadOnly ? "You're viewing" : "You're working on"}</span>{' '}
+              <Tooltip content={checkout.bank} placement="bottom">
+                <span className="underline decoration-dotted decoration-primary/40 cursor-help">{bankName}</span>
+              </Tooltip>
+              {' - '}
+              <Tooltip content={checkout.side} placement="bottom">
+                <span className="underline decoration-dotted decoration-primary/40 cursor-help">{sideName}</span>
+              </Tooltip>
             </span>
             {!checkout.isReadOnly && !isAudit && (
               <>
