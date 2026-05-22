@@ -211,6 +211,10 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
       if (selectedOp.key === 'extract_last_n_chars' && !(attribute.numChars && attribute.numChars > 0)) {
         missing.push('# of Chars');
       }
+      // extract_skip_take needs a take count unless "till end of input" is on.
+      if (selectedOp.key === 'extract_skip_take' && !attribute.tillEndOfInput && !(attribute.numChars && attribute.numChars > 0)) {
+        missing.push('Take (characters)');
+      }
     }
     return missing;
   }, [
@@ -222,6 +226,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
     attribute.pattern,
     attribute.verifyValue,
     attribute.numChars,
+    attribute.tillEndOfInput,
     selectedOp,
   ]);
   const canSaveAttribute = missingSaveFields.length === 0;
@@ -239,7 +244,8 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
     prefixOccurrence: attribute.prefixOccurrence,
     suffixOccurrence: attribute.suffixOccurrence,
     suffixOrEndOfInput: attribute.suffixOrEndOfInput,
-  }), [attribute.prefix, attribute.suffix, attribute.pattern, attribute.verifyValue, attribute.numChars, attribute.toStr, attribute.toStart, attribute.occurrence, attribute.startingPosition, attribute.fromPosition, attribute.prefixOccurrence, attribute.suffixOccurrence, attribute.suffixOrEndOfInput]);
+    tillEndOfInput: attribute.tillEndOfInput,
+  }), [attribute.prefix, attribute.suffix, attribute.pattern, attribute.verifyValue, attribute.numChars, attribute.toStr, attribute.toStart, attribute.occurrence, attribute.startingPosition, attribute.fromPosition, attribute.prefixOccurrence, attribute.suffixOccurrence, attribute.suffixOrEndOfInput, attribute.tillEndOfInput]);
   // Prefer the LOV item's friendly Name when the op is a `lov:*` entry —
   // the pure util has no access to the LOV catalog and falls back to showing
   // the raw regex, which is ugly in the inline preview.
@@ -633,6 +639,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                 prefixOccurrence: undefined,
                 suffixOccurrence: undefined,
                 suffixOrEndOfInput: undefined,
+                tillEndOfInput: undefined,
               })}
               options={[
                 ...FILTERED_EXTRACTION_OPERATIONS.map((op) => ({ value: op.key, label: op.label })),
@@ -656,6 +663,42 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                 onChange={(e) => onUpdate({ fromPosition: e.target.value ? Number(e.target.value) : undefined })}
                 disabled={readOnly}
               />
+            </div>
+          )}
+
+          {attribute.extractionOperation === 'extract_skip_take' && (
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                label="Skip (characters)"
+                placeholder="Characters to skip from the start"
+                type="number"
+                min={0}
+                value={attribute.fromPosition ?? ''}
+                onChange={(e) => onUpdate({ fromPosition: e.target.value ? Number(e.target.value) : undefined })}
+                disabled={readOnly}
+              />
+              <div className="flex flex-col gap-1.5">
+                <Input
+                  label="Take (characters)"
+                  placeholder={attribute.tillEndOfInput ? 'Till end of input' : 'Required'}
+                  type="number"
+                  min={1}
+                  required={!attribute.tillEndOfInput}
+                  error={!readOnly && !attribute.tillEndOfInput && !(attribute.numChars && attribute.numChars > 0)}
+                  value={attribute.tillEndOfInput ? '' : (attribute.numChars ?? '')}
+                  onChange={(e) => onUpdate({ numChars: e.target.value ? Number(e.target.value) : undefined })}
+                  disabled={readOnly || !!attribute.tillEndOfInput}
+                />
+                <label className={`flex items-center gap-1.5 text-xs text-body-secondary pl-1 select-none ${readOnly ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
+                  <input
+                    type="checkbox"
+                    checked={!!attribute.tillEndOfInput}
+                    onChange={(e) => onUpdate({ tillEndOfInput: e.target.checked || undefined, ...(e.target.checked ? { numChars: undefined } : {}) })}
+                    disabled={readOnly}
+                  />
+                  till end of input
+                </label>
+              </div>
             </div>
           )}
 
@@ -698,6 +741,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                               prefixOccurrence: undefined,
                               suffixOccurrence: undefined,
                               suffixOrEndOfInput: undefined,
+                              tillEndOfInput: undefined,
                             })}
                             className="mt-1 inline-flex items-center gap-1 font-medium underline hover:no-underline cursor-pointer"
                           >

@@ -62,6 +62,9 @@ export function isCompleteAttribute(a: AttributeFormValue): boolean {
     // sole driver of the captured span — without it the rule would extract
     // the entire field. Treat it as required for save gating.
     if (op.key === 'extract_last_n_chars' && !(a.numChars && a.numChars > 0)) return false;
+    // extract_skip_take needs a defined capture: either an explicit take count
+    // or the "till end of input" toggle. The skip count defaults to 0.
+    if (op.key === 'extract_skip_take' && !a.tillEndOfInput && !(a.numChars && a.numChars > 0)) return false;
   }
   return true;
 }

@@ -27,6 +27,7 @@ export type ExtractionOperation =
   | 'extract_matching'
   | 'extract_substring'
   | 'extract_last_n_chars'
+  | 'extract_skip_take'
   | 'extract_between_and_verify'
   | 'extract_full_field'
   | `predefined:${string}`
@@ -79,6 +80,12 @@ export interface AttributeFormValue {
   startingPosition?: number;
   fromPosition?: number;
   toStart?: boolean;
+  /**
+   * For extract_skip_take: when true, the capture runs to the end of input
+   * (`(.*)`) instead of a fixed `numChars` count. Surfaced as the
+   * "till end of input" checkbox; mutually exclusive with the take count.
+   */
+  tillEndOfInput?: boolean;
   prefixOccurrence?: number;
   suffixOccurrence?: number;
   /**

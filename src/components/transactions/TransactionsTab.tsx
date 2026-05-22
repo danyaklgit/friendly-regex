@@ -131,6 +131,7 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
           prefixOccurrence: attr.prefixOccurrence,
           suffixOccurrence: attr.suffixOccurrence,
           suffixOrEndOfInput: attr.suffixOrEndOfInput,
+          tillEndOfInput: attr.tillEndOfInput,
         };
         const prompt = generateExtractionPrompt(attr.extractionOperation, params);
         // Prefer the backend's original regex when the user hasn't edited
