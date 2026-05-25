@@ -51,6 +51,11 @@ interface AttributeEditorProps {
   attribute: AttributeFormValue;
   onUpdate: (updates: Partial<AttributeFormValue>) => void;
   onRemove: () => void;
+  /** Duplicates the attribute as a new sibling immediately below this row.
+   *  Mirrors the rule-set Clone affordance from RuleGroupEditor — useful
+   *  when two attributes share most of their config (extraction method,
+   *  prefix/suffix) and only differ in a few fields. */
+  onClone: () => void;
   transactions?: TransactionRow[];
   startCollapsed?: boolean;
   readOnly?: boolean;
@@ -113,7 +118,7 @@ function BoundaryHintIcon({
   );
 }
 
-export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, startCollapsed, readOnly, isDuplicateName, suggestedAttributeNames, suggestedTagName, libraryId, definitionId, bankSwiftCode, side }: AttributeEditorProps) {
+export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transactions, startCollapsed, readOnly, isDuplicateName, suggestedAttributeNames, suggestedTagName, libraryId, definitionId, bankSwiftCode, side }: AttributeEditorProps) {
   const { fieldMeta } = useTransactionData();
   const { activeAttributes, validationClasses, validationOptions, lovOptions, lovLookup, createNewAttribute, transformationMethods, extractionMethods } = useLovAttributes();
   const [showDistinct, setShowDistinct] = useState(false);
@@ -602,6 +607,11 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                 }
                 size="xs"
               />
+            )}
+            {!readOnly && (
+              <Button variant="ghost" size="xs" onClick={onClone} className="text-primary shrink-0">
+                Clone Attribute
+              </Button>
             )}
             {!readOnly && (
               <Button variant="ghost" size="xs" onClick={onRemove} className="text-red-400 hover:text-red-500 shrink-0">
@@ -1145,6 +1155,11 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                 }
                 size="xs"
               />
+            )}
+            {!readOnly && (
+              <Button variant="ghost" size="xs" onClick={onClone} className="ml-1 text-primary">
+                Clone Attribute
+              </Button>
             )}
             {!readOnly && (
               <Button variant="ghost" size="xs" onClick={onRemove} className="ml-1 text-red-400 hover:text-red-500">

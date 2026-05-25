@@ -194,6 +194,7 @@ export function TagWizardModal({ existingDef, parentLib, initialFormState, initi
           attributes={wizard.formState.attributes}
           onAdd={wizard.addAttribute}
           onRemove={wizard.removeAttribute}
+          onClone={wizard.cloneAttribute}
           onUpdate={wizard.updateAttribute}
           onReorder={wizard.reorderAttributes}
           transactions={transactions}

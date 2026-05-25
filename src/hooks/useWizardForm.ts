@@ -314,6 +314,33 @@ export function useWizardForm(
     }));
   }, []);
 
+  // Duplicates the attribute at `attrId` and inserts the copy right after
+  // it. Mirrors `cloneRuleGroup` for rule sets — every id is regenerated
+  // so the clone is independent, and the transformations array is
+  // deep-copied so editing one no longer mutates the other.
+  //
+  // `attributeTag` is deliberately cleared on the clone so the operator
+  // picks a name before saving. This also lets AttributeEditor's mount
+  // gates kick in (empty name => starts expanded, not "saved" yet) so the
+  // cloned row opens in edit mode with all other fields pre-populated for
+  // tweaking — same UX as the rule-set clone.
+  const cloneAttribute = useCallback((attrId: string) => {
+    setFormState((prev) => {
+      const idx = prev.attributes.findIndex((a) => a.id === attrId);
+      if (idx === -1) return prev;
+      const source = prev.attributes[idx];
+      const cloned: AttributeFormValue = {
+        ...source,
+        id: crypto.randomUUID(),
+        attributeTag: '',
+        transformations: (source.transformations ?? []).map((t) => ({ ...t })),
+      };
+      const next = [...prev.attributes];
+      next.splice(idx + 1, 0, cloned);
+      return { ...prev, attributes: next };
+    });
+  }, []);
+
   const updateAttribute = useCallback(
     (attrId: string, updates: Partial<AttributeFormValue>) => {
       setFormState((prev) => ({
@@ -462,6 +489,7 @@ export function useWizardForm(
     updateCondition,
     addAttribute,
     removeAttribute,
+    cloneAttribute,
     updateAttribute,
     reorderAttributes,
     applyTemplate,

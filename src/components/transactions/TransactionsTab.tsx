@@ -2058,6 +2058,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                 definitionId={editingDef?.Id}
                 onAdd={builder.addAttribute}
                 onRemove={builder.removeAttribute}
+                onClone={builder.cloneAttribute}
                 onUpdate={builder.updateAttribute}
                 onReorder={builder.reorderAttributes}
                 transactions={filteredData.map((d) => d.row)}

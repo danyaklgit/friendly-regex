@@ -24,6 +24,7 @@ interface StepAttributesProps {
   attributes: AttributeFormValue[];
   onAdd: () => void;
   onRemove: (attrId: string) => void;
+  onClone: (attrId: string) => void;
   onUpdate: (attrId: string, updates: Partial<AttributeFormValue>) => void;
   onReorder: (attributes: AttributeFormValue[]) => void;
   transactions?: TransactionRow[];
@@ -40,7 +41,7 @@ interface StepAttributesProps {
   side?: string;
 }
 
-export function StepAttributes({ attributes, onAdd, onRemove, onUpdate, onReorder, transactions, startCollapsed, readOnly, suggestedAttributeNames, suggestedTagName, libraryId, definitionId, bankSwiftCode, side }: StepAttributesProps) {
+export function StepAttributes({ attributes, onAdd, onRemove, onClone, onUpdate, onReorder, transactions, startCollapsed, readOnly, suggestedAttributeNames, suggestedTagName, libraryId, definitionId, bankSwiftCode, side }: StepAttributesProps) {
   // For each attribute, the index of the earlier row sharing its (trimmed,
   // case-insensitive) name, or null when it's unique. Only the later
   // duplicate carries the flag so the original stays clean.
@@ -110,6 +111,7 @@ export function StepAttributes({ attributes, onAdd, onRemove, onUpdate, onReorde
                     attribute={attr}
                     onUpdate={(updates) => onUpdate(attr.id, updates)}
                     onRemove={() => onRemove(attr.id)}
+                    onClone={() => onClone(attr.id)}
                     transactions={transactions}
                     startCollapsed={startCollapsed && attr.attributeTag.trim().length > 0}
                     readOnly={readOnly}
