@@ -16,7 +16,9 @@ import {
   hasIncompleteAttribute,
 } from '../../utils/attributeFingerprint';
 import type { FilterProperty } from '../../api/transactions';
-import { getAllTransactionTags } from '../../api/transactions';
+import { getAllTransactionTags, DEFAULT_SORTING } from '../../api/transactions';
+import { translateFilters } from '../../utils/translateFilters';
+import { useOptionalDownloadCenter } from '../../context/DownloadCenterContext';
 import { useWizardForm, fromExistingDefinition } from '../../hooks/useWizardForm';
 import type { TagSpecDefinition, TagSpecLibrary, AnalyzedTransaction, WizardFormState, RuleExpression, CheckoutState, TransactionRow } from '../../types';
 import type { WizardFormResult } from '../../hooks/useWizardForm';
@@ -698,6 +700,36 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const [wizardInitialStep, setWizardInitialStep] = useState<1 | 2 | 3 | 4 | undefined>(undefined);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [wizardFromCheckout, setWizardFromCheckout] = useState(false);
+
+  // Download Center wiring. Optional because tests / preview mounts may
+  // render TransactionsTab outside the provider; in that case the Export
+  // button degrades to a disabled tooltip rather than crashing.
+  const downloadCenter = useOptionalDownloadCenter();
+  const [exporting, setExporting] = useState(false);
+  const handleExport = useCallback(async () => {
+    if (!downloadCenter) return;
+    setExporting(true);
+    try {
+      // Translate the currently applied UI filters into the API's
+      // FilterProperty[] shape using the same helper the live fetch uses,
+      // so the export reflects exactly what the operator is looking at.
+      const filtersPayload = translateFilters(filters, filterDefinitions);
+      await downloadCenter.triggerExport(filtersPayload, DEFAULT_SORTING);
+      setToast({
+        message: 'Export queued — check the Download Center when ready.',
+        type: 'success',
+      });
+    } catch (err) {
+      setToast({
+        message: err instanceof Error ? err.message : 'Failed to queue export.',
+        type: 'error',
+      });
+    } finally {
+      // Brief lockout so an accidental double-click can't fire two jobs in
+      // the same breath. The button label says "Queueing…" during the lockout.
+      setTimeout(() => setExporting(false), 1500);
+    }
+  }, [downloadCenter, filters, filterDefinitions]);
 
   // Drafts queued from inside the wizard. Held here so the save handler can
   // flush after `tagSpecLibrarySave` resolves; the same value is passed down
@@ -1695,6 +1727,26 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
             <Button variant="danger" size="xs" onClick={resetToSample}>
               Reset to Sample
             </Button>
+          )}
+          {/* Export to Excel — only meaningful in live mode (the backend
+              owns the dataset); hidden in sample/upload modes where there's
+              no server-side data to export. */}
+          {!builderOpen && isLiveMode && downloadCenter && (
+            <Tooltip content="Queue an Excel export of the current filtered view" placement="bottom">
+              <Button
+                variant="secondary"
+                size="xs"
+                onClick={handleExport}
+                disabled={exporting}
+                data-tour="export-transactions"
+                className="whitespace-nowrap inline-flex items-center gap-1.5"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                </svg>
+                {exporting ? 'Queueing…' : 'Export'}
+              </Button>
+            </Tooltip>
           )}
           {!builderOpen && !isAudit && (
             activeCheckout && !isReadOnly ? (

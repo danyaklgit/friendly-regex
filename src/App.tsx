@@ -4,6 +4,8 @@ import { TagSpecProvider } from './context/TagSpecContext';
 import { TransactionDataProvider } from './context/TransactionDataContext';
 import { LovAttributesProvider } from './context/LovAttributesContext';
 import { TepConfigProvider, useTepConfig } from './context/TepConfigContext';
+import { DownloadCenterProvider } from './context/DownloadCenterContext';
+import { DownloadCenterModal } from './components/downloadCenter/DownloadCenterModal';
 import { useTagSpecs } from './hooks/useTagSpecs';
 import { useLocalChanges } from './hooks/useLocalChanges';
 import { useHasUnsyncedTags } from './hooks/useHasUnsyncedTags';
@@ -331,7 +333,10 @@ function AppContent() {
     <TagSpecProvider useDummyData={useDummyData} tepHeaders={tepHeaders}>
       <LovAttributesProvider tepHeaders={tepHeaders}>
         <TransactionDataProvider>
-          <AppShell authToken={authToken} tepHeaders={tepHeaders} operatorName={operatorName} userId={userId ?? undefined} />
+          <DownloadCenterProvider>
+            <AppShell authToken={authToken} tepHeaders={tepHeaders} operatorName={operatorName} userId={userId ?? undefined} />
+            <DownloadCenterModal />
+          </DownloadCenterProvider>
         </TransactionDataProvider>
       </LovAttributesProvider>
     </TagSpecProvider>

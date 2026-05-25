@@ -1,5 +1,10 @@
 export type NotificationStatus = 'UNREAD' | 'READ' | 'DELETED';
-export type NotificationType = 'TAG_SPEC_COMMENT' | 'TAG_SPEC_COMMENT_REPLY' | string;
+export type NotificationType =
+  | 'TAG_SPEC_COMMENT'
+  | 'TAG_SPEC_COMMENT_REPLY'
+  | 'EXPORT_READY'
+  | 'EXPORT_FAILED'
+  | string;
 
 export interface UserNotificationAction {
   ActionName: string;
