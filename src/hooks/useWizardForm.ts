@@ -33,7 +33,9 @@ export function fromExistingDefinition(
   // re-attach it here so live previews don't fall back to lossy round-trips.
   const attributesWithOriginalRegex: AttributeFormValue[] = attributes.map((attr, i) => ({
     ...attr,
-    _originalRegex: def.Attributes[i].AttributeRuleExpression.Regex || undefined,
+    // Constant-mode attributes have no AttributeRuleExpression on the wire;
+    // optional chain so the load doesn't crash on them.
+    _originalRegex: def.Attributes[i].AttributeRuleExpression?.Regex || undefined,
   }));
   // Re-inject the RuleExpression backend ids on each condition so the comments
   // feature can pinpoint a rule. Order is preserved by `cloneRulesAndAttributesFrom`.
@@ -360,6 +362,10 @@ export function useWizardForm(
             'numChars', 'toStr', 'toStart', 'occurrence', 'startingPosition',
             'fromPosition', 'prefixOccurrence', 'suffixOccurrence', 'verifyValue',
             'suffixOrEndOfInput', 'tillEndOfInput',
+            // Toggling into/out of constant mode (or editing the constant
+            // value) replaces the whole extraction story — drop _originalRegex
+            // so live previews don't fall back to a stale stored regex.
+            'isConstant', 'constantValue',
           ];
           const extractionChanged = extractionFields.some((f) => f in updates);
           return extractionChanged
@@ -418,6 +424,21 @@ export function useWizardForm(
         })
       ),
       Attributes: formState.attributes.map((attr, index) => {
+        // Constant-mode attribute: emit `Constant` as a literal, with the
+        // extraction expression / transformations / LOV / validation slots
+        // all null per the backend contract. No regex, no prompt, no
+        // transformation pipeline applies.
+        if (attr.isConstant) {
+          return {
+            AttributeTag: attr.attributeTag,
+            IsMandatory: attr.isMandatory,
+            LOVTag: null,
+            ValidationRuleTag: '',
+            Constant: attr.constantValue ?? '',
+            AttributeRuleExpression: null,
+            Transformations: null,
+          };
+        }
         const extractionParams = {
           prefix: attr.prefix,
           suffix: attr.suffix,

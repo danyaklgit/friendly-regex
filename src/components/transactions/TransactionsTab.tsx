@@ -131,6 +131,21 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
     Attributes: formState.attributes
       .filter((a) => a.attributeTag.trim().length > 0)
       .map((attr, index) => {
+        // Constant-mode attribute: same wire shape as the save path —
+        // `Constant` filled, no AttributeRuleExpression, no Transformations.
+        // The runtime extractor short-circuits on `Constant != null`, so the
+        // value lights up across every matching row in the live preview.
+        if (attr.isConstant) {
+          return {
+            AttributeTag: attr.attributeTag,
+            IsMandatory: attr.isMandatory,
+            LOVTag: null,
+            ValidationRuleTag: '',
+            Constant: attr.constantValue ?? '',
+            AttributeRuleExpression: null,
+            Transformations: null,
+          };
+        }
         const params = {
           prefix: attr.prefix,
           suffix: attr.suffix,

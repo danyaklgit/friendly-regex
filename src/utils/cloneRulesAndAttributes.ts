@@ -47,11 +47,50 @@ export function cloneRulesAndAttributesFrom(
   }));
 
   const attributes: AttributeFormValue[] = def.Attributes.map((attr) => {
-    const storedRegex = attr.AttributeRuleExpression.Regex;
+    // Constant-mode attribute: backend sends `Constant: "<value>"` with
+    // `AttributeRuleExpression` / `Transformations` set to null. Short-circuit
+    // the regex decompose entirely and surface as `isConstant` in form state.
+    if (attr.Constant != null) {
+      return {
+        id: crypto.randomUUID(),
+        attributeTag: attr.AttributeTag,
+        isMandatory: attr.IsMandatory,
+        validationRuleTag: '',
+        sourceField: '',
+        extractionOperation: '' as ExtractionOperation,
+        isConstant: true,
+        constantValue: attr.Constant,
+        isLovBased: false,
+        lovTag: null,
+        transformations: [],
+      };
+    }
+    const expr = attr.AttributeRuleExpression;
+    // Defensive: a non-constant attribute should always carry an
+    // AttributeRuleExpression. If a backend bug ships one without, degrade
+    // to a permissive "extract full field" placeholder rather than crashing.
+    if (!expr) {
+      return {
+        id: crypto.randomUUID(),
+        attributeTag: attr.AttributeTag,
+        isMandatory: attr.IsMandatory,
+        validationRuleTag: attr.ValidationRuleTag,
+        sourceField: '',
+        extractionOperation: 'extract_full_field' as ExtractionOperation,
+        lovTag: attr.LOVTag ?? null,
+        isLovBased: !!attr.LOVTag,
+        transformations: (attr.Transformations ?? []).map((t) => ({
+          id: crypto.randomUUID(),
+          method: t.Method,
+          args: Object.fromEntries(t.Args.map((a) => [a.Key, a.Value])),
+        })),
+      };
+    }
+    const storedRegex = expr.Regex;
     // Compare against BOTH the raw LOV regex and its capture-group-wrapped
     // form (what regexifyExtraction now produces) so validation-style LOV
     // entries round-trip correctly even after the save-time wrap.
-    const lovMatch = !attr.AttributeRuleExpression.VerifyValue
+    const lovMatch = !expr.VerifyValue
       ? lovExtractions.find((m) =>
           m.regex === storedRegex
           || ensureLovExtractionCaptureGroup(m.regex) === storedRegex,
@@ -60,7 +99,7 @@ export function cloneRulesAndAttributesFrom(
     const decomposed = decomposeExtractionRegex(storedRegex);
     const extractionOperation: ExtractionOperation = lovMatch
       ? (lovMatch.key as ExtractionOperation)
-      : attr.AttributeRuleExpression.VerifyValue
+      : expr.VerifyValue
         ? 'extract_between_and_verify'
         : decomposed.operation;
     return {
@@ -68,7 +107,7 @@ export function cloneRulesAndAttributesFrom(
       attributeTag: attr.AttributeTag,
       isMandatory: attr.IsMandatory,
       validationRuleTag: attr.ValidationRuleTag,
-      sourceField: attr.AttributeRuleExpression.SourceField,
+      sourceField: expr.SourceField,
       extractionOperation,
       // LOV-driven extractions carry no params — drop anything decompose
       // pulled out (it would just be the raw regex shoved into `pattern`).
@@ -79,7 +118,7 @@ export function cloneRulesAndAttributesFrom(
       numChars: lovMatch ? undefined : decomposed.numChars,
       fromPosition: lovMatch ? undefined : decomposed.fromPosition,
       tillEndOfInput: lovMatch ? undefined : decomposed.tillEndOfInput,
-      verifyValue: attr.AttributeRuleExpression.VerifyValue,
+      verifyValue: expr.VerifyValue,
       lovTag: attr.LOVTag ?? null,
       isLovBased: !!attr.LOVTag,
       transformations: (attr.Transformations ?? []).map((t) => ({

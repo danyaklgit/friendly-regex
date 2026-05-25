@@ -72,8 +72,16 @@ export interface TagAttribute {
   IsMandatory: boolean;
   LOVTag: string | null;
   ValidationRuleTag: string;
-  AttributeRuleExpression: AttributeRuleExpression;
-  Transformations?: TransformationRule[];
+  /**
+   * Fixed literal value mode. When non-null, this attribute emits `Constant` as
+   * its value for every matching transaction; the backend expects
+   * `AttributeRuleExpression` and `Transformations` to be null in that case.
+   * When null (the default), the attribute runs a regex-based extraction via
+   * `AttributeRuleExpression` + optional `Transformations` pipeline.
+   */
+  Constant?: string | null;
+  AttributeRuleExpression: AttributeRuleExpression | null;
+  Transformations?: TransformationRule[] | null;
 }
 
 // --- Tag Spec Definition ---

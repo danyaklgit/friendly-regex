@@ -94,6 +94,15 @@ export interface AttributeFormValue {
    * end-of-input. Surfaced in the editor as an "or end of input" checkbox.
    */
   suffixOrEndOfInput?: boolean;
+  /**
+   * "Is Constant" mode: when true, the attribute emits `constantValue` as a
+   * fixed literal for every matching transaction. The extraction op, source
+   * field, transformations, and validation are all ignored at save time and
+   * hidden in the editor. Mutually exclusive with `isLovBased`.
+   */
+  isConstant?: boolean;
+  /** Literal value emitted when `isConstant` is true. */
+  constantValue?: string;
   transformations?: TransformationFormValue[];
   /** Original regex from backend — used for preview when round-tripping isn't lossless */
   _originalRegex?: string;

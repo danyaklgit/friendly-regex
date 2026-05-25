@@ -172,6 +172,36 @@ describe('isCompleteAttribute', () => {
     expect(isCompleteAttribute({ ...base, tillEndOfInput: true })).toBe(true);
   });
 
+  it('constant mode: requires a non-empty constantValue, ignores extraction fields', () => {
+    // No sourceField / extractionOperation / prefix needed when isConstant is true.
+    const base: AttributeFormValue = {
+      id: 'x',
+      attributeTag: 'Channel',
+      isMandatory: false,
+      validationRuleTag: '',
+      sourceField: '',
+      extractionOperation: '' as AttributeFormValue['extractionOperation'],
+      isConstant: true,
+    };
+    expect(isCompleteAttribute(base)).toBe(false);
+    expect(isCompleteAttribute({ ...base, constantValue: '' })).toBe(false);
+    expect(isCompleteAttribute({ ...base, constantValue: '   ' })).toBe(false);
+    expect(isCompleteAttribute({ ...base, constantValue: 'Branch' })).toBe(true);
+  });
+
+  it('constant mode still requires a non-empty attribute name', () => {
+    expect(isCompleteAttribute({
+      id: 'x',
+      attributeTag: '',
+      isMandatory: false,
+      validationRuleTag: '',
+      sourceField: '',
+      extractionOperation: '' as AttributeFormValue['extractionOperation'],
+      isConstant: true,
+      constantValue: 'Branch',
+    })).toBe(false);
+  });
+
   it('passes the canonical fully-filled extract_after attribute', () => {
     expect(isCompleteAttribute(completeAttr())).toBe(true);
   });

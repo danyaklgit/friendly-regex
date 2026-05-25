@@ -1106,7 +1106,12 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
   // modifiers like occurrence/numChars/toStr), falling back to a reverse-parse
   // of the regex when that's absent.
   const ruleDescription = (attr: TagAttribute): string => {
+    // Constant-mode attribute: there's no extraction expression to describe.
+    if (attr.Constant != null) {
+      return `= "${attr.Constant}" (constant)`;
+    }
     const expr = attr.AttributeRuleExpression;
+    if (!expr) return '';
     const stored = expr.RegexDetails?.find((d) => d.LanguageCode === 'en')?.Description;
     if (stored) return stored;
     const decomposed = decomposeExtractionRegex(expr.Regex);
@@ -1143,10 +1148,19 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
   };
 
   // Compare two attribute rules for semantic equality — source field,
-  // normalized regex, and transformation pipeline.
+  // normalized regex, and transformation pipeline. For constant-mode
+  // attributes (no regex/source/transformations), compare the literal value.
   const attrRulesEqual = (a: TagAttribute, b: TagAttribute): boolean => {
-    if (a.AttributeRuleExpression.SourceField !== b.AttributeRuleExpression.SourceField) return false;
-    if (normalizeRegex(a.AttributeRuleExpression.Regex) !== normalizeRegex(b.AttributeRuleExpression.Regex)) return false;
+    const aIsConstant = a.Constant != null;
+    const bIsConstant = b.Constant != null;
+    if (aIsConstant !== bIsConstant) return false; // mode change
+    if (aIsConstant && bIsConstant) return a.Constant === b.Constant;
+    // Both extraction-mode beyond here.
+    const aExpr = a.AttributeRuleExpression;
+    const bExpr = b.AttributeRuleExpression;
+    if (!aExpr || !bExpr) return aExpr === bExpr;
+    if (aExpr.SourceField !== bExpr.SourceField) return false;
+    if (normalizeRegex(aExpr.Regex) !== normalizeRegex(bExpr.Regex)) return false;
     const ta = a.Transformations ?? [];
     const tb = b.Transformations ?? [];
     if (ta.length !== tb.length) return false;

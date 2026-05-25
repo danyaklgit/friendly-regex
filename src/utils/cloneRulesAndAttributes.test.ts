@@ -155,6 +155,33 @@ describe('cloneRulesAndAttributesFrom', () => {
     expect(result.ruleGroups[0].conditions.map((c) => c.sourceField)).toEqual(['F1', 'F2', 'F3']);
   });
 
+  it('loads a constant-mode attribute (Constant set, AttributeRuleExpression null)', () => {
+    const def = makeDefinition({
+      Attributes: [
+        {
+          AttributeTag: 'Channel',
+          IsMandatory: false,
+          LOVTag: null,
+          ValidationRuleTag: '',
+          Constant: 'Branch',
+          AttributeRuleExpression: null,
+          Transformations: null,
+        },
+      ],
+    });
+
+    const result = cloneRulesAndAttributesFrom(def);
+    expect(result.attributes).toHaveLength(1);
+    const a = result.attributes[0];
+    expect(a.attributeTag).toBe('Channel');
+    expect(a.isConstant).toBe(true);
+    expect(a.constantValue).toBe('Branch');
+    expect(a.sourceField).toBe('');
+    expect(a.isLovBased).toBe(false);
+    expect(a.lovTag).toBeNull();
+    expect(a.transformations).toEqual([]);
+  });
+
   it('sets extract_between_and_verify when VerifyValue is present', () => {
     const def = makeDefinition({
       Attributes: [
