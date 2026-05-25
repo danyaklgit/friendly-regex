@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { TagAttribute, TagSpecDefinition, TagSpecLibrary } from '../types';
+import type { TagHierarchyRawNode } from '../api/tagsHierarchy';
 import { getAllTagNameOptions, getAttributeSuggestionsForTag } from './tagNameLookup';
 
 function attr(name: string): TagAttribute {
@@ -39,6 +40,18 @@ function lib(defs: TagSpecDefinition[]): TagSpecLibrary {
   };
 }
 
+function hierarchyTag(tag: string, status: string = 'ACTIVE', level: 'G' | 'T' = 'T'): TagHierarchyRawNode {
+  return {
+    Tag: tag,
+    Level: level,
+    StatusTag: status,
+    Actions: null,
+    Details: null,
+    GroupTags: null,
+    ParentTag: null,
+  };
+}
+
 describe('getAllTagNameOptions', () => {
   it('returns empty list for empty libraries', () => {
     expect(getAllTagNameOptions([])).toEqual([]);
@@ -61,6 +74,35 @@ describe('getAllTagNameOptions', () => {
     ]);
     expect(result.find((o) => o.value === 'Foo')?.sublabel).toBe('2 definitions');
     expect(result.find((o) => o.value === 'Bar')?.sublabel).toBe('1 definition');
+  });
+
+  it('merges ACTIVE hierarchy leaves that have no definitions yet', () => {
+    const result = getAllTagNameOptions(
+      [lib([def('a', 'Foo')])],
+      [hierarchyTag('NewTag'), hierarchyTag('Foo')],
+    );
+    expect(result.find((o) => o.value === 'Foo')?.sublabel).toBe('1 definition');
+    expect(result.find((o) => o.value === 'NewTag')?.sublabel).toBe('0 definitions');
+  });
+
+  it('ignores hierarchy groups and archived leaves', () => {
+    const result = getAllTagNameOptions(
+      [],
+      [
+        hierarchyTag('Accounts', 'ACTIVE', 'G'),
+        hierarchyTag('Archived', 'ARCHIVED', 'T'),
+        hierarchyTag('Active', 'ACTIVE', 'T'),
+      ],
+    );
+    expect(result.map((o) => o.value)).toEqual(['Active']);
+  });
+
+  it('keeps the library casing when hierarchy disagrees', () => {
+    const result = getAllTagNameOptions(
+      [lib([def('a', 'TransferInDom')])],
+      [hierarchyTag('transferindom')],
+    );
+    expect(result.find((o) => o.value.toLowerCase() === 'transferindom')?.value).toBe('TransferInDom');
   });
 });
 

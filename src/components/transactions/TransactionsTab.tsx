@@ -201,7 +201,7 @@ function isRowHidden(
 
 
 export function TransactionsTab({ activeCheckout, onClearPendingDefinition, initialShareFilters, initialShareToggles, operatorName, shareDialogOpen: shareDialogOpenProp, onShareDialogClose }: TransactionsTabProps) {
-  const { libraries, tagDefinitions, originalDefinitionIds, dispatch, isPairBeingTagged } = useTagSpecs();
+  const { libraries, tagDefinitions, originalDefinitionIds, dispatch, isPairBeingTagged, rawHierarchyNodes } = useTagSpecs();
   const { userId, usersMap, getAuthHeaders, refreshIfNeeded, isAudit } = useAuth();
   const { extractionMethods } = useLovAttributes();
   const tepConfig = useTepConfig();
@@ -245,7 +245,10 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     [inProgressLib],
   );
 
-  const tagNameOptions = useMemo(() => getAllTagNameOptions(libraries), [libraries]);
+  const tagNameOptions = useMemo(
+    () => getAllTagNameOptions(libraries, rawHierarchyNodes),
+    [libraries, rawHierarchyNodes],
+  );
 
   useEffect(() => {
     if (inProgressLib && activeCheckout) {
