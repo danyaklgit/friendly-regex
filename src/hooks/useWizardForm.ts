@@ -245,6 +245,13 @@ export function useWizardForm(
     }));
   }, []);
 
+  // Replace the full attributes array. Used by the drag-and-drop / arrow
+  // reorder controls in StepAttributes — the save pipeline already preserves
+  // order via `formState.attributes.map((attr, index) => ...)` at line 328.
+  const reorderAttributes = useCallback((newAttributes: AttributeFormValue[]) => {
+    setFormState((prev) => ({ ...prev, attributes: newAttributes }));
+  }, []);
+
   const removeAttribute = useCallback((attrId: string) => {
     setFormState((prev) => ({
       ...prev,
@@ -394,6 +401,7 @@ export function useWizardForm(
     addAttribute,
     removeAttribute,
     updateAttribute,
+    reorderAttributes,
     applyTemplate,
     toTagSpecDefinition,
   };
