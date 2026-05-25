@@ -725,10 +725,23 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     if (!downloadCenter) return;
     setExporting(true);
     try {
-      // Translate the currently applied UI filters into the API's
-      // FilterProperty[] shape using the same helper the live fetch uses,
-      // so the export reflects exactly what the operator is looking at.
-      const filtersPayload = translateFilters(filters, filterDefinitions);
+      // Mirror the EXACT filter shape the live fetch uses so the export
+      // row set matches the visible row set 1:1:
+      //   1. `outgoingFilters` — the UI's filter Sets, but blanked out
+      //      when the call is scoped by a TagSpecDefinitionId (then the
+      //      definition implies bank/side and standalone bank/side filters
+      //      would over-constrain).
+      //   2. `activeExtraFilters` — the synthetic extras the table fetch
+      //      adds: a tag-click scope (filter by definition id), the
+      //      Rule Builder's compiled REGEX from `buildRulesetFilters` when
+      //      the builder is open, etc. Without this the export would
+      //      return the whole checkout (e.g. 5000+ rows) even though the
+      //      operator only sees 27 rows on screen because of the draft's
+      //      conditions.
+      const filtersPayload = [
+        ...translateFilters(outgoingFilters, filterDefinitions),
+        ...activeExtraFilters,
+      ];
       await downloadCenter.triggerExport(filtersPayload, DEFAULT_SORTING);
       setToast({
         message: 'Export queued — check the Download Center when ready.',
@@ -744,7 +757,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       // the same breath. The button label says "Queueing…" during the lockout.
       setTimeout(() => setExporting(false), 1500);
     }
-  }, [downloadCenter, filters, filterDefinitions]);
+  }, [downloadCenter, outgoingFilters, filterDefinitions, activeExtraFilters]);
 
   // Drafts queued from inside the wizard. Held here so the save handler can
   // flush after `tagSpecLibrarySave` resolves; the same value is passed down
@@ -1743,11 +1756,13 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
               Reset to Sample
             </Button>
           )}
-          {/* Export to Excel — only meaningful in live mode (the backend
-              owns the dataset); hidden in sample/upload modes where there's
-              no server-side data to export. */}
-          {!builderOpen && isLiveMode && downloadCenter && (
-            <Tooltip content="Queue an Excel export of the current filtered view" placement="bottom">
+          {/* Export — only meaningful in live mode (the backend owns the
+              dataset); hidden in sample/upload modes where there's no
+              server-side data to export. Stays available while the Rule
+              Builder is open: exporting is a read-only data action, not a
+              tag mutation, so it doesn't interfere with builder state. */}
+          {isLiveMode && downloadCenter && (
+            <Tooltip content="Queue an export of the current filtered view" placement="bottom">
               <Button
                 variant="secondary"
                 size="xs"

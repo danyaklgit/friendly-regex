@@ -19,7 +19,6 @@ import {
   deleteDownloadCenterFile,
   clearDownloadCenterFiles,
 } from '../api/downloadCenter';
-import { csvBlobToXlsxBlob, csvFilenameToXlsx } from '../utils/csvBlobToXlsxBlob';
 import { downloadBlob } from '../utils/downloadBlob';
 
 const POLL_INTERVAL_MS = 3_000;
@@ -201,8 +200,11 @@ export function DownloadCenterProvider({ children }: DownloadCenterProviderProps
         const result = await downloadMT940Transactions(fileId, token, tepHeaders);
         switch (result.kind) {
           case 'ready': {
-            const xlsxBlob = await csvBlobToXlsxBlob(result.blob);
-            downloadBlob(xlsxBlob, csvFilenameToXlsx(result.suggestedFilename));
+            // Hand the blob straight to the browser with the backend's
+            // suggested filename — the backend owns the file format and the
+            // matching extension, we don't second-guess by renaming or
+            // converting client-side.
+            downloadBlob(result.blob, result.suggestedFilename);
             // Mark as seen so the unread badge doesn't keep nagging.
             const nextSeen = new Set(seenReadyIdsRef.current);
             if (!nextSeen.has(fileId)) {
