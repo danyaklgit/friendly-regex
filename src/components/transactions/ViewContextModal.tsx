@@ -1,10 +1,14 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { getTransactions } from '../../api/transactions';
 import { useTransactionData } from '../../hooks/useTransactionData';
+import { useOptionalDownloadCenter } from '../../context/DownloadCenterContext';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
 import { analyzeRow } from '../../utils/analyzeRow';
 import { TagBadge } from './TagBadge';
-import type { TepHeaders } from '../../api/transactions';
+import { Button } from '../shared/Button';
+import { Tooltip } from '../shared/Tooltip';
+import { Toast } from '../shared/Toast';
+import type { FilterProperty, TepHeaders } from '../../api/transactions';
 import type { TransactionRow, TagSpecLibrary, AnalyzedTransaction } from '../../types';
 import type { ColumnDef } from './TransactionTable';
 
@@ -63,6 +67,13 @@ export function ViewContextModal({ open, onClose, transaction, authToken, tepHea
   const [rows, setRows] = useState<AnalyzedTransaction[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Export to Download Center — uses the same bank+statementDate+IBAN scope
+  // the modal already fetches with, so the resulting export contains exactly
+  // the rows the operator is looking at. Optional context so the editor still
+  // renders if the provider isn't mounted in a particular surface.
+  const downloadCenter = useOptionalDownloadCenter();
+  const [exporting, setExporting] = useState(false);
+  const [exportStatus, setExportStatus] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
   const highlightRef = useRef<HTMLTableRowElement>(null);
 
   // Derive context table columns from the main table's visible columns (skip tags; attributes go last)
@@ -165,9 +176,68 @@ export function ViewContextModal({ open, onClose, transaction, authToken, tepHea
     }
   }, [transaction, authToken, tepHeaders, libraries]);
 
+  // Anchor the refetch on the modal-open transition AND the transaction
+  // identity (bank + statement date + IBAN) — NOT on the `fetchContext`
+  // callback reference. Otherwise an unrelated re-render that gives
+  // `tepHeaders` / `authToken` / `libraries` a new reference (e.g. the
+  // Download Center context updating after Export) re-runs the network
+  // call we just finished. The eslint-disable below is intentional for
+  // the same reason.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (open) fetchContext();
-  }, [open, fetchContext]);
+    if (!open) return;
+    void fetchContext();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    open,
+    String(transaction['BankSwiftCode'] ?? ''),
+    String(transaction['StatementDate'] ?? ''),
+    String(transaction['IBAN'] ?? ''),
+  ]);
+
+  // Reset transient export feedback whenever the modal is reopened on a
+  // different transaction.
+  useEffect(() => {
+    if (!open) return;
+    setExportStatus(null);
+    setExporting(false);
+  }, [open, transaction]);
+
+  const handleExport = useCallback(async () => {
+    if (!downloadCenter) return;
+    const bank = String(transaction['BankSwiftCode'] ?? '');
+    const ibanVal = String(transaction['IBAN'] ?? '');
+    const stmtDateVal = String(transaction['StatementDate'] ?? '');
+    if (!bank || !stmtDateVal) {
+      setExportStatus({ kind: 'error', message: 'Missing bank or statement date on this transaction.' });
+      return;
+    }
+    const filters: FilterProperty[] = [
+      { ColumnName: 'BankSwiftCode', Value: bank, Operand: 'EQ' },
+      { ColumnName: 'StatementDate', Value: stmtDateVal, Operand: 'EQ' },
+    ];
+    if (ibanVal) filters.push({ ColumnName: 'IBAN', Value: ibanVal, Operand: 'EQ' });
+
+    setExporting(true);
+    setExportStatus(null);
+    try {
+      await downloadCenter.triggerExport(
+        filters,
+        [{ ColumnName: 'Sequence', SortingLevel: 1, SortingOrder: 'ASC' }],
+      );
+      setExportStatus({
+        kind: 'success',
+        message: 'Export queued — check the Download Center when ready.',
+      });
+    } catch (e) {
+      setExportStatus({
+        kind: 'error',
+        message: e instanceof Error ? e.message : 'Failed to queue export.',
+      });
+    } finally {
+      setTimeout(() => setExporting(false), 1500);
+    }
+  }, [downloadCenter, transaction]);
 
   // Auto-scroll to the highlighted row after data loads
   useEffect(() => {
@@ -213,15 +283,33 @@ export function ViewContextModal({ open, onClose, transaction, authToken, tepHea
             <span className="font-mono text-xs">{iban}</span>
           </div>
         </div>
-        <button
-          onClick={onClose}
-          className="text-faint hover:text-body-secondary transition-colors p-1.5 cursor-pointer"
-          aria-label="Close"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
+        <div className="flex items-center gap-4">
+          {downloadCenter && (
+            <Tooltip content="Queue an export of this statement's transactions" placement="bottom">
+              <Button
+                variant="secondary"
+                size="xs"
+                onClick={handleExport}
+                disabled={exporting || loading || rows.length === 0}
+                className="whitespace-nowrap inline-flex items-center gap-1.5"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                </svg>
+                {exporting ? 'Queueing…' : 'Export'}
+              </Button>
+            </Tooltip>
+          )}
+          <button
+            onClick={onClose}
+            className="text-faint hover:text-body-secondary transition-colors p-1.5 cursor-pointer"
+            aria-label="Close"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Body */}
@@ -406,6 +494,18 @@ export function ViewContextModal({ open, onClose, transaction, authToken, tepHea
         <div className="px-6 py-2 text-xs text-faint border-t border-border bg-surface-elevated shrink-0">
           {rows.length} transaction{rows.length !== 1 ? 's' : ''} in this statement
         </div>
+      )}
+      {/* Toast for Export feedback. Rendered with a z-index above the modal
+          (z-[10000]) so the success/error message floats over the table.
+          Matches the toast pattern used elsewhere in the app. */}
+      {exportStatus && (
+        <Toast
+          message={exportStatus.message}
+          type={exportStatus.kind}
+          duration={3000}
+          zClass="z-[10001]"
+          onClose={() => setExportStatus(null)}
+        />
       )}
     </div>
   );

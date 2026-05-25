@@ -108,7 +108,7 @@ export function DownloadCenterFileRow({ file, onDownload, onDelete }: DownloadCe
       </div>
       <div className="flex items-center gap-2 shrink-0">
         {file.Status === 'READY' && (
-          <Tooltip content="Download as Excel (.xlsx)" placement="top">
+          <Tooltip content="Download file" placement="top">
             <Button
               variant="primary"
               size="xs"

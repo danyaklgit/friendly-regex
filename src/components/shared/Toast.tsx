@@ -5,9 +5,12 @@ interface ToastProps {
   type?: 'success' | 'error' | 'info';
   onClose: () => void;
   duration?: number;
+  /** Tailwind z-index class. Override when the toast needs to sit above a
+   *  high-z modal (e.g. the full-screen View Context modal at z-[10000]). */
+  zClass?: string;
 }
 
-export function Toast({ message, type = 'success', onClose, duration = 3000 }: ToastProps) {
+export function Toast({ message, type = 'success', onClose, duration = 3000, zClass = 'z-50' }: ToastProps) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -29,7 +32,7 @@ export function Toast({ message, type = 'success', onClose, duration = 3000 }: T
 
   return (
     <div
-      className={`fixed bottom-4 right-4 z-50 ${bg} text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 transition-all duration-200 ${
+      className={`fixed bottom-4 right-4 ${zClass} ${bg} text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 transition-all duration-200 ${
         visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
       }`}
     >
