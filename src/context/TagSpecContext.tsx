@@ -5,6 +5,7 @@ import type { TagTreeNode, TagHierarchyRawNode, TagsHierarchyWrapper } from '../
 import { getTagSpecLibraries } from '../api/tagSpecs';
 import { getRawTagsHierarchy, buildTagTree } from '../api/tagsHierarchy';
 import { getContextValue } from '../types/tagSpec';
+import { useAuth } from './AuthContext';
 import sampleTagData from '../data/sample.json';
 import sampleHierarchyData from '../data/sampleHiearchy.json';
 
@@ -298,7 +299,6 @@ export interface TagSpecContextValue {
 interface TagSpecProviderProps {
   children: ReactNode;
   useDummyData: boolean;
-  authToken: string | null;
   tepHeaders: TepHeaders | null;
 }
 
@@ -310,7 +310,13 @@ function extractRawNodes(data: Record<string, unknown>): TagHierarchyRawNode[] {
   return raw as TagHierarchyRawNode[];
 }
 
-export function TagSpecProvider({ children, useDummyData, authToken, tepHeaders }: TagSpecProviderProps) {
+export function TagSpecProvider({ children, useDummyData, tepHeaders }: TagSpecProviderProps) {
+  // Read the access token at *call time* via `getAuthHeaders` (a stable
+  // useCallback in AuthContext) so token rotations from the silent keepalive
+  // and the "Get More Time" button don't churn fetch callback identities,
+  // which would otherwise re-fire the mount-fetch effect and surface a
+  // page-wide loading skeleton. See AuthContext for the matching change.
+  const { getAuthHeaders } = useAuth();
   const initialData = useDummyData ? (sampleTagData as TagSpecLibrary[]) : [];
   const [libraries, dispatch] = useReducer(tagSpecReducer, initialData);
   const tagDefinitions = useMemo(() => flattenDefinitions(libraries), [libraries]);
@@ -355,7 +361,9 @@ export function TagSpecProvider({ children, useDummyData, authToken, tepHeaders 
   // Lightweight: only libraries + TaggingProgress. Skips hierarchy entirely.
   // Used by polling and post-action refreshes where hierarchy data doesn't change.
   const fetchLibrariesOnly = useCallback(async () => {
-    if (useDummyData || !authToken || !tepHeaders) return;
+    if (useDummyData || !tepHeaders) return;
+    const authToken = getAuthHeaders().Authorization?.replace('Bearer ', '') ?? '';
+    if (!authToken) return;
     if (isFetchingLibsRef.current) return;
     isFetchingLibsRef.current = true;
     try {
@@ -387,10 +395,12 @@ export function TagSpecProvider({ children, useDummyData, authToken, tepHeaders 
     } finally {
       isFetchingLibsRef.current = false;
     }
-  }, [useDummyData, authToken, tepHeaders, originalDefinitionIds]);
+  }, [useDummyData, tepHeaders, getAuthHeaders, originalDefinitionIds]);
 
   const fetchTagSpecs = useCallback(async (signal?: AbortSignal) => {
-    if (useDummyData || !authToken || !tepHeaders) return;
+    if (useDummyData || !tepHeaders) return;
+    const authToken = getAuthHeaders().Authorization?.replace('Bearer ', '') ?? '';
+    if (!authToken) return;
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
     setLoading(true);
@@ -432,7 +442,7 @@ export function TagSpecProvider({ children, useDummyData, authToken, tepHeaders 
       setLoading(false);
       setTagsHierarchyLoading(false);
     }
-  }, [useDummyData, authToken, tepHeaders, originalDefinitionIds]);
+  }, [useDummyData, tepHeaders, getAuthHeaders, originalDefinitionIds]);
 
   // Fetch on mount in live mode
   useEffect(() => {
@@ -493,7 +503,9 @@ export function TagSpecProvider({ children, useDummyData, authToken, tepHeaders 
       setOriginalRawNodes(nodes);
       return;
     }
-    if (!authToken || !tepHeaders) return;
+    if (!tepHeaders) return;
+    const authToken = getAuthHeaders().Authorization?.replace('Bearer ', '') ?? '';
+    if (!authToken) return;
     setTagsHierarchyLoading(true);
     try {
       const wrapperData = await getRawTagsHierarchy(authToken, tepHeaders);
@@ -505,7 +517,7 @@ export function TagSpecProvider({ children, useDummyData, authToken, tepHeaders 
     } finally {
       setTagsHierarchyLoading(false);
     }
-  }, [useDummyData, authToken, tepHeaders]);
+  }, [useDummyData, tepHeaders, getAuthHeaders]);
 
   const value = useMemo<TagSpecContextValue>(() => ({
     libraries, tagDefinitions, originalDefinitionIds, dispatch, loading, refetchTagSpecs, refetchLibraries, refetchHierarchy,

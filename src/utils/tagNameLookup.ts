@@ -1,4 +1,5 @@
 import type { TagSpecLibrary } from '../types';
+import type { TagHierarchyRawNode } from '../api/tagsHierarchy';
 
 export interface TagNameOption {
   value: string;
@@ -12,10 +13,15 @@ export interface AttributeSuggestion {
 }
 
 /**
- * Distinct tag names across every library. Case-insensitive deduplication keeps
- * the first-encountered casing as the canonical display.
+ * Distinct tag names across every library, merged with ACTIVE leaf tags from
+ * the Tags Hierarchy. Without the hierarchy merge, freshly created tags would
+ * be unselectable in the rule builder until someone authored their first
+ * definition (since SearchableSelect rejects free-typed values).
  */
-export function getAllTagNameOptions(libraries: TagSpecLibrary[]): TagNameOption[] {
+export function getAllTagNameOptions(
+  libraries: TagSpecLibrary[],
+  hierarchyRawNodes: TagHierarchyRawNode[] = [],
+): TagNameOption[] {
   const counts = new Map<string, { canonical: string; count: number }>();
   for (const lib of libraries) {
     for (const def of lib.TagSpecDefinitions ?? []) {
@@ -24,6 +30,11 @@ export function getAllTagNameOptions(libraries: TagSpecLibrary[]): TagNameOption
       if (existing) existing.count += 1;
       else counts.set(key, { canonical: def.Tag, count: 1 });
     }
+  }
+  for (const node of hierarchyRawNodes) {
+    if (!node || node.Level !== 'T' || node.StatusTag !== 'ACTIVE') continue;
+    const key = node.Tag.toLowerCase();
+    if (!counts.has(key)) counts.set(key, { canonical: node.Tag, count: 0 });
   }
   return Array.from(counts.values())
     .sort((a, b) => a.canonical.localeCompare(b.canonical))

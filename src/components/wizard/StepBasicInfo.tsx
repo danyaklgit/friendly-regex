@@ -4,7 +4,8 @@ import { useTagSpecs } from '../../hooks/useTagSpecs';
 import { TagTreePicker } from '../shared/TagTreePicker';
 import { Select } from '../shared/Select';
 import { CERTAINTY_OPTIONS, SIDE_OPTIONS, TXN_TYPE_OPTIONS, BANK_SWIFT_CODE_OPTIONS } from '../../constants/fields';
-import { CommentIconButton } from '../comments/CommentIconButton';
+import { WizardCommentIconButton } from './WizardCommentIconButton';
+import { WIZARD_DEFINITION_FORM_KEY } from '../../context/WizardCommentDraftsContext';
 
 interface StepBasicInfoProps {
   formState: WizardFormState;
@@ -44,15 +45,21 @@ export function StepBasicInfo({
               collapseOnSelect
             />
           </div>
-          {libraryIdForComments && definitionIdForComments && (
+          {libraryIdForComments && (
             <div className="pb-1">
-              <CommentIconButton
-                target={{
-                  TagSpecLibraryId: libraryIdForComments,
-                  TagSpecDefinitionId: definitionIdForComments,
-                }}
-                targetLabel={formState.tag}
-                title="Comments on this TagSpec"
+              <WizardCommentIconButton
+                formKey={WIZARD_DEFINITION_FORM_KEY}
+                kind="definition"
+                targetLabel={formState.tag || 'New tag'}
+                persistedTarget={
+                  definitionIdForComments
+                    ? {
+                        TagSpecLibraryId: libraryIdForComments,
+                        TagSpecDefinitionId: definitionIdForComments,
+                      }
+                    : null
+                }
+                title="Comment on this tag (queued until Save)"
               />
             </div>
           )}

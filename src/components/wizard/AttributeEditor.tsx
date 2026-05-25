@@ -5,7 +5,6 @@ import { SearchableSelect } from '../shared/SearchableSelect';
 import { Toggle } from '../shared/Toggle';
 import { Button } from '../shared/Button';
 import { Tooltip } from '../shared/Tooltip';
-import { Modal } from '../shared/Modal';
 import { VALIDATION_RULE_TAG_OPTIONS } from '../../constants/fields';
 import { useLovAttributes } from '../../context/LovAttributesContext';
 import { useTransactionData } from '../../hooks/useTransactionData';
@@ -14,9 +13,11 @@ import { generateExtractionPrompt, regexifyExtraction } from '../../utils/regexi
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
 import { describeLiteralBoundary } from '../../utils/engregxify';
 import { applyTransformation } from '../../utils/transformations';
+import { Modal } from '../shared/Modal';
 import { AttributeFormModal } from '../attributes/AttributeFormModal';
 import { TransformationList } from './TransformationList';
-import { CommentIconButton } from '../comments/CommentIconButton';
+import { WizardCommentIconButton } from './WizardCommentIconButton';
+import { DistinctValuesModal } from './DistinctValuesModal';
 
 const ALLOWED_SOURCE_FIELDS = new Set([
   'AdditionalInformation', 'Amount', 'BankReference', 'CurrencyCode',
@@ -50,6 +51,11 @@ interface AttributeEditorProps {
   attribute: AttributeFormValue;
   onUpdate: (updates: Partial<AttributeFormValue>) => void;
   onRemove: () => void;
+  /** Duplicates the attribute as a new sibling immediately below this row.
+   *  Mirrors the rule-set Clone affordance from RuleGroupEditor — useful
+   *  when two attributes share most of their config (extraction method,
+   *  prefix/suffix) and only differ in a few fields. */
+  onClone: () => void;
   transactions?: TransactionRow[];
   startCollapsed?: boolean;
   readOnly?: boolean;
@@ -67,6 +73,11 @@ interface AttributeEditorProps {
   /** Comment scope — when both are provided, a comment icon is shown for this attribute. */
   libraryId?: string;
   definitionId?: string;
+  /** Scopes the distinct-values backend query to the active checkout. Both
+   *  optional because the editor is also referenced from preview surfaces
+   *  with no library context; in production both are always supplied. */
+  bankSwiftCode?: string;
+  side?: string;
 }
 
 /**
@@ -107,10 +118,14 @@ function BoundaryHintIcon({
   );
 }
 
-export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, startCollapsed, readOnly, isDuplicateName, suggestedAttributeNames, suggestedTagName, libraryId, definitionId }: AttributeEditorProps) {
+export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transactions, startCollapsed, readOnly, isDuplicateName, suggestedAttributeNames, suggestedTagName, libraryId, definitionId, bankSwiftCode, side }: AttributeEditorProps) {
   const { fieldMeta } = useTransactionData();
   const { activeAttributes, validationClasses, validationOptions, lovOptions, lovLookup, createNewAttribute, transformationMethods, extractionMethods } = useLovAttributes();
   const [showDistinct, setShowDistinct] = useState(false);
+  // Separate state for the backend-sourced "all distinct values" popup that
+  // opens from inside the in-memory modal. Keeping it independent means
+  // closing the inner popup doesn't dismiss the outer one.
+  const [showBackendDistinct, setShowBackendDistinct] = useState(false);
   const [editing, setEditing] = useState(
     !startCollapsed && attribute.attributeTag.trim().length === 0,
   );
@@ -489,6 +504,42 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
     return null;
   }, [transactions, attribute.sourceField, attribute.attributeTag, attribute.extractionOperation, attribute.prefix, attribute.suffix, attribute.verifyValue, attribute.validationRuleTag, attribute.transformations, validationClasses, extractionParams]);
 
+  // Per-value validity for the "See all distinct values" popup. Returns
+  //   true  → matches the active validation rule
+  //   false → does not match
+  //   null  → no rule configured for this attribute (renders no icon)
+  // Mirrors the validation gates used by `validationSummary` above:
+  //   * `extract_between_and_verify` validates against `verifyValue`
+  //   * predefined patterns with `validate: true` validate their own regex
+  //   * a ValidationClass (`validationRuleTag`) validates its regex
+  const validateValue = useMemo(() => {
+    if (attribute.extractionOperation === 'extract_between_and_verify' && attribute.verifyValue) {
+      const verify = attribute.verifyValue;
+      return (val: string): boolean | null => val === verify;
+    }
+    if (attribute.extractionOperation.startsWith('predefined:')) {
+      const predefined = PREDEFINED_PATTERNS.find((p) => p.key === attribute.extractionOperation);
+      if (predefined?.validate) {
+        try {
+          const r = new RegExp(predefined.regex);
+          return (val: string): boolean | null => r.test(val);
+        } catch {
+          return () => null;
+        }
+      }
+    }
+    const vc = validationClasses.find((c) => c.Tag === attribute.validationRuleTag);
+    if (vc?.Regex) {
+      try {
+        const r = new RegExp(vc.Regex);
+        return (val: string): boolean | null => r.test(val);
+      } catch {
+        return () => null;
+      }
+    }
+    return (): boolean | null => null;
+  }, [attribute.extractionOperation, attribute.verifyValue, attribute.validationRuleTag, validationClasses]);
+
   // Mirrors RuleGroupEditor's banner: persistent (rendered whether the row is
   // expanded or collapsed) so the duplicate is always visible until resolved.
   const duplicateNameMessage = isDuplicateName
@@ -540,16 +591,27 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                 )}
               </p>
             </div>
-            {libraryId && definitionId && attribute.attributeTag && (
-              <CommentIconButton
-                target={{
-                  TagSpecLibraryId: libraryId,
-                  TagSpecDefinitionId: definitionId,
-                  AttributeTag: attribute.attributeTag,
-                }}
+            {libraryId && attribute.attributeTag && (
+              <WizardCommentIconButton
+                formKey={attribute.id}
+                kind="attribute"
                 targetLabel={attribute.attributeTag}
+                persistedTarget={
+                  definitionId
+                    ? {
+                        TagSpecLibraryId: libraryId,
+                        TagSpecDefinitionId: definitionId,
+                        AttributeTag: attribute.attributeTag,
+                      }
+                    : null
+                }
                 size="xs"
               />
+            )}
+            {!readOnly && (
+              <Button variant="ghost" size="xs" onClick={onClone} className="text-primary shrink-0">
+                Clone Attribute
+              </Button>
             )}
             {!readOnly && (
               <Button variant="ghost" size="xs" onClick={onRemove} className="text-red-400 hover:text-red-500 shrink-0">
@@ -1077,16 +1139,27 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                 See all distinct values ({distinctValues.length})
               </Button>
             )}
-            {libraryId && definitionId && attribute.attributeTag && (
-              <CommentIconButton
-                target={{
-                  TagSpecLibraryId: libraryId,
-                  TagSpecDefinitionId: definitionId,
-                  AttributeTag: attribute.attributeTag,
-                }}
+            {libraryId && attribute.attributeTag && (
+              <WizardCommentIconButton
+                formKey={attribute.id}
+                kind="attribute"
                 targetLabel={attribute.attributeTag}
+                persistedTarget={
+                  definitionId
+                    ? {
+                        TagSpecLibraryId: libraryId,
+                        TagSpecDefinitionId: definitionId,
+                        AttributeTag: attribute.attributeTag,
+                      }
+                    : null
+                }
                 size="xs"
               />
+            )}
+            {!readOnly && (
+              <Button variant="ghost" size="xs" onClick={onClone} className="ml-1 text-primary">
+                Clone Attribute
+              </Button>
             )}
             {!readOnly && (
               <Button variant="ghost" size="xs" onClick={onRemove} className="ml-1 text-red-400 hover:text-red-500">
@@ -1101,12 +1174,45 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
         const lovMap = attribute.isLovBased && attribute.lovTag ? lovLookup.get(attribute.lovTag) : undefined;
         return (
           <Modal open onClose={() => setShowDistinct(false)} title={`Distinct values for "${attribute.attributeTag || 'Attribute'}"`}>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <p className="text-xs text-muted">
+                Showing distinct extracted values from the transactions currently loaded on this page.
+              </p>
+              <Button
+                variant="secondary"
+                size="xs"
+                onClick={() => setShowBackendDistinct(true)}
+              >
+                Show all from dataset
+              </Button>
+            </div>
             <div className="space-y-1">
               {distinctValues.map((val, i) => {
                 const resolved = lovMap?.get(val);
+                const isValid = validateValue(val);
                 return (
-                  <div key={i} className="px-3 py-1.5 text-sm font-mono bg-surface-secondary rounded border border-border dark:text-primary-light">
-                    {resolved ? <>{resolved} <span className="text-faint text-xs">({val})</span></> : val}
+                  <div key={i} className="px-3 py-1.5 text-sm font-mono bg-surface-secondary rounded border border-border dark:text-primary-light flex items-center gap-2">
+                    {isValid === true && (
+                      <Tooltip placement="top" content="Passes the active validation rule">
+                        <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400 flex-shrink-0">
+                          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
+                            <path d="M3 8.5L6.5 12L13 4.5" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </span>
+                      </Tooltip>
+                    )}
+                    {isValid === false && (
+                      <Tooltip placement="top" content="Fails the active validation rule">
+                        <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400 flex-shrink-0">
+                          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
+                            <path d="M4 4L12 12M12 4L4 12" strokeLinecap="round" />
+                          </svg>
+                        </span>
+                      </Tooltip>
+                    )}
+                    <span className="flex-1 min-w-0 truncate">
+                      {resolved ? <>{resolved} <span className="text-faint text-xs">({val})</span></> : val}
+                    </span>
                   </div>
                 );
               })}
@@ -1114,6 +1220,18 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
           </Modal>
         );
       })()}
+
+      {showBackendDistinct && (
+        <DistinctValuesModal
+          open
+          onClose={() => setShowBackendDistinct(false)}
+          attributeName={attribute.attributeTag || 'Attribute'}
+          sourceField={attribute.sourceField}
+          bankSwiftCode={bankSwiftCode}
+          side={side}
+          lovMap={attribute.isLovBased && attribute.lovTag ? lovLookup.get(attribute.lovTag) : undefined}
+        />
+      )}
 
       {createAttrOpen && (
         <AttributeFormModal

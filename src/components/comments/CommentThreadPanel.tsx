@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { TagSpecCommentTarget } from '../../types/comments';
+import type { WizardCommentDraft } from '../../context/WizardCommentDraftsContext';
 import { getTargetLevel } from '../../utils/commentTarget';
 import { CommentThreadPanelBody } from './CommentThreadPanelBody';
 
@@ -19,6 +20,17 @@ interface CommentThreadPanelProps {
   /** When the notification points at a reply rather than the parent comment,
    *  highlight that specific reply instead of the whole thread. */
   focusReplyId?: string | null;
+  /**
+   * Wizard-deferred drafts queued for this target, shown above the persisted
+   * thread under a "Pending — will post on Save" header. When this prop is
+   * supplied the composer routes to `onSubmitDraft` / `onUpdateDraft` instead
+   * of posting immediately. Pass an empty array (not undefined) to enable the
+   * pending UI with no current drafts.
+   */
+  pendingDrafts?: WizardCommentDraft[];
+  onSubmitDraft?: (body: string, mentionIds: string[]) => void;
+  onUpdateDraft?: (draftId: string, body: string, mentionIds: string[]) => void;
+  onRemoveDraft?: (draftId: string) => void;
 }
 
 function levelLabel(target: TagSpecCommentTarget): string {
@@ -44,6 +56,10 @@ export function CommentThreadPanel({
   onNavigateToBacklog,
   focusCommentId,
   focusReplyId,
+  pendingDrafts,
+  onSubmitDraft,
+  onUpdateDraft,
+  onRemoveDraft,
 }: CommentThreadPanelProps) {
   const closeBtnRef = useRef<HTMLButtonElement | null>(null);
   const focusedOnceRef = useRef(false);
@@ -136,6 +152,10 @@ export function CommentThreadPanel({
             authToken={authToken}
             focusCommentId={focusCommentId}
             focusReplyId={focusReplyId}
+            pendingDrafts={pendingDrafts}
+            onSubmitDraft={onSubmitDraft}
+            onUpdateDraft={onUpdateDraft}
+            onRemoveDraft={onRemoveDraft}
           />
         </div>
       </aside>

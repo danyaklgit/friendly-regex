@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useComments, useThread } from '../../context/CommentsContext';
+import { useComments, useOptionalThread } from '../../context/CommentsContext';
 import { useCommentPermission } from '../../hooks/useCommentPermission';
 import { useAuth } from '../../context/AuthContext';
 import type { TagSpecComment, TagSpecCommentTarget } from '../../types/comments';
+import type { WizardCommentDraft } from '../../context/WizardCommentDraftsContext';
 import { flattenReplies } from '../../utils/replyTree';
 import { CommentComposer } from './CommentComposer';
 import { ThreadItem } from './ThreadItem';
@@ -17,6 +18,15 @@ interface CommentThreadPanelBodyProps {
   /** When set, the reply with this id inside the focused comment is
    *  highlighted instead of the parent comment. */
   focusReplyId?: string | null;
+  /** When supplied (even as an empty array) the body shows a Pending section
+   *  above the persisted thread and routes the composer through `onSubmitDraft`
+   *  instead of `addComment`. Used by the Tag Wizard so comments authored on
+   *  in-progress conditions and attributes don't hit the backend until after
+   *  TagSpecLibrarySave commits. */
+  pendingDrafts?: WizardCommentDraft[];
+  onSubmitDraft?: (body: string, mentionIds: string[]) => void;
+  onUpdateDraft?: (draftId: string, body: string, mentionIds: string[]) => void;
+  onRemoveDraft?: (draftId: string) => void;
 }
 
 /** Latest reply status — used to mark a thread as resolved. Flattens nested
@@ -42,12 +52,22 @@ export function CommentThreadPanelBody({
   authToken,
   focusCommentId,
   focusReplyId,
+  pendingDrafts,
+  onSubmitDraft,
+  onUpdateDraft,
+  onRemoveDraft,
 }: CommentThreadPanelBodyProps) {
   const { libraryId, addComment, refresh, loading, error } = useComments();
   const { canComment, reason } = useCommentPermission(libraryId);
   const { isAudit } = useAuth();
-  const threadAll = useThread(target ?? { TagSpecLibraryId: '' });
+  // `useOptionalThread` (rather than `useThread`) so a wizard-only target
+  // with `TagSpecLibraryId` set but no `TagSpecDefinitionId` yet doesn't trip
+  // the strict provider lookup. Also returns [] cleanly when target is null.
+  const threadAll = useOptionalThread(target);
   const [showResolved, setShowResolved] = useState(false);
+  const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
+
+  const draftMode = pendingDrafts !== undefined;
 
   // Refetch comments every time the panel opens so other users' replies
   // (especially ones that move a thread between active/resolved) show up
@@ -75,8 +95,20 @@ export function CommentThreadPanelBody({
   }, [focusCommentId, resolved]);
 
   const handlePost = async (body: string, mentionIds: string[]) => {
+    if (draftMode) {
+      onSubmitDraft?.(body, mentionIds);
+      return;
+    }
     if (!target) return;
     await addComment(target, body, mentionIds);
+  };
+
+  const handleSaveDraftEdit = (draftId: string) => async (
+    body: string,
+    mentionIds: string[],
+  ) => {
+    onUpdateDraft?.(draftId, body, mentionIds);
+    setEditingDraftId(null);
   };
 
   if (isAudit) {
@@ -92,15 +124,75 @@ export function CommentThreadPanelBody({
 
   return (
     <>
-      {target && (
+      {(target || draftMode) && (
         <section>
           {canComment ? (
-            <CommentComposer authToken={authToken} onSubmit={handlePost} />
+            <CommentComposer
+              authToken={authToken}
+              onSubmit={handlePost}
+              submitLabel={draftMode ? 'Queue draft' : 'Post'}
+              placeholder={
+                draftMode
+                  ? 'Add a comment. Posts to the rule on Save. Type @ to mention someone.'
+                  : 'Add a comment. Type @ to mention someone.'
+              }
+            />
           ) : (
             <p className="text-[11px] text-muted bg-surface rounded-md border border-border px-3 py-2">
               {reason ?? 'You cannot post a new comment here.'} You can still reply to existing threads below.
             </p>
           )}
+        </section>
+      )}
+
+      {draftMode && pendingDrafts && pendingDrafts.length > 0 && (
+        <section className="rounded-md border border-cyan-300/60 dark:border-cyan-800/60 bg-cyan-50/40 dark:bg-cyan-900/15 px-3 py-3 space-y-2">
+          <div className="flex items-center gap-2 text-[10px] font-semibold tracking-[0.16em] uppercase text-cyan-700 dark:text-cyan-300">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 7v6l3 2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Pending — will post on Save
+          </div>
+          <ol className="space-y-2">
+            {pendingDrafts.map((d) => (
+              <li
+                key={d.id}
+                className="rounded border border-border bg-surface-elevated px-3 py-2 text-xs text-body"
+              >
+                {editingDraftId === d.id ? (
+                  <CommentComposer
+                    authToken={authToken}
+                    initialText={d.body}
+                    initialMentionIds={d.mentionIds}
+                    submitLabel="Update draft"
+                    onSubmit={handleSaveDraftEdit(d.id)}
+                    onCancel={() => setEditingDraftId(null)}
+                  />
+                ) : (
+                  <>
+                    <p className="whitespace-pre-wrap break-words">{d.body}</p>
+                    <div className="mt-2 flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setEditingDraftId(d.id)}
+                        className="text-[11px] text-muted hover:text-body cursor-pointer"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onRemoveDraft?.(d.id)}
+                        className="text-[11px] text-rose-600 hover:text-rose-700 cursor-pointer"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </>
+                )}
+              </li>
+            ))}
+          </ol>
         </section>
       )}
 

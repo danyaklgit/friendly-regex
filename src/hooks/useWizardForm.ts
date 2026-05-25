@@ -10,6 +10,8 @@ import type {
   AttributeFormValue,
 } from '../types';
 import type { ExtractionMethodDef } from '../types/lov';
+import type { TagSpecCommentTarget } from '../types/comments';
+import { WIZARD_DEFINITION_FORM_KEY } from '../context/WizardCommentDraftsContext';
 import { getContextValue } from '../types/tagSpec';
 import {
   regexify,
@@ -64,6 +66,59 @@ export function fromExistingDefinition(
 export interface WizardFormResult {
   parentContext: ContextEntry[];
   definition: TagSpecDefinition;
+  /**
+   * Maps wizard form-level UUIDs (`condition.id`, `attribute.id`) to the
+   * `TagSpecCommentTarget` that row resolves to once the definition is saved.
+   * Populated only when the caller passed a `libraryId` into
+   * `toTagSpecDefinition` (i.e. the wizard is scoped to a real bank/side
+   * checkout). Empty otherwise. Drafts whose form key is absent from this map
+   * are dropped at flush time.
+   */
+  commentTargetByFormKey: Map<string, TagSpecCommentTarget>;
+}
+
+/**
+ * Build the form-key to comment-target map. Exported separately so the same
+ * id scheme can be reused in tests and from any future caller that wants to
+ * pre-resolve targets without rebuilding the whole TagSpecDefinition.
+ *
+ * Rule id scheme matches the synthetic id used by the Backlog viewer
+ * (`ConditionRow`) for legacy rules without a backend `ExpressionId`, so a
+ * comment drafted in the wizard for a rule stays addressable from the same
+ * Backlog row after save.
+ */
+export function buildCommentTargetByFormKey(
+  formState: WizardFormState,
+  libraryId: string,
+  definitionId: string,
+): Map<string, TagSpecCommentTarget> {
+  const map = new Map<string, TagSpecCommentTarget>();
+  // Tag-level (whole-definition) target. Lets drafts authored against the
+  // TagSpec header (the wizard's Basic Info step or the Rule Builder's title
+  // bar) resolve to a comment on the definition itself.
+  map.set(WIZARD_DEFINITION_FORM_KEY, {
+    TagSpecLibraryId: libraryId,
+    TagSpecDefinitionId: definitionId,
+  });
+  formState.ruleGroups.forEach((group, gi) => {
+    group.conditions.forEach((cond, ci) => {
+      map.set(cond.id, {
+        TagSpecLibraryId: libraryId,
+        TagSpecDefinitionId: definitionId,
+        TagRuleExpressionId: `${definitionId}-rule-${gi}-${ci}`,
+      });
+    });
+  });
+  formState.attributes.forEach((attr) => {
+    const tag = attr.attributeTag?.trim();
+    if (!tag) return;
+    map.set(attr.id, {
+      TagSpecLibraryId: libraryId,
+      TagSpecDefinitionId: definitionId,
+      AttributeTag: tag,
+    });
+  });
+  return map;
 }
 
 export function useWizardForm(
@@ -245,11 +300,45 @@ export function useWizardForm(
     }));
   }, []);
 
+  // Replace the full attributes array. Used by the drag-and-drop / arrow
+  // reorder controls in StepAttributes — the save pipeline already preserves
+  // order via `formState.attributes.map((attr, index) => ...)` at line 328.
+  const reorderAttributes = useCallback((newAttributes: AttributeFormValue[]) => {
+    setFormState((prev) => ({ ...prev, attributes: newAttributes }));
+  }, []);
+
   const removeAttribute = useCallback((attrId: string) => {
     setFormState((prev) => ({
       ...prev,
       attributes: prev.attributes.filter((a) => a.id !== attrId),
     }));
+  }, []);
+
+  // Duplicates the attribute at `attrId` and inserts the copy right after
+  // it. Mirrors `cloneRuleGroup` for rule sets — every id is regenerated
+  // so the clone is independent, and the transformations array is
+  // deep-copied so editing one no longer mutates the other.
+  //
+  // `attributeTag` is deliberately cleared on the clone so the operator
+  // picks a name before saving. This also lets AttributeEditor's mount
+  // gates kick in (empty name => starts expanded, not "saved" yet) so the
+  // cloned row opens in edit mode with all other fields pre-populated for
+  // tweaking — same UX as the rule-set clone.
+  const cloneAttribute = useCallback((attrId: string) => {
+    setFormState((prev) => {
+      const idx = prev.attributes.findIndex((a) => a.id === attrId);
+      if (idx === -1) return prev;
+      const source = prev.attributes[idx];
+      const cloned: AttributeFormValue = {
+        ...source,
+        id: crypto.randomUUID(),
+        attributeTag: '',
+        transformations: (source.transformations ?? []).map((t) => ({ ...t })),
+      };
+      const next = [...prev.attributes];
+      next.splice(idx + 1, 0, cloned);
+      return { ...prev, attributes: next };
+    });
   }, []);
 
   const updateAttribute = useCallback(
@@ -291,7 +380,10 @@ export function useWizardForm(
   }, [lovExtractions]);
 
   // --- Convert form state to TagSpecDefinition + parentContext ---
-  const toTagSpecDefinition = useCallback((): WizardFormResult => {
+  // `libraryId` is the parent TagSpecLibrary id. Optional because some callers
+  // (test fixtures, builder previews) don't have a library scope; when omitted
+  // the returned `commentTargetByFormKey` map is empty.
+  const toTagSpecDefinition = useCallback((libraryId?: string | null): WizardFormResult => {
     const id = existingDef?.Id ?? generateId();
 
     const parentContext: ContextEntry[] = [
@@ -372,7 +464,11 @@ export function useWizardForm(
       }),
     };
 
-    return { parentContext, definition };
+    const commentTargetByFormKey = libraryId
+      ? buildCommentTargetByFormKey(formState, libraryId, id)
+      : new Map<string, TagSpecCommentTarget>();
+
+    return { parentContext, definition, commentTargetByFormKey };
   }, [formState, existingDef]);
 
   return {
@@ -393,7 +489,9 @@ export function useWizardForm(
     updateCondition,
     addAttribute,
     removeAttribute,
+    cloneAttribute,
     updateAttribute,
+    reorderAttributes,
     applyTemplate,
     toTagSpecDefinition,
   };
