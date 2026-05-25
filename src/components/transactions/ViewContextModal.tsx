@@ -76,6 +76,27 @@ export function ViewContextModal({ open, onClose, transaction, authToken, tepHea
       const [seq] = cols.splice(seqIdx, 1);
       cols.unshift(seq);
     }
+    // Debit and Credit must always appear in the context modal — operators
+    // scan the surrounding statement and need both money columns regardless
+    // of which ones they toggled visible in the main table. Keep them
+    // adjacent: when only ONE is visible, drop the missing one next to it
+    // so they read like a single Debit | Credit pair (matches the main
+    // table layout). When BOTH are missing, anchor on Sequence (or fall
+    // back to the start) so they appear together near the row's head.
+    const debitIdx = cols.findIndex((c) => c.type === 'debit');
+    const creditIdx = cols.findIndex((c) => c.type === 'credit');
+    if (debitIdx === -1 && creditIdx !== -1) {
+      cols.splice(creditIdx, 0, { type: 'debit', key: '__debit' });
+    } else if (creditIdx === -1 && debitIdx !== -1) {
+      cols.splice(debitIdx + 1, 0, { type: 'credit', key: '__credit' });
+    } else if (debitIdx === -1 && creditIdx === -1) {
+      const anchorIdx = cols.findIndex((c) => c.type === 'data' && c.field === 'Sequence');
+      const insertAt = anchorIdx >= 0 ? anchorIdx + 1 : 0;
+      cols.splice(insertAt, 0,
+        { type: 'debit', key: '__debit' },
+        { type: 'credit', key: '__credit' },
+      );
+    }
     return cols;
   }, [visibleColumns]);
 
