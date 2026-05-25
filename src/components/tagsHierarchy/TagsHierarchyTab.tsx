@@ -85,6 +85,24 @@ export function TagsHierarchyTab() {
     return set;
   }, [rawHierarchyNodes, originalRawNodes]);
 
+  // Code-to-Name lookup for resolving ParentTag/GroupTag pills on leaf rows.
+  // Falls through to the code itself when Details has no English name; the
+  // tooltip helper below treats that case as "no separate name to show".
+  const tagNameByCode = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const n of rawHierarchyNodes) {
+      map.set(n.Tag, getNodeName(n));
+    }
+    return map;
+  }, [rawHierarchyNodes]);
+
+  // Tooltip text for a pill: undefined when there's no separate Name (so the
+  // browser doesn't render a tooltip that just repeats the pill text).
+  const pillTitle = (code: string): string | undefined => {
+    const name = tagNameByCode.get(code);
+    return name && name !== code ? name : undefined;
+  };
+
   // Priority: 0 = new, 1 = rest (modified stay in alphabetical position)
   const getPriority = (tag: string) => {
     if (!originalTagSet.has(tag)) return 0;
@@ -362,7 +380,7 @@ export function TagsHierarchyTab() {
                   </svg>
                   <span className="font-medium text-heading text-sm">{highlightText(group.groupName, query)}</span>
                   <span className="ml-2 text-xs text-muted">({highlightText(group.groupTag, query)})</span>
-                  <Badge variant="default">{group.leaves.length}</Badge>
+                  <Badge variant="default" className="ml-2">{group.leaves.length}</Badge>
                   {group.groupNode && (
                     <span className="ml-auto flex items-center gap-2">
                       {group.groupNode.StatusTag !== 'ACTIVE' && (
@@ -446,6 +464,31 @@ export function TagsHierarchyTab() {
                         >
                           <span className="font-medium text-heading truncate min-w-0">{highlightText(getNodeName(leaf), query)}</span>
                           <span className="ml-2 text-xs text-muted shrink-0">({highlightText(leaf.Tag, query)})</span>
+                          {(leaf.ParentTag || (leaf.GroupTags && leaf.GroupTags.length > 0)) && (
+                            <span className="ml-2 flex items-center gap-3 shrink-0">
+                              {leaf.ParentTag && (
+                                <span
+                                  className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20"
+                                  title={pillTitle(leaf.ParentTag)}
+                                >
+                                  {leaf.ParentTag}
+                                </span>
+                              )}
+                              {leaf.GroupTags && leaf.GroupTags.length > 0 && (
+                                <span className="flex items-center gap-1">
+                                  {leaf.GroupTags.map((gt) => (
+                                    <span
+                                      key={`${leaf.Tag}-grp-${gt}`}
+                                      className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-surface-tertiary text-body-secondary border border-transparent"
+                                      title={pillTitle(gt)}
+                                    >
+                                      {gt}
+                                    </span>
+                                  ))}
+                                </span>
+                              )}
+                            </span>
+                          )}
 
                           <span className="ml-auto flex items-center gap-2 flex-shrink-0">
                             {isNew && <Badge variant="info">NEW</Badge>}

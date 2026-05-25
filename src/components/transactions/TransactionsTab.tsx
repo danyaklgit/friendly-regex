@@ -2050,6 +2050,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                 onAdd={builder.addAttribute}
                 onRemove={builder.removeAttribute}
                 onUpdate={builder.updateAttribute}
+                onReorder={builder.reorderAttributes}
                 transactions={filteredData.map((d) => d.row)}
                 startCollapsed={!!editingDef}
                 readOnly={isReadOnly}
