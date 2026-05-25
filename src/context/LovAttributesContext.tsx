@@ -18,6 +18,7 @@ import {
   deleteExtraction as apiDeleteExtraction,
 } from '../api/extractions';
 import { TRANSFORMATION_METHODS, type TransformationMethodDef } from '../constants/transformations';
+import { useAuth } from './AuthContext';
 
 interface LovAttributesContextValue {
   // Raw data
@@ -57,12 +58,18 @@ interface LovAttributesContextValue {
 const LovAttributesContext = createContext<LovAttributesContextValue | null>(null);
 
 interface LovAttributesProviderProps {
-  authToken: string | null;
   tepHeaders: TepHeaders | null;
   children: ReactNode;
 }
 
-export function LovAttributesProvider({ authToken, tepHeaders, children }: LovAttributesProviderProps) {
+export function LovAttributesProvider({ tepHeaders, children }: LovAttributesProviderProps) {
+  // Read the access token at *call time* via `getAuthHeaders` (stable across
+  // session rotations). Passing `authToken` as a prop forced the mount-fetch
+  // effect to re-run on every silent keepalive, which surfaced LOV / attribute
+  // loading states as a page-wide refresh whenever the operator clicked
+  // "Get More Time" or the proactive refresh fired. See AuthContext for the
+  // matching change.
+  const { getAuthHeaders, isAuthenticated } = useAuth();
   const [lovLists, setLovLists] = useState<LOVList[]>([]);
   const [validationClasses, setValidationClasses] = useState<ValidationClass[]>([]);
   const [backendAttributes, setBackendAttributes] = useState<BackendAttribute[]>([]);
@@ -74,7 +81,9 @@ export function LovAttributesProvider({ authToken, tepHeaders, children }: LovAt
   const [extractionsLoading, setExtractionsLoading] = useState(false);
 
   const fetchLov = useCallback(async (signal?: AbortSignal) => {
-    if (!authToken || !tepHeaders) return;
+    if (!tepHeaders) return;
+    const authToken = getAuthHeaders().Authorization?.replace('Bearer ', '') ?? '';
+    if (!authToken) return;
     setLovLoading(true);
     try {
       const lists = await getListsByTags(authToken, tepHeaders, signal);
@@ -84,10 +93,12 @@ export function LovAttributesProvider({ authToken, tepHeaders, children }: LovAt
     } finally {
       if (!signal?.aborted) setLovLoading(false);
     }
-  }, [authToken, tepHeaders]);
+  }, [tepHeaders, getAuthHeaders]);
 
   const fetchValidation = useCallback(async (signal?: AbortSignal) => {
-    if (!authToken || !tepHeaders) return;
+    if (!tepHeaders) return;
+    const authToken = getAuthHeaders().Authorization?.replace('Bearer ', '') ?? '';
+    if (!authToken) return;
     setValidationLoading(true);
     try {
       const classes = await getValidationClasses(authToken, tepHeaders, signal);
@@ -97,10 +108,12 @@ export function LovAttributesProvider({ authToken, tepHeaders, children }: LovAt
     } finally {
       if (!signal?.aborted) setValidationLoading(false);
     }
-  }, [authToken, tepHeaders]);
+  }, [tepHeaders, getAuthHeaders]);
 
   const fetchAttrs = useCallback(async (signal?: AbortSignal) => {
-    if (!authToken || !tepHeaders) return;
+    if (!tepHeaders) return;
+    const authToken = getAuthHeaders().Authorization?.replace('Bearer ', '') ?? '';
+    if (!authToken) return;
     setAttributesLoading(true);
     try {
       const attrs = await getAttributes(authToken, tepHeaders, signal);
@@ -110,10 +123,12 @@ export function LovAttributesProvider({ authToken, tepHeaders, children }: LovAt
     } finally {
       if (!signal?.aborted) setAttributesLoading(false);
     }
-  }, [authToken, tepHeaders]);
+  }, [tepHeaders, getAuthHeaders]);
 
   const fetchExtractions = useCallback(async (signal?: AbortSignal) => {
-    if (!authToken || !tepHeaders) return;
+    if (!tepHeaders) return;
+    const authToken = getAuthHeaders().Authorization?.replace('Bearer ', '') ?? '';
+    if (!authToken) return;
     setExtractionsLoading(true);
     try {
       const list = await getExtractions(authToken, tepHeaders, signal);
@@ -123,18 +138,21 @@ export function LovAttributesProvider({ authToken, tepHeaders, children }: LovAt
     } finally {
       if (!signal?.aborted) setExtractionsLoading(false);
     }
-  }, [authToken, tepHeaders]);
+  }, [tepHeaders, getAuthHeaders]);
 
-  // Fetch all on mount
+  // Fetch all on mount. Gate on `isAuthenticated` (a boolean that flips once
+  // per login/logout) rather than the rotating access token, so silent
+  // keepalives don't re-fire the entire LOV / validation / attribute /
+  // extraction fetch cycle.
   useEffect(() => {
-    if (!authToken || !tepHeaders) return;
+    if (!isAuthenticated || !tepHeaders) return;
     const controller = new AbortController();
     fetchLov(controller.signal);
     fetchValidation(controller.signal);
     fetchAttrs(controller.signal);
     fetchExtractions(controller.signal);
     return () => controller.abort();
-  }, [authToken, tepHeaders, fetchLov, fetchValidation, fetchAttrs, fetchExtractions]);
+  }, [isAuthenticated, tepHeaders, fetchLov, fetchValidation, fetchAttrs, fetchExtractions]);
 
   const refetchAll = useCallback(async () => {
     await Promise.all([fetchLov(), fetchValidation(), fetchAttrs(), fetchExtractions()]);
@@ -149,21 +167,27 @@ export function LovAttributesProvider({ authToken, tepHeaders, children }: LovAt
   }, [fetchExtractions]);
 
   const createNewAttribute = useCallback(async (payload: { Value: string; PossibleLOVTag?: string | null; Details: AttributeDetail[] }): Promise<string | null> => {
-    if (!authToken || !tepHeaders) return null;
+    if (!tepHeaders) return null;
+    const authToken = getAuthHeaders().Authorization?.replace('Bearer ', '') ?? '';
+    if (!authToken) return null;
     const sfm = await apiCreateAttribute(payload, authToken, tepHeaders);
     await fetchAttrs();
     return sfm;
-  }, [authToken, tepHeaders, fetchAttrs]);
+  }, [tepHeaders, getAuthHeaders, fetchAttrs]);
 
   const updateExistingAttribute = useCallback(async (payload: { Id: number; Value: string; PossibleLOVTag?: string | null; Details: AttributeDetail[] }): Promise<string | null> => {
-    if (!authToken || !tepHeaders) return null;
+    if (!tepHeaders) return null;
+    const authToken = getAuthHeaders().Authorization?.replace('Bearer ', '') ?? '';
+    if (!authToken) return null;
     const sfm = await apiUpdateAttribute(payload, authToken, tepHeaders);
     await fetchAttrs();
     return sfm;
-  }, [authToken, tepHeaders, fetchAttrs]);
+  }, [tepHeaders, getAuthHeaders, fetchAttrs]);
 
   const toggleAttributeStatus = useCallback(async (id: number, enable: boolean): Promise<string | null> => {
-    if (!authToken || !tepHeaders) return null;
+    if (!tepHeaders) return null;
+    const authToken = getAuthHeaders().Authorization?.replace('Bearer ', '') ?? '';
+    if (!authToken) return null;
     let sfm: string | null;
     if (enable) {
       sfm = await apiEnableAttribute(id, authToken, tepHeaders);
@@ -172,38 +196,46 @@ export function LovAttributesProvider({ authToken, tepHeaders, children }: LovAt
     }
     await fetchAttrs();
     return sfm;
-  }, [authToken, tepHeaders, fetchAttrs]);
+  }, [tepHeaders, getAuthHeaders, fetchAttrs]);
 
   const deleteExistingAttribute = useCallback(async (id: number): Promise<string | null> => {
-    if (!authToken || !tepHeaders) return null;
+    if (!tepHeaders) return null;
+    const authToken = getAuthHeaders().Authorization?.replace('Bearer ', '') ?? '';
+    if (!authToken) return null;
     const sfm = await apiDeleteAttribute(id, authToken, tepHeaders);
     await fetchAttrs();
     return sfm;
-  }, [authToken, tepHeaders, fetchAttrs]);
+  }, [tepHeaders, getAuthHeaders, fetchAttrs]);
 
   // Extractions CRUD. The dropdown now reads `extractionMethods` directly from
   // `backendExtractions` (the regex lives in each extraction's `Value` field),
   // so a single refetch of the Extractions list is enough.
   const createNewExtraction = useCallback(async (payload: { Value: string; Details: AttributeDetail[] }): Promise<string | null> => {
-    if (!authToken || !tepHeaders) return null;
+    if (!tepHeaders) return null;
+    const authToken = getAuthHeaders().Authorization?.replace('Bearer ', '') ?? '';
+    if (!authToken) return null;
     const sfm = await apiCreateExtraction(payload, authToken, tepHeaders);
     await fetchExtractions();
     return sfm;
-  }, [authToken, tepHeaders, fetchExtractions]);
+  }, [tepHeaders, getAuthHeaders, fetchExtractions]);
 
   const updateExistingExtraction = useCallback(async (payload: { Id: number; Value: string; Details: AttributeDetail[] }): Promise<string | null> => {
-    if (!authToken || !tepHeaders) return null;
+    if (!tepHeaders) return null;
+    const authToken = getAuthHeaders().Authorization?.replace('Bearer ', '') ?? '';
+    if (!authToken) return null;
     const sfm = await apiUpdateExtraction(payload, authToken, tepHeaders);
     await fetchExtractions();
     return sfm;
-  }, [authToken, tepHeaders, fetchExtractions]);
+  }, [tepHeaders, getAuthHeaders, fetchExtractions]);
 
   const deleteExistingExtraction = useCallback(async (id: number): Promise<string | null> => {
-    if (!authToken || !tepHeaders) return null;
+    if (!tepHeaders) return null;
+    const authToken = getAuthHeaders().Authorization?.replace('Bearer ', '') ?? '';
+    if (!authToken) return null;
     const sfm = await apiDeleteExtraction(id, authToken, tepHeaders);
     await fetchExtractions();
     return sfm;
-  }, [authToken, tepHeaders, fetchExtractions]);
+  }, [tepHeaders, getAuthHeaders, fetchExtractions]);
 
   // Derived: LOV lookup — LOVTag → (Value → Name)
   // Index by Tag, Name, and normalized key so resolution works regardless of

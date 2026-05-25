@@ -328,8 +328,8 @@ function AppContent() {
   if (!isAuthenticated) return <LoginPage />;
 
   return (
-    <TagSpecProvider useDummyData={useDummyData} authToken={authToken} tepHeaders={tepHeaders}>
-      <LovAttributesProvider authToken={authToken} tepHeaders={tepHeaders}>
+    <TagSpecProvider useDummyData={useDummyData} tepHeaders={tepHeaders}>
+      <LovAttributesProvider tepHeaders={tepHeaders}>
         <TransactionDataProvider>
           <AppShell authToken={authToken} tepHeaders={tepHeaders} operatorName={operatorName} userId={userId ?? undefined} />
         </TransactionDataProvider>

@@ -333,17 +333,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Read accessToken from sessionRef rather than the captured session value so
+  // `logout` keeps a stable identity across session rotations. Without this,
+  // every token refresh would churn `logout` -> `refreshSession` ->
+  // `refreshIfNeeded`, which in turn would invalidate `fetchPage` in
+  // TransactionDataContext and cause the Transactions table effect to clear
+  // and refetch on every silent keepalive.
   const logout = useCallback(() => {
-    // Fire-and-forget server-side logout
-    if (session?.accessToken) {
-      logoutApi(session.accessToken).catch(() => {});
+    const s = sessionRef.current;
+    if (s?.accessToken) {
+      logoutApi(s.accessToken).catch(() => {});
     }
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(USERS_MAP_KEY);
     setShowSessionWarning(false);
     setSession(null);
     setUsersMap(new Map());
-  }, [session]);
+  }, []);
 
   const refreshSession = useCallback(async (): Promise<boolean> => {
     const s = sessionRef.current;
