@@ -10,6 +10,7 @@ import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { Button } from '../shared/Button';
 import { Badge } from '../shared/Badge';
 import { Toast } from '../shared/Toast';
+import { Tooltip } from '../shared/Tooltip';
 import { EmptyState } from '../shared/EmptyState';
 import { getNodeName, getNodeDesc } from '../../utils/tagHierarchyNode';
 
@@ -97,10 +98,29 @@ export function TagsHierarchyTab() {
   }, [rawHierarchyNodes]);
 
   // Tooltip text for a pill: undefined when there's no separate Name (so the
-  // browser doesn't render a tooltip that just repeats the pill text).
+  // hover doesn't surface a tooltip that just repeats the pill text).
   const pillTitle = (code: string): string | undefined => {
     const name = tagNameByCode.get(code);
     return name && name !== code ? name : undefined;
+  };
+
+  // Render a pill, wrapping it in the shared Tooltip when there's a resolved
+  // Name worth showing on hover. Falls back to a bare span (no tooltip) when
+  // Name equals Tag, preserving the "no redundant hover" behavior.
+  const renderPill = (tag: string, className: string, key?: string) => {
+    const name = pillTitle(tag);
+    if (name) {
+      return (
+        <Tooltip key={key} content={name} placement="top">
+          <span className={className}>{tag}</span>
+        </Tooltip>
+      );
+    }
+    return (
+      <span key={key} className={className}>
+        {tag}
+      </span>
+    );
   };
 
   // Priority: 0 = new, 1 = rest (modified stay in alphabetical position)
@@ -466,24 +486,16 @@ export function TagsHierarchyTab() {
                           <span className="ml-2 text-xs text-muted shrink-0">({highlightText(leaf.Tag, query)})</span>
                           {(leaf.ParentTag || (leaf.GroupTags && leaf.GroupTags.length > 0)) && (
                             <span className="ml-2 flex items-center gap-3 shrink-0">
-                              {leaf.ParentTag && (
-                                <span
-                                  className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20"
-                                  title={pillTitle(leaf.ParentTag)}
-                                >
-                                  {leaf.ParentTag}
-                                </span>
+                              {leaf.ParentTag && renderPill(
+                                leaf.ParentTag,
+                                'px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20',
                               )}
                               {leaf.GroupTags && leaf.GroupTags.length > 0 && (
                                 <span className="flex items-center gap-1">
-                                  {leaf.GroupTags.map((gt) => (
-                                    <span
-                                      key={`${leaf.Tag}-grp-${gt}`}
-                                      className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-surface-tertiary text-body-secondary border border-transparent"
-                                      title={pillTitle(gt)}
-                                    >
-                                      {gt}
-                                    </span>
+                                  {leaf.GroupTags.map((gt) => renderPill(
+                                    gt,
+                                    'px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-surface-tertiary text-body-secondary border border-transparent',
+                                    `${leaf.Tag}-grp-${gt}`,
                                   ))}
                                 </span>
                               )}

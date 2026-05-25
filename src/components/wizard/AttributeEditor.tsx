@@ -209,6 +209,12 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
   const missingSaveFields = useMemo(() => {
     const missing: string[] = [];
     if (attribute.attributeTag.trim().length === 0) missing.push('Attribute Name');
+    // Constant-mode attributes hide the extraction / transformation / validation
+    // sections entirely — only the literal value is required.
+    if (attribute.isConstant) {
+      if ((attribute.constantValue ?? '').trim().length === 0) missing.push('Constant Value');
+      return missing;
+    }
     if (!attribute.sourceField || attribute.sourceField.trim().length === 0) missing.push('Source Field');
     if (!attribute.extractionOperation || attribute.extractionOperation.trim().length === 0) {
       missing.push('Extraction Method');
@@ -242,6 +248,8 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
     attribute.verifyValue,
     attribute.numChars,
     attribute.tillEndOfInput,
+    attribute.isConstant,
+    attribute.constantValue,
     selectedOp,
   ]);
   const canSaveAttribute = missingSaveFields.length === 0;
@@ -269,13 +277,17 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
   // small per-field budget so a single very long prefix doesn't crowd out
   // the suffix (and vice versa) when truncate clips the overall line.
   const preview = useMemo(() => {
+    const TRUNC = 20;
+    const clamp = (s: string | undefined) =>
+      s && s.length > TRUNC ? s.slice(0, TRUNC - 1) + '…' : s;
+    // Constant mode: show the literal value as the summary, no extraction prompt.
+    if (attribute.isConstant) {
+      return `= "${clamp(attribute.constantValue) ?? ''}"`;
+    }
     if (attribute.extractionOperation.startsWith('lov:')) {
       const lovMatch = extractionMethods.find((m) => m.key === attribute.extractionOperation);
       if (lovMatch) return `Match ${lovMatch.label}`;
     }
-    const TRUNC = 20;
-    const clamp = (s: string | undefined) =>
-      s && s.length > TRUNC ? s.slice(0, TRUNC - 1) + '…' : s;
     const shortParams = {
       ...extractionParams,
       prefix: clamp(extractionParams.prefix),
@@ -285,7 +297,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
       verifyValue: clamp(extractionParams.verifyValue),
     };
     return generateExtractionPrompt(attribute.extractionOperation, shortParams);
-  }, [attribute.extractionOperation, extractionParams, extractionMethods]);
+  }, [attribute.isConstant, attribute.constantValue, attribute.extractionOperation, extractionParams, extractionMethods]);
 
   // Raw extracted values, BEFORE the post-extraction transformation pipeline.
   // The transformation preview's "Extracted" line and the transformation
@@ -576,7 +588,9 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
               )}
               <p className="text-xs truncate">
                 <span className="font-medium text-primary-dark">{attribute.attributeTag || 'New Attribute'}</span>
-                {attribute.sourceField && (
+                {attribute.isConstant ? (
+                  <span className="ml-1.5 text-orange-500 dark:text-orange-300">{preview}</span>
+                ) : attribute.sourceField && (
                   <>
                     <span className="text-faint mx-1.5">&mdash;</span>
                     <span className="text-primary italic">
@@ -584,7 +598,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
                     </span>
                   </>
                 )}
-                {(attribute.transformations?.length ?? 0) > 0 && (
+                {!attribute.isConstant && (attribute.transformations?.length ?? 0) > 0 && (
                   <span className="text-purple-400 ml-1.5 text-[10px]">
                     +{attribute.transformations!.length} transform{attribute.transformations!.length > 1 ? 's' : ''}
                   </span>
@@ -653,9 +667,26 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
                 if (checked) {
                   const backend = activeAttributes.find((a) => a.Value === attribute.attributeTag);
                   const suggestedLov = backend?.PossibleLOVTag ?? null;
-                  onUpdate({ isLovBased: true, lovTag: attribute.lovTag || suggestedLov });
+                  // Mutex: turning on LOV mode clears constant mode.
+                  onUpdate({ isLovBased: true, lovTag: attribute.lovTag || suggestedLov, isConstant: false });
                 } else {
                   onUpdate({ isLovBased: false, lovTag: null });
+                }
+              }}
+              disabled={readOnly}
+            />
+            <Toggle
+              label="Is Constant"
+              size="lg"
+              checked={attribute.isConstant ?? false}
+              onChange={(checked) => {
+                if (checked) {
+                  // Mutex: turning on constant mode clears LOV mode (and its tag).
+                  // Don't auto-clear constantValue when turning off, so the user
+                  // can flip back and forth without losing the value.
+                  onUpdate({ isConstant: true, isLovBased: false, lovTag: null });
+                } else {
+                  onUpdate({ isConstant: false });
                 }
               }}
               disabled={readOnly}
@@ -673,6 +704,26 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
             )}
           </div>
 
+          {/* ── Constant Value (alternative to Extraction/Transformations/Validations) ── */}
+          {attribute.isConstant && (
+            <div className="border-t border-border-subtle pt-3 space-y-2">
+              <p className="text-xs font-semibold text-primary uppercase tracking-wide">Constant Value</p>
+              <p className="text-xs text-body-secondary">
+                The text below will be set as this attribute&apos;s value on every matching transaction. No extraction or transformation is performed.
+              </p>
+              <Input
+                label="Value"
+                placeholder={readOnly ? '' : 'Required'}
+                required={!readOnly}
+                error={!readOnly && (attribute.constantValue ?? '').trim().length === 0}
+                value={attribute.constantValue ?? ''}
+                onChange={(e) => onUpdate({ constantValue: e.target.value })}
+                disabled={readOnly}
+              />
+            </div>
+          )}
+
+          {!attribute.isConstant && (<>
           {/* ── Extraction ── */}
           <div className="border-t border-border-subtle pt-3 space-y-2">
             <p className="text-xs font-semibold text-primary uppercase tracking-wide">Extraction</p>
@@ -1035,6 +1086,8 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
             </div>
           )}
 
+          </>)}
+
           {/* ── Footer: actions ── */}
           <div className="border-t border-border-subtle pt-3 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
@@ -1226,6 +1279,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
           open
           onClose={() => setShowBackendDistinct(false)}
           attributeName={attribute.attributeTag || 'Attribute'}
+          attributeTag={attribute.attributeTag}
           sourceField={attribute.sourceField}
           bankSwiftCode={bankSwiftCode}
           side={side}

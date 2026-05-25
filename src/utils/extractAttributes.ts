@@ -15,6 +15,18 @@ export function extractAttributes(
   const result: Record<string, string | null> = {};
 
   for (const attr of attributes) {
+    // Constant-mode attribute: emit the literal value verbatim. Skips the
+    // source-field lookup, regex engine, and transformation pipeline — none
+    // of which apply (AttributeRuleExpression and Transformations are null
+    // for these on the wire).
+    if (attr.Constant != null) {
+      result[attr.AttributeTag] = attr.Constant;
+      continue;
+    }
+    if (!attr.AttributeRuleExpression) {
+      result[attr.AttributeTag] = null;
+      continue;
+    }
     const fieldValue = row[attr.AttributeRuleExpression.SourceField];
     if (fieldValue === undefined || fieldValue === null) {
       result[attr.AttributeTag] = null;

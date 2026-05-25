@@ -6,6 +6,7 @@ import { Tooltip } from '../shared/Tooltip';
 import { Button } from '../shared/Button';
 import { Badge } from '../shared/Badge';
 import { NotificationsButton } from '../notifications/NotificationsButton';
+import { DownloadCenterButton } from '../downloadCenter/DownloadCenterButton';
 import type { TagSpecCommentTarget } from '../../types/comments';
 
 const SIDE_LABELS: Record<string, string> = {
@@ -127,6 +128,7 @@ export function PageHeader({ tabs, activeIndex, onTabChange, checkout, onOpenOnb
               </button>
             </Tooltip>
           )}
+          <DownloadCenterButton />
           <NotificationsButton onNavigateToBacklog={onNavigateToBacklog} />
           {onOpenOnboarding && (
             <button

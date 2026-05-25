@@ -714,14 +714,17 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     return Array.from(names).sort();
   }, [data, activeDefinitionId, tagDefinitions]);
 
-  // Map attribute names to their source field from definitions
+  // Map attribute names to their source field from definitions.
+  // Constants and any malformed null-AttributeRuleExpression attrs have no
+  // source field — skip them so column placement falls through to the
+  // unanchored bucket rather than crashing.
   const attrSourceMap = useMemo(() => {
     const map = new Map<string, string>();
     for (const def of tagDefinitions) {
       for (const attr of def.Attributes) {
-        if (!map.has(attr.AttributeTag)) {
-          map.set(attr.AttributeTag, attr.AttributeRuleExpression.SourceField);
-        }
+        if (map.has(attr.AttributeTag)) continue;
+        if (attr.Constant != null || !attr.AttributeRuleExpression) continue;
+        map.set(attr.AttributeTag, attr.AttributeRuleExpression.SourceField);
       }
     }
     return map;
@@ -744,15 +747,21 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     for (const def of tagDefinitions) {
       for (const attr of def.Attributes) {
         if (map.has(attr.AttributeTag)) continue;
-        const op = attr.AttributeRuleExpression.Regex;
+        // Constants have no regex / no source field — nothing to validate.
+        // A null AttributeRuleExpression on a non-constant is a backend bug,
+        // but the runtime extractor degrades to null rather than crashing
+        // so we mirror that here.
+        if (attr.Constant != null || !attr.AttributeRuleExpression) continue;
+        const expr = attr.AttributeRuleExpression;
+        const op = expr.Regex;
 
         // Check for extract_between_and_verify (has VerifyValue)
-        if (attr.AttributeRuleExpression.VerifyValue) {
+        if (expr.VerifyValue) {
           try {
             map.set(attr.AttributeTag, {
               regex: new RegExp(op),
-              sourceField: attr.AttributeRuleExpression.SourceField,
-              verifyValue: attr.AttributeRuleExpression.VerifyValue,
+              sourceField: expr.SourceField,
+              verifyValue: expr.VerifyValue,
             });
           } catch { /* skip */ }
           continue;
@@ -765,7 +774,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
         });
         if (predefined) {
           try {
-            map.set(attr.AttributeTag, { regex: new RegExp(predefined.regex), sourceField: attr.AttributeRuleExpression.SourceField });
+            map.set(attr.AttributeTag, { regex: new RegExp(predefined.regex), sourceField: expr.SourceField });
           } catch { /* skip */ }
           continue;
         }
@@ -776,7 +785,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
           try {
             map.set(attr.AttributeTag, {
               regex: new RegExp(vcRegex),
-              sourceField: attr.AttributeRuleExpression.SourceField,
+              sourceField: expr.SourceField,
               validateExtracted: true,
             });
           } catch { /* skip */ }
@@ -1106,7 +1115,12 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
   // modifiers like occurrence/numChars/toStr), falling back to a reverse-parse
   // of the regex when that's absent.
   const ruleDescription = (attr: TagAttribute): string => {
+    // Constant-mode attribute: there's no extraction expression to describe.
+    if (attr.Constant != null) {
+      return `= "${attr.Constant}" (constant)`;
+    }
     const expr = attr.AttributeRuleExpression;
+    if (!expr) return '';
     const stored = expr.RegexDetails?.find((d) => d.LanguageCode === 'en')?.Description;
     if (stored) return stored;
     const decomposed = decomposeExtractionRegex(expr.Regex);
@@ -1143,10 +1157,19 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
   };
 
   // Compare two attribute rules for semantic equality — source field,
-  // normalized regex, and transformation pipeline.
+  // normalized regex, and transformation pipeline. For constant-mode
+  // attributes (no regex/source/transformations), compare the literal value.
   const attrRulesEqual = (a: TagAttribute, b: TagAttribute): boolean => {
-    if (a.AttributeRuleExpression.SourceField !== b.AttributeRuleExpression.SourceField) return false;
-    if (normalizeRegex(a.AttributeRuleExpression.Regex) !== normalizeRegex(b.AttributeRuleExpression.Regex)) return false;
+    const aIsConstant = a.Constant != null;
+    const bIsConstant = b.Constant != null;
+    if (aIsConstant !== bIsConstant) return false; // mode change
+    if (aIsConstant && bIsConstant) return a.Constant === b.Constant;
+    // Both extraction-mode beyond here.
+    const aExpr = a.AttributeRuleExpression;
+    const bExpr = b.AttributeRuleExpression;
+    if (!aExpr || !bExpr) return aExpr === bExpr;
+    if (aExpr.SourceField !== bExpr.SourceField) return false;
+    if (normalizeRegex(aExpr.Regex) !== normalizeRegex(bExpr.Regex)) return false;
     const ta = a.Transformations ?? [];
     const tb = b.Transformations ?? [];
     if (ta.length !== tb.length) return false;
@@ -1294,6 +1317,13 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
       const currentAttr = def.Attributes.find((a) => a.AttributeTag === attrName);
       if (!currentAttr) continue;
 
+      // Constant mode has no source field — show a flat "Constant = …" line.
+      // The before/after diff path below is meaningless for a literal value,
+      // so short-circuit even when we're editing the source definition.
+      if (currentAttr.Constant != null) {
+        return `Constant = "${currentAttr.Constant}"`;
+      }
+      if (!currentAttr.AttributeRuleExpression) continue;
       const currentSource = humanizeFieldName(currentAttr.AttributeRuleExpression.SourceField);
       const currentRule = ruleDescription(currentAttr);
 
@@ -1332,13 +1362,30 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     return null;
   };
 
-  // Get the source field for an attribute cell based on the tag that produced it for this row
+  // Get the source field for an attribute cell based on the tag that produced
+  // it for this row. Constants have no source field (the value is the value);
+  // returning null keeps the row's source-field hover-highlight inert.
   const getAttributeSourceField = (item: AnalyzedTransaction, attrName: string): string | null => {
     for (const def of item.analysis.matchedDefinitions) {
       const attr = def.Attributes.find((a) => a.AttributeTag === attrName);
-      if (attr) return attr.AttributeRuleExpression.SourceField;
+      if (!attr) continue;
+      if (attr.Constant != null || !attr.AttributeRuleExpression) return null;
+      return attr.AttributeRuleExpression.SourceField;
     }
     return null;
+  };
+
+  // True when ANY matched definition produces this attribute as a constant for
+  // this row. Used by the cell renderer to suppress the validation tick/cross
+  // — constants have no regex and no source field, so the "valid against the
+  // attrValidationMap regex" mental model doesn't apply even if another rule
+  // on the page registers validation for the same attribute name.
+  const isAttributeFromConstant = (item: AnalyzedTransaction, attrName: string): boolean => {
+    for (const def of item.analysis.matchedDefinitions) {
+      const attr = def.Attributes.find((a) => a.AttributeTag === attrName);
+      if (attr && attr.Constant != null) return true;
+    }
+    return false;
   };
 
   // Track which source field cell to highlight: { rowIndex, fieldName }
@@ -1929,9 +1976,15 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                           }
                           const val = getAttributeValue(item, col.name);
                           const validation = attrValidationMap.get(col.name);
+                          // Suppress validation chrome when this row's value is
+                          // a constant: no regex, no source field, nothing to
+                          // validate. Another rule with the same attribute name
+                          // might still register a validator on the map, which
+                          // is why this lives at the per-row level.
+                          const isConstantValue = isAttributeFromConstant(item, col.name);
                           let validationIcon: ReactNode = null;
                           let validationPassed: boolean | null = null;
-                          if (validation) {
+                          if (validation && !isConstantValue) {
                             if (validation.verifyValue) {
                               validationPassed = val === validation.verifyValue;
                             } else if (validation.validateExtracted) {

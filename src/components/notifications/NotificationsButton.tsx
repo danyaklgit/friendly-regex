@@ -6,6 +6,7 @@ import type { TepHeaders } from '../../api/transactions';
 import type { UserNotification } from '../../types/notifications';
 import type { TagSpecComment, TagSpecCommentReply, TagSpecCommentTarget } from '../../types/comments';
 import { CommentsProvider } from '../../context/CommentsContext';
+import { useOptionalDownloadCenter } from '../../context/DownloadCenterContext';
 import { getTagSpecComments } from '../../api/comments';
 import { flattenReplies } from '../../utils/replyTree';
 import { NotificationItem } from './NotificationItem';
@@ -198,6 +199,28 @@ export function NotificationsButton({ onNavigateToBacklog }: NotificationsButton
   const { notifications, loading, error, unreadCount, markStatus, markAllRead } =
     useNotifications(userId, authToken, tepHeaders);
 
+  // Push a refresh into the Download Center whenever a new EXPORT_READY or
+  // EXPORT_FAILED notification appears, so the modal's polling loop doesn't
+  // have to wait up to 3s after the notification lands. Tracks the set of
+  // notification ids we've already forwarded to avoid re-triggering on every
+  // poll. Safely no-ops if the provider isn't mounted.
+  const downloadCenter = useOptionalDownloadCenter();
+  const forwardedExportIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!downloadCenter) return;
+    let newOne = false;
+    for (const n of notifications) {
+      const t = (n.Type ?? '').toUpperCase();
+      if (t === 'EXPORT_READY' || t === 'EXPORT_FAILED') {
+        if (!forwardedExportIdsRef.current.has(n.Id)) {
+          forwardedExportIdsRef.current.add(n.Id);
+          newOne = true;
+        }
+      }
+    }
+    if (newOne) downloadCenter.notifyExportEvent();
+  }, [notifications, downloadCenter]);
+
   // Sender enrichment: when the panel opens, fetch the comments for each
   // unique library referenced by a notification (cached per session) and
   // keep the full comment objects so we can derive the actual sender per
@@ -261,6 +284,17 @@ export function NotificationsButton({ onNavigateToBacklog }: NotificationsButton
   };
 
   const handleOpenNotification = (n: UserNotification) => {
+    const type = (n.Type ?? '').toUpperCase();
+    // Export notifications route to the Download Center modal instead of a
+    // comment thread — same click-handler surface, different destination.
+    if (type === 'EXPORT_READY' || type === 'EXPORT_FAILED') {
+      if ((n.Status ?? '').toUpperCase() === 'UNREAD') {
+        void markStatus(n.Id, 'READ');
+      }
+      downloadCenter?.openModal();
+      setOpen(false);
+      return;
+    }
     const open = targetFromNotification(n);
     if ((n.Status ?? '').toUpperCase() === 'UNREAD') {
       void markStatus(n.Id, 'READ');

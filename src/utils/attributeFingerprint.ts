@@ -47,6 +47,12 @@ export function hasDuplicateAttributeNames(attributes: AttributeFormValue[]): bo
  *  gate stays consistent with the inline Save button. */
 export function isCompleteAttribute(a: AttributeFormValue): boolean {
   if (a.attributeTag.trim().length === 0) return false;
+  // Constant-mode attributes need only a non-empty literal — the extraction
+  // method, source field, transformations, and validation sections are hidden
+  // in this mode, so none of those gates apply.
+  if (a.isConstant) {
+    return (a.constantValue ?? '').trim().length > 0;
+  }
   if (!a.sourceField || a.sourceField.trim().length === 0) return false;
   const opKey = a.extractionOperation as string;
   if (!opKey || opKey.trim().length === 0) return false;

@@ -65,31 +65,43 @@ export function RulePreview({ ruleGroups, attributes }: RulePreviewProps) {
           <div className="space-y-1">
             {attributes
               .filter((a) => a.attributeTag)
-              .map((a) => (
-                <p key={a.id} className="text-sm text-body">
-                  <span className="font-medium text-primary">{a.attributeTag}</span>{' '}
-                  <span className="text-muted">from</span>{' '}
-                  <span className="font-mono text-xs text-primary-dark">{humanizeFieldName(a.sourceField)}</span>{' '}
-                  <span className="text-orange-500 dark:text-orange-300">
-                    {generateExtractionPrompt(a.extractionOperation, {
-                      prefix: a.prefix,
-                      suffix: a.suffix,
-                      pattern: a.pattern,
-                      verifyValue: a.verifyValue,
-                      numChars: a.numChars,
-                      toStr: a.toStr,
-                      toStart: a.toStart,
-                      occurrence: a.occurrence,
-                      startingPosition: a.startingPosition,
-                      fromPosition: a.fromPosition,
-                      prefixOccurrence: a.prefixOccurrence,
-                      suffixOccurrence: a.suffixOccurrence,
-                      suffixOrEndOfInput: a.suffixOrEndOfInput,
-                      tillEndOfInput: a.tillEndOfInput,
-                    })}
-                  </span>
-                </p>
-              ))}
+              .map((a) => {
+                if (a.isConstant) {
+                  return (
+                    <p key={a.id} className="text-sm text-body">
+                      <span className="font-medium text-primary">{a.attributeTag}</span>{' '}
+                      <span className="text-muted">=</span>{' '}
+                      <span className="font-mono text-xs text-primary-dark">"{a.constantValue ?? ''}"</span>{' '}
+                      <span className="text-faint text-xs">(constant)</span>
+                    </p>
+                  );
+                }
+                return (
+                  <p key={a.id} className="text-sm text-body">
+                    <span className="font-medium text-primary">{a.attributeTag}</span>{' '}
+                    <span className="text-muted">from</span>{' '}
+                    <span className="font-mono text-xs text-primary-dark">{humanizeFieldName(a.sourceField)}</span>{' '}
+                    <span className="text-orange-500 dark:text-orange-300">
+                      {generateExtractionPrompt(a.extractionOperation, {
+                        prefix: a.prefix,
+                        suffix: a.suffix,
+                        pattern: a.pattern,
+                        verifyValue: a.verifyValue,
+                        numChars: a.numChars,
+                        toStr: a.toStr,
+                        toStart: a.toStart,
+                        occurrence: a.occurrence,
+                        startingPosition: a.startingPosition,
+                        fromPosition: a.fromPosition,
+                        prefixOccurrence: a.prefixOccurrence,
+                        suffixOccurrence: a.suffixOccurrence,
+                        suffixOrEndOfInput: a.suffixOrEndOfInput,
+                        tillEndOfInput: a.tillEndOfInput,
+                      })}
+                    </span>
+                  </p>
+                );
+              })}
           </div>
         </div>
       )}

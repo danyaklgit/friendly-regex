@@ -255,7 +255,38 @@ function SectionHeading({ children, className = '' }: { children: React.ReactNod
 }
 
 function AttributeRow({ attribute }: { attribute: TagAttribute }) {
+  // Constant-mode attribute: render `= "<value>" (constant)` in place of the
+  // source-field pill + extraction-prompt path. Keeps the row visual rhythm
+  // identical so a panel mixing extracted + constant attributes stays scannable.
+  if (attribute.Constant != null) {
+    const fullText = `${attribute.AttributeTag} · = "${attribute.Constant}" (constant)`;
+    return (
+      <div
+        className="flex items-center gap-2.5 py-2 px-3 rounded-md bg-surface-secondary border border-border/60 hover:border-border transition-colors min-w-0"
+        title={fullText}
+      >
+        <span className="font-mono text-[12px] font-medium text-primary shrink-0 max-w-[40%] truncate">
+          {attribute.AttributeTag}
+        </span>
+        {attribute.IsMandatory && (
+          <span className="text-[9px] font-semibold uppercase tracking-wider text-red-500 shrink-0">
+            Required
+          </span>
+        )}
+        <span className="text-[12px] text-body truncate flex-1 min-w-0">
+          <span className="text-muted">=</span>{' '}
+          <span className="font-mono text-primary-dark">"{attribute.Constant}"</span>{' '}
+          <span className="text-faint">(constant)</span>
+        </span>
+      </div>
+    );
+  }
+
   const expr = attribute.AttributeRuleExpression;
+  // Defensive: a non-constant attribute should always carry an expression.
+  // Hide the row instead of crashing on a malformed backend payload.
+  if (!expr) return null;
+
   const humanText =
     getRegexDescription(expr.RegexDetails) ||
     expr.ExpressionPrompt ||
