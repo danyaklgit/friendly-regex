@@ -9,7 +9,7 @@ import { DATE_SOURCE_FIELDS } from '../../constants/fields';
 import { useTransactionData } from '../../hooks/useTransactionData';
 import { generateExpressionPrompt } from '../../utils/regexify';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
-import { CommentIconButton } from '../comments/CommentIconButton';
+import { WizardCommentIconButton } from './WizardCommentIconButton';
 
 const ALLOWED_SOURCE_FIELDS = new Set([
   'AdditionalInformation', 'BankReference', 'CurrencyCode',
@@ -352,15 +352,26 @@ export function ConditionEditor({
             </p>
           </div>
         )}
-        {libraryId && definitionId && condition._expressionId && (
-          <span className="self-center">
-            <CommentIconButton
-              target={{
-                TagSpecLibraryId: libraryId,
-                TagSpecDefinitionId: definitionId,
-                TagRuleExpressionId: condition._expressionId,
-              }}
-              targetLabel={humanizeFieldName(condition.sourceField)}
+        {libraryId && (
+          // Edit mode shows labels above each input, so the parent's `items-end`
+          // alignment puts the icon at the row's bottom; raise it 7px to sit on
+          // the input fields themselves. Collapsed mode is just the preview
+          // chip with no labels above, so the row is short and `self-center`
+          // lines the icon up with the chip's vertical center.
+          <span className={editing ? 'self-end mb-[7px]' : 'self-center'}>
+            <WizardCommentIconButton
+              formKey={condition.id}
+              kind="rule"
+              targetLabel={humanizeFieldName(condition.sourceField) || 'New condition'}
+              persistedTarget={
+                definitionId && condition._expressionId
+                  ? {
+                      TagSpecLibraryId: libraryId,
+                      TagSpecDefinitionId: definitionId,
+                      TagRuleExpressionId: condition._expressionId,
+                    }
+                  : null
+              }
               size="xs"
             />
           </span>

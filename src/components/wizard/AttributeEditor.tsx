@@ -16,7 +16,7 @@ import { describeLiteralBoundary } from '../../utils/engregxify';
 import { applyTransformation } from '../../utils/transformations';
 import { AttributeFormModal } from '../attributes/AttributeFormModal';
 import { TransformationList } from './TransformationList';
-import { CommentIconButton } from '../comments/CommentIconButton';
+import { WizardCommentIconButton } from './WizardCommentIconButton';
 
 const ALLOWED_SOURCE_FIELDS = new Set([
   'AdditionalInformation', 'Amount', 'BankReference', 'CurrencyCode',
@@ -540,14 +540,20 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                 )}
               </p>
             </div>
-            {libraryId && definitionId && attribute.attributeTag && (
-              <CommentIconButton
-                target={{
-                  TagSpecLibraryId: libraryId,
-                  TagSpecDefinitionId: definitionId,
-                  AttributeTag: attribute.attributeTag,
-                }}
+            {libraryId && attribute.attributeTag && (
+              <WizardCommentIconButton
+                formKey={attribute.id}
+                kind="attribute"
                 targetLabel={attribute.attributeTag}
+                persistedTarget={
+                  definitionId
+                    ? {
+                        TagSpecLibraryId: libraryId,
+                        TagSpecDefinitionId: definitionId,
+                        AttributeTag: attribute.attributeTag,
+                      }
+                    : null
+                }
                 size="xs"
               />
             )}
@@ -1077,14 +1083,20 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, transactions, s
                 See all distinct values ({distinctValues.length})
               </Button>
             )}
-            {libraryId && definitionId && attribute.attributeTag && (
-              <CommentIconButton
-                target={{
-                  TagSpecLibraryId: libraryId,
-                  TagSpecDefinitionId: definitionId,
-                  AttributeTag: attribute.attributeTag,
-                }}
+            {libraryId && attribute.attributeTag && (
+              <WizardCommentIconButton
+                formKey={attribute.id}
+                kind="attribute"
                 targetLabel={attribute.attributeTag}
+                persistedTarget={
+                  definitionId
+                    ? {
+                        TagSpecLibraryId: libraryId,
+                        TagSpecDefinitionId: definitionId,
+                        AttributeTag: attribute.attributeTag,
+                      }
+                    : null
+                }
                 size="xs"
               />
             )}

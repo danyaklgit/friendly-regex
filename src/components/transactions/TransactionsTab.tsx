@@ -56,7 +56,13 @@ import { HiddenTagsPanel } from './HiddenTagsPanel';
 import { useTepConfig } from '../../context/TepConfigContext';
 import type { TepHeaders } from '../../api/transactions';
 import { CommentsProvider } from '../../context/CommentsContext';
-import { CommentIconButton } from '../comments/CommentIconButton';
+import {
+  useWizardCommentDraftsState,
+  WizardCommentDraftsProvider,
+  WIZARD_DEFINITION_FORM_KEY,
+} from '../../context/WizardCommentDraftsContext';
+import { setTagSpecComment } from '../../api/comments';
+import { WizardCommentIconButton } from '../wizard/WizardCommentIconButton';
 import { CommentSearchTrigger } from '../comments/CommentSearchTrigger';
 import { CommentSearchPanel } from '../comments/CommentSearchPanel';
 import type { TagSpecCommentTarget } from '../../types/comments';
@@ -690,6 +696,12 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [wizardFromCheckout, setWizardFromCheckout] = useState(false);
 
+  // Drafts queued from inside the wizard. Held here so the save handler can
+  // flush after `tagSpecLibrarySave` resolves; the same value is passed down
+  // to the wizard tree via `WizardCommentDraftsProvider` for the icons and
+  // panel to read.
+  const wizardCommentDrafts = useWizardCommentDraftsState();
+
   // Build the temporary definition from the builder's form state
   const tempDefinition = useMemo(
     () => (builderOpen ? formStateToTempDefinition(builder.formState) : null),
@@ -1304,12 +1316,15 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     setEditingDef(undefined);
     setEditingParentLib(undefined);
     builder.resetForm();
+    // Drafts authored on the Rule Builder rows are tied to this session — drop
+    // them so they don't leak into the next builder open.
+    wizardCommentDrafts.clearAll();
     // Restore filters from before tag click, ensuring base filters (bank/side) are always preserved
     if (tagClickState !== null) {
       setFilters({ ...baseFilters, ...tagClickState.preFilters });
       setTagClickState(null);
     }
-  }, [builder, tagClickState, baseFilters]);
+  }, [builder, tagClickState, baseFilters, wizardCommentDrafts]);
 
   // Delete target for the in-builder Delete button — mirrors the Backlog
   // tab's per-row delete. Confirmation dialog displays the Tag name, and on
@@ -1330,11 +1345,12 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     setEditingDef(undefined);
     setEditingParentLib(undefined);
     builder.resetForm();
+    wizardCommentDrafts.clearAll();
     if (tagClickState !== null) {
       setFilters({ ...baseFilters, ...tagClickState.preFilters });
       setTagClickState(null);
     }
-  }, [deleteTarget, dispatch, builder, tagClickState, baseFilters]);
+  }, [deleteTarget, dispatch, builder, tagClickState, baseFilters, wizardCommentDrafts]);
 
   const handleWizardSave = useCallback(async (result: WizardFormResult) => {
     // Persist to the backend FIRST. In live mode `analyzeRow` defers to the
@@ -1378,6 +1394,34 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
             // what's now on the server, preventing stale draft state from
             // overriding fresh API responses on future fetches.
             saveBaseline(libToSave);
+
+            // The TagSpec is now persisted, so wizard-deferred comment drafts
+            // can safely be flushed against the now-real definition / rule /
+            // attribute ids. Failures here don't unwind the save: the user
+            // sees a partial-failure toast and the rule sticks.
+            if (wizardCommentDrafts.pendingCount > 0 && userId) {
+              const { posted, failed } = await wizardCommentDrafts.flushAll(
+                (payload) => setTagSpecComment(payload, token, tepHeaders),
+                result.commentTargetByFormKey,
+                userId,
+              );
+              if (failed > 0) {
+                setToast({
+                  message: `Saved tag, but ${failed} comment${failed === 1 ? '' : 's'} failed to post. Try re-adding from Backlog.`,
+                  type: 'error',
+                });
+              } else if (posted > 0) {
+                // Drop the success toast a tick later so the parent save toast
+                // (which fires below) doesn't overwrite it instantly.
+                setTimeout(() => {
+                  setToast({
+                    message: `${posted} comment${posted === 1 ? '' : 's'} posted to the rule.`,
+                    type: 'success',
+                  });
+                }, 1200);
+              }
+              wizardCommentDrafts.clearAll();
+            }
           }
         }
       } catch (err) {
@@ -1423,14 +1467,18 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       // saved rule's tags appear on the transactions list immediately.
       fetchPage(outgoingFilters, false, incrementalPagination ? undefined : 0, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined);
     }
-  }, [dispatch, builder, editingDef, tagClickState, baseFilters, activeCheckout, libraries, refreshIfNeeded, getAuthHeaders, userId, tepConfig, saveBaseline, isLiveMode, outgoingFilters, fetchPage, incrementalPagination, activeExtraFilters, fetchFilterDefinitions]);
+  }, [dispatch, builder, editingDef, tagClickState, baseFilters, activeCheckout, libraries, refreshIfNeeded, getAuthHeaders, userId, tepConfig, saveBaseline, isLiveMode, outgoingFilters, fetchPage, incrementalPagination, activeExtraFilters, fetchFilterDefinitions, wizardCommentDrafts]);
 
   const handleWizardClose = useCallback(() => {
     setWizardOpen(false);
     setWizardInitialState(undefined);
     setWizardInitialStep(undefined);
     setWizardFromCheckout(false);
-    // Keep the builder open with current form state — don't reset anything else
+    // Intentionally NOT clearing wizardCommentDrafts here. The wizard is a
+    // review surface launched from the in-line Rule Builder; cancelling the
+    // wizard returns the operator to the builder with their form state and
+    // queued drafts intact. Drafts are cleared by `handleDiscard` (Rule
+    // Builder Discard), `handleConfirmDelete`, and after a successful save.
   }, []);
 
   // Click a tag badge in the table → load into rule builder for live editing
@@ -1560,6 +1608,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   }, [loadTransactions]);
 
   return (
+    <WizardCommentDraftsProvider value={wizardCommentDrafts}>
     <div>
       {activeCheckout && isReadOnly && ownerName && (
         <div className="flex items-center px-4 py-2 mb-3 rounded-lg bg-amber-50 border border-amber-200 dark:bg-amber-900/20 dark:border-amber-700">
@@ -1736,7 +1785,11 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
 
       {/* Rule builder panel */}
       {builderOpen && (() => {
-        const ruleBuilderLibraryId = editingParentLib?.Id ?? null;
+        // In edit mode `editingParentLib` is set when the user clicked into an
+        // existing rule. In create mode the library is the in-progress one
+        // matching the active checkout — fall back to that so wizard-style
+        // comment scoping works for newly drafted rules too.
+        const ruleBuilderLibraryId = editingParentLib?.Id ?? inProgressLib?.Id ?? null;
         const ruleBuilderAuthHeader = getAuthHeaders().Authorization ?? '';
         const ruleBuilderAuthToken = ruleBuilderAuthHeader.startsWith('Bearer ')
           ? ruleBuilderAuthHeader.slice('Bearer '.length)
@@ -1782,13 +1835,19 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                       {currentTagId && (
                         <CopyableId id={currentTagId} truncateAt={12} tone="default" />
                       )}
-                      {editingParentLib?.Id && editingDef?.Id && (
-                        <CommentIconButton
-                          target={{
-                            TagSpecLibraryId: editingParentLib.Id,
-                            TagSpecDefinitionId: editingDef.Id,
-                          }}
-                          targetLabel={editingDef.Tag}
+                      {ruleBuilderLibraryId && (
+                        <WizardCommentIconButton
+                          formKey={WIZARD_DEFINITION_FORM_KEY}
+                          kind="definition"
+                          targetLabel={currentTagName}
+                          persistedTarget={
+                            editingDef?.Id
+                              ? {
+                                  TagSpecLibraryId: ruleBuilderLibraryId,
+                                  TagSpecDefinitionId: editingDef.Id,
+                                }
+                              : null
+                          }
                           size="xs"
                         />
                       )}
@@ -1798,7 +1857,19 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
               }
               return (
                 <div className="min-w-0">
-                  <h3 className="text-sm font-semibold text-primary-dark">Rule Builder</h3>
+                  <div className="flex items-center gap-2.5">
+                    <h3 className="text-sm font-semibold text-primary-dark">Rule Builder</h3>
+                    {ruleBuilderLibraryId && (
+                      <WizardCommentIconButton
+                        formKey={WIZARD_DEFINITION_FORM_KEY}
+                        kind="definition"
+                        targetLabel={builder.formState.tag || 'New tag'}
+                        persistedTarget={null}
+                        size="xs"
+                        title="Comment on this tag (queued until Save)"
+                      />
+                    )}
+                  </div>
                   <p className="text-xs text-primary-dark">
                     Build rules and see their effect on the table in real time.
                   </p>
@@ -1925,7 +1996,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
               </h4>
               <StepRuleExpressions
                 ruleGroups={builder.formState.ruleGroups}
-                libraryId={editingParentLib?.Id ?? undefined}
+                libraryId={ruleBuilderLibraryId ?? undefined}
                 definitionId={editingDef?.Id}
                 onAddGroup={tagClickState
                   ? () => {
@@ -1974,7 +2045,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
               </h4>
               <StepAttributes
                 attributes={builder.formState.attributes}
-                libraryId={editingParentLib?.Id ?? undefined}
+                libraryId={ruleBuilderLibraryId ?? undefined}
                 definitionId={editingDef?.Id}
                 onAdd={builder.addAttribute}
                 onRemove={builder.removeAttribute}
@@ -2343,7 +2414,14 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       {wizardOpen && (
         <TagWizardModal
           existingDef={editingDef}
-          parentLib={editingParentLib}
+          // In edit mode `editingParentLib` is set; in create mode it's
+          // undefined and we'd otherwise pass `parentLib={undefined}` to the
+          // wizard, which makes `commentsLibraryId` null and short-circuits
+          // `buildCommentTargetByFormKey` to an empty map — drafts then can't
+          // resolve their targets and every flush is skipped. Fall back to the
+          // in-progress library matching the active checkout so create-mode
+          // comment drafts have a real library scope at save time.
+          parentLib={editingParentLib ?? inProgressLib ?? undefined}
           initialFormState={wizardInitialState}
           initialStep={wizardInitialStep}
           fromCheckoutContext={wizardFromCheckout}
@@ -2490,5 +2568,6 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         />
       )}
     </div>
+    </WizardCommentDraftsProvider>
   );
 }

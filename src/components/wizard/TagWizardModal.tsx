@@ -147,7 +147,7 @@ export function TagWizardModal({ existingDef, parentLib, initialFormState, initi
   };
 
   const handleFinish = () => {
-    const result = wizard.toTagSpecDefinition();
+    const result = wizard.toTagSpecDefinition(commentsLibraryId);
     onSave(result);
   };
 
@@ -175,6 +175,8 @@ export function TagWizardModal({ existingDef, parentLib, initialFormState, initi
             onAddCondition={wizard.addCondition}
             onRemoveCondition={wizard.removeCondition}
             onUpdateCondition={wizard.updateCondition}
+            libraryId={commentsLibraryId ?? undefined}
+            definitionId={existingDef?.Id}
           />
         </div>
       )}
@@ -186,6 +188,8 @@ export function TagWizardModal({ existingDef, parentLib, initialFormState, initi
           onRemove={wizard.removeAttribute}
           onUpdate={wizard.updateAttribute}
           transactions={transactions}
+          libraryId={commentsLibraryId ?? undefined}
+          definitionId={existingDef?.Id}
         />
       )}
 
