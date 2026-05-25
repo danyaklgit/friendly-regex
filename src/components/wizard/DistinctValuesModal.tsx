@@ -15,7 +15,16 @@ interface DistinctValuesModalProps {
   onClose: () => void;
   /** Already humanized name used in the modal title. */
   attributeName: string;
-  /** `FieldName` passed to the API. */
+  /** The attribute's tag — used as `FieldName` and the `SortingProperties`
+   *  `ColumnName` in the GetDistinctFieldValues API call. The backend resolves
+   *  attributes by their tag, so we send the attribute identifier here, NOT
+   *  the raw transaction source field. When this is empty (e.g., a new
+   *  unsaved attribute) the modal short-circuits to an empty state and skips
+   *  the network call. */
+  attributeTag: string;
+  /** The raw MT940 field this attribute extracts from. Displayed in the
+   *  modal subtitle as a reminder of which field the operator is looking
+   *  at; NOT sent to the API. */
   sourceField: string;
   /** Scopes the API call to the active checkout. Both optional because the
    *  editor is also used on preview surfaces with no checkout — there we
@@ -97,6 +106,7 @@ export function DistinctValuesModal({
   open,
   onClose,
   attributeName,
+  attributeTag,
   sourceField,
   bankSwiftCode,
   side,
@@ -127,9 +137,11 @@ export function DistinctValuesModal({
   useEffect(() => {
     if (!open) return;
 
-    // No source field means there's nothing meaningful to query; show the
-    // empty state instead of sending an invalid FieldName.
-    if (!sourceField) {
+    // Backend keys distinct-value queries by attribute tag (not source
+    // field), so an unsaved/unnamed attribute can't produce a meaningful
+    // query — show the empty state instead of sending an invalid
+    // FieldName.
+    if (!attributeTag) {
       setLoading(false);
       setError(null);
       setData({
@@ -161,9 +173,9 @@ export function DistinctValuesModal({
 
         const result = await getDistinctFieldValues(
           {
-            FieldName: sourceField,
+            FieldName: attributeTag,
             FilteringProperties: filters,
-            SortingProperties: [{ ColumnName: sourceField, SortingLevel: 1, SortingOrder: 'ASC' }],
+            SortingProperties: [{ ColumnName: attributeTag, SortingLevel: 1, SortingOrder: 'ASC' }],
             Pagination: { PageIndex: 0, PageSize: PAGE_SIZE },
           },
           token,
@@ -181,7 +193,7 @@ export function DistinctValuesModal({
     })();
 
     return () => controller.abort();
-  }, [open, sourceField, bankSwiftCode, side, reloadKey, getAuthHeaders, refreshIfNeeded, tepHeaders]);
+  }, [open, attributeTag, bankSwiftCode, side, reloadKey, getAuthHeaders, refreshIfNeeded, tepHeaders]);
 
   if (!open) return null;
 

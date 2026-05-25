@@ -1226,6 +1226,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
           open
           onClose={() => setShowBackendDistinct(false)}
           attributeName={attribute.attributeTag || 'Attribute'}
+          attributeTag={attribute.attributeTag}
           sourceField={attribute.sourceField}
           bankSwiftCode={bankSwiftCode}
           side={side}
