@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import type { TagSpecDefinition, TagSpecLibrary, WizardFormState, WizardStep } from '../../types';
-import { getContextValue } from '../../types/tagSpec';
 import type { WizardFormResult } from '../../hooks/useWizardForm';
 import { useWizardForm } from '../../hooks/useWizardForm';
 import { useTransactionData } from '../../hooks/useTransactionData';
@@ -64,13 +63,6 @@ export function TagWizardModal({ existingDef, parentLib, initialFormState, initi
     requestId: tepConfig.ttpRequestId,
   };
   const commentsLibraryId = parentLib?.Id ?? null;
-
-  // Bank/side from the active checkout scope the DistinctValuesModal's
-  // backend query so it covers the whole dataset, not just the in-memory
-  // page. Both can be undefined for preview/test surfaces with no checkout —
-  // the modal degrades to an empty state in that case.
-  const ctxBank = parentLib ? getContextValue(parentLib.Context, 'BankSwiftCode') : undefined;
-  const ctxSide = parentLib ? getContextValue(parentLib.Context, 'Side') : undefined;
 
   // Each step that surfaces the offending UI gates its own Next button; the
   // final-step Create/Save button gates on the combined state. Two classes of
@@ -200,8 +192,6 @@ export function TagWizardModal({ existingDef, parentLib, initialFormState, initi
           transactions={transactions}
           libraryId={commentsLibraryId ?? undefined}
           definitionId={existingDef?.Id}
-          bankSwiftCode={ctxBank}
-          side={ctxSide}
         />
       )}
 

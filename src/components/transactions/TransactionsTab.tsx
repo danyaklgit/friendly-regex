@@ -1875,12 +1875,6 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         // matching the active checkout — fall back to that so wizard-style
         // comment scoping works for newly drafted rules too.
         const ruleBuilderLibraryId = editingParentLib?.Id ?? inProgressLib?.Id ?? null;
-        // Scope the DistinctValuesModal's backend query to the same library
-        // the operator is editing. Edit mode uses the parent library;
-        // create mode falls back to the in-progress checkout.
-        const ruleBuilderCtx = editingParentLib?.Context ?? inProgressLib?.Context;
-        const ruleBuilderBankSwiftCode = ruleBuilderCtx ? getContextValue(ruleBuilderCtx, 'BankSwiftCode') : undefined;
-        const ruleBuilderSide = ruleBuilderCtx ? getContextValue(ruleBuilderCtx, 'Side') : undefined;
         const ruleBuilderAuthHeader = getAuthHeaders().Authorization ?? '';
         const ruleBuilderAuthToken = ruleBuilderAuthHeader.startsWith('Bearer ')
           ? ruleBuilderAuthHeader.slice('Bearer '.length)
@@ -2148,8 +2142,6 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                 readOnly={isReadOnly}
                 suggestedAttributeNames={suggestedAttributeNames}
                 suggestedTagName={builder.formState.tag.trim() || undefined}
-                bankSwiftCode={ruleBuilderBankSwiftCode}
-                side={ruleBuilderSide}
               />
             </div>
           </div>

@@ -15,22 +15,19 @@ interface DistinctValuesModalProps {
   onClose: () => void;
   /** Already humanized name used in the modal title. */
   attributeName: string;
-  /** The attribute's tag — used as `FieldName` and the `SortingProperties`
-   *  `ColumnName` in the GetDistinctFieldValues API call. The backend resolves
-   *  attributes by their tag, so we send the attribute identifier here, NOT
-   *  the raw transaction source field. When this is empty (e.g., a new
-   *  unsaved attribute) the modal short-circuits to an empty state and skips
-   *  the network call. */
+  /** The attribute's tag — used as `FieldName` in the
+   *  `GetDistinctFieldValues` request. When empty (e.g. an unsaved
+   *  attribute) the modal short-circuits to the empty state. */
   attributeTag: string;
   /** The raw MT940 field this attribute extracts from. Displayed in the
-   *  modal subtitle as a reminder of which field the operator is looking
-   *  at; NOT sent to the API. */
+   *  modal subtitle as a reminder; NOT sent to the API. */
   sourceField: string;
-  /** Scopes the API call to the active checkout. Both optional because the
-   *  editor is also used on preview surfaces with no checkout — there we
-   *  fall back to a friendly empty state instead of calling the API. */
-  bankSwiftCode?: string;
-  side?: string;
+  /** TagSpec definition id this attribute belongs to. Required — the
+   *  backend keys distinct-value queries by definition id now (replacing
+   *  the previous bank/side scope). Treated as a hard precondition: when
+   *  not supplied (e.g. unsaved create-mode draft) the modal renders an
+   *  empty state without firing the API call. */
+  definitionId?: string;
   /** Optional LOV resolution map (raw value -> friendly name) so the modal
    *  can preserve the existing "<name> (raw)" display for LOV-based
    *  attributes. */
@@ -40,7 +37,7 @@ interface DistinctValuesModalProps {
   zClass?: string;
 }
 
-const PAGE_SIZE = 250;
+const PAGE_SIZE = 500;
 
 function Spinner({ size = 14 }: { size?: number }) {
   return (
@@ -96,11 +93,12 @@ function ValidIcon({ isValid }: { isValid: boolean | null }) {
 }
 
 /**
- * Backend-sourced distinct-values browser. Replaces the old in-memory list
- * that was capped by whatever page the operator had paginated to. Issues a
- * single `GetDistinctFieldValues` POST scoped to bank + side and surfaces
- * the per-value `IsValid` flag (✓ / ✗ / –) alongside the summary counters
- * returned by the API.
+ * Backend-sourced distinct-values browser. Issues a `GetDistinctFieldValues`
+ * POST scoped to the TagSpec definition id (so the operator sees the values
+ * that THIS tag actually produces across the whole dataset, not just the
+ * page they paginated to), and surfaces the per-value `IsValid` flag
+ * (✓ / ✗ / –) alongside the summary counters. Walks pages of 500 via
+ * Previous / Next controls when `TransactionsCount` exceeds one page.
  */
 export function DistinctValuesModal({
   open,
@@ -108,8 +106,7 @@ export function DistinctValuesModal({
   attributeName,
   attributeTag,
   sourceField,
-  bankSwiftCode,
-  side,
+  definitionId,
   lovMap,
   zClass = 'z-[60]',
 }: DistinctValuesModalProps) {
@@ -133,19 +130,26 @@ export function DistinctValuesModal({
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<DistinctFieldValuesResult | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [pageIndex, setPageIndex] = useState(0);
+
+  // Reset the page cursor whenever the input that defines the dataset
+  // (attribute tag or definition id) changes, so re-opening on a different
+  // attribute starts at page 1 rather than landing on a now-invalid page.
+  useEffect(() => {
+    setPageIndex(0);
+  }, [attributeTag, definitionId]);
 
   useEffect(() => {
     if (!open) return;
 
-    // Backend keys distinct-value queries by attribute tag (not source
-    // field), so an unsaved/unnamed attribute can't produce a meaningful
-    // query — show the empty state instead of sending an invalid
-    // FieldName.
-    if (!attributeTag) {
+    // Hard precondition: definitionId AND attributeTag must both be set.
+    // Backend filtering keys off definitionId now, and FieldName off
+    // attributeTag — without either, we can't form a meaningful request.
+    if (!attributeTag || !definitionId) {
       setLoading(false);
       setError(null);
       setData({
-        Items: [], TotalDistinctCount: 0, TotalValidated: 0, TotalNotValid: 0, TotalNotTagged: 0,
+        Items: [], TotalDistinctCount: 0, TotalValidated: 0, TotalNotValid: 0, TotalNotTagged: 0, TransactionsCount: 0,
       });
       return;
     }
@@ -153,7 +157,6 @@ export function DistinctValuesModal({
     const controller = new AbortController();
     setLoading(true);
     setError(null);
-    setData(null);
 
     (async () => {
       try {
@@ -167,16 +170,30 @@ export function DistinctValuesModal({
           return;
         }
 
-        const filters: FilterProperty[] = [];
-        if (bankSwiftCode) filters.push({ ColumnName: 'BankSwiftCode', Value: bankSwiftCode, Operand: 'EQ' });
-        if (side) filters.push({ ColumnName: 'Side', Value: side, Operand: 'EQ' });
+        // Backend keys distinct-value queries off the tag spec definition
+        // id (matches the same column used elsewhere in the app for "show
+        // transactions tagged by this definition" — see `activeExtraFilters`
+        // in TransactionsTab).
+        const filters: FilterProperty[] = [
+          {
+            ColumnName: 'OpsTagSpecDefinitionId|OpsMultiTags.TagSpecDefinitionId',
+            Value: definitionId,
+            Operand: 'IN',
+          },
+        ];
 
         const result = await getDistinctFieldValues(
           {
             FieldName: attributeTag,
             FilteringProperties: filters,
-            SortingProperties: [{ ColumnName: attributeTag, SortingLevel: 1, SortingOrder: 'ASC' }],
-            Pagination: { PageIndex: 0, PageSize: PAGE_SIZE },
+            // Stable transaction ordering so successive page fetches walk
+            // the dataset deterministically; matches DEFAULT_SORTING used
+            // by the live transactions fetch.
+            SortingProperties: [
+              { ColumnName: 'StatementDate', SortingLevel: 1, SortingOrder: 'ASC' },
+              { ColumnName: 'Sequence', SortingLevel: 2, SortingOrder: 'ASC' },
+            ],
+            Pagination: { PageIndex: pageIndex, PageSize: PAGE_SIZE },
           },
           token,
           tepHeaders,
@@ -193,17 +210,28 @@ export function DistinctValuesModal({
     })();
 
     return () => controller.abort();
-  }, [open, attributeTag, bankSwiftCode, side, reloadKey, getAuthHeaders, refreshIfNeeded, tepHeaders]);
+  }, [open, attributeTag, definitionId, pageIndex, reloadKey, getAuthHeaders, refreshIfNeeded, tepHeaders]);
 
   if (!open) return null;
 
   const title = `Distinct values for "${attributeName}"`;
   const showSummary = !!data && data.Items.length > 0;
-  const showTruncationNote = !!data && data.TotalDistinctCount > data.Items.length;
+  const transactionsCount = data?.TransactionsCount ?? 0;
+  const totalPages = transactionsCount > 0 ? Math.max(1, Math.ceil(transactionsCount / PAGE_SIZE)) : 1;
+  const showPagination = !!data && transactionsCount > PAGE_SIZE;
+  const isFirstPage = pageIndex === 0;
+  const isLastPage = pageIndex >= totalPages - 1;
+  const missingDefinitionId = open && !definitionId;
 
   return (
     <Modal open onClose={onClose} title={title} zClass={zClass}>
       <div className="text-xs text-faint mb-3">Source field: <span className="font-mono">{sourceField || '(none)'}</span></div>
+
+      {missingDefinitionId && (
+        <div className="rounded border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 px-3 py-2 text-sm text-amber-700 dark:text-amber-300 mb-3">
+          Save the rule first to load full-dataset distinct values from the backend.
+        </div>
+      )}
 
       {showSummary && (
         <div className="flex items-center gap-3 mb-3 text-xs">
@@ -255,9 +283,9 @@ export function DistinctValuesModal({
         </div>
       )}
 
-      {!loading && !error && data && data.Items.length === 0 && (
+      {!loading && !error && data && data.Items.length === 0 && !missingDefinitionId && (
         <div className="text-center py-6 text-sm text-muted">
-          No distinct values found for this field in the current checkout.
+          No distinct values found for this tag in the current dataset.
         </div>
       )}
 
@@ -292,9 +320,31 @@ export function DistinctValuesModal({
         </div>
       )}
 
-      {showTruncationNote && (
-        <div className="mt-3 text-xs italic text-faint text-center">
-          Showing first {data!.Items.length} of {data!.TotalDistinctCount} distinct values.
+      {showPagination && (
+        <div className="mt-4 flex items-center justify-between gap-3 pt-3 border-t border-border">
+          <span className="text-xs text-faint">
+            Page <span className="font-semibold text-body">{pageIndex + 1}</span> of {totalPages}
+            {' · '}
+            <span className="font-semibold text-body">{transactionsCount.toLocaleString()}</span> matched transactions
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              size="xs"
+              onClick={() => setPageIndex((p) => Math.max(0, p - 1))}
+              disabled={isFirstPage || loading}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="secondary"
+              size="xs"
+              onClick={() => setPageIndex((p) => Math.min(totalPages - 1, p + 1))}
+              disabled={isLastPage || loading}
+            >
+              Next
+            </Button>
+          </div>
         </div>
       )}
     </Modal>
