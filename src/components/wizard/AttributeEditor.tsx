@@ -70,14 +70,12 @@ interface AttributeEditorProps {
   suggestedAttributeNames?: { name: string; count: number }[];
   /** Canonical tag name used in the section header copy. */
   suggestedTagName?: string;
-  /** Comment scope — when both are provided, a comment icon is shown for this attribute. */
+  /** Comment scope — when both are provided, a comment icon is shown for this attribute.
+   *  `definitionId` also scopes the backend distinct-values query (see
+   *  DistinctValuesModal); when missing, the backend distinct popup shows
+   *  a warning instead of issuing a request. */
   libraryId?: string;
   definitionId?: string;
-  /** Scopes the distinct-values backend query to the active checkout. Both
-   *  optional because the editor is also referenced from preview surfaces
-   *  with no library context; in production both are always supplied. */
-  bankSwiftCode?: string;
-  side?: string;
 }
 
 /**
@@ -118,7 +116,7 @@ function BoundaryHintIcon({
   );
 }
 
-export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transactions, startCollapsed, readOnly, isDuplicateName, suggestedAttributeNames, suggestedTagName, libraryId, definitionId, bankSwiftCode, side }: AttributeEditorProps) {
+export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transactions, startCollapsed, readOnly, isDuplicateName, suggestedAttributeNames, suggestedTagName, libraryId, definitionId }: AttributeEditorProps) {
   const { fieldMeta } = useTransactionData();
   const { activeAttributes, validationClasses, validationOptions, lovOptions, lovLookup, createNewAttribute, transformationMethods, extractionMethods } = useLovAttributes();
   const [showDistinct, setShowDistinct] = useState(false);
@@ -1281,8 +1279,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
           attributeName={attribute.attributeTag || 'Attribute'}
           attributeTag={attribute.attributeTag}
           sourceField={attribute.sourceField}
-          bankSwiftCode={bankSwiftCode}
-          side={side}
+          definitionId={definitionId}
           lovMap={attribute.isLovBased && attribute.lovTag ? lovLookup.get(attribute.lovTag) : undefined}
         />
       )}

@@ -16,6 +16,10 @@ export interface DistinctFieldValuesResult {
   TotalValidated: number;
   TotalNotValid: number;
   TotalNotTagged: number;
+  /** Total transactions matched by the request's `FilteringProperties`,
+   *  used to derive total pages on the UI side. Added by the backend on
+   *  2026-05-26 alongside the page-by-tag-spec filtering change. */
+  TransactionsCount?: number;
 }
 
 export interface GetDistinctFieldValuesRequest {
@@ -31,6 +35,7 @@ const EMPTY: DistinctFieldValuesResult = {
   TotalValidated: 0,
   TotalNotValid: 0,
   TotalNotTagged: 0,
+  TransactionsCount: 0,
 };
 
 interface GetDistinctFieldValuesResponse {
