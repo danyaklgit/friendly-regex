@@ -41,25 +41,38 @@ export function applyTransformation(
       return value.replace(/[^a-zA-Z0-9\s]/g, '');
 
     // Find/Replace
+    // Match-or-empty contract: when the transformation has no actionable
+    // configuration (missing find/pattern) or when the find/pattern is set
+    // but doesn't occur in the input, we return '' instead of the original
+    // value. Operators expect "no result" to render as an empty cell, not
+    // as the unchanged source field — leaking the source field reads as a
+    // successful transformation and hides the configuration bug.
     case 'replace':
-      return args.find ? value.split(args.find).join(args.replaceWith ?? '') : value;
+      if (!args.find) return '';
+      if (!value.includes(args.find)) return '';
+      return value.split(args.find).join(args.replaceWith ?? '');
     case 'regex_replace':
+      if (!args.pattern) return '';
       try {
-        return args.pattern
-          ? value.replace(new RegExp(args.pattern, 'g'), args.replaceWith ?? '')
-          : value;
+        const re = new RegExp(args.pattern, 'g');
+        if (!re.test(value)) return '';
+        // `test` advances lastIndex on /g regexes; rebuild a fresh regex so
+        // the subsequent replace starts from the beginning of the string.
+        return value.replace(new RegExp(args.pattern, 'g'), args.replaceWith ?? '');
       } catch {
-        return value;
+        return '';
       }
 
     // Formatting
     case 'pad_left': {
       const len = Number(args.length);
-      return len > 0 ? value.padStart(len, args.char || ' ') : value;
+      if (!(len > 0)) return '';
+      return value.padStart(len, args.char || ' ');
     }
     case 'pad_right': {
       const len = Number(args.length);
-      return len > 0 ? value.padEnd(len, args.char || ' ') : value;
+      if (!(len > 0)) return '';
+      return value.padEnd(len, args.char || ' ');
     }
     case 'date_reformat':
       return reformatDate(value, args.fromFormat ?? '', args.toFormat ?? '');
@@ -71,7 +84,12 @@ export function applyTransformation(
       return value.substring(start, end);
     }
     case 'split_and_pick': {
-      if (!args.delimiter) return value;
+      if (!args.delimiter) return '';
+      // JS quirk: `'abc'.split('x')` returns `['abc']`, so a `parts[0]`
+      // lookup after a non-matching split would silently return the
+      // ORIGINAL full string. Guard explicitly on the delimiter being
+      // present so a no-match always reads as '' regardless of index.
+      if (!value.includes(args.delimiter)) return '';
       const parts = value.split(args.delimiter);
       const idx = Number(args.index) || 0;
       return parts[idx] ?? '';
@@ -79,7 +97,7 @@ export function applyTransformation(
 
     case 'max_char_limit': {
       const len = Number(args.length);
-      if (!Number.isFinite(len) || len <= 0) return value;
+      if (!Number.isFinite(len) || len <= 0) return '';
       const breakAtSpecial = args.breakAtSpecial === 'true';
       if (!breakAtSpecial) return value.slice(0, len);
       // Walk the first `len` chars; cut at the first non-alphanumeric
@@ -119,15 +137,17 @@ export function applyTransformationPipeline(
   return steps;
 }
 
-/** Simple date reformatting for common patterns (MM/DD/YYYY <-> DD/MM/YYYY etc.) */
+/** Simple date reformatting for common patterns (MM/DD/YYYY <-> DD/MM/YYYY etc.).
+ *  Returns '' (not the original value) when the inputs aren't usable —
+ *  matches the match-or-empty contract enforced by `applyTransformation`. */
 function reformatDate(value: string, fromFormat: string, toFormat: string): string {
-  if (!fromFormat || !toFormat) return value;
+  if (!fromFormat || !toFormat) return '';
 
   const fromParts = fromFormat.split(/[/\-.]/).map((p) => p.toUpperCase());
   const sep = fromFormat.match(/[/\-.]/)?.[0] ?? '/';
   const valueParts = value.split(/[/\-.]/);
 
-  if (fromParts.length !== valueParts.length) return value;
+  if (fromParts.length !== valueParts.length) return '';
 
   const dateMap: Record<string, string> = {};
   for (let i = 0; i < fromParts.length; i++) {

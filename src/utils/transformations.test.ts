@@ -63,8 +63,12 @@ describe('applyTransformation', () => {
     expect(applyTransformation('replace', { find: 'cat', replaceWith: 'dog' }, 'cat and cat')).toBe('dog and dog');
   });
 
-  it('replace returns original when find is empty', () => {
-    expect(applyTransformation('replace', { find: '', replaceWith: 'dog' }, 'cat')).toBe('cat');
+  it('replace returns empty string when find is empty (no actionable config)', () => {
+    expect(applyTransformation('replace', { find: '', replaceWith: 'dog' }, 'cat')).toBe('');
+  });
+
+  it('replace returns empty string when find is not present in value (no match)', () => {
+    expect(applyTransformation('replace', { find: 'zebra', replaceWith: 'dog' }, 'cat')).toBe('');
   });
 
   it('replace defaults replaceWith to empty string', () => {
@@ -75,12 +79,16 @@ describe('applyTransformation', () => {
     expect(applyTransformation('regex_replace', { pattern: '\\d+', replaceWith: '#' }, 'abc 123 def 456')).toBe('abc # def #');
   });
 
-  it('regex_replace returns original for empty pattern', () => {
-    expect(applyTransformation('regex_replace', { pattern: '', replaceWith: '#' }, 'abc')).toBe('abc');
+  it('regex_replace returns empty string for empty pattern', () => {
+    expect(applyTransformation('regex_replace', { pattern: '', replaceWith: '#' }, 'abc')).toBe('');
   });
 
-  it('regex_replace returns original for invalid regex', () => {
-    expect(applyTransformation('regex_replace', { pattern: '[invalid', replaceWith: '' }, 'abc')).toBe('abc');
+  it('regex_replace returns empty string for invalid regex', () => {
+    expect(applyTransformation('regex_replace', { pattern: '[invalid', replaceWith: '' }, 'abc')).toBe('');
+  });
+
+  it('regex_replace returns empty string when pattern does not match', () => {
+    expect(applyTransformation('regex_replace', { pattern: '\\d+', replaceWith: '#' }, 'abc def')).toBe('');
   });
 
   // --- Formatting ---
@@ -88,8 +96,8 @@ describe('applyTransformation', () => {
     expect(applyTransformation('pad_left', { length: '5', char: '0' }, '42')).toBe('00042');
   });
 
-  it('pad_left returns original when length is 0', () => {
-    expect(applyTransformation('pad_left', { length: '0', char: '0' }, '42')).toBe('42');
+  it('pad_left returns empty string when length is 0 (no actionable config)', () => {
+    expect(applyTransformation('pad_left', { length: '0', char: '0' }, '42')).toBe('');
   });
 
   it('pad_left defaults char to space', () => {
@@ -100,24 +108,24 @@ describe('applyTransformation', () => {
     expect(applyTransformation('pad_right', { length: '5', char: '0' }, '42')).toBe('42000');
   });
 
-  it('pad_right returns original when length is 0', () => {
-    expect(applyTransformation('pad_right', { length: '0', char: '0' }, '42')).toBe('42');
+  it('pad_right returns empty string when length is 0 (no actionable config)', () => {
+    expect(applyTransformation('pad_right', { length: '0', char: '0' }, '42')).toBe('');
   });
 
   it('date_reformat rearranges date parts', () => {
     expect(applyTransformation('date_reformat', { fromFormat: 'MM/DD/YYYY', toFormat: 'DD-MM-YYYY' }, '12/25/2024')).toBe('25-12-2024');
   });
 
-  it('date_reformat returns original for empty fromFormat', () => {
-    expect(applyTransformation('date_reformat', { fromFormat: '', toFormat: 'DD/MM/YYYY' }, '12/25/2024')).toBe('12/25/2024');
+  it('date_reformat returns empty string for empty fromFormat', () => {
+    expect(applyTransformation('date_reformat', { fromFormat: '', toFormat: 'DD/MM/YYYY' }, '12/25/2024')).toBe('');
   });
 
-  it('date_reformat returns original for empty toFormat', () => {
-    expect(applyTransformation('date_reformat', { fromFormat: 'MM/DD/YYYY', toFormat: '' }, '12/25/2024')).toBe('12/25/2024');
+  it('date_reformat returns empty string for empty toFormat', () => {
+    expect(applyTransformation('date_reformat', { fromFormat: 'MM/DD/YYYY', toFormat: '' }, '12/25/2024')).toBe('');
   });
 
-  it('date_reformat returns original when part count mismatches', () => {
-    expect(applyTransformation('date_reformat', { fromFormat: 'MM/DD/YYYY', toFormat: 'DD-MM-YYYY' }, '12-2024')).toBe('12-2024');
+  it('date_reformat returns empty string when part count mismatches', () => {
+    expect(applyTransformation('date_reformat', { fromFormat: 'MM/DD/YYYY', toFormat: 'DD-MM-YYYY' }, '12-2024')).toBe('');
   });
 
   it('date_reformat handles dot separators', () => {
@@ -145,8 +153,20 @@ describe('applyTransformation', () => {
     expect(applyTransformation('split_and_pick', { delimiter: '/', index: '10' }, 'A/B/C')).toBe('');
   });
 
-  it('split_and_pick returns original when delimiter is empty', () => {
-    expect(applyTransformation('split_and_pick', { delimiter: '', index: '0' }, 'ABC')).toBe('ABC');
+  it('split_and_pick returns empty string when delimiter is empty', () => {
+    expect(applyTransformation('split_and_pick', { delimiter: '', index: '0' }, 'ABC')).toBe('');
+  });
+
+  it('split_and_pick returns empty string when delimiter is not present in value', () => {
+    expect(applyTransformation('split_and_pick', { delimiter: '-', index: '1' }, 'CFT0001222454NMSC')).toBe('');
+  });
+
+  it('split_and_pick returns empty string at index 0 when delimiter is not present (the JS split([orig]) trap)', () => {
+    // JS `'NCBK82423324AMRG'.split('9')` returns `['NCBK82423324AMRG']`, so
+    // a naive `parts[0]` would leak the original full field. Guard ensures
+    // index 0 still returns '' when the delimiter never appears.
+    expect(applyTransformation('split_and_pick', { delimiter: '9', index: '0' }, 'NCBK82423324AMRG')).toBe('');
+    expect(applyTransformation('split_and_pick', { delimiter: '9', index: '' }, 'NCBK82423324AMRG')).toBe('');
   });
 
   it('split_and_pick defaults index to 0', () => {
@@ -183,13 +203,13 @@ describe('applyTransformation', () => {
     expect(applyTransformation('max_char_limit', { length: '15', breakAtSpecial: 'true' }, '/ABCDEF')).toBe('');
   });
 
-  it('max_char_limit returns original value when length is 0', () => {
-    expect(applyTransformation('max_char_limit', { length: '0', breakAtSpecial: 'true' }, 'ABCDEF')).toBe('ABCDEF');
+  it('max_char_limit returns empty string when length is 0 (no actionable config)', () => {
+    expect(applyTransformation('max_char_limit', { length: '0', breakAtSpecial: 'true' }, 'ABCDEF')).toBe('');
   });
 
-  it('max_char_limit returns original value when length is missing or non-numeric', () => {
-    expect(applyTransformation('max_char_limit', { length: '', breakAtSpecial: 'false' }, 'ABCDEF')).toBe('ABCDEF');
-    expect(applyTransformation('max_char_limit', { length: 'abc', breakAtSpecial: 'false' }, 'ABCDEF')).toBe('ABCDEF');
+  it('max_char_limit returns empty string when length is missing or non-numeric', () => {
+    expect(applyTransformation('max_char_limit', { length: '', breakAtSpecial: 'false' }, 'ABCDEF')).toBe('');
+    expect(applyTransformation('max_char_limit', { length: 'abc', breakAtSpecial: 'false' }, 'ABCDEF')).toBe('');
   });
 
   it('max_char_limit defaults breakAtSpecial to off when not "true"', () => {
