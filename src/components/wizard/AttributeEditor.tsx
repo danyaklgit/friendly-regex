@@ -76,6 +76,11 @@ interface AttributeEditorProps {
    *  a warning instead of issuing a request. */
   libraryId?: string;
   definitionId?: string;
+  /** Lifecycle of the parent library — used by the distinct-values modal
+   *  to decide whether to send the Ops* filter columns (INPROGRESS) or
+   *  the active filter columns (ACTIVE / released). Defaults to 'ops' in
+   *  the modal when omitted. */
+  tagSpecKind?: 'ops' | 'active';
 }
 
 /**
@@ -116,7 +121,7 @@ function BoundaryHintIcon({
   );
 }
 
-export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transactions, startCollapsed, readOnly, isDuplicateName, suggestedAttributeNames, suggestedTagName, libraryId, definitionId }: AttributeEditorProps) {
+export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transactions, startCollapsed, readOnly, isDuplicateName, suggestedAttributeNames, suggestedTagName, libraryId, definitionId, tagSpecKind }: AttributeEditorProps) {
   const { fieldMeta } = useTransactionData();
   const { activeAttributes, validationClasses, validationOptions, lovOptions, lovLookup, createNewAttribute, transformationMethods, extractionMethods } = useLovAttributes();
   const [showDistinct, setShowDistinct] = useState(false);
@@ -1280,6 +1285,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
           attributeTag={attribute.attributeTag}
           sourceField={attribute.sourceField}
           definitionId={definitionId}
+          tagSpecKind={tagSpecKind}
           lovMap={attribute.isLovBased && attribute.lovTag ? lovLookup.get(attribute.lovTag) : undefined}
         />
       )}

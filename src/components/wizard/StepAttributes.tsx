@@ -36,9 +36,12 @@ interface StepAttributesProps {
    *  scope the backend distinct-values query to this TagSpec definition. */
   libraryId?: string;
   definitionId?: string;
+  /** Lifecycle of the parent library; forwarded to AttributeEditor so the
+   *  distinct-values modal picks the right column family (ops vs active). */
+  tagSpecKind?: 'ops' | 'active';
 }
 
-export function StepAttributes({ attributes, onAdd, onRemove, onClone, onUpdate, onReorder, transactions, startCollapsed, readOnly, suggestedAttributeNames, suggestedTagName, libraryId, definitionId }: StepAttributesProps) {
+export function StepAttributes({ attributes, onAdd, onRemove, onClone, onUpdate, onReorder, transactions, startCollapsed, readOnly, suggestedAttributeNames, suggestedTagName, libraryId, definitionId, tagSpecKind }: StepAttributesProps) {
   // For each attribute, the index of the earlier row sharing its (trimmed,
   // case-insensitive) name, or null when it's unique. Only the later
   // duplicate carries the flag so the original stays clean.
@@ -117,6 +120,7 @@ export function StepAttributes({ attributes, onAdd, onRemove, onClone, onUpdate,
                     suggestedTagName={suggestedTagName}
                     libraryId={libraryId}
                     definitionId={definitionId}
+                    tagSpecKind={tagSpecKind}
                   />
                 </SortableAttributeRow>
               ))}

@@ -192,6 +192,7 @@ export function TagWizardModal({ existingDef, parentLib, initialFormState, initi
           transactions={transactions}
           libraryId={commentsLibraryId ?? undefined}
           definitionId={existingDef?.Id}
+          tagSpecKind={parentLib?.StatusTag === 'INPROGRESS' ? 'ops' : 'active'}
         />
       )}
 
