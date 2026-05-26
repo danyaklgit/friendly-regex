@@ -45,6 +45,20 @@ interface TransactionTableProps {
   loading?: boolean;
   accentHue?: number;
   onRowContextMenu?: (row: TransactionRow, x: number, y: number) => void;
+  /** Fired on double-click of a 'data:*' cell. Caller decides which fields
+   *  to react to (e.g. the Rule Builder uses this to copy a row's
+   *  TransactionTypeCode value into its dropdown). When omitted, cells
+   *  behave normally (text selects on double-click). */
+  onCellDoubleClick?: (field: string, value: string | number | boolean | null, row: TransactionRow) => void;
+  /** Set of `data:*` field names that should render with an interactive
+   *  affordance (cursor pointer + hover accent + native tooltip). Use to
+   *  signal which cells `onCellDoubleClick` actually responds to so the
+   *  operator doesn't have to guess. */
+  interactiveCellFields?: ReadonlySet<string>;
+  /** Native `title` attribute applied to interactive cells. Defaults to a
+   *  generic "Double-click to use" message; pass a context-specific copy
+   *  to make the affordance self-explanatory. */
+  interactiveCellHint?: string;
   /** The saved definition being edited, if any. Enables Before/After diff tooltips on attribute cells whose rule has changed. */
   originalEditingDef?: TagSpecDefinition;
   /**
@@ -476,7 +490,7 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
 
 export type { ColumnDef };
 
-export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, definitionSourceMap, definitionVersions, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, onFlagDeadEndWithComment, onSetComments, onHideTagDefs, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, accentHue = 190, onRowContextMenu, originalEditingDef, activeDefinitionId }: TransactionTableProps) {
+export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, definitionSourceMap, definitionVersions, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, onFlagDeadEndWithComment, onSetComments, onHideTagDefs, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, accentHue = 190, onRowContextMenu, onCellDoubleClick, interactiveCellFields, interactiveCellHint, originalEditingDef, activeDefinitionId }: TransactionTableProps) {
   const { fieldMeta } = useTransactionData();
   const { lovLookup } = useLovAttributes();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -1901,12 +1915,26 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                               </td>
                             );
                           }
-                          return (
-                            <td key={col.key} className={`px-3 ${cellPy} text-xs text-body-secondary ${relaxedMode ? 'whitespace-nowrap' : 'max-w-200'} ${stickyBg} ${isHighlighted ? 'ring-1 ring-primary/30 ring-inset bg-primary/5 dark:bg-primary/10' : ''}`} style={getCellStyle(colIdx, false)}>
-                              {renderCellContent(col.field, item.row[col.field])}
-                              {stickyEdgeShadow(colIdx)}
-                            </td>
-                          );
+                          {
+                            const isInteractive =
+                              !!onCellDoubleClick && !!interactiveCellFields?.has(col.field);
+                            return (
+                              <td
+                                key={col.key}
+                                className={`px-3 ${cellPy} text-xs text-body-secondary ${relaxedMode ? 'whitespace-nowrap' : 'max-w-200'} ${stickyBg} ${isHighlighted ? 'ring-1 ring-primary/30 ring-inset bg-primary/5 dark:bg-primary/10' : ''} ${isInteractive ? 'cursor-pointer hover:ring-1 hover:ring-primary/50 hover:bg-primary/5 dark:hover:bg-primary/10 transition-shadow select-none' : ''}`}
+                                style={getCellStyle(colIdx, false)}
+                                title={isInteractive ? (interactiveCellHint ?? 'Double-click to use') : undefined}
+                                onDoubleClick={
+                                  onCellDoubleClick
+                                    ? () => onCellDoubleClick(col.field, item.row[col.field], item.row)
+                                    : undefined
+                                }
+                              >
+                                {renderCellContent(col.field, item.row[col.field])}
+                                {stickyEdgeShadow(colIdx)}
+                              </td>
+                            );
+                          }
                         }
                         case 'dates':
                           return (

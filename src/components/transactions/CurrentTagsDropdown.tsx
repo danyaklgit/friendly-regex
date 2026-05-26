@@ -83,15 +83,28 @@ export function CurrentTagsDropdown({ entries, selectedIds, onChange }: CurrentT
     });
   }, [entries, search]);
 
+  // Delayed mirror of `selectedIds` used ONLY for the Selected/Available
+  // split. The checkbox `checked` state still reads `selectedIds` directly
+  // so the tick paints immediately on click; the split lags by 500ms so the
+  // operator can see the checkbox flip before the row reflows up to the
+  // Selected group. Matches at the moment the dropdown opens (no initial
+  // animation) and tracks the latest selection if the user rapid-fires
+  // several toggles.
+  const [splitSelectedIds, setSplitSelectedIds] = useState<ReadonlySet<string>>(selectedIds);
+  useEffect(() => {
+    const t = window.setTimeout(() => setSplitSelectedIds(selectedIds), 500);
+    return () => window.clearTimeout(t);
+  }, [selectedIds]);
+
   // Split filtered list into Selected (top) / Available (bottom) so the
   // selection state stays scannable in long lists. Matches the StringFromListDropdown
   // convention in DynamicFilters.
   const { selectedFiltered, availableFiltered } = useMemo(() => {
     const sel: CurrentTagEntry[] = [];
     const avail: CurrentTagEntry[] = [];
-    for (const e of filtered) (selectedIds.has(e.id) ? sel : avail).push(e);
+    for (const e of filtered) (splitSelectedIds.has(e.id) ? sel : avail).push(e);
     return { selectedFiltered: sel, availableFiltered: avail };
-  }, [filtered, selectedIds]);
+  }, [filtered, splitSelectedIds]);
 
   const toggle = (id: string) => {
     const next = new Set(selectedIds);

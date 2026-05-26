@@ -197,11 +197,10 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
 }
 
 const BATCH_SIZE = 50;
-// Stable empty filter sentinel — used when a fetch is scoped only by an extra filter
-// (e.g. TagSpecDefinitionId) and we want to drop bank/side from the payload. A
-// shared constant keeps identity stable across renders so dependent effects don't re-fire.
-const EMPTY_FILTERS: Record<string, Set<string>> = {};
-
+// Stable set identity for the Rule Builder's double-click affordance —
+// re-creating the Set on every render would re-trigger memoization
+// downstream. Frozen so accidental mutation doesn't bypass the singleton.
+const TRANSACTION_TYPE_INTERACTIVE_FIELDS: ReadonlySet<string> = new Set(['TransactionTypeCode']);
 // A row is hidden when any of its analyzeRow-resolved matched definitions
 // is in the hidden set. Hide is per-def-Id (CLAUDE.md gotcha #3), so a row
 // that re-evaluates to a non-hidden def via local rules stays visible even
@@ -445,18 +444,21 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       // (applied via `filters`) is what the user wants to broaden to.
       return [];
     }
+    const extra: FilterProperty[] = [];
     // Current Tags multi-select scope. Multi-value IN goes as a pipe-joined
     // Value (CLAUDE.md gotcha #15) — same shape used by the SHOW ONLY filter
-    // and the hidden-tag-count call. Skipped while the rule builder is open
-    // so the builder's own preview scoping isn't fought over the same column.
-    if (!builderOpen && currentTagFilterIds.size > 0) {
-      return [{
+    // and the hidden-tag-count call. Applied whether or not the rule builder
+    // is open: this filter lives on OpsTagSpecDefinitionId, the builder's
+    // preview lives on data columns / REGEX — different surfaces, so they
+    // AND together cleanly. Earlier code skipped this while the builder was
+    // open on the assumption they shared a column; that wasn't true.
+    if (currentTagFilterIds.size > 0) {
+      extra.push({
         ColumnName: 'OpsTagSpecDefinitionId|OpsMultiTags.TagSpecDefinitionId',
         Value: [...currentTagFilterIds].join('|'),
         Operand: 'IN',
-      }];
+      });
     }
-    const extra: FilterProperty[] = [];
     if (builderOpen && builder.formState.transactionTypeCode) {
       extra.push({ ColumnName: 'TransactionTypeCode', Value: builder.formState.transactionTypeCode, Operand: 'EQ' });
     }
@@ -472,16 +474,14 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     return extra;
   }, [tagClickDefinitionId, tagClickRulesetApplied, tagClickShowingAll, tagClickRulesetFilters, builderOpen, builder.formState, currentTagFilterIds]);
 
-  // When the API call is scoped by TagSpecDefinitionId, the definition itself
-  // implies bank/side via its parent library — don't also send bank/side filters.
-  // Use a stable sentinel so its identity doesn't churn across renders when the
-  // call stays scoped (avoids re-firing the live-fetch effect unnecessarily).
-  const outgoingFilters = useMemo(() => {
-    const scopedByDefinitionId = activeExtraFilters.some(
-      (f) => 'ColumnName' in f && f.ColumnName === 'OpsTagSpecDefinitionId|OpsMultiTags.TagSpecDefinitionId'
-    );
-    return scopedByDefinitionId ? EMPTY_FILTERS : filters;
-  }, [activeExtraFilters, filters]);
+  // Forward the UI filter state as-is. Earlier this hook stripped bank/side
+  // when a TagSpecDefinitionId scope was active, on the theory that the
+  // definition's parent library already implies them — but it actually
+  // stripped the WHOLE filter set, which silently dropped the operator's
+  // Bank Reference, IBAN, Search, etc. Detected Tag Specs are computed
+  // against the active checkout's bank/side anyway, so the redundancy is
+  // harmless; the simpler "send everything the user set" path is correct.
+  const outgoingFilters = filters;
 
   // Persist settings to localStorage
   useEffect(() => { try { localStorage.setItem('tep:showAttributes', String(showAttributes)); } catch { /* ignore */ } }, [showAttributes]);
@@ -1188,6 +1188,8 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // Resolve matching IDs to definitions via the local libraries cache.
   // Definitions not in the cache stay surfaced by raw Id so the operator
   // can still scope the table; the modal renders an "(unknown)" badge.
+  // Sorted alphabetically by tag name so long lists stay scannable;
+  // unresolved entries (no def in the local cache) sink to the bottom.
   const matchingTagEntries = useMemo(() => {
     if (matchingTagDefIds.length === 0) {
       return [] as Array<{ id: string; def?: TagSpecDefinition; version?: number }>;
@@ -1196,11 +1198,19 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     for (const lib of allLibraries) {
       for (const def of lib.TagSpecDefinitions) byId.set(def.Id, def);
     }
-    return matchingTagDefIds.map((id) => ({
+    const entries = matchingTagDefIds.map((id) => ({
       id,
       def: byId.get(id),
       version: definitionVersions.get(id)?.version,
     }));
+    entries.sort((a, b) => {
+      if (!a.def && b.def) return 1;
+      if (a.def && !b.def) return -1;
+      const an = a.def?.Tag ?? a.id;
+      const bn = b.def?.Tag ?? b.id;
+      return an.localeCompare(bn, undefined, { sensitivity: 'base' });
+    });
+    return entries;
   }, [matchingTagDefIds, allLibraries, definitionVersions]);
 
   // Deliver +N visible rows. Always appends with the default page size so
@@ -2344,6 +2354,24 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
 // 30 — orange
 // 140 — green
         onRowContextMenu={(row, x, y) => setContextMenu({ row, x, y })}
+        onCellDoubleClick={
+          builderOpen && !isReadOnly
+            ? (field, value) => {
+                // Operator-requested shortcut: while the Rule Builder is
+                // open, double-clicking a TransactionTypeCode cell copies
+                // that value into the builder's Transaction Type dropdown.
+                if (field !== 'TransactionTypeCode') return;
+                const next = value == null ? '' : String(value).trim();
+                if (!next) return;
+                if (builder.formState.transactionTypeCode === next) return;
+                builder.updateBasicInfo({ transactionTypeCode: next });
+              }
+            : undefined
+        }
+        interactiveCellFields={
+          builderOpen && !isReadOnly ? TRANSACTION_TYPE_INTERACTIVE_FIELDS : undefined
+        }
+        interactiveCellHint="Double-click to use as the rule's Transaction Type"
         originalEditingDef={editingDef}
         activeDefinitionId={tagClickDefinitionId ?? editingDef?.Id}
       />
