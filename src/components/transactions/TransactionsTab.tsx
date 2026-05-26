@@ -2142,6 +2142,11 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                 readOnly={isReadOnly}
                 suggestedAttributeNames={suggestedAttributeNames}
                 suggestedTagName={builder.formState.tag.trim() || undefined}
+                tagSpecKind={
+                  (editingParentLib ?? inProgressLib)?.StatusTag === 'INPROGRESS'
+                    ? 'ops'
+                    : 'active'
+                }
               />
             </div>
           </div>

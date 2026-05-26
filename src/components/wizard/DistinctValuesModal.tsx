@@ -28,6 +28,13 @@ interface DistinctValuesModalProps {
    *  not supplied (e.g. unsaved create-mode draft) the modal renders an
    *  empty state without firing the API call. */
   definitionId?: string;
+  /** Selects which column family the backend should filter against:
+   *    'ops'    → OpsTagSpecDefinitionId|OpsMultiTags.TagSpecDefinitionId
+   *    'active' → TagSpecDefinitionId|MultiTags.TagSpecDefinitionId
+   *  Picked from the parent library's lifecycle (INPROGRESS uses 'ops',
+   *  ACTIVE / released uses 'active'). Defaults to 'ops' to preserve
+   *  existing call-site behavior. */
+  tagSpecKind?: 'ops' | 'active';
   /** Optional LOV resolution map (raw value -> friendly name) so the modal
    *  can preserve the existing "<name> (raw)" display for LOV-based
    *  attributes. */
@@ -107,6 +114,7 @@ export function DistinctValuesModal({
   attributeTag,
   sourceField,
   definitionId,
+  tagSpecKind = 'ops',
   lovMap,
   zClass = 'z-[60]',
 }: DistinctValuesModalProps) {
@@ -171,12 +179,15 @@ export function DistinctValuesModal({
         }
 
         // Backend keys distinct-value queries off the tag spec definition
-        // id (matches the same column used elsewhere in the app for "show
-        // transactions tagged by this definition" — see `activeExtraFilters`
-        // in TransactionsTab).
+        // id. The column family flips based on whether the parent library
+        // is in-progress (operator-owned draft, lives on the Ops* columns)
+        // or active/released (lives on the published columns).
+        const definitionColumn = tagSpecKind === 'active'
+          ? 'TagSpecDefinitionId|MultiTags.TagSpecDefinitionId'
+          : 'OpsTagSpecDefinitionId|OpsMultiTags.TagSpecDefinitionId';
         const filters: FilterProperty[] = [
           {
-            ColumnName: 'OpsTagSpecDefinitionId|OpsMultiTags.TagSpecDefinitionId',
+            ColumnName: definitionColumn,
             Value: definitionId,
             Operand: 'IN',
           },
@@ -210,7 +221,7 @@ export function DistinctValuesModal({
     })();
 
     return () => controller.abort();
-  }, [open, attributeTag, definitionId, pageIndex, reloadKey, getAuthHeaders, refreshIfNeeded, tepHeaders]);
+  }, [open, attributeTag, definitionId, tagSpecKind, pageIndex, reloadKey, getAuthHeaders, refreshIfNeeded, tepHeaders]);
 
   if (!open) return null;
 
