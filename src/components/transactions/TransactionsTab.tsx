@@ -415,7 +415,8 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
 
   // IDs picked from the Current Tags dropdown. Multi-select; joined by '|'
   // into an OpsTagSpecDefinitionId IN filter when non-empty (see
-  // activeExtraFilters below).
+  // activeExtraFilters below). The Rule Builder uses this state too —
+  // see the lock-sync effect colocated with `editingDef` below.
   const [currentTagFilterIds, setCurrentTagFilterIds] = useState<Set<string>>(new Set());
 
   // Extra filters injected into API calls (definition-ID scoping, REGEX ruleset, or transaction type from builder).
@@ -712,6 +713,26 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const [wizardInitialState, setWizardInitialState] = useState<WizardFormState | undefined>(undefined);
   const [editingDef, setEditingDef] = useState<TagSpecDefinition | undefined>(undefined);
   const [editingParentLib, setEditingParentLib] = useState<TagSpecLibrary | undefined>(undefined);
+
+  // When the Rule Builder is open editing an existing definition, the
+  // Detected Tag Specs picker locks to that definition: the entry is
+  // pre-checked, every other entry is disabled, and Select/Deselect-all
+  // are disabled. The ref tracks the prior lock so we only force-sync the
+  // selection when the lock id actually changes — otherwise the effect
+  // would fight any manual change the operator made between renders.
+  const detectedTagsLockedToId =
+    builderOpen && editingDef?.Id ? editingDef.Id : undefined;
+  const prevDetectedTagsLockRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const next = detectedTagsLockedToId;
+    const prev = prevDetectedTagsLockRef.current;
+    if (next && next !== prev) {
+      setCurrentTagFilterIds(new Set([next]));
+    } else if (!next && prev) {
+      setCurrentTagFilterIds(new Set());
+    }
+    prevDetectedTagsLockRef.current = next;
+  }, [detectedTagsLockedToId]);
   const [wizardInitialStep, setWizardInitialStep] = useState<1 | 2 | 3 | 4 | undefined>(undefined);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [wizardFromCheckout, setWizardFromCheckout] = useState(false);
@@ -1145,12 +1166,22 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // drives the picker modal. The call is gated on isLiveMode + activeCheckout
   // so audit / sample / no-checkout sessions are no-ops.
   const [matchingTagDefIds, setMatchingTagDefIds] = useState<string[]>([]);
+  // Bumped by the filter-row Refresh button so the Detected Tag Specs list
+  // re-fetches alongside `fetchFilterDefinitions` — matches the operator's
+  // mental model of "Refresh = pull everything in the filter row again".
+  const [matchingTagReloadKey, setMatchingTagReloadKey] = useState(0);
+  // Loading flag scoped to the GetAllTransactionTags call so the filter row
+  // can render a skeleton on the Detected Tag Specs pill while the list is
+  // being refetched. Only true during an active in-flight request.
+  const [matchingTagsListLoading, setMatchingTagsListLoading] = useState(false);
   useEffect(() => {
     if (!isLiveMode || !activeCheckout) {
       setMatchingTagDefIds([]);
+      setMatchingTagsListLoading(false);
       return;
     }
     const controller = new AbortController();
+    setMatchingTagsListLoading(true);
     (async () => {
       try {
         await refreshIfNeeded();
@@ -1175,15 +1206,17 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
           tepHeaders,
           controller.signal,
         );
-        setMatchingTagDefIds(ids);
+        if (!controller.signal.aborted) setMatchingTagDefIds(ids);
       } catch (err) {
         if ((err as Error).name !== 'AbortError') {
           console.error('GetAllTransactionTags failed', err);
         }
+      } finally {
+        if (!controller.signal.aborted) setMatchingTagsListLoading(false);
       }
     })();
     return () => controller.abort();
-  }, [isLiveMode, activeCheckout, refreshIfNeeded, getAuthHeaders, userId, tepConfig]);
+  }, [isLiveMode, activeCheckout, refreshIfNeeded, getAuthHeaders, userId, tepConfig, matchingTagReloadKey]);
 
   // Resolve matching IDs to definitions via the local libraries cache.
   // Definitions not in the cache stay surfaced by raw Id so the operator
@@ -1841,19 +1874,35 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         filterDefinitionsLoading={filterDefinitionsLoading}
         decimalMaxValues={decimalMaxValues}
         disabledFilterTags={tagClickState?.showingAll && tagClickState.tagFilterKey ? new Set([tagClickState.tagFilterKey]) : undefined}
-        leadingActionSlot={isLiveMode && activeCheckout && matchingTagEntries.length > 0 ? (
+        leadingActionSlot={isLiveMode && activeCheckout && (matchingTagEntries.length > 0 || matchingTagsListLoading) ? (
           <CurrentTagsDropdown
             entries={matchingTagEntries}
             selectedIds={currentTagFilterIds}
             onChange={setCurrentTagFilterIds}
+            loading={matchingTagsListLoading}
+            lockedToId={detectedTagsLockedToId}
           />
         ) : null}
+        // The Detected Tag Specs picker lives outside DynamicFilters' own
+        // state but reads as part of the same filter row to the operator —
+        // fold it into the Clear-filters affordance so one click resets
+        // everything the operator can see.
+        extraActiveFilterCount={currentTagFilterIds.size}
+        onClearExtraFilters={() => setCurrentTagFilterIds(new Set())}
         endSlot={(isLiveMode || tableColumns.length > 0) ? (
           <div className="flex items-center gap-2">
             {isLiveMode && (
               <button
                 type="button"
-                onClick={() => { if (!filterDefinitionsLoading) fetchFilterDefinitions(); }}
+                onClick={() => {
+                  if (filterDefinitionsLoading) return;
+                  fetchFilterDefinitions();
+                  // Detected Tag Specs comes from a separate endpoint
+                  // (`GetAllTransactionTags`), so the Refresh button must
+                  // also re-fire that fetch — otherwise a stale tag-spec
+                  // list survives the refresh.
+                  setMatchingTagReloadKey((k) => k + 1);
+                }}
                 disabled={filterDefinitionsLoading}
                 title="Refresh filters"
                 aria-label="Refresh filters"
