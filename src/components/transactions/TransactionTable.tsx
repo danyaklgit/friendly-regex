@@ -522,13 +522,27 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     });
   }, []);
 
+  // True when every visible row's id is already in `selectedIds`. Comparing
+  // `selectedIds.size === data.length` would be wrong: rows with duplicate
+  // (or empty) ids collapse into a single Set entry, so for large datasets
+  // where `getRowId` isn't unique across all rows, the count comparison
+  // says "not all selected" even after select-all has been clicked. Walking
+  // the rows side-steps that.
+  const allRowsSelected = useMemo(() => {
+    if (data.length === 0) return false;
+    for (const item of data) {
+      if (!selectedIds.has(getRowId(item.row))) return false;
+    }
+    return true;
+  }, [data, selectedIds, getRowId]);
+
   const toggleSelectAll = useCallback(() => {
-    if (selectedIds.size === data.length) {
+    if (allRowsSelected) {
       setSelectedIds(new Set());
     } else {
       setSelectedIds(new Set(data.map((item) => getRowId(item.row))));
     }
-  }, [data, selectedIds.size, getRowId]);
+  }, [data, allRowsSelected, getRowId]);
 
   const [flagLoading, setFlagLoading] = useState(false);
   const handleFlagDeadEnd = useCallback(async (value: boolean) => {
@@ -1847,7 +1861,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                         {onFlagDeadEnd && (
                           <input
                             type="checkbox"
-                            checked={data.length > 0 && selectedIds.size === data.length}
+                            checked={allRowsSelected}
                             onChange={toggleSelectAll}
                             className="rounded border-border-strong"
                           />
