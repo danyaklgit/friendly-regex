@@ -1863,7 +1863,13 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                             type="checkbox"
                             checked={allRowsSelected}
                             onChange={toggleSelectAll}
-                            className="rounded border-border-strong"
+                            disabled={loading}
+                            aria-label={loading ? 'Loading transactions, selection disabled' : 'Select all rows'}
+                            // `pointer-events-none` here suppresses the
+                            // browser's native hover/focus ring on the
+                            // disabled checkbox; `disabled` alone leaves
+                            // a faint hover artifact on some platforms.
+                            className={`rounded border-border-strong ${loading ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''}`}
                           />
                         )}
                         Tags
@@ -2098,7 +2104,9 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                                     type="checkbox"
                                     checked={isSelected}
                                     onChange={() => toggleSelect(rowId)}
-                                    className="rounded border-border-strong shrink-0"
+                                    disabled={loading}
+                                    aria-label={loading ? 'Loading transactions, selection disabled' : 'Select row'}
+                                    className={`rounded border-border-strong shrink-0 ${loading ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''}`}
                                   />
                                 )}
                                 <div className="flex-1">
