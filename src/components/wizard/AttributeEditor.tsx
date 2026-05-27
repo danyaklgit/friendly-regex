@@ -400,26 +400,35 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
   const transformationSample = useMemo(() => {
     const txs = attribute.transformations ?? [];
     if (rawDistinctValues.length > 0) {
+      // Match check has to be done at each step against the value AS IT
+      // ENTERS that step — earlier transformations (trim, replace, etc.)
+      // can change shape before the matcher step runs. Without this,
+      // a chain like [trim, starts_with_and_replace("FAVOR", …)] on
+      // " FAVOR …" would fail the match check (raw has a leading space)
+      // and the picker would fall back to a non-demonstrating sample,
+      // making the preview's last step look like a misleading no-op.
       const demonstrates = (raw: string): boolean => {
+        let current = raw;
         for (const t of txs) {
           if (t.method === 'replace') {
             const find = t.args.find;
-            if (find && raw.includes(find)) return true;
+            if (find && current.includes(find)) return true;
           } else if (t.method === 'regex_replace') {
             const pattern = t.args.pattern;
             if (pattern) {
-              try { if (new RegExp(pattern).test(raw)) return true; } catch { /* skip */ }
+              try { if (new RegExp(pattern).test(current)) return true; } catch { /* skip */ }
             }
           } else if (t.method === 'split_and_pick') {
             const delim = t.args.delimiter;
-            if (delim && raw.includes(delim)) return true;
+            if (delim && current.includes(delim)) return true;
           } else if (t.method === 'starts_with_and_replace') {
             const prefix = t.args.prefix;
-            if (prefix && raw.startsWith(prefix)) return true;
+            if (prefix && current.startsWith(prefix)) return true;
           } else if (t.method === 'ends_with_and_replace') {
             const suffix = t.args.suffix;
-            if (suffix && raw.endsWith(suffix)) return true;
+            if (suffix && current.endsWith(suffix)) return true;
           }
+          current = applyTransformation(t.method, t.args, current);
         }
         return false;
       };
