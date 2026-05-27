@@ -50,6 +50,25 @@ export function CommentDialog({
   const distinct = useMemo(() => distinctComments(rowsWithComment), [rowsWithComment]);
   const hasExisting = rowsWithComment.length > 0;
 
+  // When flagging/unflagging, some of the selected rows are already in the
+  // target state — those will be no-ops on the backend. Surface the
+  // effective count (rows that will actually change) so the operator's
+  // mental model matches what happens, instead of being told "Flagging 50"
+  // when 10 are already flagged. `IsDeadEnd` is the boolean mirror added on
+  // ingest from `OpsIsDeadEnd` (see TransactionDataContext).
+  const flagCounts = useMemo(() => {
+    if (!flagAction) return null;
+    let willChange = 0;
+    let noOp = 0;
+    for (const row of selectedRows) {
+      const isCurrentlyDead = row['IsDeadEnd'] === true;
+      const targetDead = flagAction === 'flag';
+      if (isCurrentlyDead === targetDead) noOp++;
+      else willChange++;
+    }
+    return { willChange, noOp };
+  }, [selectedRows, flagAction]);
+
   const [path, setPath] = useState<'choose' | 'review'>('choose');
   const [bulkComment, setBulkComment] = useState('');
   const [perRow, setPerRow] = useState<Map<string, string | null>>(new Map());
@@ -299,10 +318,20 @@ export function CommentDialog({
     <Modal open={open} onClose={submitting ? () => {} : onClose} title={title} footer={footer}>
       <div className="space-y-4">
         {mode === 'flag-with-comment' && (
-          <div className="text-xs text-body-secondary bg-primary/5 border border-primary/20 rounded px-3 py-2">
-            {flagAction === 'unflag'
-              ? `Unflagging ${selectedRows.length} transaction${selectedRows.length === 1 ? '' : 's'} as dead end. You can optionally attach a comment.`
-              : `Flagging ${selectedRows.length} transaction${selectedRows.length === 1 ? '' : 's'} as dead end. You can optionally attach a comment.`}
+          <div className="text-xs text-body-secondary bg-primary/5 border border-primary/20 rounded px-3 py-2 space-y-1">
+            <div>
+              {(() => {
+                const verb = flagAction === 'unflag' ? 'Unflagging' : 'Flagging';
+                const effective = flagCounts?.willChange ?? selectedRows.length;
+                const plural = effective === 1 ? '' : 's';
+                return `${verb} ${effective} transaction${plural} as dead end. You can optionally attach a comment.`;
+              })()}
+            </div>
+            {flagCounts && flagCounts.noOp > 0 && (
+              <div className="text-[11px] text-muted">
+                {flagCounts.noOp} of the {selectedRows.length} selected transaction{selectedRows.length === 1 ? '' : 's'} {flagCounts.noOp === 1 ? 'is' : 'are'} already {flagAction === 'unflag' ? 'unflagged' : 'flagged'} and will be skipped.
+              </div>
+            )}
           </div>
         )}
 
