@@ -11,6 +11,8 @@ import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { Toast } from '../shared/Toast';
 import { Tooltip } from '../shared/Tooltip';
 import { ComparisonModal } from './ComparisonModal';
+import { RollbackConfirmDialog } from './RollbackConfirmDialog';
+import { OverflowMenu } from '../shared/OverflowMenu';
 import { TaggingStatsCell } from './TaggingStatsCell';
 import { TagRuleCard } from '../tagRules/TagRuleCard';
 import { CommentsProvider } from '../../context/CommentsContext';
@@ -722,9 +724,19 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                         <div className="px-4 py-2.5 text-end flex-1 min-w-96">
                           <div className="flex items-center justify-end gap-2">
                             {row.isOwnedByMe && !isAudit && (
-                              <Button data-tour="backlog-rollback-button" variant="danger_ghost" size="xs" onClick={() => setRollbackTarget(row)} disabled={isBeingTagged} loading={isLoading} title={taggingLockTitle}>
-                                Rollback
-                              </Button>
+                              <OverflowMenu
+                                data-tour="backlog-rollback-button"
+                                disabled={isBeingTagged || isLoading}
+                                triggerTitle={taggingLockTitle}
+                                items={[
+                                  {
+                                    label: 'Rollback',
+                                    danger: true,
+                                    disabled: isBeingTagged || isLoading,
+                                    onClick: () => setRollbackTarget(row),
+                                  },
+                                ]}
+                              />
                             )}
                             {row.isOwnedByMe && !isAudit && (
                               <Button data-tour="backlog-checkin-button" variant="primary" size="xs" onClick={() => handleCheckin(row)} disabled={isBeingTagged} loading={isLoading} title={taggingLockTitle}>
@@ -832,14 +844,13 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
         </div>
       )}
 
-      <ConfirmDialog
+      <RollbackConfirmDialog
         open={!!rollbackTarget}
+        bankCode={rollbackTarget?.bank ?? ''}
+        side={rollbackTarget?.side ?? ''}
+        loading={!!rollbackTarget && actionLoading === rollbackTarget.library.Id}
         onClose={() => setRollbackTarget(null)}
         onConfirm={handleRollbackConfirm}
-        title="Rollback Changes"
-        message={`Are you sure you want to roll back to the production version of ${rollbackTarget?.bank ?? ''} / ${rollbackTarget?.side ?? ''}? This cannot be undone.`}
-        confirmLabel="Rollback"
-        variant="danger_ghost"
       />
 
       <ConfirmDialog

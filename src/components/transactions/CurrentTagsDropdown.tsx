@@ -16,6 +16,19 @@ interface CurrentTagsDropdownProps {
   entries: CurrentTagEntry[];
   selectedIds: ReadonlySet<string>;
   onChange: (next: Set<string>) => void;
+  /** True while `GetAllTransactionTags` is in flight (e.g. just after the
+   *  filter-row Refresh button was clicked). Renders the trigger pill as
+   *  a skeleton and stubs out the dropdown body so the operator can't
+   *  toggle anything against a stale list. */
+  loading?: boolean;
+  /** When set, the dropdown is "locked" to the given tag-spec definition
+   *  id — this is the entry the operator is currently editing in the
+   *  Rule Builder. The locked entry is pre-checked and the only row the
+   *  operator can interact with; every other row, plus the Select all /
+   *  Deselect all controls, are disabled. The trigger pill picks up a
+   *  small lock badge so the constraint is visible without opening the
+   *  dropdown. */
+  lockedToId?: string;
 }
 
 // Filter-row pill that opens a searchable multi-select dropdown listing tag
@@ -25,7 +38,8 @@ interface CurrentTagsDropdownProps {
 // changes are committed immediately; the parent merges the selected IDs into
 // activeExtraFilters as an OpsTagSpecDefinitionId IN <ids> filter so the
 // backend scopes the transactions fetch.
-export function CurrentTagsDropdown({ entries, selectedIds, onChange }: CurrentTagsDropdownProps) {
+export function CurrentTagsDropdown({ entries, selectedIds, onChange, loading = false, lockedToId }: CurrentTagsDropdownProps) {
+  const isLocked = !!lockedToId;
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const triggerRef = useRef<HTMLDivElement>(null);
@@ -107,6 +121,11 @@ export function CurrentTagsDropdown({ entries, selectedIds, onChange }: CurrentT
   }, [filtered, splitSelectedIds]);
 
   const toggle = (id: string) => {
+    // While locked, the operator can't toggle ANY row — including the
+    // locked one itself, since deselecting it would scope away from the
+    // tag being edited. The Rule Builder controls that lock; the
+    // dropdown only enforces it.
+    if (isLocked) return;
     const next = new Set(selectedIds);
     if (next.has(id)) next.delete(id);
     else next.add(id);
@@ -114,12 +133,14 @@ export function CurrentTagsDropdown({ entries, selectedIds, onChange }: CurrentT
   };
 
   const handleSelectAll = () => {
+    if (isLocked) return;
     const next = new Set(selectedIds);
     for (const e of filtered) next.add(e.id);
     onChange(next);
   };
 
   const handleDeselectAll = () => {
+    if (isLocked) return;
     const next = new Set(selectedIds);
     for (const e of filtered) next.delete(e.id);
     onChange(next);
@@ -134,18 +155,28 @@ export function CurrentTagsDropdown({ entries, selectedIds, onChange }: CurrentT
     const certainty = def?.CertaintyLevelTag ?? 'HIGH';
     const unresolved = !def;
     const isSelected = selectedIds.has(id);
+    // While locked, only the locked entry stays interactive; every other
+    // row dims to read-only with its checkbox visually inert.
+    const rowDisabled = isLocked && id !== lockedToId;
     return (
       <label
         key={id}
-        className={`flex items-center gap-2 px-2 py-1.5 text-xs rounded cursor-pointer ${
-          isSelected ? 'bg-primary/5' : ''
-        } hover:bg-surface-hover`}
+        title={rowDisabled ? 'Locked to the tag currently open in the Rule Builder' : undefined}
+        className={`flex items-center gap-2 px-2 py-1.5 text-xs rounded ${
+          rowDisabled
+            ? 'cursor-not-allowed opacity-50'
+            : 'cursor-pointer hover:bg-surface-hover'
+        } ${isSelected ? 'bg-primary/5' : ''}`}
       >
         <input
           type="checkbox"
           checked={isSelected}
           onChange={() => toggle(id)}
-          className="rounded border-border-strong shrink-0"
+          disabled={rowDisabled || (isLocked && id === lockedToId)}
+          aria-label={tagName}
+          className={`rounded border-border-strong shrink-0 ${
+            rowDisabled || (isLocked && id === lockedToId) ? 'pointer-events-none' : ''
+          }`}
         />
         <div className="flex items-center gap-2 min-w-0 flex-1">
           <TagBadge tag={tagName} certainty={certainty} version={version} />
@@ -154,23 +185,65 @@ export function CurrentTagsDropdown({ entries, selectedIds, onChange }: CurrentT
               Not in current library
             </span>
           )}
+          {isLocked && id === lockedToId && (
+            <span className="text-[9px] uppercase tracking-wider font-semibold text-primary-dark dark:text-primary shrink-0">
+              Editing
+            </span>
+          )}
         </div>
       </label>
     );
   };
+
+  if (loading) {
+    return (
+      <div
+        ref={triggerRef}
+        aria-busy="true"
+        aria-label="Loading detected tag specs"
+        // Skeleton mimics the live pill's footprint so the filter row
+        // doesn't reflow when the loading state flips. Same height /
+        // border-radius / horizontal padding as the active button.
+        className="shrink-0 inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-primary/30 bg-primary/10 animate-pulse min-w-44 select-none"
+      >
+        <span className="w-3.5 h-3.5 rounded-sm bg-primary/30" />
+        <span className="h-3 flex-1 rounded bg-primary/20" />
+        <span className="w-6 h-3.5 rounded-full bg-primary/30" />
+      </div>
+    );
+  }
 
   return (
     <div ref={triggerRef} className="relative shrink-0">
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        title="Tag specs detected on transactions in this bank/side"
+        title={isLocked
+          ? 'Locked to the tag currently open in the Rule Builder — close the builder to multi-select'
+          : 'Tag specs detected on transactions in this bank/side'}
         className="text-xs px-3 py-1.5 rounded-lg border bg-primary border-primary text-white hover:opacity-90 transition-opacity inline-flex items-center gap-1.5 whitespace-nowrap"
       >
         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5a2 2 0 011.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
         </svg>
         Detected Tag Specs
+        {isLocked && (
+          // Properly-centered padlock: body rect + symmetric shackle arc.
+          // The previous compound path was visually broken at this size.
+          <svg
+            className="w-3.5 h-3.5 -mx-0.5 opacity-90"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            <rect x="4" y="11" width="16" height="10" rx="2" />
+            <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+          </svg>
+        )}
         <span className="ml-0.5 px-1.5 py-0.5 rounded-full bg-white/20 text-[10px] font-semibold leading-none">
           {hasActive ? `${selectedCount}/${entries.length}` : entries.length}
         </span>
@@ -201,11 +274,17 @@ export function CurrentTagsDropdown({ entries, selectedIds, onChange }: CurrentT
                 />
               </div>
             </div>
+            {isLocked && (
+              <div className="px-2 py-1.5 border-b border-border-subtle bg-primary/5 text-[10px] text-primary-dark dark:text-primary leading-snug space-y-0.5">
+                <div>Scoped to the tag spec you&apos;re editing in the Rule Builder.</div>
+                <div>Close the builder to change this selection.</div>
+              </div>
+            )}
             <div className="flex items-center justify-between gap-2 px-2 py-1.5 border-b border-border-subtle">
               <button
                 type="button"
                 onClick={handleSelectAll}
-                disabled={filtered.length === 0}
+                disabled={filtered.length === 0 || isLocked}
                 className="cursor-pointer text-[10px] font-medium text-primary-dark hover:underline disabled:opacity-50 disabled:cursor-not-allowed disabled:no-underline"
               >
                 Select all{search.trim() ? ' (matches)' : ''}
@@ -213,7 +292,7 @@ export function CurrentTagsDropdown({ entries, selectedIds, onChange }: CurrentT
               <button
                 type="button"
                 onClick={handleDeselectAll}
-                disabled={selectedCount === 0}
+                disabled={selectedCount === 0 || isLocked}
                 className="cursor-pointer text-[10px] font-medium text-muted hover:text-body hover:underline disabled:opacity-50 disabled:cursor-not-allowed disabled:no-underline"
               >
                 Deselect all{search.trim() ? ' (matches)' : ''}

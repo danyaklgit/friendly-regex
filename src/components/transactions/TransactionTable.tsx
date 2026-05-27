@@ -522,13 +522,27 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     });
   }, []);
 
+  // True when every visible row's id is already in `selectedIds`. Comparing
+  // `selectedIds.size === data.length` would be wrong: rows with duplicate
+  // (or empty) ids collapse into a single Set entry, so for large datasets
+  // where `getRowId` isn't unique across all rows, the count comparison
+  // says "not all selected" even after select-all has been clicked. Walking
+  // the rows side-steps that.
+  const allRowsSelected = useMemo(() => {
+    if (data.length === 0) return false;
+    for (const item of data) {
+      if (!selectedIds.has(getRowId(item.row))) return false;
+    }
+    return true;
+  }, [data, selectedIds, getRowId]);
+
   const toggleSelectAll = useCallback(() => {
-    if (selectedIds.size === data.length) {
+    if (allRowsSelected) {
       setSelectedIds(new Set());
     } else {
       setSelectedIds(new Set(data.map((item) => getRowId(item.row))));
     }
-  }, [data, selectedIds.size, getRowId]);
+  }, [data, allRowsSelected, getRowId]);
 
   const [flagLoading, setFlagLoading] = useState(false);
   const handleFlagDeadEnd = useCallback(async (value: boolean) => {
@@ -828,12 +842,23 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     cols.push({ type: 'tags', key: '__tags' });
 
     for (const field of fieldMeta.dataFields) {
-      // Combine Side + Amount into Debit/Credit columns
+      // Combine Side + Amount into Debit/Credit columns.
+      // Attributes sourced from `Amount` (or `Side`) still belong next to
+      // their source — place them right after the synthetic debit/credit
+      // pair instead of letting them fall through to the end-append loop.
       if (SIDE_AMOUNT_FIELDS.has(field)) {
         if (!debitCreditInserted) {
           cols.push({ type: 'debit', key: '__debit' });
           cols.push({ type: 'credit', key: '__credit' });
           debitCreditInserted = true;
+        }
+        const attrs = attrsBySource.get(field);
+        if (attrs) {
+          for (const attr of attrs) {
+            if (placedAttrs.has(attr)) continue;
+            cols.push({ type: 'attribute', key: `attr:${attr}`, name: attr });
+            placedAttrs.add(attr);
+          }
         }
         continue;
       }
@@ -1836,9 +1861,15 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                         {onFlagDeadEnd && (
                           <input
                             type="checkbox"
-                            checked={data.length > 0 && selectedIds.size === data.length}
+                            checked={allRowsSelected}
                             onChange={toggleSelectAll}
-                            className="rounded border-border-strong"
+                            disabled={loading}
+                            aria-label={loading ? 'Loading transactions, selection disabled' : 'Select all rows'}
+                            // `pointer-events-none` here suppresses the
+                            // browser's native hover/focus ring on the
+                            // disabled checkbox; `disabled` alone leaves
+                            // a faint hover artifact on some platforms.
+                            className={`rounded border-border-strong ${loading ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''}`}
                           />
                         )}
                         Tags
@@ -2073,7 +2104,9 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                                     type="checkbox"
                                     checked={isSelected}
                                     onChange={() => toggleSelect(rowId)}
-                                    className="rounded border-border-strong shrink-0"
+                                    disabled={loading}
+                                    aria-label={loading ? 'Loading transactions, selection disabled' : 'Select row'}
+                                    className={`rounded border-border-strong shrink-0 ${loading ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''}`}
                                   />
                                 )}
                                 <div className="flex-1">

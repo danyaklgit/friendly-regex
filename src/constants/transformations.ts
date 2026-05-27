@@ -61,6 +61,32 @@ export const TRANSFORMATION_METHODS: TransformationMethodDef[] = [
       { key: 'replaceWith', label: 'Replace With', placeholder: 'Replace with', type: 'text', required: true },
     ],
   },
+  {
+    // If the value STARTS with `prefix`, the prefix is swapped for
+    // `replaceWith`. Otherwise the value passes through unchanged
+    // (no-op semantics, matching `replace`). Useful for normalizing
+    // bank-reference prefixes (e.g. "SRCACT//..." → "ACC-...").
+    key: 'starts_with_and_replace',
+    label: 'If Starts With, Replace Start',
+    description: 'Args: prefix, replaceWith. Example: "SRCACT//12345" -> "ACC-12345" (prefix "SRCACT//", replaceWith "ACC-")',
+    category: 'Find/Replace',
+    args: [
+      { key: 'prefix', label: 'Prefix', placeholder: 'Text the value must start with', type: 'text', required: true },
+      { key: 'replaceWith', label: 'Replace With', placeholder: 'Replacement for the prefix', type: 'text', required: true },
+    ],
+  },
+  {
+    // If the value ENDS with `suffix`, the suffix is swapped for
+    // `replaceWith`. Otherwise the value passes through unchanged.
+    key: 'ends_with_and_replace',
+    label: 'If Ends With, Replace End',
+    description: 'Args: suffix, replaceWith. Example: "12345NMSC" -> "12345-X" (suffix "NMSC", replaceWith "-X")',
+    category: 'Find/Replace',
+    args: [
+      { key: 'suffix', label: 'Suffix', placeholder: 'Text the value must end with', type: 'text', required: true },
+      { key: 'replaceWith', label: 'Replace With', placeholder: 'Replacement for the suffix', type: 'text', required: true },
+    ],
+  },
 
   // Formatting
   {

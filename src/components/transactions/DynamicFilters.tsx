@@ -38,6 +38,13 @@ interface DynamicFiltersProps {
   onShowOnlyDeadEndChange: (value: boolean) => void;
   baseFilters?: FilterState;
   leadingActionSlot?: ReactNode;
+  /** Number of "external" filters (rendered via `leadingActionSlot`, e.g.
+   *  Detected Tag Specs) that the parent owns. Folds into the visible
+   *  Clear-filters badge and gates the button's enablement. */
+  extraActiveFilterCount?: number;
+  /** Invoked by Clear-filters alongside the internal clears so external
+   *  filter state (e.g. Detected Tag Specs selection) is reset too. */
+  onClearExtraFilters?: () => void;
   endSlot?: ReactNode;
   isLiveMode?: boolean;
   filterDefinitions?: FilterDefinition[];
@@ -1556,6 +1563,8 @@ export function DynamicFilters({
   onShowOnlyDeadEndChange,
   baseFilters,
   leadingActionSlot,
+  extraActiveFilterCount = 0,
+  onClearExtraFilters,
   endSlot,
   isLiveMode,
   filterDefinitions,
@@ -1686,14 +1695,15 @@ export function DynamicFilters({
       if (showOnlyMultiTagged) count++;
       if (showOnlyDeadEnd) count++;
     }
-    return count;
-  }, [filters, showOnlyUntagged, showOnlyMultiTagged, showOnlyDeadEnd, baseFilters, isLiveMode]);
+    return count + extraActiveFilterCount;
+  }, [filters, showOnlyUntagged, showOnlyMultiTagged, showOnlyDeadEnd, baseFilters, isLiveMode, extraActiveFilterCount]);
 
   const clearAll = () => {
     onFiltersChange(baseFilters ?? {});
     onShowOnlyUntaggedChange(false);
     onShowOnlyMultiTaggedChange(false);
     onShowOnlyDeadEndChange(false);
+    onClearExtraFilters?.();
   };
 
   const handleFilterChange = (field: string, selected: Set<string>) => {

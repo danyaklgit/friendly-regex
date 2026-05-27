@@ -41,38 +41,41 @@ export function applyTransformation(
       return value.replace(/[^a-zA-Z0-9\s]/g, '');
 
     // Find/Replace
-    // Match-or-empty contract: when the transformation has no actionable
-    // configuration (missing find/pattern) or when the find/pattern is set
-    // but doesn't occur in the input, we return '' instead of the original
-    // value. Operators expect "no result" to render as an empty cell, not
-    // as the unchanged source field — leaking the source field reads as a
-    // successful transformation and hides the configuration bug.
     case 'replace':
-      if (!args.find) return '';
-      if (!value.includes(args.find)) return '';
-      return value.split(args.find).join(args.replaceWith ?? '');
+      return args.find ? value.split(args.find).join(args.replaceWith ?? '') : value;
     case 'regex_replace':
-      if (!args.pattern) return '';
       try {
-        const re = new RegExp(args.pattern, 'g');
-        if (!re.test(value)) return '';
-        // `test` advances lastIndex on /g regexes; rebuild a fresh regex so
-        // the subsequent replace starts from the beginning of the string.
-        return value.replace(new RegExp(args.pattern, 'g'), args.replaceWith ?? '');
+        return args.pattern
+          ? value.replace(new RegExp(args.pattern, 'g'), args.replaceWith ?? '')
+          : value;
       } catch {
-        return '';
+        return value;
       }
+    // No-op semantics on miss/empty (same contract as `replace`): if the
+    // prefix/suffix is missing or doesn't match, the original value is
+    // returned unchanged. Both methods are case-sensitive, mirroring JS's
+    // built-in `String.prototype.startsWith` / `endsWith`.
+    case 'starts_with_and_replace': {
+      const prefix = args.prefix;
+      if (!prefix) return value;
+      if (!value.startsWith(prefix)) return value;
+      return (args.replaceWith ?? '') + value.slice(prefix.length);
+    }
+    case 'ends_with_and_replace': {
+      const suffix = args.suffix;
+      if (!suffix) return value;
+      if (!value.endsWith(suffix)) return value;
+      return value.slice(0, value.length - suffix.length) + (args.replaceWith ?? '');
+    }
 
     // Formatting
     case 'pad_left': {
       const len = Number(args.length);
-      if (!(len > 0)) return '';
-      return value.padStart(len, args.char || ' ');
+      return len > 0 ? value.padStart(len, args.char || ' ') : value;
     }
     case 'pad_right': {
       const len = Number(args.length);
-      if (!(len > 0)) return '';
-      return value.padEnd(len, args.char || ' ');
+      return len > 0 ? value.padEnd(len, args.char || ' ') : value;
     }
     case 'date_reformat':
       return reformatDate(value, args.fromFormat ?? '', args.toFormat ?? '');
@@ -84,11 +87,14 @@ export function applyTransformation(
       return value.substring(start, end);
     }
     case 'split_and_pick': {
+      // Strict match-or-empty contract — `split_and_pick`'s whole purpose
+      // is locating the delimiter, so a no-match is a failure (not a
+      // no-op). Returning the original would silently leak the source
+      // field for every row that doesn't contain the delimiter. Note: JS
+      // `'abc'.split('x')` returns `['abc']`, so a naive `parts[0]` lookup
+      // after a non-matching split would have leaked the full string at
+      // index 0 — the explicit `includes` guard prevents that.
       if (!args.delimiter) return '';
-      // JS quirk: `'abc'.split('x')` returns `['abc']`, so a `parts[0]`
-      // lookup after a non-matching split would silently return the
-      // ORIGINAL full string. Guard explicitly on the delimiter being
-      // present so a no-match always reads as '' regardless of index.
       if (!value.includes(args.delimiter)) return '';
       const parts = value.split(args.delimiter);
       const idx = Number(args.index) || 0;
@@ -97,7 +103,7 @@ export function applyTransformation(
 
     case 'max_char_limit': {
       const len = Number(args.length);
-      if (!Number.isFinite(len) || len <= 0) return '';
+      if (!Number.isFinite(len) || len <= 0) return value;
       const breakAtSpecial = args.breakAtSpecial === 'true';
       if (!breakAtSpecial) return value.slice(0, len);
       // Walk the first `len` chars; cut at the first non-alphanumeric
@@ -137,17 +143,15 @@ export function applyTransformationPipeline(
   return steps;
 }
 
-/** Simple date reformatting for common patterns (MM/DD/YYYY <-> DD/MM/YYYY etc.).
- *  Returns '' (not the original value) when the inputs aren't usable —
- *  matches the match-or-empty contract enforced by `applyTransformation`. */
+/** Simple date reformatting for common patterns (MM/DD/YYYY <-> DD/MM/YYYY etc.) */
 function reformatDate(value: string, fromFormat: string, toFormat: string): string {
-  if (!fromFormat || !toFormat) return '';
+  if (!fromFormat || !toFormat) return value;
 
   const fromParts = fromFormat.split(/[/\-.]/).map((p) => p.toUpperCase());
   const sep = fromFormat.match(/[/\-.]/)?.[0] ?? '/';
   const valueParts = value.split(/[/\-.]/);
 
-  if (fromParts.length !== valueParts.length) return '';
+  if (fromParts.length !== valueParts.length) return value;
 
   const dateMap: Record<string, string> = {};
   for (let i = 0; i < fromParts.length; i++) {
