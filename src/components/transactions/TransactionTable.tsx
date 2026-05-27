@@ -828,12 +828,23 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     cols.push({ type: 'tags', key: '__tags' });
 
     for (const field of fieldMeta.dataFields) {
-      // Combine Side + Amount into Debit/Credit columns
+      // Combine Side + Amount into Debit/Credit columns.
+      // Attributes sourced from `Amount` (or `Side`) still belong next to
+      // their source — place them right after the synthetic debit/credit
+      // pair instead of letting them fall through to the end-append loop.
       if (SIDE_AMOUNT_FIELDS.has(field)) {
         if (!debitCreditInserted) {
           cols.push({ type: 'debit', key: '__debit' });
           cols.push({ type: 'credit', key: '__credit' });
           debitCreditInserted = true;
+        }
+        const attrs = attrsBySource.get(field);
+        if (attrs) {
+          for (const attr of attrs) {
+            if (placedAttrs.has(attr)) continue;
+            cols.push({ type: 'attribute', key: `attr:${attr}`, name: attr });
+            placedAttrs.add(attr);
+          }
         }
         continue;
       }

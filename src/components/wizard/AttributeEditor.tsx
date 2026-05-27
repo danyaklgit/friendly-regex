@@ -13,6 +13,7 @@ import { generateExtractionPrompt, regexifyExtraction } from '../../utils/regexi
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
 import { describeLiteralBoundary } from '../../utils/engregxify';
 import { applyTransformation } from '../../utils/transformations';
+import { stringifyFieldValue } from '../../utils/extractAttributes';
 import { Modal } from '../shared/Modal';
 import { AttributeFormModal } from '../attributes/AttributeFormModal';
 import { TransformationList } from './TransformationList';
@@ -334,7 +335,10 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
       for (const row of transactions) {
         // 1) Try the (possibly drafted) regex client-side.
         const fieldValue = row[attribute.sourceField];
-        const str = fieldValue !== undefined && fieldValue !== null ? String(fieldValue) : '';
+        // Use the shared stringifier so Amount picks up its `.toFixed(2)`
+        // form (preserves the decimal precision the table displays).
+        const str = fieldValue !== undefined && fieldValue !== null
+          ? stringifyFieldValue(attribute.sourceField, fieldValue) : '';
         let captured: string | undefined;
         if (regex && str) {
           const match = str.match(regex);
@@ -386,15 +390,47 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
   // Sample value for transformation preview:
   // The preview must show the RAW extracted value on the "Extracted" line,
   // so use rawDistinctValues here, NOT the post-pipeline distinctValues.
+  //
+  // When the operator has configured a chain that touches a specific
+  // substring (replace's `find`, regex_replace's `pattern`, split_and_pick's
+  // `delimiter`), prefer a raw value that actually contains/matches it so
+  // the preview demonstrates the transformation instead of showing a
+  // misleading no-op. Falls back to rawDistinctValues[0] if no candidate
+  // exists.
   const transformationSample = useMemo(() => {
-    if (rawDistinctValues.length > 0) return rawDistinctValues[0];
+    const txs = attribute.transformations ?? [];
+    if (rawDistinctValues.length > 0) {
+      const demonstrates = (raw: string): boolean => {
+        for (const t of txs) {
+          if (t.method === 'replace') {
+            const find = t.args.find;
+            if (find && raw.includes(find)) return true;
+          } else if (t.method === 'regex_replace') {
+            const pattern = t.args.pattern;
+            if (pattern) {
+              try { if (new RegExp(pattern).test(raw)) return true; } catch { /* skip */ }
+            }
+          } else if (t.method === 'split_and_pick') {
+            const delim = t.args.delimiter;
+            if (delim && raw.includes(delim)) return true;
+          }
+        }
+        return false;
+      };
+      const meaningful = rawDistinctValues.find(demonstrates);
+      if (meaningful !== undefined) return meaningful;
+      return rawDistinctValues[0];
+    }
     if (!transactions || !attribute.sourceField) return undefined;
     for (const row of transactions) {
       const val = row[attribute.sourceField];
-      if (val !== undefined && val !== null && String(val).trim()) return String(val);
+      if (val !== undefined && val !== null) {
+        const s = stringifyFieldValue(attribute.sourceField, val);
+        if (s.trim()) return s;
+      }
     }
     return undefined;
-  }, [rawDistinctValues, transactions, attribute.sourceField]);
+  }, [rawDistinctValues, transactions, attribute.sourceField, attribute.transformations]);
 
   // For predefined patterns with validate: true or extract_between_and_verify, check if all rows pass
   const validationSummary = useMemo(() => {
@@ -433,7 +469,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
     const extractClientValue = (row: TransactionRow, regex: RegExp): string | null => {
       const fieldValue = row[attribute.sourceField];
       if (fieldValue === undefined || fieldValue === null) return null;
-      const match = String(fieldValue).match(regex);
+      const match = stringifyFieldValue(attribute.sourceField, fieldValue).match(regex);
       // Fall back to match[0] for patterns without an explicit capture group.
       return match ? (match[1] ?? match[0] ?? null) : null;
     };
@@ -475,7 +511,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
             const fieldValue = row[attribute.sourceField];
             if (fieldValue === undefined || fieldValue === null) continue;
             total++;
-            if (regex.test(String(fieldValue))) passed++;
+            if (regex.test(stringifyFieldValue(attribute.sourceField, fieldValue))) passed++;
           }
           if (total > 0) return { allValid: passed === total, passed, total, notPassed: total - passed };
         } catch { /* skip */ }
