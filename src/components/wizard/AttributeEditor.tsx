@@ -413,6 +413,12 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
           } else if (t.method === 'split_and_pick') {
             const delim = t.args.delimiter;
             if (delim && raw.includes(delim)) return true;
+          } else if (t.method === 'starts_with_and_replace') {
+            const prefix = t.args.prefix;
+            if (prefix && raw.startsWith(prefix)) return true;
+          } else if (t.method === 'ends_with_and_replace') {
+            const suffix = t.args.suffix;
+            if (suffix && raw.endsWith(suffix)) return true;
           }
         }
         return false;

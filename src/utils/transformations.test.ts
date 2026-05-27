@@ -94,6 +94,72 @@ describe('applyTransformation', () => {
     expect(applyTransformation('regex_replace', { pattern: '\\d+', replaceWith: '#' }, 'abc def')).toBe('abc def');
   });
 
+  // --- starts_with_and_replace ---
+  it('starts_with_and_replace swaps the prefix when the value starts with it', () => {
+    expect(applyTransformation('starts_with_and_replace', { prefix: 'SRCACT//', replaceWith: 'ACC-' }, 'SRCACT//12345')).toBe('ACC-12345');
+  });
+
+  it('starts_with_and_replace deletes the prefix when replaceWith is empty', () => {
+    expect(applyTransformation('starts_with_and_replace', { prefix: 'ABC', replaceWith: '' }, 'ABC123')).toBe('123');
+  });
+
+  it('starts_with_and_replace returns original when value does not start with prefix (no-op)', () => {
+    expect(applyTransformation('starts_with_and_replace', { prefix: 'XYZ', replaceWith: 'Q' }, 'ABC123')).toBe('ABC123');
+  });
+
+  it('starts_with_and_replace returns original when prefix arg is missing', () => {
+    expect(applyTransformation('starts_with_and_replace', { prefix: '', replaceWith: 'Q' }, 'ABC123')).toBe('ABC123');
+  });
+
+  it('starts_with_and_replace is case-sensitive (no match on case mismatch)', () => {
+    expect(applyTransformation('starts_with_and_replace', { prefix: 'abc', replaceWith: 'X' }, 'ABC123')).toBe('ABC123');
+  });
+
+  it('starts_with_and_replace replaces the whole value when prefix equals the entire value', () => {
+    expect(applyTransformation('starts_with_and_replace', { prefix: 'EXACT', replaceWith: 'NEW' }, 'EXACT')).toBe('NEW');
+  });
+
+  it('starts_with_and_replace returns original when prefix is longer than value', () => {
+    expect(applyTransformation('starts_with_and_replace', { prefix: 'ABCDEF', replaceWith: 'X' }, 'ABC')).toBe('ABC');
+  });
+
+  it('starts_with_and_replace defaults replaceWith to empty string when omitted', () => {
+    expect(applyTransformation('starts_with_and_replace', { prefix: 'ABC' }, 'ABC123')).toBe('123');
+  });
+
+  // --- ends_with_and_replace ---
+  it('ends_with_and_replace swaps the suffix when the value ends with it', () => {
+    expect(applyTransformation('ends_with_and_replace', { suffix: 'NMSC', replaceWith: '-X' }, '12345NMSC')).toBe('12345-X');
+  });
+
+  it('ends_with_and_replace deletes the suffix when replaceWith is empty', () => {
+    expect(applyTransformation('ends_with_and_replace', { suffix: 'XYZ', replaceWith: '' }, '123XYZ')).toBe('123');
+  });
+
+  it('ends_with_and_replace returns original when value does not end with suffix (no-op)', () => {
+    expect(applyTransformation('ends_with_and_replace', { suffix: 'XYZ', replaceWith: 'Q' }, '123ABC')).toBe('123ABC');
+  });
+
+  it('ends_with_and_replace returns original when suffix arg is missing', () => {
+    expect(applyTransformation('ends_with_and_replace', { suffix: '', replaceWith: 'Q' }, '123ABC')).toBe('123ABC');
+  });
+
+  it('ends_with_and_replace is case-sensitive (no match on case mismatch)', () => {
+    expect(applyTransformation('ends_with_and_replace', { suffix: 'abc', replaceWith: 'X' }, '123ABC')).toBe('123ABC');
+  });
+
+  it('ends_with_and_replace replaces the whole value when suffix equals the entire value', () => {
+    expect(applyTransformation('ends_with_and_replace', { suffix: 'EXACT', replaceWith: 'NEW' }, 'EXACT')).toBe('NEW');
+  });
+
+  it('ends_with_and_replace returns original when suffix is longer than value', () => {
+    expect(applyTransformation('ends_with_and_replace', { suffix: 'ABCDEF', replaceWith: 'X' }, 'DEF')).toBe('DEF');
+  });
+
+  it('ends_with_and_replace defaults replaceWith to empty string when omitted', () => {
+    expect(applyTransformation('ends_with_and_replace', { suffix: 'XYZ' }, '123XYZ')).toBe('123');
+  });
+
   // --- Formatting ---
   it('pad_left pads to target length', () => {
     expect(applyTransformation('pad_left', { length: '5', char: '0' }, '42')).toBe('00042');

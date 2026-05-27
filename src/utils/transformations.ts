@@ -51,6 +51,22 @@ export function applyTransformation(
       } catch {
         return value;
       }
+    // No-op semantics on miss/empty (same contract as `replace`): if the
+    // prefix/suffix is missing or doesn't match, the original value is
+    // returned unchanged. Both methods are case-sensitive, mirroring JS's
+    // built-in `String.prototype.startsWith` / `endsWith`.
+    case 'starts_with_and_replace': {
+      const prefix = args.prefix;
+      if (!prefix) return value;
+      if (!value.startsWith(prefix)) return value;
+      return (args.replaceWith ?? '') + value.slice(prefix.length);
+    }
+    case 'ends_with_and_replace': {
+      const suffix = args.suffix;
+      if (!suffix) return value;
+      if (!value.endsWith(suffix)) return value;
+      return value.slice(0, value.length - suffix.length) + (args.replaceWith ?? '');
+    }
 
     // Formatting
     case 'pad_left': {
