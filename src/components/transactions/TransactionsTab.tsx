@@ -1025,13 +1025,18 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         for (const d of newDefIds) next.add(d);
         return next;
       });
-      setHideBusy(false);
       setToast({
         message: newDefIds.length === 1 && primaryName
           ? `Tag spec '${primaryName}' hidden`
           : `${newDefIds.length} tag specs hidden`,
         type: 'success',
       });
+      // Defer the busy clear into a separate task so the overlay
+      // survives the heavy re-render triggered by setHiddenDefIds.
+      // Bundling setHideBusy(false) in the same React batch would
+      // hide the overlay BEFORE the new dataset is committed, leaving
+      // the operator staring at an unresponsive screen mid-reflow.
+      window.setTimeout(() => setHideBusy(false), 0);
     }, 250);
   }, [hiddenDefIds, analyzedData, allDefinitions]);
 
@@ -1045,8 +1050,8 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         next.delete(defId);
         return next;
       });
-      setHideBusy(false);
       setToast({ message: `Tag spec '${name}' restored`, type: 'success' });
+      window.setTimeout(() => setHideBusy(false), 0);
     }, 250);
   }, []);
 
@@ -1055,8 +1060,8 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     setToast({ message: 'Unhiding all tag specs…', type: 'success' });
     window.setTimeout(() => {
       setHiddenDefIds(new Set());
-      setHideBusy(false);
       setToast({ message: 'All hidden tag specs restored', type: 'success' });
+      window.setTimeout(() => setHideBusy(false), 0);
     }, 250);
   }, []);
 
@@ -2747,6 +2752,32 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
           } satisfies TagSpecCommentTarget}
           onClose={() => setSearchPanelOpen(false)}
         />
+      )}
+      {/* Full-screen busy overlay for hide / unhide tag spec operations.
+          Unhiding many tag specs at once forces a heavy re-render
+          (every previously-hidden row comes back, gets re-analyzed,
+          re-laid out) that visibly freezes the browser. The overlay
+          gives the operator a clear "working…" signal so they don't
+          assume the app crashed. It paints before the heavy re-render
+          starts (busy is set true, the work is deferred via setTimeout)
+          and stays up through the commit (the clear is also deferred
+          into a separate task so the overlay outlives the reflow). */}
+      {hideBusy && (
+        <div
+          role="status"
+          aria-live="polite"
+          aria-label="Updating hidden tag specs"
+          className="fixed inset-0 z-100 flex items-center justify-center bg-slate-950/40 backdrop-blur-[2px] pointer-events-auto"
+        >
+          <div className="flex flex-col items-center gap-3 rounded-xl bg-surface-elevated border border-border shadow-lg px-6 py-5">
+            <svg className="w-8 h-8 animate-spin text-primary" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            <p className="text-sm font-medium text-body">Updating tag spec visibility…</p>
+            <p className="text-xs text-muted">This can take a moment when restoring many tag specs.</p>
+          </div>
+        </div>
       )}
     </div>
     </WizardCommentDraftsProvider>
