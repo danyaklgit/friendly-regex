@@ -211,6 +211,16 @@ export function CommentDialog({
     setCurrentDraft(prevRow ? draftForRow(next, prevRow) : '');
   };
 
+  // When the dialog is in flag-with-comment mode, the action buttons make
+  // the flag/unflag explicit so operators see exactly what's about to
+  // happen — "Skip Comment and Flag" reads differently from "Skip Comment
+  // and Unflag", and confusing the two is a hard-to-undo mistake at scale.
+  const skipLabel = flagAction === 'unflag'
+    ? 'Skip Comment and Unflag'
+    : flagAction === 'flag'
+      ? 'Skip Comment and Flag'
+      : 'Skip comment';
+
   const applyAllDisabled = submitting || bulkComment.trim() === '';
   const applyBulkOnlyDisabled = submitting || (mode === 'comment-only' && bulkComment.trim() === '');
   // Nothing to apply when the comment is untouched (comment-only). Flag mode
@@ -232,7 +242,7 @@ export function CommentDialog({
           disabled={submitting}
           className="px-3 py-1.5 text-sm rounded border border-border-strong bg-surface text-body-secondary hover:bg-surface-hover transition-colors disabled:opacity-50"
         >
-          {submitting ? 'Working...' : 'Skip comment'}
+          {submitting ? 'Working...' : skipLabel}
         </button>
       )}
       <button
@@ -258,7 +268,7 @@ export function CommentDialog({
           disabled={submitting}
           className="px-3 py-1.5 text-sm rounded border border-border-strong bg-surface text-body-secondary hover:bg-surface-hover transition-colors disabled:opacity-50"
         >
-          {submitting ? 'Working...' : 'Skip comment'}
+          {submitting ? 'Working...' : skipLabel}
         </button>
       )}
       {hasExisting ? (
@@ -275,7 +285,7 @@ export function CommentDialog({
             disabled={applyAllDisabled}
             className="px-3 py-1.5 text-sm rounded bg-primary text-white hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {submitting ? 'Saving...' : 'Apply to all and finish'}
+            {submitting ? 'Saving...' : 'Apply Comment to all and finish'}
           </button>
         </>
       ) : (
