@@ -41,6 +41,7 @@ export const TRANSFORMATION_METHODS: TransformationMethodDef[] = [
   { key: 'remove_numeric', label: 'Remove Numeric', category: 'Removal', args: [] },
   { key: 'remove_non_numeric', label: 'Remove Non-Numeric', category: 'Removal', args: [] },
   { key: 'remove_special_chars', label: 'Remove Special Characters', category: 'Removal', args: [] },
+  { key: 'remove_spaces_and_line_breaks', label: 'Remove Spaces and Line Breaks', category: 'Removal', args: [] },
 
   // Find/Replace
   {
@@ -114,6 +115,27 @@ export const TRANSFORMATION_METHODS: TransformationMethodDef[] = [
     args: [
       { key: 'fromFormat', label: 'From Format', placeholder: 'e.g., MM/DD/YYYY', type: 'text', required: true },
       { key: 'toFormat', label: 'To Format', placeholder: 'e.g., DD/MM/YYYY', type: 'text', required: true },
+    ],
+  },
+  {
+    // Unconditionally prepends `text` to the value. Useful for namespacing
+    // extracted ids (e.g. "12345" -> "ACC-12345").
+    key: 'add_to_start',
+    label: 'Add to Start',
+    description: 'Args: text. Example: "12345" -> "ACC-12345" (text "ACC-")',
+    category: 'Formatting',
+    args: [
+      { key: 'text', label: 'Text', placeholder: 'Text to prepend', type: 'text', required: true },
+    ],
+  },
+  {
+    // Unconditionally appends `text` to the value. Mirror of `add_to_start`.
+    key: 'append_at_end',
+    label: 'Append at End',
+    description: 'Args: text. Example: "12345" -> "12345-X" (text "-X")',
+    category: 'Formatting',
+    args: [
+      { key: 'text', label: 'Text', placeholder: 'Text to append', type: 'text', required: true },
     ],
   },
 

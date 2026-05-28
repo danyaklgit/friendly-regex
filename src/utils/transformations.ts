@@ -39,6 +39,11 @@ export function applyTransformation(
       return value.replace(/[^\d]/g, '');
     case 'remove_special_chars':
       return value.replace(/[^a-zA-Z0-9\s]/g, '');
+    // Strips every whitespace character: ASCII space, tab, CR, LF, plus
+    // any Unicode whitespace (NBSP, ZWSP, etc.) that operators sometimes
+    // see when extracting from copy-pasted source data.
+    case 'remove_spaces_and_line_breaks':
+      return value.replace(/\s/g, '');
 
     // Find/Replace
     case 'replace':
@@ -79,6 +84,13 @@ export function applyTransformation(
     }
     case 'date_reformat':
       return reformatDate(value, args.fromFormat ?? '', args.toFormat ?? '');
+    // No-op when no text is supplied — same contract as `replace`/`pad_*`:
+    // a missing argument yields the original value rather than concatenating
+    // `undefined` or the empty string.
+    case 'add_to_start':
+      return args.text ? args.text + value : value;
+    case 'append_at_end':
+      return args.text ? value + args.text : value;
 
     // Extraction Refinement
     case 'substring': {
