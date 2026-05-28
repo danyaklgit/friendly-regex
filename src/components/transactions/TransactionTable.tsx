@@ -1383,6 +1383,62 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     return null;
   };
 
+  // Pulls the server-computed `IsValid` flag for an attribute out of the
+  // GetMT940Transactions response (OpsAttributes for single-tag rows,
+  // OpsMultiTags[*].Attributes for multi-tag rows). Returns `null` when the
+  // server didn't include the attribute on this row — the caller falls back
+  // to client-side ValidationClass regex testing in that case (wizard
+  // preview, sample mode, etc.). Scoping rules mirror getAttributeValue so
+  // a drill-down view doesn't pick up the wrong tag's validation flag.
+  const getAttributeIsValid = (item: AnalyzedTransaction, attrName: string): boolean | null => {
+    const row = item.row as unknown as Record<string, unknown>;
+    const scan = (list: unknown): boolean | null => {
+      if (!Array.isArray(list)) return null;
+      for (const entry of list) {
+        if (entry && typeof entry === 'object') {
+          const e = entry as { Key?: unknown; IsValid?: unknown };
+          if (e.Key === attrName && typeof e.IsValid === 'boolean') {
+            return e.IsValid;
+          }
+        }
+      }
+      return null;
+    };
+
+    if (activeDefinitionId) {
+      const multi = row.OpsMultiTags;
+      if (Array.isArray(multi)) {
+        for (const mt of multi) {
+          if (mt && typeof mt === 'object') {
+            const m = mt as { TagSpecDefinitionId?: unknown; Attributes?: unknown };
+            if (m.TagSpecDefinitionId === activeDefinitionId) {
+              const v = scan(m.Attributes);
+              if (v !== null) return v;
+              break;
+            }
+          }
+        }
+      }
+      if (row.OpsTagSpecDefinitionId === activeDefinitionId) {
+        return scan(row.OpsAttributes);
+      }
+      return null;
+    }
+
+    const primary = scan(row.OpsAttributes);
+    if (primary !== null) return primary;
+    const multi = row.OpsMultiTags;
+    if (Array.isArray(multi)) {
+      for (const mt of multi) {
+        if (mt && typeof mt === 'object') {
+          const v = scan((mt as { Attributes?: unknown }).Attributes);
+          if (v !== null) return v;
+        }
+      }
+    }
+    return null;
+  };
+
   // Render a string with the differing slice wrapped in <mark>, using the
   // shared highlight style from highlightText above.
   const renderDiffed = (value: string, otherValue: string, side: 'old' | 'new'): ReactNode => {
@@ -1713,30 +1769,50 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
           const item = data.find((d) => getRowId(d.row) === id);
           return item?.row['IsDeadEnd'] !== true;
         });
+        // Dead-end means "can't be tagged today" — flagging a row that
+        // already has detected tag specs contradicts that, and unflagging
+        // one is just as nonsensical (the operator should hide the tag,
+        // not toggle dead-end state). Block both buttons whenever any
+        // selected row carries at least one tag.
+        const anySelectedTagged = [...selectedIds].some((id) => {
+          const item = data.find((d) => getRowId(d.row) === id);
+          return item ? item.analysis.tags.length > 0 : false;
+        });
+        const deadEndDisabledTip = 'Selection includes tagged transactions. Untag them first, or narrow the selection to untagged rows.';
         const flagHandler = onFlagDeadEndWithComment ? openFlagDialog : null;
         return (
           <div className="flex items-center gap-3 px-4 py-2 bg-primary/10 border-b border-primary/20 shrink-0">
             <span className="text-xs font-medium text-primary-dark">
               {visibleSelectedCount} selected
             </span>
-            {!allDeadEnd && (
-              <button
-                onClick={() => flagHandler ? flagHandler('flag') : handleFlagDeadEnd(true)}
-                disabled={flagLoading}
-                className="text-xs px-2.5 py-1 rounded border border-red-300 bg-red-50 text-red-700 hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {flagLoading ? 'Flagging...' : 'Flag as Dead End'}
-              </button>
-            )}
-            {!noneDeadEnd && (
-              <button
-                onClick={() => flagHandler ? flagHandler('unflag') : handleFlagDeadEnd(false)}
-                disabled={flagLoading}
-                className="text-xs px-2.5 py-1 rounded border border-border-strong bg-surface text-body hover:bg-surface-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {flagLoading ? 'Unflagging...' : 'Unflag Dead End'}
-              </button>
-            )}
+            {!allDeadEnd && (() => {
+              const flagBtn = (
+                <button
+                  onClick={() => flagHandler ? flagHandler('flag') : handleFlagDeadEnd(true)}
+                  disabled={flagLoading || anySelectedTagged}
+                  className="text-xs px-2.5 py-1 rounded border border-red-300 bg-red-50 text-red-700 hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {flagLoading ? 'Flagging...' : 'Flag as Dead End'}
+                </button>
+              );
+              return anySelectedTagged
+                ? <Tooltip content={deadEndDisabledTip} placement="bottom">{flagBtn}</Tooltip>
+                : flagBtn;
+            })()}
+            {!noneDeadEnd && (() => {
+              const unflagBtn = (
+                <button
+                  onClick={() => flagHandler ? flagHandler('unflag') : handleFlagDeadEnd(false)}
+                  disabled={flagLoading || anySelectedTagged}
+                  className="text-xs px-2.5 py-1 rounded border border-border-strong bg-surface text-body hover:bg-surface-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {flagLoading ? 'Unflagging...' : 'Unflag Dead End'}
+                </button>
+              );
+              return anySelectedTagged
+                ? <Tooltip content={deadEndDisabledTip} placement="bottom">{unflagBtn}</Tooltip>
+                : unflagBtn;
+            })()}
             {onSetComments && (
               <button
                 onClick={openCommentDialog}
@@ -2097,19 +2173,38 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                           const isConstantValue = isAttributeFromConstant(item, col.name);
                           let validationIcon: ReactNode = null;
                           let validationPassed: boolean | null = null;
-                          if (validation && !isConstantValue) {
-                            if (validation.verifyValue) {
-                              validationPassed = val === validation.verifyValue;
-                            } else if (validation.validateExtracted) {
-                              // Validate the extracted value against the ValidationClass regex
-                              validationPassed = val ? validation.regex.test(val) : null;
+                          if (!isConstantValue) {
+                            // Null / empty extracted values are treated as
+                            // valid by contract — there is nothing to test, so
+                            // no row should ever be marked invalid solely
+                            // because the source field didn't yield a value.
+                            // Otherwise the server's `IsValid` flag on the
+                            // OpsAttributes / OpsMultiTags entry is the
+                            // authoritative answer, and client-side regex
+                            // testing is the fallback for surfaces that lack
+                            // it (wizard preview, sample mode).
+                            if (val == null || val === '') {
+                              validationPassed = true;
                             } else {
-                              const sourceVal = String(item.row[validation.sourceField] ?? '');
-                              validationPassed = validation.regex.test(sourceVal);
+                              const serverIsValid = getAttributeIsValid(item, col.name);
+                              if (serverIsValid !== null) {
+                                validationPassed = serverIsValid;
+                              } else if (validation) {
+                                if (validation.verifyValue) {
+                                  validationPassed = val === validation.verifyValue;
+                                } else if (validation.validateExtracted) {
+                                  validationPassed = validation.regex.test(val);
+                                } else {
+                                  const sourceVal = String(item.row[validation.sourceField] ?? '');
+                                  validationPassed = validation.regex.test(sourceVal);
+                                }
+                              }
                             }
-                            validationIcon = validationPassed
-                              ? <span className="text-emerald-500 dark:text-emerald-300 mr-1" title="Valid">&#10003;</span>
-                              : <span className="text-red-400 dark:text-rose-300 mr-1" title="Invalid">&#10007;</span>;
+                            if (validationPassed !== null) {
+                              validationIcon = validationPassed
+                                ? <span className="text-emerald-500 dark:text-emerald-300 mr-1" title="Valid">&#10003;</span>
+                                : <span className="text-red-400 dark:text-rose-300 mr-1" title="Invalid">&#10007;</span>;
+                            }
                           }
                           const rawDisplayVal = val;
                           const attrLovTag = attrLovTagMap.get(col.name);

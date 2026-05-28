@@ -160,6 +160,61 @@ describe('applyTransformation', () => {
     expect(applyTransformation('ends_with_and_replace', { suffix: 'XYZ' }, '123XYZ')).toBe('123');
   });
 
+  // --- remove_spaces_and_line_breaks ---
+  it('remove_spaces_and_line_breaks strips ASCII spaces', () => {
+    expect(applyTransformation('remove_spaces_and_line_breaks', {}, 'A B C')).toBe('ABC');
+  });
+
+  it('remove_spaces_and_line_breaks strips line breaks (LF and CRLF)', () => {
+    expect(applyTransformation('remove_spaces_and_line_breaks', {}, 'A\nB\r\nC')).toBe('ABC');
+  });
+
+  it('remove_spaces_and_line_breaks strips tabs along with other whitespace', () => {
+    expect(applyTransformation('remove_spaces_and_line_breaks', {}, 'A\tB C')).toBe('ABC');
+  });
+
+  it('remove_spaces_and_line_breaks returns original when value has no whitespace', () => {
+    expect(applyTransformation('remove_spaces_and_line_breaks', {}, 'ABC123')).toBe('ABC123');
+  });
+
+  it('remove_spaces_and_line_breaks returns empty when value is only whitespace', () => {
+    expect(applyTransformation('remove_spaces_and_line_breaks', {}, '   \n\t  ')).toBe('');
+  });
+
+  // --- add_to_start ---
+  it('add_to_start prepends text to the value', () => {
+    expect(applyTransformation('add_to_start', { text: 'ACC-' }, '12345')).toBe('ACC-12345');
+  });
+
+  it('add_to_start prepends even when value is empty', () => {
+    expect(applyTransformation('add_to_start', { text: 'X' }, '')).toBe('X');
+  });
+
+  it('add_to_start returns original when text arg is missing', () => {
+    expect(applyTransformation('add_to_start', {}, 'ABC')).toBe('ABC');
+  });
+
+  it('add_to_start returns original when text arg is empty string', () => {
+    expect(applyTransformation('add_to_start', { text: '' }, 'ABC')).toBe('ABC');
+  });
+
+  // --- append_at_end ---
+  it('append_at_end appends text to the value', () => {
+    expect(applyTransformation('append_at_end', { text: '-X' }, '12345')).toBe('12345-X');
+  });
+
+  it('append_at_end appends even when value is empty', () => {
+    expect(applyTransformation('append_at_end', { text: 'X' }, '')).toBe('X');
+  });
+
+  it('append_at_end returns original when text arg is missing', () => {
+    expect(applyTransformation('append_at_end', {}, 'ABC')).toBe('ABC');
+  });
+
+  it('append_at_end returns original when text arg is empty string', () => {
+    expect(applyTransformation('append_at_end', { text: '' }, 'ABC')).toBe('ABC');
+  });
+
   // --- Formatting ---
   it('pad_left pads to target length', () => {
     expect(applyTransformation('pad_left', { length: '5', char: '0' }, '42')).toBe('00042');
