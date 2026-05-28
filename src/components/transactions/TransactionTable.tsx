@@ -1769,30 +1769,50 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
           const item = data.find((d) => getRowId(d.row) === id);
           return item?.row['IsDeadEnd'] !== true;
         });
+        // Dead-end means "can't be tagged today" — flagging a row that
+        // already has detected tag specs contradicts that, and unflagging
+        // one is just as nonsensical (the operator should hide the tag,
+        // not toggle dead-end state). Block both buttons whenever any
+        // selected row carries at least one tag.
+        const anySelectedTagged = [...selectedIds].some((id) => {
+          const item = data.find((d) => getRowId(d.row) === id);
+          return item ? item.analysis.tags.length > 0 : false;
+        });
+        const deadEndDisabledTip = 'Selection includes tagged transactions. Untag them first, or narrow the selection to untagged rows.';
         const flagHandler = onFlagDeadEndWithComment ? openFlagDialog : null;
         return (
           <div className="flex items-center gap-3 px-4 py-2 bg-primary/10 border-b border-primary/20 shrink-0">
             <span className="text-xs font-medium text-primary-dark">
               {visibleSelectedCount} selected
             </span>
-            {!allDeadEnd && (
-              <button
-                onClick={() => flagHandler ? flagHandler('flag') : handleFlagDeadEnd(true)}
-                disabled={flagLoading}
-                className="text-xs px-2.5 py-1 rounded border border-red-300 bg-red-50 text-red-700 hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {flagLoading ? 'Flagging...' : 'Flag as Dead End'}
-              </button>
-            )}
-            {!noneDeadEnd && (
-              <button
-                onClick={() => flagHandler ? flagHandler('unflag') : handleFlagDeadEnd(false)}
-                disabled={flagLoading}
-                className="text-xs px-2.5 py-1 rounded border border-border-strong bg-surface text-body hover:bg-surface-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {flagLoading ? 'Unflagging...' : 'Unflag Dead End'}
-              </button>
-            )}
+            {!allDeadEnd && (() => {
+              const flagBtn = (
+                <button
+                  onClick={() => flagHandler ? flagHandler('flag') : handleFlagDeadEnd(true)}
+                  disabled={flagLoading || anySelectedTagged}
+                  className="text-xs px-2.5 py-1 rounded border border-red-300 bg-red-50 text-red-700 hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {flagLoading ? 'Flagging...' : 'Flag as Dead End'}
+                </button>
+              );
+              return anySelectedTagged
+                ? <Tooltip content={deadEndDisabledTip} placement="bottom">{flagBtn}</Tooltip>
+                : flagBtn;
+            })()}
+            {!noneDeadEnd && (() => {
+              const unflagBtn = (
+                <button
+                  onClick={() => flagHandler ? flagHandler('unflag') : handleFlagDeadEnd(false)}
+                  disabled={flagLoading || anySelectedTagged}
+                  className="text-xs px-2.5 py-1 rounded border border-border-strong bg-surface text-body hover:bg-surface-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {flagLoading ? 'Unflagging...' : 'Unflag Dead End'}
+                </button>
+              );
+              return anySelectedTagged
+                ? <Tooltip content={deadEndDisabledTip} placement="bottom">{unflagBtn}</Tooltip>
+                : unflagBtn;
+            })()}
             {onSetComments && (
               <button
                 onClick={openCommentDialog}
