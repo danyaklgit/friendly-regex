@@ -1291,15 +1291,18 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     }
   }, [isLiveMode, activeExtraFilters, hiddenDefIds, fetchPage, outgoingFilters, transactions.length, totalTransactionsCount, allLibraries, trimLoadedTransactions]);
 
-  // Auto-fetch when the hide-tag-spec filter swallows every loaded row but
-  // the backend says visible rows still exist (loadedNow === 0, totalNow > 0).
-  // Without this, the table sits empty on "No transactions found" even
-  // though the header reads "1 of N visible" — the operator would have to
-  // click +1 themselves. The signature ref ensures we only fire once per
-  // (loaded, filters, hidden) snapshot; if loadNVisible appends raw rows
-  // that are still all hidden, transactions.length changes and the signature
-  // advances, re-firing until visible rows surface or the backend is
-  // exhausted (`liveHasMore` flips false).
+  // Auto-fetch when the hide-tag-spec filter drops the visible row count
+  // below the default page size and more rows are available on the backend.
+  // Originally this only fired on `loadedNow === 0` (empty table), but
+  // operators expect a hide to leave the page looking full — hiding a tag
+  // on a 50-row page that consumes 25 of them should refill back to 50
+  // automatically, not leave a half-empty view. The fetch is capped at
+  // BATCH_SIZE minus what's still visible, or at the remaining total when
+  // the backend has fewer left than that. The signature ref prevents
+  // re-firing on identical (loaded, filters, hidden) snapshots; if
+  // `loadNVisible` appends raw rows that are still hidden,
+  // transactions.length advances and the signature changes so the effect
+  // keeps trying until the target is met or `liveHasMore` flips false.
   const autoFetchSignatureRef = useRef<string>('');
   useEffect(() => {
     if (!isLiveMode || loading || builderOpen) return;
@@ -1309,11 +1312,12 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     const totalRaw = totalTransactionsCount ?? loadedRaw;
     const loadedNow = Math.max(0, loadedRaw - hiddenLoadedCount);
     const totalNow = Math.max(0, totalRaw - hiddenTotalCount);
-    if (loadedNow > 0 || totalNow === 0) return;
+    const target = Math.min(BATCH_SIZE, totalNow);
+    if (loadedNow >= target) return;
     const sig = `${loadedRaw}|${totalRaw}|${hiddenTotalCount}|${[...hiddenDefIds].sort().join(',')}`;
     if (autoFetchSignatureRef.current === sig) return;
     autoFetchSignatureRef.current = sig;
-    loadNVisible(Math.min(BATCH_SIZE, Math.max(1, totalNow)));
+    loadNVisible(target - loadedNow);
   }, [isLiveMode, loading, builderOpen, hiddenDefIds, transactions.length, totalTransactionsCount, hiddenLoadedCount, hiddenTotalCount, liveHasMore, loadNVisible]);
 
   // Reset visible count / page when filtered data length changes
