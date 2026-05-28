@@ -1813,8 +1813,8 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
               server-side data to export. Stays available while the Rule
               Builder is open: exporting is a read-only data action, not a
               tag mutation, so it doesn't interfere with builder state. */}
-          {isLiveMode && downloadCenter && (
-            <Tooltip content="Queue an export of the current filtered view" placement="bottom">
+          {isLiveMode && downloadCenter && (() => {
+            const exportBtn = (
               <Button
                 variant="secondary"
                 size="xs"
@@ -1828,8 +1828,15 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                 </svg>
                 {exporting ? 'Queueing…' : 'Export'}
               </Button>
-            </Tooltip>
-          )}
+            );
+            // Suppress the "Queue an export…" tooltip while a queue is
+            // already in flight — the button's own "Queueing…" label
+            // already communicates that state, and a tooltip telling the
+            // operator to do what they just did is noise.
+            return exporting
+              ? exportBtn
+              : <Tooltip content="Queue an export of the current filtered view" placement="bottom">{exportBtn}</Tooltip>;
+          })()}
           {!builderOpen && !isAudit && (
             activeCheckout && !isReadOnly ? (
               <Button
