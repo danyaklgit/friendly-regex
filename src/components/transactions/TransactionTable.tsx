@@ -494,6 +494,11 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
   const { fieldMeta } = useTransactionData();
   const { lovLookup } = useLovAttributes();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Sticky "select-all" intent. Set true by the header checkbox and broken by
+  // any manual deselect (or any of the bulk clear paths). When true, rows
+  // appended via pagination get auto-joined to the selection so a "+25" load
+  // doesn't visually drop the new rows out of the selected set.
+  const [selectAllActive, setSelectAllActive] = useState<boolean>(false);
 
   // Map attribute name → LOVTag for LOV value resolution
   const attrLovTagMap = useMemo(() => {
@@ -516,8 +521,14 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+        // Manual deselect breaks the sticky select-all intent — the user is
+        // now curating individual rows.
+        setSelectAllActive(false);
+      } else {
+        next.add(id);
+      }
       return next;
     });
   }, []);
@@ -536,11 +547,28 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     return true;
   }, [data, selectedIds, getRowId]);
 
+  // Visible-row selection count. `selectedIds.size` is the *unique-id* count;
+  // when multiple visible rows collapse to the same getRowId (duplicate or
+  // missing identifiers), `.size` undercounts — clicking select-all on a 100-
+  // row view can show "75 selected" because 25 rows share ids with the other
+  // 75. Walking `data` and counting which rows map to a selected id gives the
+  // user-facing total they expect (matches the loaded-row count).
+  const visibleSelectedCount = useMemo(() => {
+    if (selectedIds.size === 0) return 0;
+    let count = 0;
+    for (const item of data) {
+      if (selectedIds.has(getRowId(item.row))) count++;
+    }
+    return count;
+  }, [data, selectedIds, getRowId]);
+
   const toggleSelectAll = useCallback(() => {
     if (allRowsSelected) {
       setSelectedIds(new Set());
+      setSelectAllActive(false);
     } else {
       setSelectedIds(new Set(data.map((item) => getRowId(item.row))));
+      setSelectAllActive(true);
     }
   }, [data, allRowsSelected, getRowId]);
 
@@ -551,6 +579,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     try {
       await onFlagDeadEnd(Array.from(selectedIds), value);
       setSelectedIds(new Set());
+      setSelectAllActive(false);
     } finally {
       setFlagLoading(false);
     }
@@ -595,6 +624,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
         await onFlagDeadEnd(ids, value);
       }
       setSelectedIds(new Set());
+      setSelectAllActive(false);
       return;
     }
     if (commentDialogState.mode === 'comment-only') {
@@ -603,13 +633,26 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
         await onSetComments(result.entries);
       }
       setSelectedIds(new Set());
+      setSelectAllActive(false);
     }
   }, [commentDialogState, selectedIds, onFlagDeadEndWithComment, onFlagDeadEnd, onSetComments]);
 
-  // Clear selection when data changes
-  useEffect(() => {
-    setSelectedIds(new Set());
-  }, [data.length]);
+  // Clear the selection whenever the row count changes (pagination, filter,
+  // refresh, etc.). Operator decision: paginating should not carry selection
+  // forward — selection only applies to what's currently in view.
+  //
+  // The reset runs during render (not in an effect) so that React discards
+  // the in-flight render and re-renders with an empty selection before
+  // committing to the DOM. Otherwise there is a one-frame gap where the
+  // action-bar count walks the new data with the stale selection set and
+  // briefly shows the wrong number ("150 selected") before the effect
+  // clears it.
+  const prevDataLenRef = useRef<number>(data.length);
+  if (data.length !== prevDataLenRef.current) {
+    prevDataLenRef.current = data.length;
+    if (selectedIds.size > 0) setSelectedIds(new Set());
+    if (selectAllActive) setSelectAllActive(false);
+  }
 
   // Hide Tag action state. Keyed by OpsTagSpecDefinitionId so two definitions
   // that happen to share a tag name stay independent — picking one only
@@ -665,6 +708,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     if (!onHideTagDefs || defIds.length === 0) return;
     onHideTagDefs(defIds);
     setSelectedIds(new Set());
+    setSelectAllActive(false);
     setHideTagDialog(null);
   }, [onHideTagDefs]);
 
@@ -1673,7 +1717,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
         return (
           <div className="flex items-center gap-3 px-4 py-2 bg-primary/10 border-b border-primary/20 shrink-0">
             <span className="text-xs font-medium text-primary-dark">
-              {selectedIds.size} selected
+              {visibleSelectedCount} selected
             </span>
             {!allDeadEnd && (
               <button
@@ -1702,7 +1746,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
               </button>
             )}
             {onHideTagDefs && (() => {
-              const label = selectedIds.size > 1 ? 'Hide Tag Specs' : 'Hide Tag Spec';
+              const label = visibleSelectedCount > 1 ? 'Hide Tag Specs' : 'Hide Tag Spec';
               const hideBtn = (
                 <button
                   onClick={openHideTagDialog}
@@ -1717,7 +1761,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
               ) : hideBtn;
             })()}
             <button
-              onClick={() => setSelectedIds(new Set())}
+              onClick={() => { setSelectedIds(new Set()); setSelectAllActive(false); }}
               className="text-xs text-muted hover:text-body ml-auto"
             >
               Clear selection
