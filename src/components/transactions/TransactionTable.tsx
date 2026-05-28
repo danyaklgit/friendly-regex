@@ -905,8 +905,14 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
       return ai - bi;
     });
 
-    // Group attributes by their source field key
+    // Group attributes by their source field key. Constants and any
+    // attribute whose source field isn't resolvable have no key — they go
+    // into a separate "sourceless" bucket so they aren't silently
+    // dropped. Previously the `if (sourceKey)` guard skipped them
+    // entirely, which is why constant-mode attributes never appeared in
+    // the table even after a successful save.
     const attrsBySourceKey = new Map<string, ColumnDef[]>();
+    const sourcelessAttrs: ColumnDef[] = [];
     for (const attr of attrs) {
       if (attr.type === 'attribute') {
         const sourceField = attrSourceMap.get(attr.name);
@@ -914,6 +920,8 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
         if (sourceKey) {
           if (!attrsBySourceKey.has(sourceKey)) attrsBySourceKey.set(sourceKey, []);
           attrsBySourceKey.get(sourceKey)!.push(attr);
+        } else {
+          sourcelessAttrs.push(attr);
         }
       }
     }
@@ -929,10 +937,12 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
       }
     }
 
-    // Orphan attributes (no matching source field in view) go at the end
+    // Orphan attributes (source field exists but is currently hidden) go
+    // at the end, followed by sourceless attributes (constants).
     for (const remaining of attrsBySourceKey.values()) {
       final.push(...remaining);
     }
+    final.push(...sourcelessAttrs);
 
     return final;
   }, [columns, showAttributes, hiddenColumns, columnOrder, attrSourceMap]);
