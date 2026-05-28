@@ -1906,6 +1906,14 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                   // also re-fire that fetch — otherwise a stale tag-spec
                   // list survives the refresh.
                   setMatchingTagReloadKey((k) => k + 1);
+                  // Also clear the operator's Detected Tag Specs selection
+                  // so Refresh acts as a clean slate, matching the Clear
+                  // Filters contract. Skip the clear when the filter is
+                  // locked to the current edit (rule builder open) — the
+                  // lock should survive a Refresh click.
+                  if (!detectedTagsLockedToId) {
+                    setCurrentTagFilterIds(new Set());
+                  }
                 }}
                 disabled={filterDefinitionsLoading}
                 title="Refresh filters"
