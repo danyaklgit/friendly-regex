@@ -321,7 +321,7 @@ export function CommentSearchPanel({ open, target, onClose, onNavigateToBacklog 
       />
       <aside
         role="dialog"
-        aria-label={view.kind === 'thread' ? 'Comment thread' : 'Search comments'}
+        aria-label={view.kind === 'thread' ? 'Comment thread' : 'Search Comments in TagSpecs'}
         aria-hidden={!open}
         data-tour="comment-search-panel"
         className={`fixed inset-y-0 right-0 z-[70] w-full md:w-[44%] lg:w-[38%] max-w-[640px] bg-surface-elevated border-l border-border shadow-[-24px_0_48px_-12px_rgba(15,23,42,0.45)] flex flex-col transition-transform duration-300 ease-out ${
@@ -342,7 +342,7 @@ export function CommentSearchPanel({ open, target, onClose, onNavigateToBacklog 
           )}
           <div className="flex-1 min-w-0 text-center">
             <div className="text-[10px] font-semibold tracking-[0.18em] text-faint uppercase">
-              {view.kind === 'thread' ? 'Comment thread' : 'Search comments'}
+              {view.kind === 'thread' ? 'Comment thread' : 'Search Comments in TagSpecs'}
             </div>
             <div className="text-sm font-medium text-body truncate">
               {view.kind === 'thread' ? (focusedLabel || 'Thread') : scopeLine}
@@ -387,9 +387,9 @@ export function CommentSearchPanel({ open, target, onClose, onNavigateToBacklog 
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={handleInputKeyDown}
-                  placeholder="Search comments..."
+                  placeholder="Search Comments in TagSpecs..."
                   className="w-full pl-9 pr-9 py-2 text-sm rounded-lg border border-border bg-surface text-body placeholder:text-faint focus:outline-none focus:ring-2 focus:ring-cyan-400/40 focus:border-cyan-400"
-                  aria-label="Search comments"
+                  aria-label="Search Comments in TagSpecs"
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 inline-flex items-center gap-1.5">
                   {loading && <Spinner />}
