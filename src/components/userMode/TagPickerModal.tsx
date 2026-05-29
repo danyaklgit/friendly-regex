@@ -145,8 +145,9 @@ export function TagPickerModal({ open, originalTag, onClose, onSelect }: TagPick
           />
           {formError && <p className="text-xs text-red-500 dark:text-rose-300">{formError}</p>}
           <p className="text-[11px] text-faint">
-            Custom tags are stored on this browser only. Pick one or more groups and the new
-            tag will show up under each of them for everyone using this device.
+            This tag is saved locally on this browser — it isn't sent to the server and
+            won't appear for users on other devices. Anyone signed in here will see it
+            under the groups you pick.
           </p>
         </div>
       ) : (

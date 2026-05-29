@@ -3,6 +3,7 @@ import type { TransactionRow } from '../../types';
 import type { CertaintyLevelTag } from '../../types/tagSpec';
 import { useTagSpecs } from '../../hooks/useTagSpecs';
 import { useTransactionData } from '../../hooks/useTransactionData';
+import { useLovAttributes } from '../../context/LovAttributesContext';
 import { useUserMode } from '../../context/UserModeContext';
 import { groupsForTag } from '../../utils/userMode/groupsForTag';
 import { randomJv } from '../../utils/userMode/randomJv';
@@ -42,7 +43,16 @@ interface UserTransactionTableProps {
 export function UserTransactionTable({ rows, loading }: UserTransactionTableProps) {
   const { tagsHierarchy } = useTagSpecs();
   const { fieldMeta, filterDefinitions } = useTransactionData();
+  const { lovLookup } = useLovAttributes();
   const { contributions, addContribution } = useUserMode();
+
+  // BankSwiftCode → friendly bank name (e.g. INMASARI → "Saudi Investment Bank").
+  // Falls back to the raw code in the Row when the LOV doesn't carry that
+  // bank, matching the operator-mode PageHeader behavior.
+  const bankNameByCode = useMemo<Map<string, string>>(
+    () => lovLookup.get('BANKS') ?? new Map<string, string>(),
+    [lovLookup],
+  );
 
   // Code → friendly label lookup for the Transaction Type cell. We grab the
   // TransactionTypeCode filter definition and project its Values into a Map.
@@ -146,12 +156,14 @@ export function UserTransactionTable({ rows, loading }: UserTransactionTableProp
             <tr>
               <Th>Tag</Th>
               <Th>Group(s)</Th>
+              <Th>Bank Name</Th>
               <Th>Account Number</Th>
               <Th>Date</Th>
               <Th>Bank Reference</Th>
               <Th className="text-right">Debit</Th>
               <Th className="text-right">Credit</Th>
               <Th className="min-w-[260px]">Description</Th>
+              <Th className="min-w-[260px]">Additional Info</Th>
               <Th>Transaction Type</Th>
               <Th className="min-w-[220px]">Attributes</Th>
               <Th className="text-center">Reconciled</Th>
@@ -161,14 +173,14 @@ export function UserTransactionTable({ rows, loading }: UserTransactionTableProp
           <tbody className="divide-y divide-border-subtle">
             {rows.length === 0 && !loading && (
               <tr>
-                <td colSpan={12} className="p-8 text-center text-sm text-body-secondary">
+                <td colSpan={14} className="p-8 text-center text-sm text-body-secondary">
                   No transactions for this company yet.
                 </td>
               </tr>
             )}
             {loading && rows.length === 0 && (
               <tr>
-                <td colSpan={12} className="p-8 text-center text-sm text-body-secondary">
+                <td colSpan={14} className="p-8 text-center text-sm text-body-secondary">
                   Loading transactions…
                 </td>
               </tr>
@@ -179,6 +191,7 @@ export function UserTransactionTable({ rows, loading }: UserTransactionTableProp
                 row={row}
                 tagsHierarchy={tagsHierarchy}
                 txnTypeLabelByCode={txnTypeLabelByCode}
+                bankNameByCode={bankNameByCode}
                 contribution={contributionByTxId.get(getTxId(row))}
                 onTagClick={handleTagClick}
               />
@@ -223,6 +236,7 @@ interface RowProps {
   row: TransactionRow;
   tagsHierarchy: ReturnType<typeof useTagSpecs>['tagsHierarchy'];
   txnTypeLabelByCode: Map<string, string>;
+  bankNameByCode: Map<string, string>;
   contribution: ReturnType<typeof useUserMode>['contributions'][number] | undefined;
   onTagClick: (row: TransactionRow, originalTag: string | null, displayedTag: string | null) => void;
 }
@@ -296,7 +310,7 @@ function groupPillClass(edited: boolean): string {
     : 'border-primary/30 bg-primary/10 text-primary-dark dark:text-primary-light';
 }
 
-function Row({ row, tagsHierarchy, txnTypeLabelByCode, contribution, onTagClick }: RowProps) {
+function Row({ row, tagsHierarchy, txnTypeLabelByCode, bankNameByCode, contribution, onTagClick }: RowProps) {
   // Demo-only random fields; stable for the row's mount lifetime, fresh on remount.
   // Spec choice: "truly random" — no seeding by id, just `Math.random()` once.
   const { reconciled, jv } = useMemo(
@@ -366,11 +380,15 @@ function Row({ row, tagsHierarchy, txnTypeLabelByCode, contribution, onTagClick 
           <span className="text-faint text-xs">—</span>
         )}
       </Td>
+      <Td className="text-xs whitespace-nowrap">{bankNameForRow(row, bankNameByCode)}</Td>
       <Td className="font-mono text-xs">{String(row['IBAN'] ?? '')}</Td>
       <Td className="whitespace-nowrap text-xs">{formatDate(row['StatementDate'])}</Td>
       <Td className="font-mono text-xs">{String(row['BankReference'] ?? '')}</Td>
       <Td className="text-right font-mono text-xs text-red-600 dark:text-rose-300 whitespace-nowrap">{debitAmount}</Td>
       <Td className="text-right font-mono text-xs text-emerald-600 dark:text-emerald-300 whitespace-nowrap">{creditAmount}</Td>
+      <Td>
+        <DescriptionCell text={joinDescriptions(row)} />
+      </Td>
       <Td>
         <DescriptionCell text={String(row['AdditionalInformation'] ?? '')} />
       </Td>
@@ -422,6 +440,28 @@ function TagGroupIcon() {
       />
     </svg>
   );
+}
+
+/** Look up the friendly bank name from the BANKS LOV via the row's
+ *  BankSwiftCode, falling back to the raw code so a missing LOV entry never
+ *  blanks the cell. Mirrors `lovLookup.get('BANKS')?.get(code) ?? code` from
+ *  the operator-mode PageHeader. */
+function bankNameForRow(row: TransactionRow, bankNameByCode: Map<string, string>): string {
+  const code = String(row['BankSwiftCode'] ?? '').trim();
+  if (!code) return '';
+  return bankNameByCode.get(code) ?? code;
+}
+
+/** The user-mode "Description" column is the concatenation of the MT940
+ *  `:86:` narrative sub-fields (`Description1` and `Description2`), one per
+ *  line. The richer free-form `AdditionalInformation` field renders separately
+ *  in the "Additional Info" column. Skips empty parts so we never render
+ *  vestigial blank lines. */
+function joinDescriptions(row: TransactionRow): string {
+  const parts = [row['Description1'], row['Description2']]
+    .map((v) => (v == null ? '' : String(v).trim()))
+    .filter((s) => s.length > 0);
+  return parts.join('\n');
 }
 
 function formatAmount(raw: unknown): string {

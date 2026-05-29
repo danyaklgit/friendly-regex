@@ -63,6 +63,15 @@ export function UserModeProvider({ children }: { children: ReactNode }) {
     setRedactionOn(true);
   }, [userId]);
 
+  // Re-arm redaction whenever the operator picks a different company. Treats
+  // each company as its own viewing session: even if the user disabled
+  // redaction on Company A, switching to Company B starts masked. The password
+  // gate has to be cleared again to view raw values on the new company.
+  const selectedCompanyKey = selectedCompany?.value ?? null;
+  useEffect(() => {
+    setRedactionOn(true);
+  }, [selectedCompanyKey]);
+
   const [customTags, setCustomTags] = useState<CustomTag[]>(() => loadCustomTags());
 
   const addContribution = useCallback((c: Contribution) => {

@@ -70,8 +70,9 @@ export function RedactionToggle() {
       >
         <div className="space-y-3">
           <p className="text-sm text-body-secondary">
-            Redaction masks sensitive values in the Description column. Enter the access
-            password to view the raw text for the rest of this session.
+            Redaction masks sensitive values in the Description and Attributes columns —
+            IBANs, beneficiary names, and other personal data. Enter the access password
+            to view the raw values for the rest of this session.
           </p>
           <Input
             label="Password"

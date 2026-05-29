@@ -56,7 +56,7 @@ export const REDACTION_RULES: RedactionRule[] = [
   { kind: 'between', name: 'ANBAccNo', prefix: '/IBAN/', suffix: '/', replacement: '*****AcctNumber*****' },
   { kind: 'between', name: 'ANBOrdP', prefix: '/ORDP/', suffix: '/', replacement: '*****OrderingPty*****' },
   { kind: 'between', name: 'ANBBenM', prefix: '/BENM/', suffix: '/', replacement: '*****Beneficiary*****' },
-  // { kind: 'between', name: 'test', prefix: 'INV', suffix: '/PD', replacement: '*****testdan*****' },
+  // { kind: 'between', name: 'test', prefix: 'INV', suffShix: '/PD', replacement: '*****testdan*****' },
 ];
 
 /**

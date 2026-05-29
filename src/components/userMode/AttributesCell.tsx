@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   useFloating,
   autoUpdate,
@@ -14,6 +14,9 @@ import {
   safePolygon,
 } from '@floating-ui/react';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
+import { useUserMode } from '../../context/UserModeContext';
+import { redact } from '../../utils/userMode/redact';
+import { REDACTION_RULES } from '../../data/redactionRules';
 
 const INLINE_LIMIT = 4;
 
@@ -23,16 +26,30 @@ interface AttributesCellProps {
 }
 
 /**
- * One-row attribute display for the user-mode table. Up to four key/value chips
+ * One-row attribute display for the user-mode table. Up to four key/value rows
  * render inline; any additional pairs collapse into the hover popover.
+ *
+ * Redaction applies to the VALUES (not the keys) so that demoed personal data
+ * — beneficiary names, account numbers, IBANs — is masked alongside the
+ * Description column. The toggle gates both surfaces, the password modal
+ * advertises both, and the rules in `redactionRules.ts` are the single source
+ * of truth.
  *
  * The popover is always available when the cell has at least one attribute —
  * even for a single chip — so users can read full (un-truncated) values
- * regardless of how many attributes the row carries. Pre-floating-UI this only
- * fired past four; the truncation that drove the affordance happens at one too.
+ * regardless of how many attributes the row carries.
  */
 export function AttributesCell({ attributes }: AttributesCellProps) {
-  const entries = Object.entries(attributes);
+  const { redactionOn } = useUserMode();
+
+  // Redact every value once per render. Cheap, and keeping the entries list
+  // pre-redacted means the inline list, the popover, and the overflow counter
+  // all read from the same projection without re-running rules.
+  const entries = useMemo<[string, string][]>(() => {
+    const out = Object.entries(attributes);
+    if (!redactionOn) return out;
+    return out.map(([k, v]) => [k, redact(v, REDACTION_RULES)]);
+  }, [attributes, redactionOn]);
 
   if (entries.length === 0) {
     return <span className="text-xs text-faint italic">No attributes</span>;
