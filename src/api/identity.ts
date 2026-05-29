@@ -28,11 +28,20 @@ export interface UserInfo {
   id: string;
   firstName: string;
   lastName: string;
-  email: string;
+  /** Present on `/userinfo`; sometimes equal to `username`. */
+  email?: string;
+  /**
+   * Login username (typically the email). Present on `/usersinfo` rows and on
+   * the `/userinfo` payload. Used as the disambiguator when matching a user
+   * back to a `/usersinfo` row — see the BACKEND-WORKAROUND in
+   * `AuthContext.tsx` for why we can't trust `id` alone right now.
+   */
+  username?: string;
   /**
    * Optional role tag. Roles currently honored by the UI:
    *  - "audit" — puts the entire app into read-only mode.
    *  - "devops" — exposes infra/diagnostics surfaces (e.g. Integration Logs).
+   *  - "user"  — pivots the app to the bwatech-branded demo portal.
    * Empty string, null, or missing means the user has the standard operator role.
    */
   role?: string | null;

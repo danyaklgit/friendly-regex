@@ -405,11 +405,19 @@ export function TagSpecProvider({ children, useDummyData, tepHeaders }: TagSpecP
     isFetchingRef.current = true;
     setLoading(true);
     setTagsHierarchyLoading(true);
+
+    // Both endpoints are fetched in parallel for latency, but their results
+    // settle independently so a failure on one (e.g. a 403 on
+    // /GetTagSpecLibraries for the bwatech demo `user` role) does NOT also
+    // throw away the other's success. Previously a Promise.all rejection on
+    // either side cleared both pieces of state, leaving the user-mode tag
+    // picker showing "No tags available" even when the hierarchy fetch had
+    // returned data.
+    const libsPromise = getTagSpecLibraries(authToken, tepHeaders, signal);
+    const hierarchyPromise = getRawTagsHierarchy(authToken, tepHeaders, signal);
+
     try {
-      const [libsResult, wrapperData] = await Promise.all([
-        getTagSpecLibraries(authToken, tepHeaders, signal),
-        getRawTagsHierarchy(authToken, tepHeaders, signal),
-      ]);
+      const libsResult = await libsPromise;
       const libsData = libsResult.libraries;
       setTaggingProgress(libsResult.taggingProgress);
       // Record first-seen timestamps for newly-observed tagging entries; prune removed ones.
@@ -431,25 +439,45 @@ export function TagSpecProvider({ children, useDummyData, tepHeaders }: TagSpecP
       dispatch({ type: 'REPLACE_ALL', payload: mergedLibs });
       const ids = flattenDefinitions(mergedLibs).map((d) => d.Id);
       for (const id of ids) originalDefinitionIds.add(id);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        isFetchingRef.current = false;
+        setLoading(false);
+        setTagsHierarchyLoading(false);
+        return;
+      }
+      console.error('Failed to fetch tag spec libraries:', err);
+    } finally {
+      setLoading(false);
+    }
+
+    try {
+      const wrapperData = await hierarchyPromise;
       hierarchyDispatch({ type: 'REPLACE_ALL', payload: wrapperData.TagsHierarchy });
       setOriginalRawNodes(wrapperData.TagsHierarchy);
       setHierarchyWrapper(wrapperData);
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return;
-      console.error('Failed to fetch tag spec data:', err);
+      console.error('Failed to fetch tags hierarchy:', err);
     } finally {
       isFetchingRef.current = false;
-      setLoading(false);
       setTagsHierarchyLoading(false);
     }
   }, [useDummyData, tepHeaders, getAuthHeaders, originalDefinitionIds]);
 
-  // Fetch on mount in live mode
+  // Fetch on mount in live mode. We deliberately do NOT plumb an AbortSignal
+  // through the cleanup: under React 18 StrictMode the effect mounts twice in
+  // dev, and an immediate `controller.abort()` cancels the first fetch before
+  // its microtask can reset `isFetchingRef`. The second mount then sees the
+  // guard still set and short-circuits — leaving the network tab with a single
+  // cancelled `GetTagSpecLibraries` and no follow-up, which is the exact
+  // failure mode the bwatech user portal hit when its tag picker tried to
+  // read `tagsHierarchy`. The provider only ever unmounts at app teardown, so
+  // letting an in-flight fetch complete is harmless: its dispatches land on
+  // state that's about to be discarded anyway.
   useEffect(() => {
     if (useDummyData) return;
-    const controller = new AbortController();
-    fetchTagSpecs(controller.signal);
-    return () => controller.abort();
+    void fetchTagSpecs();
   }, [useDummyData, fetchTagSpecs]);
 
   const refetchTagSpecs = useCallback(() => {

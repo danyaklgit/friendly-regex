@@ -283,6 +283,10 @@ Read this section before touching transactions, wizard, or auth code. Every item
 16. **Phantom backend calls were eliminated** in `435ba95`. If you reintroduce a `useEffect` that fires on transient state, double-check the network panel for repeat `GetMT940Transactions` calls and phantom client-side tag creation.
 17. **Sync-before-leave guard** for tag hierarchy (commit `3177e37`). Highlight the Sync button and prompt the user when navigating away with unsynced changes.
 18. **TepConfig placeholder strings** like `'dolor'` still ship to prod and need replacement with env-driven values. See `docs/code-review.md` finding.
+19. **Brand is a second theme axis, NOT a third theme value** (cluster K). `theme_preference` (`light`/`dark`) and `brand_preference` (`swittle`/`bwatech`) compose on `<html>` via two independent classes — bwatech works in both light and dark. Forcing bwatech for `role=user` lives in `AppShell` as a `useEffect(() => { if (isUser) setBrand('bwatech'); }, [isUser])`; the easter egg on the login page (`type 'bwatech'` with no input focus) only flips the brand, never the theme.
+20. **User-mode redaction is session-only by design.** `redactionOn` lives in `UserModeContext` and is NEVER written to localStorage. The password gate (`'123123'` in [src/data/redactionRules.ts](src/data/redactionRules.ts)) is a friction affordance, not a security control — the bypass password ships in the JS bundle. Closing the tab or logging out re-enables redaction.
+21. **User-mode contributions are per-user, custom tags are device-wide** (cluster K). Contributions live at `tep:userContributions:{userId}` — user A's edits don't surface in user B's "My Contributions" on a shared browser. Custom tags live at the un-namespaced `tep:userCustomTags` — any user on the device sees and can pick them. Defaulting either the other way would have surprised the demo flow.
+22. **AppShell forks BEFORE running operator hooks for `role=user`**. The fork lives in [src/App.tsx](src/App.tsx) and renders either `<OperatorAppShell>` or `<UserModeProvider><UserPortal /></UserModeProvider>`. Do not move operator-mode `useState`/`useEffect` calls back into the `AppShell` wrapper — keep them in `OperatorAppShell` so user-mode sessions don't pay the cost of `useTagSpecs` / `useLocalChanges` / share-link state / backlog-navigation state initialization.
 
 ## 14. File Mapping Cheat Sheet
 
@@ -318,6 +322,8 @@ Use this as the first lookup before grepping. Feature -> primary files.
 | Theme / dark mode                             | [src/context/ThemeContext.tsx](src/context/ThemeContext.tsx), [index.html](index.html)                                                                                                                                                                                                                                          |
 | Sample fixtures                               | [src/data/](src/data/) (sampleData.json, sampleHierarchy.json, oldStructure.json, newStructure.json)                                                                                                                                                                                                                            |
 | Persistence helpers (localStorage)            | [src/utils/persistence.ts](src/utils/persistence.ts)                                                                                                                                                                                                                                                                            |
+| User-mode portal (role=user)                  | [src/components/userMode/](src/components/userMode/), [src/context/UserModeContext.tsx](src/context/UserModeContext.tsx), [src/utils/userMode/](src/utils/userMode/), [src/data/redactionRules.ts](src/data/redactionRules.ts), [public/bwatech-logo.svg](public/bwatech-logo.svg), [src/components/shared/BrandLogo.tsx](src/components/shared/BrandLogo.tsx) |
+| Brand theming (swittle / bwatech)             | [src/context/ThemeContext.tsx](src/context/ThemeContext.tsx), [src/index.css](src/index.css), [src/components/shared/BrandLogo.tsx](src/components/shared/BrandLogo.tsx)                                                                                                                                                            |
 | SHA-256 (client-side, weak by design)         | [src/utils/sha256.ts](src/utils/sha256.ts)                                                                                                                                                                                                                                                                                      |
 | UUID generation                               | [src/utils/uuid.ts](src/utils/uuid.ts)                                                                                                                                                                                                                                                                                          |
 | Text diff (used in edit tooltip)              | [src/utils/textDiff.ts](src/utils/textDiff.ts)                                                                                                                                                                                                                                                                                  |
@@ -424,6 +430,19 @@ Numeric thresholds with decimals, date GT/LT, attribute round-trip via Value, ty
 - `435ba95` fix: eliminate phantom GetMT940Transactions calls + phantom client-side tags
 - `83f674f` fix: gate integration-logs Rerun button per endpoint outcome
 - `c9f2a6a` fix: send SHOW ONLY multi-select as a single IN filter like Transaction Type
+
+### Cluster K: User-mode portal + bwatech brand
+
+A demo-driven, role-gated portal that runs entirely client-side. When `/usersinfo` returns `role: 'user'`, the app forks to a bwatech-branded surface: a company picker (from the `DEMO_USER_COMPS` LOV), a stripped-down transactions table scoped to that company's IBANs, an in-row tag-change flow that saves contributions to localStorage (per-user) plus optional custom tags (device-wide), a "My Contributions" log, and a password-gated redaction toggle on the Description column. The Swittle/operator portal is untouched.
+
+- Role detection: `isUserRole()` helper + `isUser` computed prop in [src/context/AuthContext.tsx](src/context/AuthContext.tsx).
+- Brand axis: new `brand: 'swittle' | 'bwatech'` in [src/context/ThemeContext.tsx](src/context/ThemeContext.tsx), composes with light/dark via separate `<html>` classes; bwatech tokens defined in [src/index.css](src/index.css).
+- Easter egg: typing `bwatech` on the login page (input-focus-aware) flips the brand early so the post-login swap doesn't flash. See [src/components/auth/LoginPage.tsx](src/components/auth/LoginPage.tsx).
+- App fork: `AppShell` becomes a thin switcher; the existing tab body lives in `OperatorAppShell`. See [src/App.tsx](src/App.tsx).
+- Session-scoped state + per-user + device-wide storage all in [src/context/UserModeContext.tsx](src/context/UserModeContext.tsx). Storage utils: `contributionStorage.ts`, `customTagsStorage.ts`.
+- Pure utils: `redact`, `pickHighestCertaintyDef`, `getDemoCompanies`, `groupsForTag`, `randomJv` — all in [src/utils/userMode/](src/utils/userMode/) with co-located tests.
+- Tag-change flow: row click → `TagPickerModal` (tree + "Create new tag") → `ContributionDialog` (`Save for Myself` | `Submit for Review`).
+- Redaction rule shape (`{ kind: 'between' | 'regex', ... }`) lives in [src/data/redactionRules.ts](src/data/redactionRules.ts). BETWEEN replaces the entire delimited span; later rules see already-redacted text.
 
 ## 16. Design Specs Index
 

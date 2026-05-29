@@ -1,11 +1,14 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useAuth } from './context/AuthContext';
+import { useTheme } from './context/ThemeContext';
 import { TagSpecProvider } from './context/TagSpecContext';
 import { TransactionDataProvider } from './context/TransactionDataContext';
 import { LovAttributesProvider } from './context/LovAttributesContext';
 import { TepConfigProvider, useTepConfig } from './context/TepConfigContext';
 import { DownloadCenterProvider } from './context/DownloadCenterContext';
 import { DownloadCenterModal } from './components/downloadCenter/DownloadCenterModal';
+import { UserModeProvider } from './context/UserModeContext';
+import { UserPortal } from './components/userMode/UserPortal';
 import { useTagSpecs } from './hooks/useTagSpecs';
 import { useLocalChanges } from './hooks/useLocalChanges';
 import { useHasUnsyncedTags } from './hooks/useHasUnsyncedTags';
@@ -47,7 +50,37 @@ interface AppShellProps {
   userId: string | undefined;
 }
 
-function AppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps) {
+/**
+ * Top-level role fork. role=user gets a completely different surface — no tabs,
+ * no checkout, no rule-building, no backlog fetch. By picking the shell here we
+ * keep the operator-mode hooks (which fire backend requests on mount) from
+ * running for demo-user sessions that have no permission to call them.
+ */
+function AppShell(props: AppShellProps) {
+  const { isUser } = useAuth();
+  const { setBrand } = useTheme();
+
+  // role=user always implies bwatech. Force-apply on every render where isUser
+  // is true so a stale `brand_preference` in localStorage can't leak Swittle
+  // branding into the user portal.
+  useEffect(() => {
+    if (isUser) setBrand('bwatech');
+  }, [isUser, setBrand]);
+
+  if (isUser) {
+    return (
+      <>
+        <SessionWarningModal />
+        <UserModeProvider>
+          <UserPortal />
+        </UserModeProvider>
+      </>
+    );
+  }
+  return <OperatorAppShell {...props} />;
+}
+
+function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppShellProps) {
   const { isAudit, isDevops } = useAuth();
   const { isLiveMode } = useTransactionData();
   const [activeTab, setActiveTab] = useState(0);

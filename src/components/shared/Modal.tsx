@@ -12,9 +12,12 @@ interface ModalProps {
   headerAction?: ReactNode;
   /** Override the default z-index class (default: "z-50"). Use e.g. "z-[10000]" to appear above other overlays. */
   zClass?: string;
+  /** Override the default max-width (default: "max-w-3xl"). Use e.g. "max-w-full" or
+   *  "max-w-[1400px]" for surfaces that need to render wide tables. */
+  widthClass?: string;
 }
 
-export function Modal({ open, onClose, title, children, footer, fullHeight, headerAction, zClass = 'z-50' }: ModalProps) {
+export function Modal({ open, onClose, title, children, footer, fullHeight, headerAction, zClass = 'z-50', widthClass = 'max-w-3xl' }: ModalProps) {
   useEffect(() => {
     if (open) {
       document.body.style.overflow = 'hidden';
@@ -31,7 +34,7 @@ export function Modal({ open, onClose, title, children, footer, fullHeight, head
   return (
     <div className={`fixed inset-0 ${zClass} flex items-start justify-center pt-8 px-4`}>
       <div className="fixed inset-0 bg-black/10 dark:bg-black/40" onClick={onClose} />
-      <div className={`relative bg-surface-elevated rounded-xl shadow-2xl w-full max-w-3xl ${fullHeight ? 'h-[90vh]' : 'max-h-[90vh]'} flex flex-col`}>
+      <div className={`relative bg-surface-elevated rounded-xl shadow-2xl w-full ${widthClass} ${fullHeight ? 'h-[90vh]' : 'max-h-[90vh]'} flex flex-col`}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <h2 className="text-lg font-semibold text-heading">{title}</h2>
           <div className="flex items-center gap-3">

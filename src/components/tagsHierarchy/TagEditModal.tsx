@@ -4,6 +4,7 @@ import { Modal } from '../shared/Modal';
 import { Input } from '../shared/Input';
 import { Select } from '../shared/Select';
 import { Button } from '../shared/Button';
+import { GroupPillSelector, type GroupPillOption } from '../shared/GroupPillSelector';
 import { getNodeName } from '../../utils/tagHierarchyNode';
 
 interface TagEditModalProps {
@@ -28,7 +29,6 @@ export function TagEditModal({ open, onClose, editingNode, allNodes, onSave }: T
   const [parentSearch, setParentSearch] = useState('');
   const [parentDropdownOpen, setParentDropdownOpen] = useState(false);
   const parentRef = useRef<HTMLDivElement>(null);
-  const [groupSearch, setGroupSearch] = useState('');
 
   // Reset form state when modal opens or editingNode changes
   useEffect(() => {
@@ -41,7 +41,6 @@ export function TagEditModal({ open, onClose, editingNode, allNodes, onSave }: T
       setSelectedGroups(new Set(editingNode?.GroupTags ?? []));
       setParentSearch('');
       setParentDropdownOpen(false);
-      setGroupSearch('');
     }
   }, [open, editingNode]);
 
@@ -57,20 +56,14 @@ export function TagEditModal({ open, onClose, editingNode, allNodes, onSave }: T
     return () => document.removeEventListener('mousedown', handler);
   }, [parentDropdownOpen]);
 
-  const groups = useMemo(
-    () => allNodes.filter((n) => n.Level === 'G').sort((a, b) => a.Tag.localeCompare(b.Tag)),
+  const groupOptions = useMemo<GroupPillOption[]>(
+    () =>
+      allNodes
+        .filter((n) => n.Level === 'G')
+        .sort((a, b) => a.Tag.localeCompare(b.Tag))
+        .map((g) => ({ tag: g.Tag, name: getNodeName(g) })),
     [allNodes],
   );
-
-  const filteredGroups = useMemo(() => {
-    const q = groupSearch.toLowerCase().trim();
-    if (!q) return groups;
-    return groups.filter((g) => {
-      // Always show selected groups so the user can deselect them
-      if (selectedGroups.has(g.Tag)) return true;
-      return g.Tag.toLowerCase().includes(q) || getNodeName(g).toLowerCase().includes(q);
-    });
-  }, [groups, groupSearch, selectedGroups]);
 
   const tagLeaves = useMemo(
     () => allNodes.filter((n) => n.Level === 'T' && n.Tag !== editingNode?.Tag).sort((a, b) => a.Tag.localeCompare(b.Tag)),
@@ -93,15 +86,6 @@ export function TagEditModal({ open, onClose, editingNode, allNodes, onSave }: T
   );
 
   const canSave = tag.trim().length > 0 && !tagExists;
-
-  const toggleGroup = (groupTag: string) => {
-    setSelectedGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(groupTag)) next.delete(groupTag);
-      else next.add(groupTag);
-      return next;
-    });
-  };
 
   const handleSelectParent = (t: string) => {
     setParentTag(t);
@@ -250,62 +234,14 @@ export function TagEditModal({ open, onClose, editingNode, allNodes, onSave }: T
               </div>
             </div>
 
-            <div data-tour="tag-edit-groups" className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-body pl-1">Groups</label>
-              <div className="rounded-lg border border-input-border bg-input-bg overflow-hidden">
-                {groups.length > 5 && (
-                  <div className="relative border-b border-input-border">
-                    <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                    <input
-                      type="text"
-                      placeholder="Search groups..."
-                      value={groupSearch}
-                      onChange={(e) => setGroupSearch(e.target.value)}
-                      className="w-full pl-8 pr-3 py-1.5 text-xs bg-transparent text-heading placeholder:text-placeholder focus:outline-none"
-                    />
-                    {groupSearch && (
-                      <button
-                        type="button"
-                        onClick={() => setGroupSearch('')}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-surface-hover text-muted hover:text-heading"
-                      >
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    )}
-                  </div>
-                )}
-                <div data-tour="tag-edit-groups-list" className="max-h-60 overflow-y-auto custom-scrollbar p-2 flex flex-wrap gap-1.5">
-                  {groups.length === 0 && (
-                    <span className="text-xs text-muted">No groups available</span>
-                  )}
-                  {filteredGroups.length === 0 && groups.length > 0 && (
-                    <span className="text-xs text-muted">No groups matching "{groupSearch}"</span>
-                  )}
-                  {filteredGroups.map((g) => {
-                    const checked = selectedGroups.has(g.Tag);
-                    const displayName = getNodeName(g);
-                    return (
-                      <button
-                        key={g.Tag}
-                        type="button"
-                        onClick={() => toggleGroup(g.Tag)}
-                        title={displayName !== g.Tag ? g.Tag : undefined}
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors cursor-pointer
-                          ${checked
-                            ? 'bg-primary/15 text-primary border border-primary/30'
-                            : 'bg-surface-tertiary text-body border border-transparent hover:bg-surface-hover'
-                          }`}
-                      >
-                        {displayName}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+            <div data-tour="tag-edit-groups">
+              <GroupPillSelector
+                label="Groups"
+                groups={groupOptions}
+                selected={selectedGroups}
+                onChange={setSelectedGroups}
+                listDataTour="tag-edit-groups-list"
+              />
             </div>
           </>
         )}

@@ -5,6 +5,10 @@
 /* Enable class-based dark mode */
 @custom-variant dark (&:is(.dark *));
 
+/* Bwatech brand variant — composes with light/dark. Use sparingly; most
+   surfaces only need the primary color override below. */
+@custom-variant bwatech (&:is(.bwatech *));
+
 @theme {
   --font-sans: 'Rubik', ui-sans-serif, system-ui, sans-serif;
 
@@ -100,6 +104,18 @@
 
   --th-debit-accent: #fda4af;
   --th-credit-accent: #6ee7b7;
+}
+
+/* ========== BWATECH BRAND ==========
+   Composes with light/dark — when the `<html>` element carries both `.bwatech`
+   and `.dark`, both rule blocks apply. The bwatech block only redefines the
+   brand-tinted vars (primary scale + the SVG-internal `--bwatech-accent`),
+   leaving surface/text tokens to the light/dark mode they're paired with. */
+.bwatech {
+  --color-primary: rgb(11, 73, 224);       /* #0B49E0, brand spec */
+  --color-primary-dark: rgb(8, 56, 180);   /* #0838B4 */
+  --color-primary-light: rgb(64, 113, 230);/* #4071E6 */
+  --bwatech-accent: #00ADBB;               /* teal accent on the logo SVG */
 }
 
 /* ========== CUSTOM SCROLLBARS ========== */
