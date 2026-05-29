@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { sha256 } from '../utils/sha256';
-import { loginApi, refreshTokenApi, logoutApi, getUserInfo, getUsersInfo } from '../api/identity';
+import { loginApi, refreshTokenApi, logoutApi, getUserInfo, getUsersInfo, type UserInfo } from '../api/identity';
 
 type LoginResult =
   | { status: 'success' }
@@ -18,6 +18,9 @@ interface AuthContextValue {
   isAudit: boolean;
   /** True when the user holds the devops role — gates infra/diagnostics surfaces (e.g. Integration Logs). */
   isDevops: boolean;
+  /** True when the user holds the demo `user` role — the app pivots to the bwatech
+   *  user portal (company picker + slim transactions page) and hides every tab. */
+  isUser: boolean;
   useDummyData: boolean;
   expiresAt: number | null;
   showSessionWarning: boolean;
@@ -52,6 +55,29 @@ function isAuditRole(role: string | null | undefined): boolean {
 
 function isDevopsRole(role: string | null | undefined): boolean {
   return (role ?? '').trim().toLowerCase() === 'devops';
+}
+
+function isUserRole(role: string | null | undefined): boolean {
+  return (role ?? '').trim().toLowerCase() === 'user';
+}
+
+/**
+ * BACKEND-WORKAROUND(terry-duplicate-uuid): the `/usersinfo` payload currently
+ * ships two distinct users that share the same UUID
+ * (`07af1f3f-af7b-4199-925e-69732a9f4da6`):
+ *   - Hussam Idrees (`hidrees@bwatech.sa`, role=audit)
+ *   - Terry Tounaros (`terry@swittle.com`, role=user)
+ * Our id-based role lookup picks the first match (Hussam), so Terry never
+ * lands in the bwatech user portal. Filter Hussam's row out at the source so
+ * the id-based lookup naturally resolves to Terry. Remove this block once the
+ * backend dedupes the UUIDs.
+ */
+const REMOVED_DUPLICATE_USERNAMES = new Set(['hidrees@bwatech.sa']);
+
+function sanitizeUsers(users: UserInfo[]): UserInfo[] {
+  return users.filter(
+    (u) => !REMOVED_DUPLICATE_USERNAMES.has((u.username ?? '').trim().toLowerCase()),
+  );
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -120,6 +146,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const role = session?.role ?? null;
   const isAudit = isAuditRole(role);
   const isDevops = isDevopsRole(role);
+  const isUser = isUserRole(role);
   const useDummyData = session?.useDummyData ?? false;
   const expiresAt = session?.expiresAt ?? null;
 
@@ -239,7 +266,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Fetch all users for OperatorId → name resolution
       try {
-        const allUsers = await getUsersInfo(tokenData.accessToken);
+        const allUsers = sanitizeUsers(await getUsersInfo(tokenData.accessToken));
         const entries: [string, string][] = allUsers.map(u => [u.id, `${u.firstName} ${u.lastName}`.trim()]);
         setUsersMap(new Map(entries));
         localStorage.setItem(USERS_MAP_KEY, JSON.stringify(entries));
@@ -301,7 +328,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Fetch all users for OperatorId → name resolution
       try {
-        const allUsers = await getUsersInfo(tokenData.accessToken);
+        const allUsers = sanitizeUsers(await getUsersInfo(tokenData.accessToken));
         const entries: [string, string][] = allUsers.map(u => [u.id, `${u.firstName} ${u.lastName}`.trim()]);
         setUsersMap(new Map(entries));
         localStorage.setItem(USERS_MAP_KEY, JSON.stringify(entries));
@@ -431,7 +458,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={{
-      isAuthenticated, username, displayName, userId, role, isAudit, isDevops, useDummyData, expiresAt, showSessionWarning, graceDeadline, usersMap,
+      isAuthenticated, username, displayName, userId, role, isAudit, isDevops, isUser, useDummyData, expiresAt, showSessionWarning, graceDeadline, usersMap,
       login, loginWith2fa, logout, refreshSession, dismissWarning, getAuthHeaders, refreshIfNeeded,
     }}>
       {children}

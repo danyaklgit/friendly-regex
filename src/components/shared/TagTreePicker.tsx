@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import type { TagTreeNode } from '../../api/tagsHierarchy';
 
 interface TagTreePickerProps {
@@ -15,6 +15,13 @@ interface TagTreePickerProps {
    * tree re-appears when the edit button is clicked.
    */
   collapseOnSelect?: boolean;
+  /**
+   * When true, on first render the picker auto-expands the group(s) that
+   * contain the seeded `value` and scrolls the matching leaf into view.
+   * Used by the user-mode tag picker so the operator immediately sees their
+   * currently displayed tag highlighted in context.
+   */
+  autoRevealSelected?: boolean;
 }
 
 function TreeNode({
@@ -23,18 +30,28 @@ function TreeNode({
   selectedTag,
   onSelect,
   defaultExpanded,
+  autoExpandSelected,
 }: {
   node: TagTreeNode;
   depth: number;
   selectedTag: string;
   onSelect: (tag: string) => void;
   defaultExpanded: boolean;
+  autoExpandSelected: boolean;
 }) {
-  const [expanded, setExpanded] = useState(defaultExpanded);
   const isGroup = node.level === 'G';
   const isLeaf = node.level === 'T';
   const isSelected = isLeaf && node.tag === selectedTag;
   const hasChildren = node.children.length > 0;
+
+  // For groups: expand by default when this group contains the selected leaf
+  // and the picker is in auto-reveal mode.
+  const containsSelected = useMemo(
+    () => isGroup && !!selectedTag && node.children.some((c) => c.tag === selectedTag),
+    [isGroup, selectedTag, node.children],
+  );
+  const initialExpanded = defaultExpanded || (autoExpandSelected && containsSelected);
+  const [expanded, setExpanded] = useState(initialExpanded);
 
   const handleClick = useCallback(() => {
     if (isLeaf) {
@@ -49,6 +66,7 @@ function TreeNode({
       <button
         type="button"
         onClick={handleClick}
+        data-selected-leaf={isSelected ? 'true' : undefined}
         className={`flex items-center w-full text-left px-2 py-1.5 text-sm rounded-md transition-colors
           ${isSelected ? 'bg-primary/10 text-primary font-medium' : ''}
           ${isLeaf && !isSelected ? 'hover:bg-surface-hover text-heading cursor-pointer' : ''}
@@ -82,6 +100,7 @@ function TreeNode({
               selectedTag={selectedTag}
               onSelect={onSelect}
               defaultExpanded={false}
+              autoExpandSelected={autoExpandSelected}
             />
           ))
       }
@@ -89,7 +108,7 @@ function TreeNode({
   );
 }
 
-export function TagTreePicker({ label, nodes, value, onChange, loading, required, error, collapseOnSelect }: TagTreePickerProps) {
+export function TagTreePicker({ label, nodes, value, onChange, loading, required, error, collapseOnSelect, autoRevealSelected }: TagTreePickerProps) {
   const [search, setSearch] = useState('');
   const [pickerOpen, setPickerOpen] = useState(() => !(collapseOnSelect && value));
   const query = search.toLowerCase().trim();
@@ -139,6 +158,29 @@ export function TagTreePicker({ label, nodes, value, onChange, loading, required
     }
     return results;
   }, [safeNodes, query]);
+
+  // After the tree mounts and the seeded leaf has been rendered, bring it
+  // into view. We capture the value at first render so subsequent user picks
+  // don't re-trigger the scroll.
+  const treeContainerRef = useRef<HTMLDivElement>(null);
+  const initialValueRef = useRef(value);
+  const scrolledRef = useRef(false);
+  useEffect(() => {
+    if (!autoRevealSelected) return;
+    if (loading) return;
+    if (scrolledRef.current) return;
+    const target = initialValueRef.current;
+    if (!target) return;
+    if (!treeContainerRef.current) return;
+    if (query) return; // don't fight an active search
+    const el = treeContainerRef.current.querySelector(
+      '[data-selected-leaf="true"]',
+    ) as HTMLElement | null;
+    if (el) {
+      el.scrollIntoView({ block: 'nearest' });
+      scrolledRef.current = true;
+    }
+  }, [autoRevealSelected, loading, query, safeNodes]);
 
   const borderClass = error
     ? 'border-red-400 dark:border-rose-400'
@@ -212,7 +254,7 @@ export function TagTreePicker({ label, nodes, value, onChange, loading, required
             </div>
 
             {/* Tree list */}
-            <div className="max-h-48 overflow-y-auto px-1 pb-2">
+            <div ref={treeContainerRef} className="max-h-48 overflow-y-auto px-1 pb-2">
               {loading ? (
                 <div className="flex items-center justify-center py-6 text-sm text-muted">
                   Loading tags...
@@ -231,6 +273,7 @@ export function TagTreePicker({ label, nodes, value, onChange, loading, required
                       selectedTag={value}
                       onSelect={handleSelect}
                       defaultExpanded={false}
+                      autoExpandSelected={false}
                     />
                   ))
                 )
@@ -247,6 +290,7 @@ export function TagTreePicker({ label, nodes, value, onChange, loading, required
                     selectedTag={value}
                     onSelect={handleSelect}
                     defaultExpanded={false}
+                    autoExpandSelected={!!autoRevealSelected}
                   />
                 ))
               )}

@@ -1,10 +1,11 @@
-import React, { useState, useEffect, type FormEvent } from 'react';
+import React, { useState, useEffect, useRef, type FormEvent } from 'react';
 import Particles, { initParticlesEngine } from '@tsparticles/react';
 import { loadSlim } from '@tsparticles/slim';
 import { QRCodeSVG } from 'qrcode.react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { get2faSetup, enable2fa } from '../../api/identity';
+import { BrandLogo } from '../shared/BrandLogo';
 
 type LoginStep =
   | { step: 'credentials' }
@@ -187,7 +188,36 @@ const TotpInput = ({ value, onChange, onSubmit, isLoading, error }: {
 
 export function LoginPage() {
   const { login, loginWith2fa } = useAuth();
-  const { theme, toggleTheme } = useTheme();
+  const { theme, toggleTheme, brand, setBrand } = useTheme();
+
+  // Hidden brand-flip easter egg: typing the literal word `bwatech` while focus
+  // is on the document body **toggles** the brand between swittle and bwatech.
+  // Gives a demo operator a way to load the user-portal look BEFORE auth so the
+  // post-login swap doesn't visibly flash, and a way to undo it without
+  // clearing localStorage. Ignored while an <input>/<textarea> is focused so it
+  // can't fire while the user is typing their password.
+  //
+  // The current brand is read via a ref so the listener can flip to the opposite
+  // value without the effect tearing down + remounting on every flip (which
+  // would reset the keystroke buffer mid-word and make the toggle feel flaky).
+  const brandRef = useRef(brand);
+  brandRef.current = brand;
+  useEffect(() => {
+    const TARGET = 'bwatech';
+    let buffer = '';
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target;
+      if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement) return;
+      if (!/^[a-z]$/i.test(e.key)) return;
+      buffer = (buffer + e.key.toLowerCase()).slice(-TARGET.length);
+      if (buffer === TARGET) {
+        setBrand(brandRef.current === 'bwatech' ? 'swittle' : 'bwatech');
+        buffer = ''; // force a fresh re-type to flip again
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [setBrand]);
 
   const [currentStep, setCurrentStep] = useState<LoginStep>({ step: 'credentials' });
   const [wizardStep, setWizardStep] = useState<SetupWizardStep>('app');
@@ -330,7 +360,7 @@ export function LoginPage() {
             <>
               {/* Header */}
               <div className="text-center mb-8">
-                <img src="https://swittle.com/swittle%20logo.png" alt="Swittle" className="h-8 mx-auto mb-6" />
+                <div className="mb-6 flex justify-center"><BrandLogo className="h-8" /></div>
                 <h1 className="text-2xl font-semibold text-heading dark:text-white">Welcome</h1>
                 <p className="text-sm text-muted dark:text-slate-400 mt-2">Enter your credentials to access the Transactions Enrichment Program</p>
               </div>
