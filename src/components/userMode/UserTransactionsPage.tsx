@@ -3,10 +3,11 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useUserMode } from '../../context/UserModeContext';
 import { useTransactionData } from '../../hooks/useTransactionData';
-import type { FilterProperty } from '../../api/transactions';
+import type { FilterProperty, FilterDefinition } from '../../api/transactions';
 import { BrandLogo } from '../shared/BrandLogo';
 import { Button } from '../shared/Button';
 import { SunIcon, MoonIcon } from '../shared/ThemeIcons';
+import { DynamicFilters } from '../transactions/DynamicFilters';
 import { ChangeCompanyButton } from './ChangeCompanyButton';
 import { RedactionToggle } from './RedactionToggle';
 import { UserTransactionTable } from './UserTransactionTable';
@@ -39,33 +40,68 @@ export function UserTransactionsPage() {
   const { displayName, username, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { selectedCompany } = useUserMode();
-  const { fetchPage, loading, hasMore, transactions, totalTransactionsCount, fetchFilterDefinitions } = useTransactionData();
+  const {
+    fetchPage, loading, hasMore, transactions, totalTransactionsCount, fieldMeta, isLiveMode,
+    fetchFilterDefinitions,
+    userFilterDefinitions, userFilterDefinitionsLoading, fetchUserFilterDefinitions,
+    decimalMaxValues, fetchDecimalMaxValues,
+  } = useTransactionData();
 
-  // Filter definitions carry the user-friendly TransactionTypeCode labels
-  // (e.g. TRF → "Transfer"). Fetched once at portal entry; the table cell
-  // reads them via the same context to render code + description in one cell.
+  // Operator GetFilters still feeds the table's TransactionTypeCode friendly
+  // labels (e.g. TRF → "Transfer"). The filter bar is fed separately by
+  // GetUserFilters below; keeping the two sources distinct means the table's
+  // label lookup is unaffected by the user-mode filter set.
   useEffect(() => {
     void fetchFilterDefinitions();
   }, [fetchFilterDefinitions]);
 
+  // GetUserFilters powers the filter bar above the table. Once loaded, probe
+  // the AMOUNT slider's real max via the shared decimal-max helper.
+  useEffect(() => {
+    void fetchUserFilterDefinitions();
+  }, [fetchUserFilterDefinitions]);
+  useEffect(() => {
+    if (userFilterDefinitions.length > 0) void fetchDecimalMaxValues(userFilterDefinitions);
+  }, [userFilterDefinitions, fetchDecimalMaxValues]);
+
   const [contributionsOpen, setContributionsOpen] = useState(false);
+
+  // User-selected filter state (mirrors the operator `Record<Tag, Set<value>>`
+  // shape so `translateFilters` inside `fetchPage` handles it identically).
+  const [userFilters, setUserFilters] = useState<Record<string, Set<string>>>({});
+
+  // Clear the bar whenever the company changes — each company starts as a
+  // clean view (consistent with redaction re-arming on switch).
+  useEffect(() => {
+    setUserFilters({});
+  }, [selectedCompany?.value]);
 
   const ibanFilter = useMemo<FilterProperty[]>(() => {
     if (!selectedCompany || selectedCompany.ibans.length === 0) return [];
     return [{ ColumnName: 'IBAN', Value: selectedCompany.ibans.join('|'), Operand: 'IN' }];
   }, [selectedCompany]);
 
-  // Initial fetch + react to company swap. We pass empty UI filters — the
-  // user-mode portal doesn't expose a filter panel. `append=false` replaces
-  // the buffer so a company swap doesn't keep the previous company's rows.
-  // Omitting `pageIndex` lets the underlying context fall back to the
-  // incremental cursor (loadedCount / pageSize), matching the operator path.
+  // Drop the ACCOUNTS filter from the bar — picking a company already IS the
+  // account scope (enforced by the hidden `ibanFilter` floor), so a visible
+  // IBAN selector would be redundant. Every other definition passes through.
+  const scopedUserFilterDefinitions = useMemo<FilterDefinition[]>(
+    () => userFilterDefinitions.filter((def) => def.Tag !== 'ACCOUNTS'),
+    [userFilterDefinitions],
+  );
+
+  // Initial fetch + react to company swap or filter change. Debounced so the
+  // company-switch double-trigger (ibanFilter changes AND userFilters resets in
+  // the same cycle) coalesces into a single request. `append=false` replaces
+  // the buffer; omitting `pageIndex` uses the incremental cursor.
   useEffect(() => {
-    void fetchPage({}, false, undefined, BATCH_SIZE, ibanFilter);
-  }, [fetchPage, ibanFilter]);
+    const timer = setTimeout(() => {
+      void fetchPage(userFilters, false, undefined, BATCH_SIZE, ibanFilter);
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [fetchPage, ibanFilter, userFilters]);
 
   // Append the next batch onto the buffer. `append=true` plus a fresh fetch
-  // each click is what makes the loaded count grow.
+  // each click is what makes the loaded count grow. Carries the active filters.
   const loadMore = useCallback(
     (size: number) => {
       // We can only ask for whole pages — the backend returns BATCH_SIZE at a
@@ -74,12 +110,12 @@ export function UserTransactionsPage() {
       const pages = Math.max(1, Math.ceil(size / BATCH_SIZE));
       void (async () => {
         for (let i = 0; i < pages; i++) {
-          const rows = await fetchPage({}, true, undefined, BATCH_SIZE, ibanFilter);
+          const rows = await fetchPage(userFilters, true, undefined, BATCH_SIZE, ibanFilter);
           if (rows.length === 0) break;
         }
       })();
     },
-    [fetchPage, ibanFilter],
+    [fetchPage, ibanFilter, userFilters],
   );
 
   const loaded = transactions.length;
@@ -149,6 +185,16 @@ export function UserTransactionsPage() {
             My Contributions
           </button>
         </div>
+
+        <DynamicFilters
+          fieldMeta={fieldMeta}
+          filters={userFilters}
+          onFiltersChange={setUserFilters}
+          isLiveMode={isLiveMode}
+          filterDefinitions={scopedUserFilterDefinitions}
+          filterDefinitionsLoading={userFilterDefinitionsLoading}
+          decimalMaxValues={decimalMaxValues}
+        />
 
         <div className="flex-1 min-h-0">
           <UserTransactionTable rows={transactions} loading={loading} />

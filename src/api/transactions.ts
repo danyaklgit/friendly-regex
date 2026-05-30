@@ -135,6 +135,42 @@ export async function getFilters(
   return data.Filters;
 }
 
+/**
+ * User-screen counterpart of {@link getFilters}. Returns the same `Filter`
+ * contract (so the same renderer drives both screens), but from the
+ * `GetUserFilters` endpoint, which serves the user account / transactions
+ * screen (Tags, Group Tags, Accounts, Side, Currency, Amount, Statement Date,
+ * IBAN search, free-text Search). See GetUserFilters-API.md.
+ */
+export async function getUserFilters(
+  dataSetType: string,
+  authToken: string,
+  tepHeaders: TepHeaders,
+  signal?: AbortSignal,
+): Promise<FilterDefinition[]> {
+  const res = await fetch(`${BASE}/GetUserFilters`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      Authorization: `Bearer ${authToken}`,
+      'x-apikey': tepHeaders.apiKey,
+      ActivityTag: 'GetUserFilters',
+      LanguageCode: tepHeaders.languageCode,
+      TTPUserId: tepHeaders.userId,
+      TTPTenantCode: tepHeaders.tenantCode,
+      TTPRequestId: tepHeaders.requestId,
+      TimeZone: tepHeaders.timeZone,
+    },
+    body: JSON.stringify({ DataSetType: dataSetType }),
+    signal,
+  });
+
+  await throwIfNotOk(res, 'Failed to fetch user filters');
+  const data: GetFiltersResponse = await res.json();
+  return data.Filters;
+}
+
 export async function getTransactions(
   request: GetTransactionsRequest,
   authToken: string,

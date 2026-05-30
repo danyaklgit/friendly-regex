@@ -9,6 +9,9 @@ import { humanizeFieldName } from '../../utils/humanizeFieldName';
 
 type FilterState = Record<string, Set<string>>;
 
+/** Stable no-op for optional operator-only callbacks (see DynamicFilters props). */
+const noop = () => {};
+
 const FILTER_EXCLUSIONS = new Set([
   'AdditionalInformation',
   'TransactionDetails',
@@ -25,17 +28,23 @@ const HIDDEN_API_FILTER_TAGS = new Set([
 ]);
 
 interface DynamicFiltersProps {
-  data: AnalyzedTransaction[];
+  /** Loaded rows — only used in sample mode (and for live DECIMAL running-max).
+   *  Optional so the live-mode user portal can mount the bar without analyzed
+   *  transactions. Defaults to []. */
+  data?: AnalyzedTransaction[];
   fieldMeta: FieldMeta;
-  tagDefinitions: TagSpecDefinition[];
+  /** Operator sample-mode tag list. Optional; unused in live mode. Defaults to []. */
+  tagDefinitions?: TagSpecDefinition[];
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
-  showOnlyUntagged: boolean;
-  onShowOnlyUntaggedChange: (value: boolean) => void;
-  showOnlyMultiTagged: boolean;
-  onShowOnlyMultiTaggedChange: (value: boolean) => void;
-  showOnlyDeadEnd: boolean;
-  onShowOnlyDeadEndChange: (value: boolean) => void;
+  /** Operator-only "Show only" toggles (sample mode). Optional so other
+   *  surfaces (user portal) can reuse the bar without them. */
+  showOnlyUntagged?: boolean;
+  onShowOnlyUntaggedChange?: (value: boolean) => void;
+  showOnlyMultiTagged?: boolean;
+  onShowOnlyMultiTaggedChange?: (value: boolean) => void;
+  showOnlyDeadEnd?: boolean;
+  onShowOnlyDeadEndChange?: (value: boolean) => void;
   baseFilters?: FilterState;
   leadingActionSlot?: ReactNode;
   /** Number of "external" filters (rendered via `leadingActionSlot`, e.g.
@@ -1550,16 +1559,16 @@ function ApiFilterRenderer({
 // ─── Main DynamicFilters component ───────────────────────────────────────────
 
 export function DynamicFilters({
-  data,
+  data = [],
   fieldMeta,
-  tagDefinitions,
+  tagDefinitions = [],
   filters,
   onFiltersChange,
-  showOnlyUntagged,
+  showOnlyUntagged = false,
   onShowOnlyUntaggedChange,
-  showOnlyMultiTagged,
+  showOnlyMultiTagged = false,
   onShowOnlyMultiTaggedChange,
-  showOnlyDeadEnd,
+  showOnlyDeadEnd = false,
   onShowOnlyDeadEndChange,
   baseFilters,
   leadingActionSlot,
@@ -1700,9 +1709,9 @@ export function DynamicFilters({
 
   const clearAll = () => {
     onFiltersChange(baseFilters ?? {});
-    onShowOnlyUntaggedChange(false);
-    onShowOnlyMultiTaggedChange(false);
-    onShowOnlyDeadEndChange(false);
+    onShowOnlyUntaggedChange?.(false);
+    onShowOnlyMultiTaggedChange?.(false);
+    onShowOnlyDeadEndChange?.(false);
     onClearExtraFilters?.();
   };
 
@@ -1753,15 +1762,18 @@ export function DynamicFilters({
             />
           ))}
 
-          {/* Sample mode: legacy filters */}
+          {/* Sample mode: legacy filters. The ShowOnly handlers are operator-only;
+              the operator callsite always supplies them, and this branch never
+              renders in live mode, so no-op fallbacks are purely to satisfy the
+              now-optional prop types. */}
           {!isLiveMode && (
             <ShowOnlyDropdown
               showOnlyUntagged={showOnlyUntagged}
-              onShowOnlyUntaggedChange={onShowOnlyUntaggedChange}
+              onShowOnlyUntaggedChange={onShowOnlyUntaggedChange ?? noop}
               showOnlyMultiTagged={showOnlyMultiTagged}
-              onShowOnlyMultiTaggedChange={onShowOnlyMultiTaggedChange}
+              onShowOnlyMultiTaggedChange={onShowOnlyMultiTaggedChange ?? noop}
               showOnlyDeadEnd={showOnlyDeadEnd}
-              onShowOnlyDeadEndChange={onShowOnlyDeadEndChange}
+              onShowOnlyDeadEndChange={onShowOnlyDeadEndChange ?? noop}
             />
           )}
 

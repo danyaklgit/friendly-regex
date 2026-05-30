@@ -2,7 +2,7 @@ import { createContext, useState, useMemo, useCallback, useRef, useEffect, type 
 import type { TransactionRow } from '../types';
 import { deriveFieldMeta, type FieldMeta } from '../utils/deriveFieldMeta';
 import { translateFilters } from '../utils/translateFilters';
-import { getTransactions, getFilters, markTransactionsAsDeadEnd, unmarkDeadEndTransactions, setTransactionsComment, DEFAULT_SORTING, type TepHeaders, type FilterDefinition, type FilterProperty, type SetTransactionsCommentEntry } from '../api/transactions';
+import { getTransactions, getFilters, getUserFilters, markTransactionsAsDeadEnd, unmarkDeadEndTransactions, setTransactionsComment, DEFAULT_SORTING, type TepHeaders, type FilterDefinition, type FilterProperty, type SetTransactionsCommentEntry } from '../api/transactions';
 import { useAuth } from './AuthContext';
 import { useTepConfig } from './TepConfigContext';
 import sampleTransactionData from '../data/sampleData.json';
@@ -32,6 +32,13 @@ export interface TransactionDataContextValue {
   filterDefinitions: FilterDefinition[];
   filterDefinitionsLoading: boolean;
   fetchFilterDefinitions: () => Promise<void>;
+  /** User-screen filter definitions, fetched from GetUserFilters. Kept
+   *  separate from the operator `filterDefinitions` so the user table's
+   *  TransactionType label lookup (which reads `filterDefinitions`) is
+   *  unaffected by the user-mode filter bar. */
+  userFilterDefinitions: FilterDefinition[];
+  userFilterDefinitionsLoading: boolean;
+  fetchUserFilterDefinitions: () => Promise<void>;
   decimalMaxValues: Map<string, number>;
   fetchDecimalMaxValues: (filterDefs: FilterDefinition[]) => Promise<void>;
 }
@@ -52,6 +59,8 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
   const [totalTransactionsCount, setTotalTransactionsCount] = useState<number | null>(null);
   const [filterDefinitions, setFilterDefinitions] = useState<FilterDefinition[]>([]);
   const [filterDefinitionsLoading, setFilterDefinitionsLoading] = useState(false);
+  const [userFilterDefinitions, setUserFilterDefinitions] = useState<FilterDefinition[]>([]);
+  const [userFilterDefinitionsLoading, setUserFilterDefinitionsLoading] = useState(false);
   const [decimalMaxValues, setDecimalMaxValues] = useState<Map<string, number>>(new Map());
   const currentPageRef = useRef(0);
   const loadedCountRef = useRef(0);
@@ -185,6 +194,34 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
     } finally {
       setFilterDefinitionsLoading(false);
       filterFetchingRef.current = false;
+    }
+  }, [isLiveMode, getAuthHeaders, refreshIfNeeded, userId, tepConfig]);
+
+  const userFilterFetchingRef = useRef(false);
+  const fetchUserFilterDefinitions = useCallback(async () => {
+    if (!isLiveMode || userFilterFetchingRef.current) return;
+    userFilterFetchingRef.current = true;
+    try {
+      await refreshIfNeeded();
+      const authHeaders = getAuthHeaders();
+      const token = authHeaders.Authorization?.replace('Bearer ', '') ?? '';
+      if (!token) return;
+      const tepHeaders: TepHeaders = {
+        apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
+        userId: userId ?? '',
+        tenantCode: tepConfig.ttpTenantCode,
+        languageCode: tepConfig.languageCode,
+        timeZone: tepConfig.timeZone,
+        requestId: tepConfig.ttpRequestId,
+      };
+      setUserFilterDefinitionsLoading(true);
+      const defs = await getUserFilters('MT940', token, tepHeaders);
+      setUserFilterDefinitions(defs);
+    } catch (err) {
+      console.error('Failed to fetch user filter definitions:', err);
+    } finally {
+      setUserFilterDefinitionsLoading(false);
+      userFilterFetchingRef.current = false;
     }
   }, [isLiveMode, getAuthHeaders, refreshIfNeeded, userId, tepConfig]);
 
@@ -402,6 +439,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
       isLiveMode, loading, hasMore, totalTransactionsCount, fetchPage, fetchCount,
       trimLoadedTransactions,
       filterDefinitions, filterDefinitionsLoading, fetchFilterDefinitions,
+      userFilterDefinitions, userFilterDefinitionsLoading, fetchUserFilterDefinitions,
       decimalMaxValues, fetchDecimalMaxValues,
     }}>
       {children}
