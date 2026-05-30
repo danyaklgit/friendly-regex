@@ -23,8 +23,15 @@ describe('DescriptionCell', () => {
 
   it('applies redaction by default (REDACTION_RULES contains the ORDP rule)', () => {
     render(<Wrap><DescriptionCell text="x /ORDP/Acme/ y" /></Wrap>);
-    expect(screen.getByText(/OrderingPty/)).toBeDefined();
+    // The span is rendered as a black censor bar carrying the rule's label.
+    expect(screen.getByText('Ordering Party')).toBeDefined();
     expect(screen.queryByText(/Acme/)).toBeNull();
+  });
+
+  it('strips MT940 NONREF placeholder tokens', () => {
+    render(<Wrap><DescriptionCell text="Payment NONREF received" /></Wrap>);
+    expect(screen.queryByText(/NONREF/)).toBeNull();
+    expect(screen.getByText(/Payment\s+received/)).toBeDefined();
   });
 
   it('does not show "Show more" for short text', () => {

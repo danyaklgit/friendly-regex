@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { redact } from './redact';
+import { redact, redactSegments } from './redact';
 import type { RedactionRule } from '../../data/redactionRules';
 
 describe('redact', () => {
@@ -98,19 +98,62 @@ describe('redact', () => {
     });
 
     it('masks a Saudi IBAN with no spaces', () => {
-      expect(redact('IBAN SA6810000062513547000100 done', bundled)).toContain('SA****************');
+      const out = redact('IBAN SA6810000062513547000100 done', bundled);
+      expect(out).toBe('IBAN IBAN done');
+      expect(out).not.toContain('SA6810000062513547000100');
     });
 
     it('masks an ORDP narrative span end-to-end', () => {
-      expect(redact('/ORDP/Innovasea Marine/', bundled)).toBe('*****OrderingPty*****');
+      expect(redact('/ORDP/Innovasea Marine/', bundled)).toBe('Ordering Party');
     });
 
     it('masks both narrative + IBAN in one pass', () => {
       const out = redact('Ref /IBAN/SA6810000062513547000100/ thanks', bundled);
       // The narrative rule fires first (catches the /IBAN/.../ span), so the
-      // result should contain the AcctNumber replacement and not the raw IBAN.
-      expect(out).toContain('*****AcctNumber*****');
+      // result should carry the Account No label and not the raw IBAN.
+      expect(out).toContain('Account No');
       expect(out).not.toContain('SA6810000062513547000100');
     });
+  });
+});
+
+describe('redactSegments', () => {
+  const rules: RedactionRule[] = [
+    { kind: 'regex', name: 'iban', pattern: '\\b[A-Z]{2}\\d{2}[A-Z0-9]{11,30}\\b', replacement: 'IBAN' },
+    { kind: 'between', name: 'benm', prefix: '/BENM/', suffix: '/', replacement: 'Beneficiary' },
+  ];
+
+  it('returns an empty array for empty input', () => {
+    expect(redactSegments('', rules)).toEqual([]);
+  });
+
+  it('returns a single non-redacted segment when nothing matches', () => {
+    expect(redactSegments('plain text', rules)).toEqual([{ text: 'plain text', redacted: false }]);
+  });
+
+  it('splits a match into a redacted segment carrying the label', () => {
+    const segs = redactSegments('to SA6810000062513547000100 now', rules);
+    expect(segs).toEqual([
+      { text: 'to ', redacted: false },
+      { text: 'IBAN', redacted: true },
+      { text: ' now', redacted: false },
+    ]);
+  });
+
+  it('freezes a redacted segment so later rules do not re-match the label', () => {
+    // 'Beneficiary' (a between replacement) must not be chewed on by a later
+    // word rule that targets the literal label.
+    const chained: RedactionRule[] = [
+      { kind: 'between', name: 'benm', prefix: '/BENM/', suffix: '/', replacement: 'Beneficiary' },
+      { kind: 'regex', name: 'word', pattern: 'Beneficiary', replacement: 'XXX' },
+    ];
+    const segs = redactSegments('/BENM/Acme/', chained);
+    expect(segs).toEqual([{ text: 'Beneficiary', redacted: true }]);
+  });
+
+  it('joins back to the same string as redact()', () => {
+    const text = 'Ref SA6810000062513547000100 /BENM/Acme Ltd/ end';
+    const joined = redactSegments(text, rules).map((s) => s.text).join('');
+    expect(joined).toBe(redact(text, rules));
   });
 });

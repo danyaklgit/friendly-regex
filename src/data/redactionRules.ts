@@ -36,27 +36,29 @@ export type RedactionRule =
       replacement: string;
     };
 
+// Replacement strings double as the white label shown on the black redaction
+// bar (see RedactedText). Keep them short, human, and free of asterisk masks —
+// they read as a censor annotation ("IBAN", "Beneficiary"), Epstein-files style.
 export const REDACTION_RULES: RedactionRule[] = [
   // Saudi IBANs with optional whitespace between digit/char groups
-  // (e.g. "SA 6810 0000 6251 35 47 0001 00" → "SA****************")
+  // (e.g. "SA 6810 0000 6251 35 47 0001 00")
   {
     kind: 'regex',
     name: 'KSAIBAN',
     pattern: '(?<![A-Z0-9])SA(?:\\s*\\d){4}(?:\\s*[A-Z0-9]){18}(?![A-Z0-9])',
-    replacement: 'SA****************',
+    replacement: 'IBAN',
   },
   // Generic IBAN catch-all (any country)
   {
     kind: 'regex',
     name: 'IBAN',
     pattern: '\\b[A-Z]{2}\\d{2}[A-Z0-9]{11,30}\\b',
-    replacement: 'XX****************',
+    replacement: 'IBAN',
   },
   // MT940 narrative sub-fields delimited by slashes
-  { kind: 'between', name: 'ANBAccNo', prefix: '/IBAN/', suffix: '/', replacement: '*****AcctNumber*****' },
-  { kind: 'between', name: 'ANBOrdP', prefix: '/ORDP/', suffix: '/', replacement: '*****OrderingPty*****' },
-  { kind: 'between', name: 'ANBBenM', prefix: '/BENM/', suffix: '/', replacement: '*****Beneficiary*****' },
-  // { kind: 'between', name: 'test', prefix: 'INV', suffShix: '/PD', replacement: '*****testdan*****' },
+  { kind: 'between', name: 'ANBAccNo', prefix: '/IBAN/', suffix: '/', replacement: 'Account No' },
+  { kind: 'between', name: 'ANBOrdP', prefix: '/ORDP/', suffix: '/', replacement: 'Ordering Party' },
+  { kind: 'between', name: 'ANBBenM', prefix: '/BENM/', suffix: '/', replacement: 'Beneficiary' },
 ];
 
 /**

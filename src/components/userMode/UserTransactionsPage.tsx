@@ -6,15 +6,20 @@ import { useTransactionData } from '../../hooks/useTransactionData';
 import type { FilterProperty, FilterDefinition } from '../../api/transactions';
 import { BrandLogo } from '../shared/BrandLogo';
 import { Button } from '../shared/Button';
+import { Toggle } from '../shared/Toggle';
 import { SunIcon, MoonIcon } from '../shared/ThemeIcons';
 import { DynamicFilters } from '../transactions/DynamicFilters';
 import { ChangeCompanyButton } from './ChangeCompanyButton';
 import { RedactionToggle } from './RedactionToggle';
 import { UserTransactionTable } from './UserTransactionTable';
 import { MyContributionsModal } from './MyContributionsModal';
+import { isHiddenGroupName } from '../../utils/userMode/groupsForTag';
 import { useState } from 'react';
 
 const BATCH_SIZE = 50;
+
+/** Stable empty filter map so effects don't churn when PRO mode is off. */
+const EMPTY_FILTERS: Record<string, Set<string>> = {};
 
 /**
  * The user-mode transactions surface. Lives behind the company picker — once a
@@ -39,7 +44,7 @@ const BATCH_SIZE = 50;
 export function UserTransactionsPage() {
   const { displayName, username, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const { selectedCompany } = useUserMode();
+  const { selectedCompany, proMode, setProMode } = useUserMode();
   const {
     fetchPage, loading, hasMore, transactions, totalTransactionsCount, fieldMeta, isLiveMode,
     fetchFilterDefinitions,
@@ -55,14 +60,15 @@ export function UserTransactionsPage() {
     void fetchFilterDefinitions();
   }, [fetchFilterDefinitions]);
 
-  // GetUserFilters powers the filter bar above the table. Once loaded, probe
-  // the AMOUNT slider's real max via the shared decimal-max helper.
+  // GetUserFilters powers the filter bar above the table — only fetched when
+  // PRO mode (which surfaces the bar) is on. Once loaded, probe the AMOUNT
+  // slider's real max via the shared decimal-max helper.
   useEffect(() => {
-    void fetchUserFilterDefinitions();
-  }, [fetchUserFilterDefinitions]);
+    if (proMode) void fetchUserFilterDefinitions();
+  }, [proMode, fetchUserFilterDefinitions]);
   useEffect(() => {
-    if (userFilterDefinitions.length > 0) void fetchDecimalMaxValues(userFilterDefinitions);
-  }, [userFilterDefinitions, fetchDecimalMaxValues]);
+    if (proMode && userFilterDefinitions.length > 0) void fetchDecimalMaxValues(userFilterDefinitions);
+  }, [proMode, userFilterDefinitions, fetchDecimalMaxValues]);
 
   const [contributionsOpen, setContributionsOpen] = useState(false);
 
@@ -83,11 +89,24 @@ export function UserTransactionsPage() {
 
   // Drop the ACCOUNTS filter from the bar — picking a company already IS the
   // account scope (enforced by the hidden `ibanFilter` floor), so a visible
-  // IBAN selector would be redundant. Every other definition passes through.
+  // IBAN selector would be redundant. Also strip the always-hidden Inflows /
+  // Outflows options from GROUP_TAGS (they only restate the debit/credit side).
   const scopedUserFilterDefinitions = useMemo<FilterDefinition[]>(
-    () => userFilterDefinitions.filter((def) => def.Tag !== 'ACCOUNTS'),
+    () =>
+      userFilterDefinitions
+        .filter((def) => def.Tag !== 'ACCOUNTS')
+        .map((def) =>
+          def.Tag === 'GROUP_TAGS'
+            ? { ...def, Values: def.Values.filter((v) => !isHiddenGroupName(v.Label ?? '')) }
+            : def,
+        ),
     [userFilterDefinitions],
   );
+
+  // Filters only apply while PRO mode exposes the bar — when it's off, the
+  // hidden user-selected filters are ignored so a stale selection can't quietly
+  // narrow the simplified view.
+  const effectiveFilters = proMode ? userFilters : EMPTY_FILTERS;
 
   // Initial fetch + react to company swap or filter change. Debounced so the
   // company-switch double-trigger (ibanFilter changes AND userFilters resets in
@@ -95,10 +114,10 @@ export function UserTransactionsPage() {
   // the buffer; omitting `pageIndex` uses the incremental cursor.
   useEffect(() => {
     const timer = setTimeout(() => {
-      void fetchPage(userFilters, false, undefined, BATCH_SIZE, ibanFilter);
+      void fetchPage(effectiveFilters, false, undefined, BATCH_SIZE, ibanFilter);
     }, 50);
     return () => clearTimeout(timer);
-  }, [fetchPage, ibanFilter, userFilters]);
+  }, [fetchPage, ibanFilter, effectiveFilters]);
 
   // Append the next batch onto the buffer. `append=true` plus a fresh fetch
   // each click is what makes the loaded count grow. Carries the active filters.
@@ -110,12 +129,12 @@ export function UserTransactionsPage() {
       const pages = Math.max(1, Math.ceil(size / BATCH_SIZE));
       void (async () => {
         for (let i = 0; i < pages; i++) {
-          const rows = await fetchPage(userFilters, true, undefined, BATCH_SIZE, ibanFilter);
+          const rows = await fetchPage(effectiveFilters, true, undefined, BATCH_SIZE, ibanFilter);
           if (rows.length === 0) break;
         }
       })();
     },
-    [fetchPage, ibanFilter, userFilters],
+    [fetchPage, ibanFilter, effectiveFilters],
   );
 
   const loaded = transactions.length;
@@ -175,26 +194,33 @@ export function UserTransactionsPage() {
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-6">
             <RedactionToggle />
-            <ColorLegend />
+            <ColorLegend proMode={proMode} />
           </div>
-          <button
-            type="button"
-            onClick={() => setContributionsOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-primary px-3 py-1.5 text-xs font-medium text-primary-dark hover:bg-primary/10 dark:text-primary-light dark:hover:bg-primary/15"
-          >
-            My Contributions
-          </button>
+          <div className="flex items-center gap-3">
+            <Toggle label="PRO" checked={proMode} onChange={setProMode} />
+            {proMode && (
+              <button
+                type="button"
+                onClick={() => setContributionsOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-primary px-3 py-1.5 text-xs font-medium text-primary-dark hover:bg-primary/10 dark:text-primary-light dark:hover:bg-primary/15"
+              >
+                My Contributions
+              </button>
+            )}
+          </div>
         </div>
 
-        <DynamicFilters
-          fieldMeta={fieldMeta}
-          filters={userFilters}
-          onFiltersChange={setUserFilters}
-          isLiveMode={isLiveMode}
-          filterDefinitions={scopedUserFilterDefinitions}
-          filterDefinitionsLoading={userFilterDefinitionsLoading}
-          decimalMaxValues={decimalMaxValues}
-        />
+        {proMode && (
+          <DynamicFilters
+            fieldMeta={fieldMeta}
+            filters={userFilters}
+            onFiltersChange={setUserFilters}
+            isLiveMode={isLiveMode}
+            filterDefinitions={scopedUserFilterDefinitions}
+            filterDefinitionsLoading={userFilterDefinitionsLoading}
+            decimalMaxValues={decimalMaxValues}
+          />
+        )}
 
         <div className="flex-1 min-h-0">
           <UserTransactionTable rows={transactions} loading={loading} />
@@ -246,22 +272,27 @@ export function UserTransactionsPage() {
  * we do internally — gray = raw bank values, blue = backend-enhanced (tags,
  * groups, attributes), orange = the user's own overrides.
  */
-function ColorLegend() {
+function ColorLegend({ proMode }: { proMode: boolean }) {
   return (
     <div className="hidden md:flex items-center gap-5 text-[11px] text-muted">
       <span className="flex items-center gap-1">
         <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-border-strong text-[8px] font-semibold text-faint">i</span>
         Data as provided by the bank(s)
       </span>
-      <span className="flex items-center gap-1 text-primary">
-        <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-primary text-[8px] font-semibold text-primary">i</span>
-        {/* Enhanced data based on existing tag definitions */}
-        Data as enhanced by BwaTech
-      </span>
-      <span className="flex items-center gap-1 text-orange-500">
-        <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-orange-400 text-[8px] font-semibold text-orange-500">i</span>
-        Data as customized by the user
-      </span>
+      {/* The blue/orange tiers only colour PRO-only columns (tags, groups,
+          attributes), so their legend entries are hidden when PRO is off. */}
+      {proMode && (
+        <>
+          <span className="flex items-center gap-1 text-primary">
+            <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-primary text-[8px] font-semibold text-primary">i</span>
+            Data as enhanced by BwaTech
+          </span>
+          <span className="flex items-center gap-1 text-orange-500">
+            <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-orange-400 text-[8px] font-semibold text-orange-500">i</span>
+            Data as customized by the user
+          </span>
+        </>
+      )}
     </div>
   );
 }

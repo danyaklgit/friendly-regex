@@ -26,10 +26,25 @@ import {
  *     Add/revert helpers persist after each mutation.
  */
 
+const PRO_MODE_KEY = 'tep:userProMode';
+
+function loadProMode(): boolean {
+  try {
+    return localStorage.getItem(PRO_MODE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 interface UserModeContextValue {
   // Company selection
   selectedCompany: DemoCompany | null;
   setSelectedCompany: (c: DemoCompany | null) => void;
+
+  // PRO mode — exposes the power-user surface (filters, tag/group/attribute
+  // columns, contributions). OFF by default, persisted device-wide.
+  proMode: boolean;
+  setProMode: (next: boolean) => void;
 
   // Redaction (session-scoped, NOT persisted)
   redactionOn: boolean;
@@ -52,6 +67,18 @@ export function UserModeProvider({ children }: { children: ReactNode }) {
 
   const [selectedCompany, setSelectedCompany] = useState<DemoCompany | null>(null);
   const [redactionOn, setRedactionOn] = useState<boolean>(true);
+
+  // PRO mode persists across sessions on this device (a deliberate, sticky
+  // preference — unlike redaction, which re-arms each session).
+  const [proMode, setProModeState] = useState<boolean>(() => loadProMode());
+  const setProMode = useCallback((next: boolean) => {
+    setProModeState(next);
+    try {
+      localStorage.setItem(PRO_MODE_KEY, next ? '1' : '0');
+    } catch {
+      console.warn('[UserMode] failed to persist PRO mode');
+    }
+  }, []);
 
   // Per-user contributions — re-hydrate when the userId resolves or changes.
   const [contributions, setContributions] = useState<Contribution[]>(() => loadContributions(userId));
@@ -114,6 +141,8 @@ export function UserModeProvider({ children }: { children: ReactNode }) {
   const value = useMemo<UserModeContextValue>(() => ({
     selectedCompany,
     setSelectedCompany,
+    proMode,
+    setProMode,
     redactionOn,
     setRedactionOn,
     contributions,
@@ -121,7 +150,7 @@ export function UserModeProvider({ children }: { children: ReactNode }) {
     revertContribution,
     customTags,
     addCustomTag,
-  }), [selectedCompany, redactionOn, contributions, addContribution, revertContribution, customTags, addCustomTag]);
+  }), [selectedCompany, proMode, setProMode, redactionOn, contributions, addContribution, revertContribution, customTags, addCustomTag]);
 
   return <UserModeContext.Provider value={value}>{children}</UserModeContext.Provider>;
 }
