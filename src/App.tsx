@@ -31,7 +31,7 @@ import { tagSpecLibrarySave } from './api/tagSpecSave';
 import { parseShareParams, storeShareParams, consumeStoredShareParams, clearShareParamsFromUrl } from './utils/shareLink';
 import type { ShareParams } from './utils/shareLink';
 import type { CheckoutState } from './types';
-import type { TepHeaders } from './api/transactions';
+import type { TepHeaders, FilterProperty } from './api/transactions';
 import type { TagSpecCommentTarget } from './types/comments';
 import { getContextValue } from './types/tagSpec';
 
@@ -86,6 +86,11 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
   const [activeTab, setActiveTab] = useState(0);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [activeCheckout, setActiveCheckout] = useState<CheckoutState | null>(null);
+  // Transient extra filters propagated from a Backlog pill click (Clean,
+  // Untagged, etc). Lives at the app level so the navigation outlives the
+  // tab switch; TransactionsTab consumes it on mount and clears via
+  // `setPendingPillFilters(null)` once it's been applied to the page state.
+  const [pendingPillFilters, setPendingPillFilters] = useState<FilterProperty[] | null>(null);
   const [undoTarget, setUndoTarget] = useState<{ bank: string; side: string } | null>(null);
   const [headerActionLoading, setHeaderActionLoading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info'; duration?: number } | null>(null);
@@ -173,8 +178,14 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
     );
   }, [libraries]);
 
-  const handleViewTransactions = useCallback((bank: string, side: string, definitionId?: string) => {
+  const handleViewTransactions = useCallback((
+    bank: string,
+    side: string,
+    definitionId?: string,
+    pillFilters?: FilterProperty[],
+  ) => {
     setActiveCheckout({ bank, side, pendingDefinitionId: definitionId });
+    setPendingPillFilters(pillFilters ?? null);
     setActiveTab(1);
   }, []);
 
@@ -262,7 +273,7 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
           onTabChange={handleTabChange}
           tabs={[
             { label: 'Backlog', content: <StatsTab onViewTransactions={handleViewTransactions} onViewAllTransactions={handleViewAllTransactions} onCheckoutComplete={handleCheckoutComplete} authToken={authToken} tepHeaders={tepHeaders} navigation={backlogNavigation} onNavigationConsumed={handleBacklogNavigationConsumed} onNavigateToBacklog={handleNavigateToBacklog} /> },
-            { label: 'Transactions', content: <TransactionsTab activeCheckout={activeCheckout} onClearPendingDefinition={() => setActiveCheckout(prev => (prev && prev.pendingDefinitionId != null) ? { ...prev, pendingDefinitionId: undefined } : prev)} initialShareFilters={shareFilters} initialShareToggles={shareToggles} operatorName={operatorName} shareDialogOpen={shareDialogOpen} onShareDialogClose={() => setShareDialogOpen(false)} /> },
+            { label: 'Transactions', content: <TransactionsTab activeCheckout={activeCheckout} onClearPendingDefinition={() => setActiveCheckout(prev => (prev && prev.pendingDefinitionId != null) ? { ...prev, pendingDefinitionId: undefined } : prev)} initialShareFilters={shareFilters} initialShareToggles={shareToggles} operatorName={operatorName} shareDialogOpen={shareDialogOpen} onShareDialogClose={() => setShareDialogOpen(false)} pendingPillFilters={pendingPillFilters} onPendingPillFiltersConsumed={() => setPendingPillFilters(null)} /> },
             ...(isLiveMode && isDevops ? [{ label: 'Integration Logs', content: <IntegrationLogsTab /> }] : []),
             { label: 'Settings', content: <SettingsTab /> },
           ]}

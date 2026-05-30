@@ -105,7 +105,7 @@ function ValidIcon({ isValid }: { isValid: boolean | null }) {
  * that THIS tag actually produces across the whole dataset, not just the
  * page they paginated to), and surfaces the per-value `IsValid` flag
  * (✓ / ✗ / –) alongside the summary counters. Walks pages of 500 via
- * Previous / Next controls when `TransactionsCount` exceeds one page.
+ * Previous / Next controls when `DistinctValuesCount` exceeds one page.
  */
 export function DistinctValuesModal({
   open,
@@ -157,7 +157,7 @@ export function DistinctValuesModal({
       setLoading(false);
       setError(null);
       setData({
-        Items: [], TotalDistinctCount: 0, TotalValidated: 0, TotalNotValid: 0, TotalNotTagged: 0, TransactionsCount: 0,
+        Items: [], TotalDistinctCount: 0, TotalValidated: 0, TotalNotValid: 0, TotalNotValidated: 0, TotalNotTagged: 0, DistinctValuesCount: 0, TransactionsCount: 0,
       });
       return;
     }
@@ -227,9 +227,12 @@ export function DistinctValuesModal({
 
   const title = `Distinct values for "${attributeName}"`;
   const showSummary = !!data && data.Items.length > 0;
-  const transactionsCount = data?.TransactionsCount ?? 0;
-  const totalPages = transactionsCount > 0 ? Math.max(1, Math.ceil(transactionsCount / PAGE_SIZE)) : 1;
-  const showPagination = !!data && transactionsCount > PAGE_SIZE;
+  // `DistinctValuesCount` replaces the legacy `TransactionsCount` (the
+  // endpoint counts distinct values, not transactions). The fallback keeps
+  // the modal working against an older backend during the rollout window.
+  const distinctValuesCount = data?.DistinctValuesCount ?? data?.TransactionsCount ?? 0;
+  const totalPages = distinctValuesCount > 0 ? Math.max(1, Math.ceil(distinctValuesCount / PAGE_SIZE)) : 1;
+  const showPagination = !!data && distinctValuesCount > PAGE_SIZE;
   const isFirstPage = pageIndex === 0;
   const isLastPage = pageIndex >= totalPages - 1;
   const missingDefinitionId = open && !definitionId;
@@ -264,8 +267,8 @@ export function DistinctValuesModal({
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
               <path d="M3 8H13" strokeLinecap="round" />
             </svg>
-            <span className="font-semibold">{data!.TotalNotTagged}</span>
-            <span>untagged</span>
+            <span className="font-semibold">{data!.TotalNotValidated}</span>
+            <span>Not validated</span>
           </span>
           <span className="text-faint">·</span>
           <span className="text-faint">
@@ -336,7 +339,7 @@ export function DistinctValuesModal({
           <span className="text-xs text-faint">
             Page <span className="font-semibold text-body">{pageIndex + 1}</span> of {totalPages}
             {' · '}
-            <span className="font-semibold text-body">{transactionsCount.toLocaleString()}</span> matched transactions
+            <span className="font-semibold text-body">{distinctValuesCount.toLocaleString()}</span> distinct values
           </span>
           <div className="flex items-center gap-2">
             <Button

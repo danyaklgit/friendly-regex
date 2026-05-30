@@ -15,10 +15,20 @@ export interface DistinctFieldValuesResult {
   TotalDistinctCount: number;
   TotalValidated: number;
   TotalNotValid: number;
-  TotalNotTagged: number;
-  /** Total transactions matched by the request's `FilteringProperties`,
-   *  used to derive total pages on the UI side. Added by the backend on
-   *  2026-05-26 alongside the page-by-tag-spec filtering change. */
+  /** Replaces `TotalNotTagged` (backend rename, 2026-05-30): IsValid == null
+   *  is semantically "nothing was validated against this value", not
+   *  "untagged". The old field is still emitted by the backend during the
+   *  migration window and mirrored here for compatibility. */
+  TotalNotValidated: number;
+  /** Deprecated: superseded by `TotalNotValidated`. Same numeric value while
+   *  the backend dual-emits; will be removed once the migration is done.
+   *  Read sites should prefer `TotalNotValidated`. */
+  TotalNotTagged?: number;
+  /** Renamed from `TransactionsCount` to `DistinctValuesCount` on
+   *  2026-05-30 — it counts distinct values, not transactions. Drives the
+   *  UI's total-pages calculation. */
+  DistinctValuesCount?: number;
+  /** Deprecated alias kept while the backend dual-emits both names. */
   TransactionsCount?: number;
 }
 
@@ -34,7 +44,9 @@ const EMPTY: DistinctFieldValuesResult = {
   TotalDistinctCount: 0,
   TotalValidated: 0,
   TotalNotValid: 0,
+  TotalNotValidated: 0,
   TotalNotTagged: 0,
+  DistinctValuesCount: 0,
   TransactionsCount: 0,
 };
 
@@ -47,10 +59,17 @@ interface GetDistinctFieldValuesResponse {
 }
 
 /**
- * Backend returns a non-2xx with SFM `SFM_NO_TRANSACTIONS_FOUND` when the
- * filtered dataset has no rows. That's a valid empty result, not an error,
- * so we short-circuit to the EMPTY record instead of throwing — same shape
- * as `getTagSpecComments` handles `SFM_NO_TAG_SPEC_COMMENTS_FOUND`.
+ * Backend signals an empty result via SFM on a non-2xx status. The constant
+ * is migrating from `SFM_NO_TRANSACTIONS_FOUND` to `SFM_NO_DISTINCT_VALUES_FOUND`
+ * (the endpoint paginates distinct values, not transactions). Accept both
+ * while the backend dual-emits, and normalise to EMPTY so callers don't have
+ * to branch on the SFM tag. Mirrors how `getTagSpecComments` handles
+ * `SFM_NO_TAG_SPEC_COMMENTS_FOUND`.
+ *
+ * After the SFM short-circuit, fold the deprecated field aliases
+ * (`TransactionsCount` -> `DistinctValuesCount`, `TotalNotTagged` ->
+ * `TotalNotValidated`) so call sites can read the new names exclusively
+ * while the old payload shape is still arriving from the wire.
  */
 export async function getDistinctFieldValues(
   req: GetDistinctFieldValuesRequest,
@@ -70,7 +89,20 @@ export async function getDistinctFieldValues(
   } catch {
     json = null;
   }
-  if (json?.SFM?.Constant === 'SFM_NO_TRANSACTIONS_FOUND') return EMPTY;
+  const sfm = json?.SFM?.Constant;
+  if (sfm === 'SFM_NO_DISTINCT_VALUES_FOUND' || sfm === 'SFM_NO_TRANSACTIONS_FOUND') {
+    return EMPTY;
+  }
   await throwIfNotOk(res, 'Failed to load distinct values');
-  return json?.Result ?? EMPTY;
+  const result = json?.Result;
+  if (!result) return EMPTY;
+  // Backwards-compatible shape: prefer the new fields when the backend
+  // emits them, otherwise read the old aliases. The result type now
+  // requires `TotalNotValidated`, so falling back to `TotalNotTagged ?? 0`
+  // keeps the type contract intact even on a fully legacy response.
+  return {
+    ...result,
+    TotalNotValidated: result.TotalNotValidated ?? result.TotalNotTagged ?? 0,
+    DistinctValuesCount: result.DistinctValuesCount ?? result.TransactionsCount,
+  };
 }

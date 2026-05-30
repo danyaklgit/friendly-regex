@@ -91,6 +91,15 @@ interface TransactionsTabProps {
   shareDialogOpen?: boolean;
   /** Callback to close the share dialog. */
   onShareDialogClose?: () => void;
+  /** FilteringProperties forwarded from a Backlog pill click (Clean, Untagged,
+   *  etc). Consumed once on mount/change and merged into the live-mode
+   *  outgoing fetch via `activeExtraFilters` — they outlive a single fetch so
+   *  the operator can still paginate within the scoped view. */
+  pendingPillFilters?: FilterProperty[] | null;
+  /** Called after `pendingPillFilters` has been picked up so the parent can
+   *  null it out — prevents the same scope being reapplied if the user
+   *  navigates back to the tab. */
+  onPendingPillFiltersConsumed?: () => void;
 }
 
 function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinition | null {
@@ -216,7 +225,7 @@ function isRowHidden(
 }
 
 
-export function TransactionsTab({ activeCheckout, onClearPendingDefinition, initialShareFilters, initialShareToggles, operatorName, shareDialogOpen: shareDialogOpenProp, onShareDialogClose }: TransactionsTabProps) {
+export function TransactionsTab({ activeCheckout, onClearPendingDefinition, initialShareFilters, initialShareToggles, operatorName, shareDialogOpen: shareDialogOpenProp, onShareDialogClose, pendingPillFilters, onPendingPillFiltersConsumed }: TransactionsTabProps) {
   const { libraries, tagDefinitions, originalDefinitionIds, dispatch, isPairBeingTagged, rawHierarchyNodes } = useTagSpecs();
   const { userId, usersMap, getAuthHeaders, refreshIfNeeded, isAudit } = useAuth();
   const { extractionMethods } = useLovAttributes();
@@ -419,6 +428,23 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // see the lock-sync effect colocated with `editingDef` below.
   const [currentTagFilterIds, setCurrentTagFilterIds] = useState<Set<string>>(new Set());
 
+  // Pill-scope filters: consumed once from the parent on mount/change and
+  // held locally so they survive subsequent renders and outgoing-filter
+  // recomputes. Cleared by the user via the standard Clear Filters control
+  // (wired below) or replaced by clicking another Backlog pill.
+  //
+  // The actual Show Only checkbox sync happens in a second effect placed
+  // after the baseFilters-reset effect — see "pill -> Show Only sync"
+  // below. We can't sync here because the [baseFilters] effect runs after
+  // this one (source order), and its `setFilters({ ...baseFilters })`
+  // would overwrite anything we wrote here.
+  const [activePillFilters, setActivePillFilters] = useState<FilterProperty[]>([]);
+  useEffect(() => {
+    if (!pendingPillFilters || pendingPillFilters.length === 0) return;
+    setActivePillFilters(pendingPillFilters);
+    onPendingPillFiltersConsumed?.();
+  }, [pendingPillFilters, onPendingPillFiltersConsumed]);
+
   // Extra filters injected into API calls (definition-ID scoping, REGEX ruleset, or transaction type from builder).
   // Narrow the deps to the exact fields of tagClickState we read, so downstream
   // updates (e.g. tagNameCount from the background count fetch) don't churn the
@@ -431,19 +457,22 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     if (tagClickDefinitionId != null) {
       // After "Apply Rules": use REGEX-based filters (Call 3)
       if (tagClickRulesetApplied) {
-        return tagClickRulesetFilters ?? [];
+        return [...(tagClickRulesetFilters ?? []), ...activePillFilters];
       }
       // Default tag-click mode: scope by definition ID (Call 2)
       if (!tagClickShowingAll) {
-        return [{
-          ColumnName: 'OpsTagSpecDefinitionId|OpsMultiTags.TagSpecDefinitionId',
-          Value: tagClickDefinitionId,
-          Operand: 'IN',
-        }];
+        return [
+          {
+            ColumnName: 'OpsTagSpecDefinitionId|OpsMultiTags.TagSpecDefinitionId',
+            Value: tagClickDefinitionId,
+            Operand: 'IN',
+          },
+          ...activePillFilters,
+        ];
       }
       // "Show all" mode: don't scope by TransactionTypeCode — the tag name filter
       // (applied via `filters`) is what the user wants to broaden to.
-      return [];
+      return [...activePillFilters];
     }
     const extra: FilterProperty[] = [];
     // Current Tags multi-select scope. Multi-value IN goes as a pipe-joined
@@ -472,8 +501,12 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       const regex = ruleset.find((f) => 'Operand' in f && f.Operand === 'REGEX');
       if (regex) extra.push(regex);
     }
+    // Pill-scope filters AND with everything else — they're plain server
+    // flag filters (OpsIsUntagged, OpsIsDeadEnd, OpsContainsInvalidAttributes,
+    // etc.) that compose cleanly with the operator's other filters.
+    extra.push(...activePillFilters);
     return extra;
-  }, [tagClickDefinitionId, tagClickRulesetApplied, tagClickShowingAll, tagClickRulesetFilters, builderOpen, builder.formState, currentTagFilterIds]);
+  }, [tagClickDefinitionId, tagClickRulesetApplied, tagClickShowingAll, tagClickRulesetFilters, builderOpen, builder.formState, currentTagFilterIds, activePillFilters]);
 
   // Forward the UI filter state as-is. Earlier this hook stripped bank/side
   // when a TagSpecDefinitionId scope was active, on the theory that the
@@ -620,6 +653,123 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [baseFilters]);
+
+  // pill -> Show Only sync. Runs AFTER the [baseFilters] effect above so the
+  // setFilters({ ...baseFilters }) reset doesn't blow our work away on the
+  // very next render. Walks every LIST-type filter definition (Show Only is
+  // typically the only one, but iterating defensively handles any backend
+  // where boolean-flag columns are exposed across multiple defs) and ticks
+  // whichever (Column, Value) pairs the pill recipe matches. The sync-key
+  // ref keeps idle re-renders no-op; a new pill click OR a baseFilters
+  // reset both produce a fresh key and retrigger the write.
+  const lastPillShowOnlySyncRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (activePillFilters.length === 0) {
+      lastPillShowOnlySyncRef.current = null;
+      return;
+    }
+    if (filterDefinitions.length === 0) return;
+    // Group ticks by the filter-def Tag they belong to. Each pill EQ
+    // condition can resolve to one or more def matches; the Map keeps
+    // them separated so different filter surfaces light up cleanly.
+    //
+    // Hard skip-list for row-context columns. Bank / Side EQ filters
+    // would otherwise match the Bank / Side LIST defs (which expose
+    // those exact Columns) and add the raw column name as a *value* in
+    // the filter Set — translateFilters then ships it back to the server
+    // as `Value: "BankSwiftCode"`, which filters everything out. The
+    // pill recipe deliberately omits these now, but the guard keeps the
+    // sync correct if any future recipe forgets.
+    const CONTEXT_COLUMNS = new Set(['BankSwiftCode', 'Side']);
+    // Three layers of comparison so a casing / punctuation / naming-style
+    // drift between the pill recipe (PascalCase from the spec) and the
+    // backend's GetFilters Show Only entries (sometimes `OpsIsMultiTagged`,
+    // sometimes `OPS_IS_MULTI_TAG`, sometimes just `MultiTag`) still leads
+    // to the same checkbox being ticked.
+    //
+    //   1. Exact column equality — cheapest, no false positives. This is
+    //      what was already working for Untagged + Dead End.
+    //   2. Normalised column equality — `lowercase + alphanumeric only`.
+    //      Catches casing / separator drift.
+    //   3. Intent match — split the column / label into CamelCase tokens,
+    //      drop generic noise (Ops / Is / Has / Contains / Attribute(s) /
+    //      Tag(s)) on both sides, and compare what's left. So
+    //      `OpsIsMissingMandatoryAttributes` and a label "Missing
+    //      Mandatory Attributes" both reduce to `missingmandatory` and
+    //      tick the right checkbox even when the backend chose entirely
+    //      different column name conventions.
+    const normalise = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const INTENT_NOISE = new Set([
+      'ops', 'is', 'has', 'contains', 'attribute', 'attributes', 'tag', 'tags',
+    ]);
+    const intentOf = (s: string): string => {
+      const camel = s
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+        .replace(/[^a-zA-Z0-9 ]/g, ' ')
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((t) => t.toLowerCase());
+      return camel.filter((t) => !INTENT_NOISE.has(t)).join('');
+    };
+    const tickByTag = new Map<string, Set<string>>();
+    for (const f of activePillFilters) {
+      if (!('ColumnName' in f) || f.Operand !== 'EQ') continue;
+      const fValueNorm = normalise(f.Value);
+      // ColumnName can be a pipe-joined OR group (Problematic all-OR). Split
+      // and match each segment against every LIST def's Values.
+      for (const col of f.ColumnName.split('|')) {
+        if (CONTEXT_COLUMNS.has(col)) continue;
+        const colNorm = normalise(col);
+        const colIntent = intentOf(col);
+        for (const def of filterDefinitions) {
+          if (def.Type !== 'LIST') continue;
+          // Layer 1: exact.
+          const exact = def.Values.find(
+            (v) => v.Column === col && (v.Value ?? '') === f.Value,
+          );
+          // Layer 2: normalised column + value.
+          const normalised = exact ?? def.Values.find(
+            (v) =>
+              normalise(v.Column) === colNorm &&
+              normalise(v.Value ?? '') === fValueNorm,
+          );
+          // Layer 3: intent (via label or column) + normalised value.
+          const intent = normalised ?? def.Values.find(
+            (v) => {
+              if (normalise(v.Value ?? '') !== fValueNorm) return false;
+              if (colIntent && intentOf(v.Column) === colIntent) return true;
+              if (colIntent && intentOf(v.Label ?? '') === colIntent) return true;
+              return false;
+            },
+          );
+          if (!intent) continue;
+          if (!tickByTag.has(def.Tag)) tickByTag.set(def.Tag, new Set());
+          // Store the def's actual Column string so ListEqDropdown's
+          // `selected.has(v.Column)` check lines up regardless of which
+          // layer found the match.
+          tickByTag.get(def.Tag)!.add(intent.Column);
+        }
+      }
+    }
+    if (tickByTag.size === 0) return;
+    // Build a sync key from (tag -> sorted columns) plus the current
+    // baseFilters identity so a bank/side change retriggers the write.
+    const key =
+      [...tickByTag.entries()]
+        .map(([tag, cols]) => `${tag}=${[...cols].sort().join(',')}`)
+        .sort()
+        .join(';') +
+      `|${baseFilters ? Object.keys(baseFilters).sort().join(',') : ''}`;
+    if (lastPillShowOnlySyncRef.current === key) return;
+    lastPillShowOnlySyncRef.current = key;
+    setFilters((prev) => {
+      const next = { ...prev };
+      for (const [tag, cols] of tickByTag) {
+        next[tag] = cols;
+      }
+      return next;
+    });
+  }, [activePillFilters, filterDefinitions, baseFilters]);
 
   // Clear hidden tag specs when the checkout actually changes (release,
   // check-in, switching to a different bank/side). The initial-render
@@ -1903,8 +2053,8 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         // state but reads as part of the same filter row to the operator —
         // fold it into the Clear-filters affordance so one click resets
         // everything the operator can see.
-        extraActiveFilterCount={currentTagFilterIds.size}
-        onClearExtraFilters={() => setCurrentTagFilterIds(new Set())}
+        extraActiveFilterCount={currentTagFilterIds.size + (activePillFilters.length > 0 ? 1 : 0)}
+        onClearExtraFilters={() => { setCurrentTagFilterIds(new Set()); setActivePillFilters([]); }}
         endSlot={(isLiveMode || tableColumns.length > 0) ? (
           <div className="flex items-center gap-2">
             {isLiveMode && (

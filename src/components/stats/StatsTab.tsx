@@ -19,7 +19,7 @@ import { CommentsProvider } from '../../context/CommentsContext';
 import { CommentIconButton } from '../comments/CommentIconButton';
 import { CommentSearchTrigger } from '../comments/CommentSearchTrigger';
 import { CommentSearchPanel } from '../comments/CommentSearchPanel';
-import type { TepHeaders, BacklogStatEntry } from '../../api/transactions';
+import type { TepHeaders, BacklogStatEntry, FilterProperty } from '../../api/transactions';
 import { getBacklogStats } from '../../api/transactions';
 import type { TagSpecLibrary, TagSpecDefinition } from '../../types';
 import type { TagSpecCommentTarget } from '../../types/comments';
@@ -33,7 +33,12 @@ interface BacklogNavigationTarget {
 }
 
 interface StatsTabProps {
-  onViewTransactions: (bank: string, side: string, definitionId?: string) => void;
+  onViewTransactions: (
+    bank: string,
+    side: string,
+    definitionId?: string,
+    pillFilters?: FilterProperty[],
+  ) => void;
   onViewAllTransactions: () => void;
   onCheckoutComplete: (bank: string, side: string) => void;
   authToken: string | null;
@@ -55,6 +60,89 @@ const sideLabel: Record<string, string> = {
   RC: 'Rev. Credit',
   RD: 'Rev. Debit',
 };
+
+/** Backlog row pill identifiers. Mirrors the seven filter recipes specified
+ *  by the backend: each click opens the Transactions tab scoped to
+ *  bank/side AND the listed FilteringProperties, with `|` in a ColumnName
+ *  meaning OR across those columns. AND between separate entries. */
+type PillKind =
+  | 'clean'
+  | 'near-clean'
+  | 'problematic-all'
+  | 'problematic-missing-mandatory'
+  | 'problematic-invalid-attributes'
+  | 'problematic-multi-tagged'
+  | 'untagged'
+  | 'dead-end';
+
+/** Build the FilterProperty[] for a given pill. BankSwiftCode + Side from
+ *  the row are NOT included here even though the spec lists them in every
+ *  recipe: the Transactions tab already gets them via `activeCheckout` →
+ *  `baseFilters` → `translateFilters` (as an `IN` filter), so sending the
+ *  pill's `EQ` duplicate adds nothing and actually breaks the Show Only
+ *  sync — it can't tell a "context" EQ apart from a "flag" EQ, and the
+ *  bank/side EQs accidentally tick the Bank / Side filter chips with the
+ *  raw column name. Operands match the spec for the flag conditions —
+ *  `NE` for "exclude this state" so the backend doesn't include rows
+ *  where the flag is missing. */
+function buildPillFilters(kind: PillKind, _bank: string, _side: string): FilterProperty[] {
+  const base: FilterProperty[] = [];
+  switch (kind) {
+    case 'clean':
+      return [
+        ...base,
+        { ColumnName: 'OpsIsUntagged', Value: 'False', Operand: 'EQ' },
+        { ColumnName: 'OpsIsDeadEnd', Value: 'False', Operand: 'EQ' },
+        { ColumnName: 'OpsIsMultiTag', Value: 'True', Operand: 'NE' },
+        { ColumnName: 'OpsIsMissingMandatoryAttributes', Value: 'True', Operand: 'NE' },
+        { ColumnName: 'OpsIsMissingOptionalAttributes', Value: 'True', Operand: 'NE' },
+        { ColumnName: 'OpsContainsInvalidAttributes', Value: 'True', Operand: 'NE' },
+      ];
+    case 'near-clean':
+      return [
+        ...base,
+        { ColumnName: 'OpsIsMissingOptionalAttributes', Value: 'True', Operand: 'EQ' },
+        { ColumnName: 'OpsIsMissingMandatoryAttributes', Value: 'True', Operand: 'NE' },
+        { ColumnName: 'OpsContainsInvalidAttributes', Value: 'True', Operand: 'NE' },
+        { ColumnName: 'OpsIsMultiTag', Value: 'True', Operand: 'NE' },
+      ];
+    case 'problematic-all':
+      return [
+        ...base,
+        {
+          ColumnName: 'OpsIsMissingMandatoryAttributes|OpsContainsInvalidAttributes|OpsIsMultiTag',
+          Value: 'True',
+          Operand: 'EQ',
+        },
+      ];
+    case 'problematic-missing-mandatory':
+      return [
+        ...base,
+        { ColumnName: 'OpsIsMissingMandatoryAttributes', Value: 'True', Operand: 'EQ' },
+      ];
+    case 'problematic-invalid-attributes':
+      return [
+        ...base,
+        { ColumnName: 'OpsContainsInvalidAttributes', Value: 'True', Operand: 'EQ' },
+      ];
+    case 'problematic-multi-tagged':
+      return [
+        ...base,
+        { ColumnName: 'OpsIsMultiTag', Value: 'True', Operand: 'EQ' },
+      ];
+    case 'untagged':
+      return [
+        ...base,
+        { ColumnName: 'OpsIsUntagged', Value: 'True', Operand: 'EQ' },
+        { ColumnName: 'OpsIsDeadEnd', Value: 'False', Operand: 'EQ' },
+      ];
+    case 'dead-end':
+      return [
+        ...base,
+        { ColumnName: 'OpsIsDeadEnd', Value: 'True', Operand: 'EQ' },
+      ];
+  }
+}
 
 interface DisplayRow {
   library: TagSpecLibrary;
@@ -647,9 +735,24 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                                     {rate.toFixed(1)}%
                                   </span>
                                 </div>
-                                {/* Badges */}
+                                {/* Badges — each pill is a clickable button that
+                                    opens the Transactions tab pre-filtered to
+                                    the matching rows. The pill row is wrapped
+                                    in a no-op clickable container so the
+                                    individual pills can be `<button>` elements
+                                    without nesting inside another interactive
+                                    parent (the backlog row itself isn't
+                                    clickable). Hover styles + cursor-pointer
+                                    signal the affordance. */}
                                 <div className="flex items-center justify-start pl-27 gap-2 flex-wrap min-w-0">
-                                  <Badge variant="emerald" size="xs" className="items-baseline!"><span className="text-xs font-medium">{stats.FullyTaggedCount.toLocaleString()}</span> Clean</Badge>
+                                  <button
+                                    type="button"
+                                    onClick={() => onViewTransactions(row.bank, row.side, undefined, buildPillFilters('clean', row.bank, row.side))}
+                                    className="cursor-pointer transition-transform hover:scale-105 active:scale-95"
+                                    aria-label={`View ${stats.FullyTaggedCount.toLocaleString()} clean transactions`}
+                                  >
+                                    <Badge variant="emerald" size="xs" className="items-baseline!"><span className="text-xs font-medium">{stats.FullyTaggedCount.toLocaleString()}</span> Clean</Badge>
+                                  </button>
                                   {stats.TaggedWithMissingOptionalAttrCount > 0 && (
                                     <Tooltip
                                       placement="bottom"
@@ -662,9 +765,14 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                                         </div>
                                       }
                                     >
-                                      <span className="cursor-help inline-flex">
+                                      <button
+                                        type="button"
+                                        onClick={() => onViewTransactions(row.bank, row.side, undefined, buildPillFilters('near-clean', row.bank, row.side))}
+                                        className="cursor-pointer inline-flex transition-transform hover:scale-105 active:scale-95"
+                                        aria-label={`View ${stats.TaggedWithMissingOptionalAttrCount.toLocaleString()} near-clean transactions`}
+                                      >
                                         <Badge variant="success" size="xs" className="items-baseline!"><span className="text-xs font-medium">{stats.TaggedWithMissingOptionalAttrCount.toLocaleString()}</span> Near-Clean</Badge>
-                                      </span>
+                                      </button>
                                     </Tooltip>
                                   )}
                                   {stats.IssuesCount > 0 && (
@@ -690,16 +798,69 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                                         </div>
                                       }
                                     >
-                                      <span className="cursor-help inline-flex">
+                                      <button
+                                        type="button"
+                                        onClick={() => onViewTransactions(row.bank, row.side, undefined, buildPillFilters('problematic-all', row.bank, row.side))}
+                                        className="cursor-pointer inline-flex transition-transform hover:scale-105 active:scale-95"
+                                        aria-label={`View ${stats.IssuesCount.toLocaleString()} problematic transactions`}
+                                      >
                                         <Badge variant="amber" size="xs" className="items-baseline!"><span className="text-xs font-medium">{stats.IssuesCount.toLocaleString()}</span> Problematic</Badge>
-                                      </span>
+                                      </button>
                                     </Tooltip>
                                   )}
+                                  {/* Problematic sub-pills — each scopes to a
+                                      specific issue category. Rendered only
+                                      when their count is non-zero so a fully
+                                      tagged library stays uncluttered. */}
+                                  {stats.TaggedWithMissingMandatoryAttrCount > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => onViewTransactions(row.bank, row.side, undefined, buildPillFilters('problematic-missing-mandatory', row.bank, row.side))}
+                                      className="cursor-pointer transition-transform hover:scale-105 active:scale-95"
+                                      aria-label={`View ${stats.TaggedWithMissingMandatoryAttrCount.toLocaleString()} transactions missing mandatory attributes`}
+                                    >
+                                      <Badge variant="amber" size="xs" className="items-baseline!"><span className="text-xs font-medium">{stats.TaggedWithMissingMandatoryAttrCount.toLocaleString()}</span> Missing Mandatory</Badge>
+                                    </button>
+                                  )}
+                                  {stats.TaggedWithInvalidAttrCount > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => onViewTransactions(row.bank, row.side, undefined, buildPillFilters('problematic-invalid-attributes', row.bank, row.side))}
+                                      className="cursor-pointer transition-transform hover:scale-105 active:scale-95"
+                                      aria-label={`View ${stats.TaggedWithInvalidAttrCount.toLocaleString()} transactions with invalid attributes`}
+                                    >
+                                      <Badge variant="amber" size="xs" className="items-baseline!"><span className="text-xs font-medium">{stats.TaggedWithInvalidAttrCount.toLocaleString()}</span> Invalid Attributes</Badge>
+                                    </button>
+                                  )}
+                                  {stats.MultiTaggedCount > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => onViewTransactions(row.bank, row.side, undefined, buildPillFilters('problematic-multi-tagged', row.bank, row.side))}
+                                      className="cursor-pointer transition-transform hover:scale-105 active:scale-95"
+                                      aria-label={`View ${stats.MultiTaggedCount.toLocaleString()} multi-tagged transactions`}
+                                    >
+                                      <Badge variant="amber" size="xs" className="items-baseline!"><span className="text-xs font-medium">{stats.MultiTaggedCount.toLocaleString()}</span> Multi-tagged</Badge>
+                                    </button>
+                                  )}
                                   {stats.UntaggedCount > 0 && (
-                                    <Badge variant="red" size="xs" className="items-baseline!"><span className="text-xs font-medium">{stats.UntaggedCount.toLocaleString()}</span> Untagged</Badge>
+                                    <button
+                                      type="button"
+                                      onClick={() => onViewTransactions(row.bank, row.side, undefined, buildPillFilters('untagged', row.bank, row.side))}
+                                      className="cursor-pointer transition-transform hover:scale-105 active:scale-95"
+                                      aria-label={`View ${stats.UntaggedCount.toLocaleString()} untagged transactions`}
+                                    >
+                                      <Badge variant="red" size="xs" className="items-baseline!"><span className="text-xs font-medium">{stats.UntaggedCount.toLocaleString()}</span> Untagged</Badge>
+                                    </button>
                                   )}
                                   {stats.DeadEndCount > 0 && (
-                                    <Badge variant="gray" size="xs" className="items-baseline!"><span className="text-xs font-medium">{stats.DeadEndCount.toLocaleString()}</span> Dead End</Badge>
+                                    <button
+                                      type="button"
+                                      onClick={() => onViewTransactions(row.bank, row.side, undefined, buildPillFilters('dead-end', row.bank, row.side))}
+                                      className="cursor-pointer transition-transform hover:scale-105 active:scale-95"
+                                      aria-label={`View ${stats.DeadEndCount.toLocaleString()} dead-end transactions`}
+                                    >
+                                      <Badge variant="gray" size="xs" className="items-baseline!"><span className="text-xs font-medium">{stats.DeadEndCount.toLocaleString()}</span> Dead End</Badge>
+                                    </button>
                                   )}
                                 </div>
                               </div>

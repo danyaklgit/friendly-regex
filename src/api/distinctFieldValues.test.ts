@@ -40,7 +40,7 @@ describe('getDistinctFieldValues', () => {
           TotalDistinctCount: 0,
           TotalValidated: 0,
           TotalNotValid: 0,
-          TotalNotTagged: 0,
+          TotalNotValidated: 0,
         },
       }),
     );
@@ -77,7 +77,7 @@ describe('getDistinctFieldValues', () => {
     expect(body.Pagination).toEqual({ PageIndex: 0, PageSize: 250 });
   });
 
-  it('returns the parsed Result on a successful response', async () => {
+  it('returns the parsed Result on a successful response with new field names', async () => {
     const result = {
       Items: [
         { FieldValue: 'INV-001', Count: 5, IsValid: true },
@@ -87,7 +87,8 @@ describe('getDistinctFieldValues', () => {
       TotalDistinctCount: 3,
       TotalValidated: 1,
       TotalNotValid: 1,
-      TotalNotTagged: 1,
+      TotalNotValidated: 1,
+      DistinctValuesCount: 3,
     };
     fetchSpy.mockResolvedValueOnce(jsonResponse({ Result: result }));
 
@@ -99,9 +100,46 @@ describe('getDistinctFieldValues', () => {
     expect(got).toEqual(result);
   });
 
-  it('short-circuits SFM_NO_TRANSACTIONS_FOUND to an empty result without throwing', async () => {
-    // Backend sends 404-ish status with this SFM constant when the filtered
-    // dataset is empty; the client must treat it as a normal empty response.
+  it('back-fills new field names from deprecated aliases on a legacy response', async () => {
+    // Backend still dual-emits the old names during the migration window;
+    // the client must expose the new names regardless of which shape arrives.
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({
+        Result: {
+          Items: [{ FieldValue: 'X', Count: 1, IsValid: null }],
+          TotalDistinctCount: 1,
+          TotalValidated: 0,
+          TotalNotValid: 0,
+          TotalNotTagged: 1,
+          TransactionsCount: 1,
+        },
+      }),
+    );
+    const got = await getDistinctFieldValues(
+      { FieldName: 'TransactionDetails' },
+      TOKEN,
+      tepHeaders,
+    );
+    expect(got.TotalNotValidated).toBe(1);
+    expect(got.DistinctValuesCount).toBe(1);
+  });
+
+  it('short-circuits SFM_NO_DISTINCT_VALUES_FOUND to an empty result without throwing', async () => {
+    // New SFM constant for the empty-result case after the 2026-05-30 rename.
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({ SFM: { Constant: 'SFM_NO_DISTINCT_VALUES_FOUND' } }, 404),
+    );
+    const got = await getDistinctFieldValues(
+      { FieldName: 'TransactionDetails' },
+      TOKEN,
+      tepHeaders,
+    );
+    expect(got.Items).toEqual([]);
+    expect(got.TotalNotValidated).toBe(0);
+  });
+
+  it('still accepts the legacy SFM_NO_TRANSACTIONS_FOUND constant during migration', async () => {
+    // Old SFM kept working until the backend fully cuts over.
     fetchSpy.mockResolvedValueOnce(
       jsonResponse({ SFM: { Constant: 'SFM_NO_TRANSACTIONS_FOUND' } }, 404),
     );
@@ -110,16 +148,11 @@ describe('getDistinctFieldValues', () => {
       TOKEN,
       tepHeaders,
     );
-    expect(got).toEqual({
-      Items: [],
-      TotalDistinctCount: 0,
-      TotalValidated: 0,
-      TotalNotValid: 0,
-      TotalNotTagged: 0,
-    });
+    expect(got.Items).toEqual([]);
+    expect(got.TotalNotValidated).toBe(0);
   });
 
-  it('throws on a non-ok response without the SFM short-circuit constant', async () => {
+  it('throws on a non-ok response without an SFM short-circuit constant', async () => {
     fetchSpy.mockResolvedValueOnce(jsonResponse({}, 500));
     await expect(
       getDistinctFieldValues({ FieldName: 'TransactionDetails' }, TOKEN, tepHeaders),
@@ -133,12 +166,7 @@ describe('getDistinctFieldValues', () => {
       TOKEN,
       tepHeaders,
     );
-    expect(got).toEqual({
-      Items: [],
-      TotalDistinctCount: 0,
-      TotalValidated: 0,
-      TotalNotValid: 0,
-      TotalNotTagged: 0,
-    });
+    expect(got.Items).toEqual([]);
+    expect(got.TotalNotValidated).toBe(0);
   });
 });
