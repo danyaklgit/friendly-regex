@@ -22,6 +22,12 @@ export function TagEditModal({ open, onClose, editingNode, allNodes, onSave }: T
   const [tag, setTag] = useState('');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  // Arabic counterparts. The backend stores translations per-language in
+  // Details[]; this form previously only round-tripped the `en` entry, so
+  // the `ar` entry was silently dropped on save. We now collect both and
+  // pass both back so SaveTagsHierarchy persists the full translation.
+  const [nameAr, setNameAr] = useState('');
+  const [descriptionAr, setDescriptionAr] = useState('');
   const [level, setLevel] = useState<'G' | 'T'>('T');
   const [parentTag, setParentTag] = useState('');
   const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set());
@@ -36,6 +42,8 @@ export function TagEditModal({ open, onClose, editingNode, allNodes, onSave }: T
       setTag(editingNode?.Tag ?? '');
       setName(editingNode?.Details?.find((d) => d.LanguageCode === 'en')?.Name ?? '');
       setDescription(editingNode?.Details?.find((d) => d.LanguageCode === 'en')?.Description ?? '');
+      setNameAr(editingNode?.Details?.find((d) => d.LanguageCode === 'ar')?.Name ?? '');
+      setDescriptionAr(editingNode?.Details?.find((d) => d.LanguageCode === 'ar')?.Description ?? '');
       setLevel(editingNode?.Level ?? 'T');
       setParentTag(editingNode?.ParentTag ?? '');
       setSelectedGroups(new Set(editingNode?.GroupTags ?? []));
@@ -95,12 +103,25 @@ export function TagEditModal({ open, onClose, editingNode, allNodes, onSave }: T
 
   const handleSave = () => {
     if (!canSave) return;
+    // Build Details with both languages. The `en` entry is always present
+    // (it carries the display name across the rest of the app); the `ar`
+    // entry is only added when the operator filled in at least the Arabic
+    // name, so we don't churn the persisted hierarchy with empty `ar`
+    // rows on tags that pre-date this form.
+    const details = [
+      { Name: name.trim() || tag.trim(), Description: description.trim(), LanguageCode: 'en' },
+    ];
+    const nameArTrim = nameAr.trim();
+    const descArTrim = descriptionAr.trim();
+    if (nameArTrim || descArTrim) {
+      details.push({ Name: nameArTrim, Description: descArTrim, LanguageCode: 'ar' });
+    }
     const node: TagHierarchyRawNode = {
       Tag: isCreate ? tag.trim() : editingNode!.Tag,
       Level: isCreate ? level : editingNode!.Level,
       StatusTag: editingNode?.StatusTag ?? 'ACTIVE',
       Actions: editingNode?.Actions ?? ['Move', 'Archive', 'Delete'],
-      Details: [{ Name: name.trim() || tag.trim(), Description: description.trim(), LanguageCode: 'en' }],
+      Details: details,
       GroupTags: level === 'T' ? (selectedGroups.size > 0 ? Array.from(selectedGroups) : null) : null,
       ParentTag: level === 'T' ? (parentTag || null) : null,
     };
@@ -157,22 +178,54 @@ export function TagEditModal({ open, onClose, editingNode, allNodes, onSave }: T
           {tagExists && <p className="text-xs text-red-500 mt-1 pl-1">Tag already exists</p>}
         </div>
 
-        <div data-tour="tag-edit-name">
-          <Input
-            label="Name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Display name"
-          />
-        </div>
-
-        <div data-tour="tag-edit-description">
-          <Input
-            label="Description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Description"
-          />
+        {/* Two-column English / Arabic translations. The backend Details
+            array supports any number of languages, but the operator workflow
+            today only covers these two — matching the rest of the app
+            (ExtractionFormModal, AttributeFormModal). Arabic is optional;
+            the row is omitted from the saved Details when both Arabic
+            fields are blank so we don't pollute legacy tags with empty
+            `ar` entries. */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-3">
+            <p className="text-xs font-semibold text-body-secondary">English</p>
+            <div data-tour="tag-edit-name">
+              <Input
+                label="Name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Display name"
+              />
+            </div>
+            <div data-tour="tag-edit-description">
+              <Input
+                label="Description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Description"
+              />
+            </div>
+          </div>
+          <div className="space-y-3">
+            <p className="text-xs font-semibold text-body-secondary">Arabic</p>
+            <div data-tour="tag-edit-name-ar">
+              <Input
+                label="Name"
+                value={nameAr}
+                onChange={(e) => setNameAr(e.target.value)}
+                placeholder="الاسم"
+                dir="rtl"
+              />
+            </div>
+            <div data-tour="tag-edit-description-ar">
+              <Input
+                label="Description"
+                value={descriptionAr}
+                onChange={(e) => setDescriptionAr(e.target.value)}
+                placeholder="الوصف"
+                dir="rtl"
+              />
+            </div>
+          </div>
         </div>
 
         {level === 'T' && (
