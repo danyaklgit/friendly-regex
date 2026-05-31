@@ -9,6 +9,7 @@ import { groupsForTag } from '../../utils/userMode/groupsForTag';
 import { randomJv } from '../../utils/userMode/randomJv';
 import { AttributesCell } from './AttributesCell';
 import { DescriptionCell } from './DescriptionCell';
+import { RedactedText } from './RedactedText';
 import { TagPickerModal } from './TagPickerModal';
 import { ContributionDialog, type ContributionDraft } from './ContributionDialog';
 
@@ -44,7 +45,7 @@ export function UserTransactionTable({ rows, loading }: UserTransactionTableProp
   const { tagsHierarchy } = useTagSpecs();
   const { fieldMeta, filterDefinitions } = useTransactionData();
   const { lovLookup } = useLovAttributes();
-  const { contributions, addContribution } = useUserMode();
+  const { contributions, addContribution, proMode } = useUserMode();
 
   // BankSwiftCode → friendly bank name (e.g. INMASARI → "Saudi Investment Bank").
   // Falls back to the raw code in the Row when the LOV doesn't carry that
@@ -96,6 +97,9 @@ export function UserTransactionTable({ rows, loading }: UserTransactionTableProp
     (row: TransactionRow): string => String(row[fieldMeta.identifierField] ?? row['Id'] ?? ''),
     [fieldMeta.identifierField],
   );
+
+  // 9 base columns; PRO adds Tag, Group(s), Attributes, Reconciled, JV (5 more).
+  const colSpan = proMode ? 14 : 9;
 
   const handleTagClick = useCallback(
     (row: TransactionRow, originalTag: string | null, displayedTag: string | null) => {
@@ -154,8 +158,8 @@ export function UserTransactionTable({ rows, loading }: UserTransactionTableProp
         <table className="w-full text-sm text-body">
           <thead className="sticky top-0 z-10 bg-surface-secondary text-xs uppercase tracking-wide text-muted shadow-[0_1px_0_0_var(--color-border)]">
             <tr>
-              <Th>Tag</Th>
-              <Th>Group(s)</Th>
+              {proMode && <Th>Tag</Th>}
+              {proMode && <Th>Group(s)</Th>}
               <Th>Bank Name</Th>
               <Th>Account Number</Th>
               <Th>Date</Th>
@@ -165,22 +169,22 @@ export function UserTransactionTable({ rows, loading }: UserTransactionTableProp
               <Th className="min-w-[260px]">Description</Th>
               <Th className="min-w-[260px]">Additional Info</Th>
               <Th>Transaction Type</Th>
-              <Th className="min-w-[220px]">Attributes</Th>
-              <Th className="text-center">Reconciled</Th>
-              <Th className="text-center">JV/Document Number</Th>
+              {proMode && <Th className="min-w-[220px]">Attributes</Th>}
+              {proMode && <Th className="text-center">Reconciled</Th>}
+              {proMode && <Th className="text-center">JV/Document Number</Th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-border-subtle">
             {rows.length === 0 && !loading && (
               <tr>
-                <td colSpan={14} className="p-8 text-center text-sm text-body-secondary">
+                <td colSpan={colSpan} className="p-8 text-center text-sm text-body-secondary">
                   No transactions for this company yet.
                 </td>
               </tr>
             )}
             {loading && rows.length === 0 && (
               <tr>
-                <td colSpan={14} className="p-8 text-center text-sm text-body-secondary">
+                <td colSpan={colSpan} className="p-8 text-center text-sm text-body-secondary">
                   Loading transactions…
                 </td>
               </tr>
@@ -189,6 +193,7 @@ export function UserTransactionTable({ rows, loading }: UserTransactionTableProp
               <Row
                 key={`${getTxId(row) || idx}`}
                 row={row}
+                proMode={proMode}
                 tagsHierarchy={tagsHierarchy}
                 txnTypeLabelByCode={txnTypeLabelByCode}
                 bankNameByCode={bankNameByCode}
@@ -234,6 +239,7 @@ function Td({ children, className = '' }: { children: React.ReactNode; className
 
 interface RowProps {
   row: TransactionRow;
+  proMode: boolean;
   tagsHierarchy: ReturnType<typeof useTagSpecs>['tagsHierarchy'];
   txnTypeLabelByCode: Map<string, string>;
   bankNameByCode: Map<string, string>;
@@ -295,22 +301,15 @@ function scanAttrs(raw: unknown): Record<string, string> {
   return out;
 }
 
-// Pill style helpers for the Tag column (clickable) and Group column (display-only).
-// `edited` flips the pill to the orange "user-customized" treatment from the legend.
+// Tag pill style (clickable). `edited` flips to the orange "user-customized"
+// treatment from the legend; the Group chip handles its own styling inline.
 function tagPillClass(edited: boolean): string {
   return edited
     ? 'border-orange-400 bg-orange-100 text-orange-700 dark:border-orange-300/60 dark:bg-orange-900/30 dark:text-orange-300 hover:bg-orange-200/70 dark:hover:bg-orange-900/50'
     : 'border-primary/30 bg-primary/10 text-primary-dark dark:text-primary-light hover:bg-primary/20';
 }
-function groupPillClass(edited: boolean): string {
-  // Non-clickable variant: drop the hover state so the user doesn't think
-  // they're a button.
-  return edited
-    ? 'border-orange-400 bg-orange-100 text-orange-700 dark:border-orange-300/60 dark:bg-orange-900/30 dark:text-orange-300'
-    : 'border-primary/30 bg-primary/10 text-primary-dark dark:text-primary-light';
-}
 
-function Row({ row, tagsHierarchy, txnTypeLabelByCode, bankNameByCode, contribution, onTagClick }: RowProps) {
+function Row({ row, proMode, tagsHierarchy, txnTypeLabelByCode, bankNameByCode, contribution, onTagClick }: RowProps) {
   // Demo-only random fields; stable for the row's mount lifetime, fresh on remount.
   // Spec choice: "truly random" — no seeding by id, just `Math.random()` once.
   const { reconciled, jv } = useMemo(
@@ -329,63 +328,71 @@ function Row({ row, tagsHierarchy, txnTypeLabelByCode, bankNameByCode, contribut
 
   // Attributes always come from the row's backend-tagged value. A user
   // contribution only changes the displayed tag NAME — it doesn't re-extract
-  // attributes, so the original tag's extracted values still apply.
-  const attributesMap = backendAttributes;
+  // attributes, so the original tag's extracted values still apply. Resolve
+  // bank-coded attribute values (e.g. BeneficiaryBank) to friendly names via
+  // the BANKS LOV; everything else passes through untouched.
+  const attributesMap = useMemo(() => {
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(backendAttributes)) {
+      out[k] = /bank/i.test(k) ? (bankNameByCode.get(v) ?? v) : v;
+    }
+    return out;
+  }, [backendAttributes, bankNameByCode]);
 
   const side = String(row['Side'] ?? '');
   const isDebit = side === 'DR' || side === 'RC';
   const isCredit = side === 'CR' || side === 'CT';
-  const amount = row['Amount'] != null ? formatAmount(row['Amount']) : '';
-  const debitAmount = isDebit ? amount : '';
-  const creditAmount = isCredit ? amount : '';
+  const amountNum = parseAmount(row['Amount']);
 
   const edited = !!contribution;
 
   return (
     <tr className="hover:bg-surface-hover transition-colors">
-      <Td>
-        <button
-          type="button"
-          onClick={() => onTagClick(row, originalTag, displayedTag)}
-          className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium border transition-colors ${
-            displayedTag
-              ? tagPillClass(edited)
-              : 'border-border-strong text-body-secondary hover:bg-surface-hover'
-          }`}
-          title={
-            edited
-              ? 'You changed this tag — click to change again'
-              : displayedTag
-                ? 'Click to change tag'
-                : 'Click to add tag'
-          }
-        >
-          {displayedTag ?? '— add tag —'}
-        </button>
-      </Td>
-      <Td>
-        {displayedGroups.length > 0 ? (
-          <div className="flex flex-wrap gap-1">
-            {displayedGroups.map((g) => (
-              <span
-                key={g}
-                className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium border ${groupPillClass(edited)}`}
-              >
-                <TagGroupIcon />
-                {g}
-              </span>
-            ))}
-          </div>
-        ) : (
-          <span className="text-faint text-xs">—</span>
-        )}
-      </Td>
-      <Td className="text-xs whitespace-nowrap">{bankNameForRow(row, bankNameByCode)}</Td>
-      <Td className="font-mono text-xs">{String(row['IBAN'] ?? '')}</Td>
+      {proMode && (
+        <Td>
+          <button
+            type="button"
+            onClick={() => onTagClick(row, originalTag, displayedTag)}
+            className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium border transition-colors ${
+              displayedTag
+                ? tagPillClass(edited)
+                : 'border-border-strong text-body-secondary hover:bg-surface-hover'
+            }`}
+            title={
+              edited
+                ? 'You changed this tag — click to change again'
+                : displayedTag
+                  ? 'Click to change tag'
+                  : 'Click to add tag'
+            }
+          >
+            {displayedTag ?? '— add tag —'}
+          </button>
+        </Td>
+      )}
+      {proMode && (
+        <Td>
+          {displayedGroups.length > 0 ? (
+            <div className="flex flex-wrap gap-1">
+              {displayedGroups.map((g) => (
+                <GroupChip key={g} name={g} edited={edited} />
+              ))}
+            </div>
+          ) : (
+            <span className="text-faint text-xs">—</span>
+          )}
+        </Td>
+      )}
+      <Td className="text-xs whitespace-nowrap"><RedactedText text={bankNameForRow(row, bankNameByCode)} /></Td>
+      <Td className="font-mono text-xs"><RedactedText text={String(row['IBAN'] ?? '')} /></Td>
       <Td className="whitespace-nowrap text-xs">{formatDate(row['StatementDate'])}</Td>
-      <Td className="font-mono text-xs">{String(row['BankReference'] ?? '')}</Td>
-      <Td className="text-right font-mono text-xs text-red-600 dark:text-rose-300 whitespace-nowrap">{debitAmount}</Td>
-      <Td className="text-right font-mono text-xs text-emerald-600 dark:text-emerald-300 whitespace-nowrap">{creditAmount}</Td>
+      <Td className="font-mono text-xs"><RedactedText text={String(row['BankReference'] ?? '')} /></Td>
+      <Td className="text-right text-xs font-medium text-red-600 dark:text-rose-300 whitespace-nowrap">
+        {isDebit && amountNum != null ? <RiyalAmount value={amountNum} debit /> : ''}
+      </Td>
+      <Td className="text-right text-xs font-medium text-emerald-600 dark:text-emerald-300 whitespace-nowrap">
+        {isCredit && amountNum != null ? <RiyalAmount value={amountNum} debit={false} /> : ''}
+      </Td>
       <Td>
         <DescriptionCell text={joinDescriptions(row)} />
       </Td>
@@ -407,18 +414,56 @@ function Row({ row, tagsHierarchy, txnTypeLabelByCode, bankNameByCode, contribut
           );
         })()}
       </Td>
-      <Td>
-        <AttributesCell attributes={attributesMap} />
-      </Td>
-      <Td className="text-center">
-        {reconciled ? (
-          <span className="text-emerald-600 dark:text-emerald-300" aria-label="Reconciled">✓</span>
-        ) : (
-          <span className="text-red-500 dark:text-rose-300" aria-label="Not reconciled">✗</span>
-        )}
-      </Td>
-      <Td className="text-center font-mono text-xs text-body-secondary">{reconciled ? jv : ''}</Td>
+      {proMode && (
+        <Td>
+          <AttributesCell attributes={attributesMap} />
+        </Td>
+      )}
+      {proMode && (
+        <Td className="text-center">
+          {reconciled ? (
+            <span className="text-emerald-600 dark:text-emerald-300" aria-label="Reconciled">✓</span>
+          ) : (
+            <span className="text-red-500 dark:text-rose-300" aria-label="Not reconciled">✗</span>
+          )}
+        </Td>
+      )}
+      {proMode && (
+        <Td className="text-center font-mono text-xs text-body-secondary">{reconciled ? jv : ''}</Td>
+      )}
     </tr>
+  );
+}
+
+/** Group pill for the Group(s) column — a soft rounded chip with the grouping
+ *  glyph. Color tracks the legend (blue = enhanced, orange = user-edited). */
+function GroupChip({ name, edited }: { name: string; edited: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-xs whitespace-nowrap py-0.5 pl-1.5 pr-2 text-[11px] font-medium ${
+        edited
+          ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300'
+          : 'bg-primary/10 text-primary-dark dark:text-primary-light'
+      }`}
+    >
+      <TagGroupIcon />
+      {name}
+    </span>
+  );
+}
+
+/** Amount in the tool's house format: Saudi-Riyal glyph, thousands-separated
+ *  integer, and a superscript decimal portion. Debit values lead with a minus.
+ *  Mirrors the operator TransactionTable debit/credit rendering. */
+function RiyalAmount({ value, debit }: { value: number; debit: boolean }) {
+  const [intPart, fracPart] = value.toFixed(2).split('.');
+  return (
+    <span>
+      {debit && <span aria-hidden="true">&#x2212;</span>}
+      <span className="icon-saudi_riyal">&#xea;</span>{' '}
+      {Number(intPart).toLocaleString()}
+      <sup className="text-[0.65em] relative -top-[0.55em]">.{fracPart}</sup>
+    </span>
   );
 }
 
@@ -464,10 +509,11 @@ function joinDescriptions(row: TransactionRow): string {
   return parts.join('\n');
 }
 
-function formatAmount(raw: unknown): string {
+/** Parse a row amount into a finite number, or null when it isn't numeric
+ *  (so the cell renders empty rather than "NaN"). */
+function parseAmount(raw: unknown): number | null {
   const n = typeof raw === 'number' ? raw : Number(raw);
-  if (!Number.isFinite(n)) return String(raw ?? '');
-  return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return Number.isFinite(n) ? n : null;
 }
 
 function formatDate(raw: unknown): string {

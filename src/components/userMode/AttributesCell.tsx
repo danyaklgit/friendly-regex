@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import {
   useFloating,
   autoUpdate,
@@ -14,14 +14,13 @@ import {
   safePolygon,
 } from '@floating-ui/react';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
-import { useUserMode } from '../../context/UserModeContext';
-import { redact } from '../../utils/userMode/redact';
-import { REDACTION_RULES } from '../../data/redactionRules';
+import { RedactedText } from './RedactedText';
 
 const INLINE_LIMIT = 4;
 
 interface AttributesCellProps {
-  /** Display key/value pairs. Caller should pre-filter nulls and order them as desired. */
+  /** Display key/value pairs. Caller should pre-filter nulls, resolve coded
+   *  values (e.g. beneficiary bank code → name), and order them as desired. */
   attributes: Record<string, string>;
 }
 
@@ -29,27 +28,16 @@ interface AttributesCellProps {
  * One-row attribute display for the user-mode table. Up to four key/value rows
  * render inline; any additional pairs collapse into the hover popover.
  *
- * Redaction applies to the VALUES (not the keys) so that demoed personal data
- * — beneficiary names, account numbers, IBANs — is masked alongside the
- * Description column. The toggle gates both surfaces, the password modal
- * advertises both, and the rules in `redactionRules.ts` are the single source
- * of truth.
+ * Values render through `RedactedText`, so the redaction toggle masks demoed
+ * personal data (beneficiary names, account numbers, IBANs) as black censor
+ * bars alongside the Description column.
  *
  * The popover is always available when the cell has at least one attribute —
  * even for a single chip — so users can read full (un-truncated) values
  * regardless of how many attributes the row carries.
  */
 export function AttributesCell({ attributes }: AttributesCellProps) {
-  const { redactionOn } = useUserMode();
-
-  // Redact every value once per render. Cheap, and keeping the entries list
-  // pre-redacted means the inline list, the popover, and the overflow counter
-  // all read from the same projection without re-running rules.
-  const entries = useMemo<[string, string][]>(() => {
-    const out = Object.entries(attributes);
-    if (!redactionOn) return out;
-    return out.map(([k, v]) => [k, redact(v, REDACTION_RULES)]);
-  }, [attributes, redactionOn]);
+  const entries = Object.entries(attributes);
 
   if (entries.length === 0) {
     return <span className="text-xs text-faint italic">No attributes</span>;
@@ -95,7 +83,7 @@ function AttributesWithPopover({ entries }: { entries: [string, string][] }) {
               className="flex items-baseline gap-1 text-xs whitespace-nowrap min-w-0"
             >
               <span className="font-medium text-primary-dark/80 dark:text-primary-light/80 shrink-0">{humanizeFieldName(k)}:</span>
-              <span className="truncate text-primary-dark dark:text-primary-light">{v}</span>
+              <span className="truncate text-primary-dark dark:text-primary-light"><RedactedText text={v} /></span>
             </li>
           ))}
         </ul>
@@ -115,7 +103,7 @@ function AttributesWithPopover({ entries }: { entries: [string, string][] }) {
               {entries.map(([k, v]) => (
                 <li key={k} className="flex items-baseline gap-2 text-xs whitespace-nowrap">
                   <span className="font-medium text-primary-dark/80 dark:text-primary-light/80 shrink-0">{humanizeFieldName(k)}:</span>
-                  <span className="text-primary-dark dark:text-primary-light">{v}</span>
+                  <span className="text-primary-dark dark:text-primary-light"><RedactedText text={v} /></span>
                 </li>
               ))}
             </ul>
