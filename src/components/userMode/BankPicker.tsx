@@ -1,20 +1,53 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
-import { useTransactionData } from '../../hooks/useTransactionData';
 import { useTagSpecs } from '../../hooks/useTagSpecs';
+import { useLovAttributes } from '../../context/LovAttributesContext';
 import { useUserMode, type BankSelection } from '../../context/UserModeContext';
 import { getContextValue } from '../../types/tagSpec';
 import { BrandLogo } from '../shared/BrandLogo';
 import { Button } from '../shared/Button';
 import { SunIcon, MoonIcon } from '../shared/ThemeIcons';
 
+// Device-wide cache of the resolved bank list so revisiting the picker (even
+// after a reload) shows banks instantly without waiting on — or depending on —
+// GetTagSpecLibraries. Stale-while-revalidate: cached banks render immediately,
+// and the freshly-computed list (when libraries + LOV resolve) replaces and
+// re-persists them.
+const BANK_CACHE_KEY = 'tep:userBankList';
+
+function loadCachedBanks(): BankSelection[] {
+  try {
+    const raw = localStorage.getItem(BANK_CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (b): b is BankSelection => !!b && typeof b.swift === 'string' && typeof b.name === 'string',
+    );
+  } catch {
+    return [];
+  }
+}
+
+function saveCachedBanks(banks: BankSelection[]): void {
+  try {
+    localStorage.setItem(BANK_CACHE_KEY, JSON.stringify(banks));
+  } catch {
+    console.warn('[BankPicker] failed to cache bank list');
+  }
+}
+
 /**
- * Landing screen for user-mode. Multiselect of banks, sourced from the `BANKS`
- * filter returned by `GetUserFilters` (no `Banks` argument → all banks), then
- * narrowed to the **Saudi banks**: the distinct `Context.BankSwiftCode` values
- * present in the tag-spec libraries (`GetTagSpecLibraries`). Each bank shows
- * its name (BANKS filter value `Label`) and a SWIFT monogram tile.
+ * Landing screen for user-mode. Multiselect of the **Saudi banks**: the
+ * distinct `Context.BankSwiftCode` values present in the tag-spec libraries
+ * (`GetTagSpecLibraries`), with names resolved from the `BANKS` LOV. Each bank
+ * shows its name and a SWIFT monogram tile.
+ *
+ * We deliberately do NOT call `GetUserFilters` here — the picker is built
+ * entirely from already-loaded data (libraries + LOV). `GetUserFilters` is
+ * only called once the user has actually selected banks (the transactions
+ * page's step-2 fetch, with `Banks`).
  *
  * Confirming the selection writes `{ swift, name }[]` to UserModeContext and
  * hands off to the transactions page, which scopes the fetch by `BankSwiftCode`
@@ -23,46 +56,32 @@ import { SunIcon, MoonIcon } from '../shared/ThemeIcons';
 export function BankPicker() {
   const { displayName, username, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const { userFilterDefinitions, userFilterDefinitionsLoading, fetchUserFilterDefinitions } = useTransactionData();
-  const { libraries } = useTagSpecs();
+  const { libraries, loading: tagSpecsLoading } = useTagSpecs();
+  const { lovLookup, lovLoading } = useLovAttributes();
   const { setSelectedBanks } = useUserMode();
 
-  // Step 1: list all banks (no Banks arg).
-  useEffect(() => {
-    void fetchUserFilterDefinitions();
-  }, [fetchUserFilterDefinitions]);
-
-  // Saudi banks = the distinct BankSwiftCode values scoped by the tag-spec
-  // libraries. Empty when GetTagSpecLibraries hasn't loaded (or 403s for the
-  // demo `user` role), in which case we don't over-filter to nothing — see the
-  // fallback in `banks` below.
-  const saudiSwiftCodes = useMemo<Set<string>>(() => {
-    const set = new Set<string>();
-    for (const lib of libraries) {
-      const code = getContextValue(lib.Context, 'BankSwiftCode')?.trim().toUpperCase();
-      if (code) set.add(code);
-    }
-    return set;
-  }, [libraries]);
-
-  const banks = useMemo<BankSelection[]>(() => {
-    const def = userFilterDefinitions.find((d) => d.Tag === 'BANKS');
-    if (!def) return [];
+  const computed = useMemo<BankSelection[]>(() => {
+    const bankNames = lovLookup.get('BANKS');
     const seen = new Set<string>();
-    const all: BankSelection[] = [];
-    for (const v of def.Values) {
-      const swift = (v.Value ?? '').trim();
-      if (!swift || seen.has(swift)) continue;
-      seen.add(swift);
-      all.push({ swift, name: v.Label || swift });
+    const out: BankSelection[] = [];
+    for (const lib of libraries) {
+      const swift = getContextValue(lib.Context, 'BankSwiftCode')?.trim();
+      if (!swift) continue;
+      const key = swift.toUpperCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ swift, name: bankNames?.get(swift) ?? bankNames?.get(key) ?? swift });
     }
-    // Narrow to Saudi banks when we have the library-derived set; otherwise
-    // fall back to all banks rather than render an empty picker.
-    const scoped = saudiSwiftCodes.size > 0
-      ? all.filter((b) => saudiSwiftCodes.has(b.swift.toUpperCase()))
-      : all;
-    return scoped.sort((a, b) => a.name.localeCompare(b.name));
-  }, [userFilterDefinitions, saudiSwiftCodes]);
+    return out.sort((a, b) => a.name.localeCompare(b.name));
+  }, [libraries, lovLookup]);
+
+  // Persist the fresh list whenever we have one; render the cached list until
+  // then (and as a fallback if the source data never loads this visit).
+  useEffect(() => {
+    if (computed.length > 0) saveCachedBanks(computed);
+  }, [computed]);
+  const cachedBanks = useMemo(() => loadCachedBanks(), []);
+  const banks = computed.length > 0 ? computed : cachedBanks;
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -114,7 +133,7 @@ export function BankPicker() {
             </p>
           </div>
 
-          {userFilterDefinitionsLoading && banks.length === 0 ? (
+          {(tagSpecsLoading || lovLoading) && banks.length === 0 ? (
             <CenteredSpinner />
           ) : banks.length === 0 ? (
             <EmptyState />
