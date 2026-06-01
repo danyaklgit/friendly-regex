@@ -1,15 +1,16 @@
-import { useEffect, useCallback, useMemo } from 'react';
+import { useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useUserMode } from '../../context/UserModeContext';
 import { useTransactionData } from '../../hooks/useTransactionData';
 import type { FilterProperty, FilterDefinition } from '../../api/transactions';
+import { translateFilters } from '../../utils/translateFilters';
 import { BrandLogo } from '../shared/BrandLogo';
 import { Button } from '../shared/Button';
 import { Toggle } from '../shared/Toggle';
 import { SunIcon, MoonIcon } from '../shared/ThemeIcons';
 import { DynamicFilters } from '../transactions/DynamicFilters';
-import { ChangeCompanyButton } from './ChangeCompanyButton';
+import { ChangeBanksButton } from './ChangeBanksButton';
 import { RedactionToggle } from './RedactionToggle';
 import { UserTransactionTable } from './UserTransactionTable';
 import { MyContributionsModal } from './MyContributionsModal';
@@ -44,13 +45,17 @@ const EMPTY_FILTERS: Record<string, Set<string>> = {};
 export function UserTransactionsPage() {
   const { displayName, username, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const { selectedCompany, proMode, setProMode } = useUserMode();
+  const { selectedBanks, proMode, setProMode } = useUserMode();
   const {
     fetchPage, loading, hasMore, transactions, totalTransactionsCount, fieldMeta, isLiveMode,
     fetchFilterDefinitions,
     userFilterDefinitions, userFilterDefinitionsLoading, fetchUserFilterDefinitions,
-    decimalMaxValues, fetchDecimalMaxValues,
   } = useTransactionData();
+
+  // Stable join of the selected SWIFT codes — the scope key for every
+  // bank-derived memo/effect below.
+  const swiftCodes = useMemo(() => selectedBanks.map((b) => b.swift), [selectedBanks]);
+  const swiftKey = swiftCodes.join('|');
 
   // Operator GetFilters still feeds the table's TransactionTypeCode friendly
   // labels (e.g. TRF → "Transfer"). The filter bar is fed separately by
@@ -60,15 +65,19 @@ export function UserTransactionsPage() {
     void fetchFilterDefinitions();
   }, [fetchFilterDefinitions]);
 
-  // GetUserFilters powers the filter bar above the table — only fetched when
-  // PRO mode (which surfaces the bar) is on. Once loaded, probe the AMOUNT
-  // slider's real max via the shared decimal-max helper.
+  // Step 2 of the bank flow: GetUserFilters narrowed to the selected banks
+  // returns the ATTR:* attribute filters (union of their values). Only needed
+  // when PRO surfaces the filter bar. Re-fetched when the bank selection
+  // changes.
+  //
+  // We intentionally do NOT probe AMOUNT's true max here (the operator path's
+  // fetchDecimalMaxValues): each probe is its own GetMT940Transactions call,
+  // and in user mode those add up to visible request spam on load. The slider
+  // falls back to its 200M default instead.
   useEffect(() => {
-    if (proMode) void fetchUserFilterDefinitions();
-  }, [proMode, fetchUserFilterDefinitions]);
-  useEffect(() => {
-    if (proMode && userFilterDefinitions.length > 0) void fetchDecimalMaxValues(userFilterDefinitions);
-  }, [proMode, userFilterDefinitions, fetchDecimalMaxValues]);
+    if (proMode && swiftCodes.length > 0) void fetchUserFilterDefinitions(swiftCodes);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proMode, swiftKey, fetchUserFilterDefinitions]);
 
   const [contributionsOpen, setContributionsOpen] = useState(false);
 
@@ -76,25 +85,29 @@ export function UserTransactionsPage() {
   // shape so `translateFilters` inside `fetchPage` handles it identically).
   const [userFilters, setUserFilters] = useState<Record<string, Set<string>>>({});
 
-  // Clear the bar whenever the company changes — each company starts as a
-  // clean view (consistent with redaction re-arming on switch).
+  // Clear the bar whenever the bank selection changes — each selection starts
+  // as a clean view (consistent with redaction re-arming on switch).
   useEffect(() => {
     setUserFilters({});
-  }, [selectedCompany?.value]);
+  }, [swiftKey]);
 
-  const ibanFilter = useMemo<FilterProperty[]>(() => {
-    if (!selectedCompany || selectedCompany.ibans.length === 0) return [];
-    return [{ ColumnName: 'IBAN', Value: selectedCompany.ibans.join('|'), Operand: 'IN' }];
-  }, [selectedCompany]);
+  // Hidden scope: a BankSwiftCode IN filter holding all selected banks, joined
+  // with `|`. No Side filter — the bank context doesn't carry a side. The user
+  // can't see, edit, or clear this; picking banks IS the scope.
+  const bankFilter = useMemo<FilterProperty[]>(() => {
+    if (swiftCodes.length === 0) return [];
+    return [{ ColumnName: 'BankSwiftCode', Value: swiftCodes.join('|'), Operand: 'IN' }];
+  }, [swiftCodes]);
 
-  // Drop the ACCOUNTS filter from the bar — picking a company already IS the
-  // account scope (enforced by the hidden `ibanFilter` floor), so a visible
-  // IBAN selector would be redundant. Also strip the always-hidden Inflows /
-  // Outflows options from GROUP_TAGS (they only restate the debit/credit side).
+  // Drop BANKS + ACCOUNTS from the bar — bank selection IS the scope (the
+  // hidden `bankFilter` floor), so an in-bar selector would be redundant. Strip
+  // the always-hidden Inflows / Outflows from GROUP_TAGS (they only restate the
+  // debit/credit side). ATTR:* attribute filters pass through to render in the
+  // bar's Attributes group.
   const scopedUserFilterDefinitions = useMemo<FilterDefinition[]>(
     () =>
       userFilterDefinitions
-        .filter((def) => def.Tag !== 'ACCOUNTS')
+        .filter((def) => def.Tag !== 'ACCOUNTS' && def.Tag !== 'BANKS')
         .map((def) =>
           def.Tag === 'GROUP_TAGS'
             ? { ...def, Values: def.Values.filter((v) => !isHiddenGroupName(v.Label ?? '')) }
@@ -108,16 +121,41 @@ export function UserTransactionsPage() {
   // narrow the simplified view.
   const effectiveFilters = proMode ? userFilters : EMPTY_FILTERS;
 
-  // Initial fetch + react to company swap or filter change. Debounced so the
-  // company-switch double-trigger (ibanFilter changes AND userFilters resets in
-  // the same cycle) coalesces into a single request. `append=false` replaces
-  // the buffer; omitting `pageIndex` uses the incremental cursor.
+  // Translate the user-selected filters HERE, against the user filter
+  // definitions (GetUserFilters), and ship them as extra filtering properties
+  // alongside the hidden bank floor. `fetchPage`'s own `translateFilters` runs
+  // against the OPERATOR definitions (GetFilters), which don't carry the user's
+  // ATTR:* / GetUserFilters tags — so translating in-page is the only way those
+  // selections (e.g. OpsAttributes:BeneficiaryName) reach GetMT940Transactions.
+  // We therefore pass `{}` as the filters arg and put everything in extraFilters.
+  const extraFilters = useMemo<FilterProperty[]>(
+    () => [...bankFilter, ...translateFilters(effectiveFilters, userFilterDefinitions)],
+    [bankFilter, effectiveFilters, userFilterDefinitions],
+  );
+
+  // Serialize the request's filter CONTENT. The fetch effect keys off this so
+  // it fires only when the actual filters change — not when `extraFilters` /
+  // `fetchPage` merely churn identity (e.g. when userFilterDefinitions reloads,
+  // tepConfig recreates, or the token rotates). Without this, those identity
+  // changes each triggered a redundant GetMT940Transactions on load.
+  const requestKey = useMemo(() => JSON.stringify(extraFilters), [extraFilters]);
+
+  // Refs let the effect/loadMore read the latest fetcher + filters without
+  // listing their (churning) identities as dependencies.
+  const fetchPageRef = useRef(fetchPage);
+  const extraFiltersRef = useRef(extraFilters);
+  useEffect(() => { fetchPageRef.current = fetchPage; }, [fetchPage]);
+  useEffect(() => { extraFiltersRef.current = extraFilters; }, [extraFilters]);
+
+  // Initial fetch + react to a real filter/bank change (by content key).
+  // Debounced so a bank-switch double-trigger coalesces into one request.
+  // `append=false` replaces the buffer; omitting `pageIndex` uses the cursor.
   useEffect(() => {
     const timer = setTimeout(() => {
-      void fetchPage(effectiveFilters, false, undefined, BATCH_SIZE, ibanFilter);
+      void fetchPageRef.current(EMPTY_FILTERS, false, undefined, BATCH_SIZE, extraFiltersRef.current);
     }, 50);
     return () => clearTimeout(timer);
-  }, [fetchPage, ibanFilter, effectiveFilters]);
+  }, [requestKey]);
 
   // Append the next batch onto the buffer. `append=true` plus a fresh fetch
   // each click is what makes the loaded count grow. Carries the active filters.
@@ -129,12 +167,12 @@ export function UserTransactionsPage() {
       const pages = Math.max(1, Math.ceil(size / BATCH_SIZE));
       void (async () => {
         for (let i = 0; i < pages; i++) {
-          const rows = await fetchPage(effectiveFilters, true, undefined, BATCH_SIZE, ibanFilter);
+          const rows = await fetchPageRef.current(EMPTY_FILTERS, true, undefined, BATCH_SIZE, extraFiltersRef.current);
           if (rows.length === 0) break;
         }
       })();
     },
-    [fetchPage, ibanFilter, effectiveFilters],
+    [],
   );
 
   const loaded = transactions.length;
@@ -161,11 +199,15 @@ export function UserTransactionsPage() {
       <header className="flex items-center justify-between px-6 py-3 border-b border-border bg-surface">
         <div className="flex items-center gap-4">
           <BrandLogo className="h-7" />
-          {selectedCompany && (
+          {selectedBanks.length > 0 && (
             <div className="hidden sm:flex items-center gap-2 pl-4 border-l border-border">
-              <span className="text-xs text-muted">Company</span>
-              <span className="text-sm font-medium text-heading">{selectedCompany.name}</span>
-              <ChangeCompanyButton />
+              <span className="text-xs text-muted">{selectedBanks.length === 1 ? 'Bank' : 'Banks'}</span>
+              <span className="text-sm font-medium text-heading max-w-md truncate" title={selectedBanks.map((b) => b.name).join(', ')}>
+                {selectedBanks.length <= 2
+                  ? selectedBanks.map((b) => b.name).join(', ')
+                  : `${selectedBanks[0].name} +${selectedBanks.length - 1} more`}
+              </span>
+              <ChangeBanksButton />
             </div>
           )}
         </div>
@@ -218,7 +260,6 @@ export function UserTransactionsPage() {
             isLiveMode={isLiveMode}
             filterDefinitions={scopedUserFilterDefinitions}
             filterDefinitionsLoading={userFilterDefinitionsLoading}
-            decimalMaxValues={decimalMaxValues}
           />
         )}
 

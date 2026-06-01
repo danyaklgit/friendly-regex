@@ -4,6 +4,7 @@ import type { AnalyzedTransaction, TagSpecDefinition } from '../../types';
 import type { FieldMeta } from '../../utils/deriveFieldMeta';
 import type { FilterDefinition } from '../../api/transactions';
 import { Button } from '../shared/Button';
+import { Modal } from '../shared/Modal';
 import { DropdownBackdrop } from '../shared/DropdownBackdrop';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
 
@@ -11,6 +12,12 @@ type FilterState = Record<string, Set<string>>;
 
 /** Stable no-op for optional operator-only callbacks (see DynamicFilters props). */
 const noop = () => {};
+
+/** Max option rows rendered at once in a LIST dropdown. User-mode attribute
+ *  filters can carry tens of thousands of distinct values; rendering them all
+ *  would hang the page, so we cap the "Available" group and lean on the
+ *  in-dropdown search to narrow. Selected values are always shown in full. */
+const LIST_RENDER_CAP = 200;
 
 const FILTER_EXCLUSIONS = new Set([
   'AdditionalInformation',
@@ -576,13 +583,21 @@ function StringFromListDropdown({
   // toggles their checkbox, so the list never shifts under the cursor in the
   // middle of selecting adjacent rows. Keyboard navigation walks Selected
   // first, then Available — matching the visual order.
-  const { selectedFiltered, availableFiltered, navigableValues } = useMemo(() => {
+  const { selectedFiltered, availableFiltered, navigableValues, hiddenCount } = useMemo(() => {
     const sel: typeof filteredValues = [];
-    const avail: typeof filteredValues = [];
+    const availAll: typeof filteredValues = [];
     for (const v of filteredValues) {
-      (selected.has(v.Value ?? '') ? sel : avail).push(v);
+      (selected.has(v.Value ?? '') ? sel : availAll).push(v);
     }
-    return { selectedFiltered: sel, availableFiltered: avail, navigableValues: [...sel, ...avail] };
+    // Cap the rendered "Available" rows so huge attribute lists stay
+    // responsive; keyboard nav walks only the rendered set.
+    const avail = availAll.length > LIST_RENDER_CAP ? availAll.slice(0, LIST_RENDER_CAP) : availAll;
+    return {
+      selectedFiltered: sel,
+      availableFiltered: avail,
+      navigableValues: [...sel, ...avail],
+      hiddenCount: availAll.length - avail.length,
+    };
   }, [filteredValues, selected]);
 
   const handleToggle = (value: string) => {
@@ -802,6 +817,11 @@ function StringFromListDropdown({
                         )}
                         {availableFiltered.map((v, i) => renderRow(v, selectedFiltered.length + i))}
                       </>
+                    )}
+                    {hiddenCount > 0 && (
+                      <div className="px-2 pt-1.5 pb-1 text-[10px] text-muted text-center">
+                        Showing {availableFiltered.length.toLocaleString()} of {(availableFiltered.length + hiddenCount).toLocaleString()} — refine your search to narrow.
+                      </div>
                     )}
                   </>
                 );
@@ -1556,6 +1576,148 @@ function ApiFilterRenderer({
   }
 }
 
+// ─── Attribute filters popup ──────────────────────────────────────────────────
+
+/**
+ * Attribute filters (`ATTR:*`) collapse into a single popup so the bar stays
+ * compact even when a bank exposes many attributes. The trigger carries a count
+ * badge, and active selections surface as chips on the row OUTSIDE the popup
+ * (with a per-attribute clear), so the user sees what's filtered at a glance
+ * without opening the dialog.
+ */
+function AttributesFilterPopup({
+  defs,
+  filters,
+  onFiltersChange,
+}: {
+  defs: FilterDefinition[];
+  filters: FilterState;
+  onFiltersChange: (filters: FilterState) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [attrSearch, setAttrSearch] = useState('');
+
+  const humanLabel = (def: FilterDefinition) => humanizeFieldName(def.Label || def.Tag.replace(/^ATTR:/, ''));
+
+  const active = defs
+    .map((def) => ({ def, count: filters[def.Tag]?.size ?? 0 }))
+    .filter((a) => a.count > 0);
+
+  // Humanized-label copies so the in-popup dropdown buttons read nicely
+  // ("BeneficiaryName" → "Beneficiary Name"). Filter state stays keyed by the
+  // unchanged `Tag`.
+  const displayDefs = useMemo(
+    () => defs.map((def) => ({ ...def, Label: humanizeFieldName(def.Label || def.Tag.replace(/^ATTR:/, '')) })),
+    [defs],
+  );
+
+  // Search across the attribute NAMES (which filter to show), not their values,
+  // then float attributes that already have an active selection to the front
+  // (stable within each group) so the user's in-play filters stay visible.
+  const visibleDefs = useMemo(() => {
+    const q = attrSearch.trim().toLowerCase();
+    const matched = q
+      ? displayDefs.filter((d) => d.Label.toLowerCase().includes(q) || d.Tag.toLowerCase().includes(q))
+      : displayDefs;
+    const selected = matched.filter((d) => (filters[d.Tag]?.size ?? 0) > 0);
+    const rest = matched.filter((d) => (filters[d.Tag]?.size ?? 0) === 0);
+    return [...selected, ...rest];
+  }, [displayDefs, attrSearch, filters]);
+
+  const close = () => {
+    setOpen(false);
+    setAttrSearch('');
+  };
+
+  const clearOne = (tag: string) => {
+    const next = { ...filters };
+    delete next[tag];
+    onFiltersChange(next);
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
+          active.length > 0
+            ? 'border-primary/40 bg-primary/10 text-primary-dark dark:text-primary-light'
+            : 'border-border bg-surface text-body hover:bg-surface-hover'
+        }`}
+      >
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6Z" />
+        </svg>
+        Attributes
+        {active.length > 0 && (
+          <span className="ml-0.5 inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-primary text-white text-[10px] font-semibold">
+            {active.length}
+          </span>
+        )}
+      </button>
+
+      {/* Active-selection feedback, visible outside the popup. */}
+      {active.map(({ def, count }) => (
+        <span
+          key={def.Tag}
+          className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary-dark dark:text-primary-light px-2 py-0.5 text-[11px] font-medium"
+        >
+          {humanLabel(def)}: {count.toLocaleString()}
+          <button
+            type="button"
+            onClick={() => clearOne(def.Tag)}
+            className="hover:text-primary"
+            aria-label={`Clear ${humanLabel(def)} filter`}
+          >
+            <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </span>
+      ))}
+
+      <Modal open={open} onClose={close} title="Attribute filters" widthClass="max-w-full" fullHeight>
+        {displayDefs.length === 0 ? (
+          <p className="text-sm text-muted">No attribute filters available for the selected bank(s).</p>
+        ) : (
+          <div className="space-y-3">
+            {/* Search the attribute NAMES (which filters are shown), distinct
+                from each dropdown's own value search. */}
+            <div className="relative max-w-sm">
+              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="text"
+                placeholder="Search attributes..."
+                value={attrSearch}
+                onChange={(e) => setAttrSearch(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-input-border bg-input-bg text-heading placeholder:text-placeholder focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors"
+              />
+            </div>
+            {visibleDefs.length === 0 ? (
+              <p className="text-sm text-muted">No attributes match "{attrSearch}".</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {visibleDefs.map((def) => (
+                  <ApiFilterRenderer
+                    key={def.Tag}
+                    definition={def}
+                    filters={filters}
+                    onFiltersChange={onFiltersChange}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
+    </div>
+  );
+}
+
 // ─── Main DynamicFilters component ───────────────────────────────────────────
 
 export function DynamicFilters({
@@ -1748,19 +1910,38 @@ export function DynamicFilters({
               ))}
             </>
           )}
-          {isLiveMode && !filterDefinitionsLoading && filterDefinitions && filterDefinitions
-            .filter((def) => !HIDDEN_API_FILTER_TAGS.has(def.Tag))
-            .map((def) => (
-            <ApiFilterRenderer
-              key={def.Tag}
-              definition={def}
-              filters={filters}
-              onFiltersChange={onFiltersChange}
-              lockedColumns={lockedColumns}
-              disabled={disabledFilterTags?.has(def.Tag)}
-              numericBounds={numericBounds}
-            />
-          ))}
+          {isLiveMode && !filterDefinitionsLoading && filterDefinitions && (() => {
+            const visible = filterDefinitions.filter((def) => !HIDDEN_API_FILTER_TAGS.has(def.Tag));
+            // Attribute filters (Tag prefixed `ATTR:`, e.g. ATTR:BeneficiaryName)
+            // render after the standard filters, behind an inline "Attributes"
+            // divider so the group reads as a distinct section of the bar.
+            const standard = visible.filter((def) => !def.Tag.startsWith('ATTR:'));
+            const attrs = visible.filter((def) => def.Tag.startsWith('ATTR:'));
+            const renderDef = (def: FilterDefinition) => (
+              <ApiFilterRenderer
+                key={def.Tag}
+                definition={def}
+                filters={filters}
+                onFiltersChange={onFiltersChange}
+                lockedColumns={lockedColumns}
+                disabled={disabledFilterTags?.has(def.Tag)}
+                numericBounds={numericBounds}
+              />
+            );
+            return (
+              <>
+                {standard.map(renderDef)}
+                {attrs.length > 0 && (
+                  <>
+                    {/* basis-full forces a line break in the wrapping flex bar
+                        so the Attributes row starts on its own line. */}
+                    <div className="basis-full h-0" aria-hidden="true" />
+                    <AttributesFilterPopup defs={attrs} filters={filters} onFiltersChange={onFiltersChange} />
+                  </>
+                )}
+              </>
+            );
+          })()}
 
           {/* Sample mode: legacy filters. The ShowOnly handlers are operator-only;
               the operator callsite always supplies them, and this branch never

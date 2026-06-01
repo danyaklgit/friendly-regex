@@ -1,6 +1,8 @@
-import { useMemo } from 'react';
+import { useContext, useMemo } from 'react';
 import { Modal } from '../shared/Modal';
 import { useUserMode } from '../../context/UserModeContext';
+import { TagSpecContext } from '../../context/TagSpecContext';
+import { buildTagDisplayNameMap, tagDisplayName } from '../../utils/userMode/tagDisplayName';
 import type { Contribution } from '../../utils/userMode/contributionStorage';
 
 interface MyContributionsModalProps {
@@ -19,6 +21,10 @@ interface MyContributionsModalProps {
  */
 export function MyContributionsModal({ open, onClose }: MyContributionsModalProps) {
   const { contributions, revertContribution } = useUserMode();
+  // Nullable-safe: outside a TagSpecProvider the map is empty and tags fall
+  // back to their raw code.
+  const tagSpecs = useContext(TagSpecContext);
+  const tagNames = useMemo(() => buildTagDisplayNameMap(tagSpecs?.tagsHierarchy ?? []), [tagSpecs]);
 
   const sorted = useMemo(
     () => [...contributions].sort((a, b) => b.contributionDate.localeCompare(a.contributionDate)),
@@ -46,7 +52,7 @@ export function MyContributionsModal({ open, onClose }: MyContributionsModalProp
             </thead>
             <tbody className="divide-y divide-border-subtle">
               {sorted.map((c) => (
-                <Row key={c.transactionId + c.contributionDate} contribution={c} onRevert={() => revertContribution(c.transactionId)} />
+                <Row key={c.transactionId + c.contributionDate} contribution={c} tagNames={tagNames} onRevert={() => revertContribution(c.transactionId)} />
               ))}
             </tbody>
           </table>
@@ -73,7 +79,7 @@ function Td({ children, className = '' }: { children: React.ReactNode; className
   return <td className={`px-3 py-2 align-top ${className}`}>{children}</td>;
 }
 
-function Row({ contribution, onRevert }: { contribution: Contribution; onRevert: () => void }) {
+function Row({ contribution, tagNames, onRevert }: { contribution: Contribution; tagNames: Map<string, string>; onRevert: () => void }) {
   return (
     <tr className="hover:bg-surface-hover transition-colors">
       <Td>
@@ -83,11 +89,11 @@ function Row({ contribution, onRevert }: { contribution: Contribution; onRevert:
       <Td>
         <div className="flex items-baseline gap-1">
           <span className="text-muted">From:</span>
-          <span className="line-through text-faint">{contribution.originalTag ?? '—'}</span>
+          <span className="line-through text-faint">{contribution.originalTag ? tagDisplayName(tagNames, contribution.originalTag) : '—'}</span>
         </div>
         <div className="flex items-baseline gap-1">
           <span className="text-muted">To:</span>
-          <span className="text-body">{contribution.newTag}</span>
+          <span className="text-body">{tagDisplayName(tagNames, contribution.newTag)}</span>
           {contribution.newTagIsCustom && (
             <span className="ml-1 inline-flex items-center rounded-full bg-primary/10 text-primary-dark dark:text-primary-light px-1.5 py-0.5 text-[10px] font-medium">
               Custom

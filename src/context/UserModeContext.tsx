@@ -1,6 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect, useMemo, type ReactNode } from 'react';
 import { useAuth } from './AuthContext';
-import type { DemoCompany } from '../utils/userMode/getDemoCompanies';
 import {
   loadContributions,
   saveContributions,
@@ -36,10 +35,18 @@ function loadProMode(): boolean {
   }
 }
 
+/** A bank the user picked on the multiselect entry screen. `swift` is the SWIFT
+ *  code (the scoping key + GetUserFilters `Banks` value); `name` is the display
+ *  label from the BANKS LOV. */
+export interface BankSelection {
+  swift: string;
+  name: string;
+}
+
 interface UserModeContextValue {
-  // Company selection
-  selectedCompany: DemoCompany | null;
-  setSelectedCompany: (c: DemoCompany | null) => void;
+  // Bank selection (multiselect — replaces the old single-company scope)
+  selectedBanks: BankSelection[];
+  setSelectedBanks: (banks: BankSelection[]) => void;
 
   // PRO mode — exposes the power-user surface (filters, tag/group/attribute
   // columns, contributions). OFF by default, persisted device-wide.
@@ -65,7 +72,7 @@ const UserModeContext = createContext<UserModeContextValue | null>(null);
 export function UserModeProvider({ children }: { children: ReactNode }) {
   const { userId } = useAuth();
 
-  const [selectedCompany, setSelectedCompany] = useState<DemoCompany | null>(null);
+  const [selectedBanks, setSelectedBanks] = useState<BankSelection[]>([]);
   const [redactionOn, setRedactionOn] = useState<boolean>(true);
 
   // PRO mode persists across sessions on this device (a deliberate, sticky
@@ -84,20 +91,20 @@ export function UserModeProvider({ children }: { children: ReactNode }) {
   const [contributions, setContributions] = useState<Contribution[]>(() => loadContributions(userId));
   useEffect(() => {
     setContributions(loadContributions(userId));
-    // Also reset the selected company when the user changes — protects against
-    // cross-user company stickiness if two demo users share a browser.
-    setSelectedCompany(null);
+    // Also reset the bank selection when the user changes — protects against
+    // cross-user stickiness if two demo users share a browser.
+    setSelectedBanks([]);
     setRedactionOn(true);
   }, [userId]);
 
-  // Re-arm redaction whenever the operator picks a different company. Treats
-  // each company as its own viewing session: even if the user disabled
-  // redaction on Company A, switching to Company B starts masked. The password
-  // gate has to be cleared again to view raw values on the new company.
-  const selectedCompanyKey = selectedCompany?.value ?? null;
+  // Re-arm redaction whenever the bank selection changes. Treats each bank
+  // selection as its own viewing session: even if the user disabled redaction
+  // on one set of banks, changing the selection starts masked again. The
+  // password gate must be cleared again to view raw values.
+  const selectedBanksKey = selectedBanks.map((b) => b.swift).join('|');
   useEffect(() => {
     setRedactionOn(true);
-  }, [selectedCompanyKey]);
+  }, [selectedBanksKey]);
 
   const [customTags, setCustomTags] = useState<CustomTag[]>(() => loadCustomTags());
 
@@ -139,8 +146,8 @@ export function UserModeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<UserModeContextValue>(() => ({
-    selectedCompany,
-    setSelectedCompany,
+    selectedBanks,
+    setSelectedBanks,
     proMode,
     setProMode,
     redactionOn,
@@ -150,7 +157,7 @@ export function UserModeProvider({ children }: { children: ReactNode }) {
     revertContribution,
     customTags,
     addCustomTag,
-  }), [selectedCompany, proMode, setProMode, redactionOn, contributions, addContribution, revertContribution, customTags, addCustomTag]);
+  }), [selectedBanks, proMode, setProMode, redactionOn, contributions, addContribution, revertContribution, customTags, addCustomTag]);
 
   return <UserModeContext.Provider value={value}>{children}</UserModeContext.Provider>;
 }

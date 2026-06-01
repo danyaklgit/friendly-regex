@@ -38,7 +38,10 @@ export interface TransactionDataContextValue {
    *  unaffected by the user-mode filter bar. */
   userFilterDefinitions: FilterDefinition[];
   userFilterDefinitionsLoading: boolean;
-  fetchUserFilterDefinitions: () => Promise<void>;
+  /** Fetch user-screen filters. Pass selected bank SWIFT codes to narrow the
+   *  BANKS filter and receive the ATTR:* attribute filters (union of their
+   *  values). Omit on the first call (bank picker) to list all banks. */
+  fetchUserFilterDefinitions: (banks?: string[]) => Promise<void>;
   decimalMaxValues: Map<string, number>;
   fetchDecimalMaxValues: (filterDefs: FilterDefinition[]) => Promise<void>;
 }
@@ -198,7 +201,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
   }, [isLiveMode, getAuthHeaders, refreshIfNeeded, userId, tepConfig]);
 
   const userFilterFetchingRef = useRef(false);
-  const fetchUserFilterDefinitions = useCallback(async () => {
+  const fetchUserFilterDefinitions = useCallback(async (banks?: string[]) => {
     if (!isLiveMode || userFilterFetchingRef.current) return;
     userFilterFetchingRef.current = true;
     try {
@@ -215,7 +218,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
         requestId: tepConfig.ttpRequestId,
       };
       setUserFilterDefinitionsLoading(true);
-      const defs = await getUserFilters('MT940', token, tepHeaders);
+      const defs = await getUserFilters('MT940', token, tepHeaders, undefined, banks);
       setUserFilterDefinitions(defs);
     } catch (err) {
       console.error('Failed to fetch user filter definitions:', err);

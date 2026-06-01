@@ -7,6 +7,8 @@ import { useLovAttributes } from '../../context/LovAttributesContext';
 import { useUserMode } from '../../context/UserModeContext';
 import { groupsForTag } from '../../utils/userMode/groupsForTag';
 import { randomJv } from '../../utils/userMode/randomJv';
+import { buildAttrLovTagMap, resolveLovValue, type AttrLovTagMap, type LovLookup } from '../../utils/userMode/resolveLovValue';
+import { buildTagDisplayNameMap, tagDisplayName } from '../../utils/userMode/tagDisplayName';
 import { AttributesCell } from './AttributesCell';
 import { DescriptionCell } from './DescriptionCell';
 import { RedactedText } from './RedactedText';
@@ -44,7 +46,7 @@ interface UserTransactionTableProps {
 export function UserTransactionTable({ rows, loading }: UserTransactionTableProps) {
   const { tagsHierarchy } = useTagSpecs();
   const { fieldMeta, filterDefinitions } = useTransactionData();
-  const { lovLookup } = useLovAttributes();
+  const { lovLookup, activeAttributes } = useLovAttributes();
   const { contributions, addContribution, proMode } = useUserMode();
 
   // BankSwiftCode → friendly bank name (e.g. INMASARI → "Saudi Investment Bank").
@@ -53,6 +55,20 @@ export function UserTransactionTable({ rows, loading }: UserTransactionTableProp
   const bankNameByCode = useMemo<Map<string, string>>(
     () => lovLookup.get('BANKS') ?? new Map<string, string>(),
     [lovLookup],
+  );
+
+  // Attribute name → LOVTag, from the attribute catalog. Powers generic LOV
+  // resolution of coded attribute values (biller, beneficiary bank, …) to
+  // their friendly names in the Attributes cell.
+  const attrLovTagMap = useMemo<AttrLovTagMap>(
+    () => buildAttrLovTagMap(activeAttributes),
+    [activeAttributes],
+  );
+
+  // Tag code → display name (e.g. "TransferOut" → "Outbound Transfer").
+  const tagNameByCode = useMemo<Map<string, string>>(
+    () => buildTagDisplayNameMap(tagsHierarchy),
+    [tagsHierarchy],
   );
 
   // Code → friendly label lookup for the Transaction Type cell. We grab the
@@ -197,6 +213,9 @@ export function UserTransactionTable({ rows, loading }: UserTransactionTableProp
                 tagsHierarchy={tagsHierarchy}
                 txnTypeLabelByCode={txnTypeLabelByCode}
                 bankNameByCode={bankNameByCode}
+                tagNameByCode={tagNameByCode}
+                attrLovTagMap={attrLovTagMap}
+                lovLookup={lovLookup}
                 contribution={contributionByTxId.get(getTxId(row))}
                 onTagClick={handleTagClick}
               />
@@ -243,6 +262,9 @@ interface RowProps {
   tagsHierarchy: ReturnType<typeof useTagSpecs>['tagsHierarchy'];
   txnTypeLabelByCode: Map<string, string>;
   bankNameByCode: Map<string, string>;
+  tagNameByCode: Map<string, string>;
+  attrLovTagMap: AttrLovTagMap;
+  lovLookup: LovLookup;
   contribution: ReturnType<typeof useUserMode>['contributions'][number] | undefined;
   onTagClick: (row: TransactionRow, originalTag: string | null, displayedTag: string | null) => void;
 }
@@ -309,7 +331,7 @@ function tagPillClass(edited: boolean): string {
     : 'border-primary/30 bg-primary/10 text-primary-dark dark:text-primary-light hover:bg-primary/20';
 }
 
-function Row({ row, proMode, tagsHierarchy, txnTypeLabelByCode, bankNameByCode, contribution, onTagClick }: RowProps) {
+function Row({ row, proMode, tagsHierarchy, txnTypeLabelByCode, bankNameByCode, tagNameByCode, attrLovTagMap, lovLookup, contribution, onTagClick }: RowProps) {
   // Demo-only random fields; stable for the row's mount lifetime, fresh on remount.
   // Spec choice: "truly random" — no seeding by id, just `Math.random()` once.
   const { reconciled, jv } = useMemo(
@@ -329,15 +351,15 @@ function Row({ row, proMode, tagsHierarchy, txnTypeLabelByCode, bankNameByCode, 
   // Attributes always come from the row's backend-tagged value. A user
   // contribution only changes the displayed tag NAME — it doesn't re-extract
   // attributes, so the original tag's extracted values still apply. Resolve
-  // bank-coded attribute values (e.g. BeneficiaryBank) to friendly names via
-  // the BANKS LOV; everything else passes through untouched.
+  // any LOV-backed attribute value (beneficiary bank, biller, country, …) to
+  // its friendly name; non-LOV values pass through untouched.
   const attributesMap = useMemo(() => {
     const out: Record<string, string> = {};
     for (const [k, v] of Object.entries(backendAttributes)) {
-      out[k] = /bank/i.test(k) ? (bankNameByCode.get(v) ?? v) : v;
+      out[k] = resolveLovValue(k, v, lovLookup, attrLovTagMap);
     }
     return out;
-  }, [backendAttributes, bankNameByCode]);
+  }, [backendAttributes, lovLookup, attrLovTagMap]);
 
   const side = String(row['Side'] ?? '');
   const isDebit = side === 'DR' || side === 'RC';
@@ -366,7 +388,7 @@ function Row({ row, proMode, tagsHierarchy, txnTypeLabelByCode, bankNameByCode, 
                   : 'Click to add tag'
             }
           >
-            {displayedTag ?? '— add tag —'}
+            {displayedTag ? tagDisplayName(tagNameByCode, displayedTag) : '— add tag —'}
           </button>
         </Td>
       )}

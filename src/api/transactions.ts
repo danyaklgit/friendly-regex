@@ -147,6 +147,7 @@ export async function getUserFilters(
   authToken: string,
   tepHeaders: TepHeaders,
   signal?: AbortSignal,
+  banks?: string[],
 ): Promise<FilterDefinition[]> {
   const res = await fetch(`${BASE}/GetUserFilters`, {
     method: 'POST',
@@ -162,7 +163,10 @@ export async function getUserFilters(
       TTPRequestId: tepHeaders.requestId,
       TimeZone: tepHeaders.timeZone,
     },
-    body: JSON.stringify({ DataSetType: dataSetType }),
+    // `Banks` (SWIFT codes) narrows the BANKS filter to those banks and returns
+    // the attribute (ATTR:*) filters with the union of their values. Omitted on
+    // the first call (bank picker), which returns all banks + all attr values.
+    body: JSON.stringify({ DataSetType: dataSetType, ...(banks && banks.length > 0 ? { Banks: banks } : {}) }),
     signal,
   });
 

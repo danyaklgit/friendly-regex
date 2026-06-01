@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useContext, useMemo, useState } from 'react';
 import { Modal } from '../shared/Modal';
 import { Button } from '../shared/Button';
+import { TagSpecContext } from '../../context/TagSpecContext';
+import { buildTagDisplayNameMap, tagDisplayName } from '../../utils/userMode/tagDisplayName';
 
 /** The fields the table fills in before opening the dialog; the dialog only
  *  collects `saveType` + optional `reason`. */
@@ -103,11 +105,17 @@ export function ContributionDialog({ open, draft, onClose, onSubmit }: Contribut
 }
 
 function Summary({ draft }: { draft: ContributionDraft }) {
+  // Read the hierarchy nullable-safely: outside a TagSpecProvider (e.g. in
+  // isolation tests) the map is empty and tags fall back to their raw code.
+  const tagSpecs = useContext(TagSpecContext);
+  const tagNames = useMemo(() => buildTagDisplayNameMap(tagSpecs?.tagsHierarchy ?? []), [tagSpecs]);
+  // Custom tags aren't in the hierarchy, so tagDisplayName falls back to the
+  // raw name — which is exactly what the user typed. Good either way.
   return (
     <div className="rounded-md border border-border bg-surface-secondary p-3 text-xs space-y-1">
       <Row label="Bank Reference" value={draft.bankReference || '—'} mono />
-      <Row label="From" value={draft.originalTag ?? '—'} strike />
-      <Row label="To" value={draft.newTag + (draft.newTagIsCustom ? ' (Custom)' : '')} />
+      <Row label="From" value={draft.originalTag ? tagDisplayName(tagNames, draft.originalTag) : '—'} strike />
+      <Row label="To" value={tagDisplayName(tagNames, draft.newTag) + (draft.newTagIsCustom ? ' (Custom)' : '')} />
     </div>
   );
 }
