@@ -54,10 +54,10 @@ export function translateFilters(
     if (def.Type === 'LIST') {
       if (def.Operand === 'EQ') {
         // EQ-style LIST (e.g. "SHOW ONLY"): each picked value targets a
-        // different column. The user's intent for a multi-select is OR — a
-        // row qualifies if ANY of the picked flags is set. Emitting separate
-        // top-level StandardFilterProperty entries would AND server-side and
-        // silently exclude rows in only one bucket.
+        // different column. The operator's intent for a multi-select is
+        // OR — a row qualifies if ANY of the picked flags is set. Emitting
+        // separate top-level StandardFilterProperty entries would AND
+        // server-side and silently exclude rows in only one bucket.
         //   - single selection → one EQ filter (no behaviour change).
         //   - multiple selections with the same Value (the common case for
         //     boolean-flag filters like SHOW ONLY where every option is

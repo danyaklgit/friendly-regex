@@ -693,8 +693,46 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
             label="Attribute Name"
             value={attribute.attributeTag}
             onChange={(val) => {
+              // Re-picking the same name is a no-op so we don't blow away
+              // a half-filled row just because the operator clicked the
+              // current selection.
+              if (val === attribute.attributeTag) return;
               const backend = activeAttributes.find((a) => a.Value === val);
-              const updates: Partial<AttributeFormValue> = { attributeTag: val };
+              // Changing the Attribute Name implies "this is a different
+              // field" — any source field, extraction op, toggle, prefix /
+              // suffix, transformations, or validation tag the operator
+              // had filled in for the previous name no longer applies and
+              // would mislead the next save. Reset the row to its blank
+              // shape, then re-apply the new name and any backend LOV
+              // suggestion. `id` is preserved so React keys stay stable
+              // and the row doesn't unmount underneath the operator.
+              const updates: Partial<AttributeFormValue> = {
+                attributeTag: val,
+                isMandatory: false,
+                validationRuleTag: '',
+                sourceField: '',
+                extractionOperation: '' as AttributeFormValue['extractionOperation'],
+                prefix: '',
+                suffix: '',
+                pattern: undefined,
+                verifyValue: undefined,
+                numChars: undefined,
+                toStr: undefined,
+                occurrence: undefined,
+                startingPosition: undefined,
+                fromPosition: undefined,
+                toStart: undefined,
+                tillEndOfInput: undefined,
+                prefixOccurrence: undefined,
+                suffixOccurrence: undefined,
+                suffixOrEndOfInput: undefined,
+                isConstant: false,
+                constantValue: undefined,
+                isLovBased: false,
+                lovTag: null,
+                transformations: [],
+                _originalRegex: undefined,
+              };
               if (backend?.PossibleLOVTag) {
                 updates.isLovBased = true;
                 updates.lovTag = backend.PossibleLOVTag;
