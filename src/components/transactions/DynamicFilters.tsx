@@ -19,6 +19,9 @@ const noop = () => {};
  *  in-dropdown search to narrow. Selected values are always shown in full. */
 const LIST_RENDER_CAP = 200;
 
+/** Stable empty set for reads when an attribute has no selection yet. */
+const EMPTY_SET: ReadonlySet<string> = new Set<string>();
+
 const FILTER_EXCLUSIONS = new Set([
   'AdditionalInformation',
   'TransactionDetails',
@@ -1700,11 +1703,11 @@ function AttributesFilterPopup({
             {visibleDefs.length === 0 ? (
               <p className="text-sm text-muted">No attributes match "{attrSearch}".</p>
             ) : (
-              <div className="flex flex-wrap gap-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                 {visibleDefs.map((def) => (
-                  <ApiFilterRenderer
+                  <AttributeFilterCard
                     key={def.Tag}
-                    definition={def}
+                    def={def}
                     filters={filters}
                     onFiltersChange={onFiltersChange}
                   />
@@ -1714,6 +1717,165 @@ function AttributesFilterPopup({
           </div>
         )}
       </Modal>
+    </div>
+  );
+}
+
+/**
+ * One always-open attribute filter, rendered as a self-contained card in the
+ * Attributes popup grid (3 per row). Shows the attribute title + selected
+ * count, a per-card value search, bulk actions (select all / select &
+ * deselect the search-filtered subset / clear), the currently-selected values
+ * as removable chips, and a height-capped, inner-scrolling value list. Large
+ * value sets are search-capped (see LIST_RENDER_CAP) so the card stays
+ * responsive.
+ */
+function AttributeFilterCard({
+  def,
+  filters,
+  onFiltersChange,
+}: {
+  def: FilterDefinition;
+  filters: FilterState;
+  onFiltersChange: (filters: FilterState) => void;
+}) {
+  const [search, setSearch] = useState('');
+  const selected = filters[def.Tag] ?? EMPTY_SET;
+
+  const labelOf = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const v of def.Values) if (v.Value != null) m.set(v.Value, v.Label || v.Value);
+    return m;
+  }, [def.Values]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return def.Values;
+    return def.Values.filter(
+      (v) =>
+        (v.Label ?? v.Value ?? '').toLowerCase().includes(q) ||
+        (v.Value ?? '').toLowerCase().includes(q) ||
+        (v.SubLabel ?? '').toLowerCase().includes(q),
+    );
+  }, [def.Values, search]);
+
+  const commit = (next: Set<string>) => {
+    const f = { ...filters };
+    if (next.size === 0) delete f[def.Tag];
+    else f[def.Tag] = next;
+    onFiltersChange(f);
+  };
+  const toggle = (val: string) => {
+    const next = new Set(selected);
+    if (next.has(val)) next.delete(val);
+    else next.add(val);
+    commit(next);
+  };
+  const clearAll = () => commit(new Set());
+  const selectFiltered = () => {
+    const next = new Set(selected);
+    for (const v of filtered) if (v.Value) next.add(v.Value);
+    commit(next);
+  };
+  const deselectFiltered = () => {
+    const next = new Set(selected);
+    for (const v of filtered) if (v.Value) next.delete(v.Value);
+    commit(next);
+  };
+
+  const searching = search.trim().length > 0;
+  const capped = filtered.length > LIST_RENDER_CAP ? filtered.slice(0, LIST_RENDER_CAP) : filtered;
+  const hidden = filtered.length - capped.length;
+  const selectedList = Array.from(selected);
+
+  const actionBtn = 'text-[11px] text-primary hover:underline disabled:text-faint disabled:no-underline disabled:cursor-default';
+
+  return (
+    <div className="flex flex-col h-60 rounded-lg border border-border bg-surface overflow-hidden">
+      {/* Title + selected count */}
+      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border bg-surface-secondary">
+        <span className="text-xs font-semibold text-heading truncate" title={def.Label}>{def.Label}</span>
+        {selected.size > 0 && (
+          <span className="inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-primary text-white text-[10px] font-semibold shrink-0">
+            {selected.size.toLocaleString()}
+          </span>
+        )}
+      </div>
+
+      {/* Per-card value search */}
+      <div className="relative px-2 pt-2">
+        <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input
+          type="text"
+          placeholder="Search values..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full pl-8 pr-2 py-1.5 text-xs rounded-md border border-input-border bg-input-bg text-heading placeholder:text-placeholder focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors"
+        />
+      </div>
+
+      {/* Bulk actions. Select/Deselect filtered only show while a value search
+          narrows the list; Clear only shows when something is selected. The row
+          is omitted entirely when there's nothing to act on. */}
+      {(searching || selected.size > 0) && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5">
+          {searching && <button type="button" className={actionBtn} onClick={selectFiltered}>Select filtered</button>}
+          {searching && <button type="button" className={actionBtn} onClick={deselectFiltered}>Deselect filtered</button>}
+          {selected.size > 0 && <button type="button" className={actionBtn} onClick={clearAll}>Clear</button>}
+        </div>
+      )}
+
+      {/* Selected values, always visible */}
+      {selected.size > 0 && (
+        <div className="flex flex-wrap gap-1 px-3 pb-2 max-h-20 overflow-y-auto custom-scrollbar border-b border-border-subtle">
+          {selectedList.map((val) => (
+            <span key={val} className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary-dark dark:text-primary-light px-2 py-0.5 text-[10px] max-w-full">
+              <span className="truncate">{labelOf.get(val) ?? val}</span>
+              <button type="button" onClick={() => toggle(val)} className="hover:text-primary shrink-0" aria-label={`Remove ${labelOf.get(val) ?? val}`}>
+                <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Value list — fills the remaining card height with inner scroll, so
+          every card is the same height regardless of how many values it has. */}
+      <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-1.5">
+        {filtered.length === 0 ? (
+          <div className="px-2 py-3 text-xs text-faint text-center">No values match</div>
+        ) : (
+          <>
+            {capped.map((v) => {
+              const val = v.Value ?? '';
+              const isChecked = selected.has(val);
+              return (
+                <label key={val} className="flex items-start gap-2 px-2 py-1.5 text-xs rounded cursor-pointer hover:bg-surface-hover">
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={() => toggle(val)}
+                    className="rounded border-border-strong shrink-0 mt-0.5"
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-black dark:text-white truncate">{v.Label || v.Value}</span>
+                    {v.SubLabel && <span className="block text-[10px] text-muted truncate">{v.SubLabel}</span>}
+                  </span>
+                </label>
+              );
+            })}
+            {hidden > 0 && (
+              <div className="px-2 pt-1.5 pb-1 text-[10px] text-muted text-center">
+                Showing {capped.length.toLocaleString()} of {filtered.length.toLocaleString()} — refine your search to narrow.
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
