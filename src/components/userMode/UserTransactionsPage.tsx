@@ -13,6 +13,7 @@ import { DynamicFilters } from '../transactions/DynamicFilters';
 import { ChangeBanksButton } from './ChangeBanksButton';
 import { RedactionToggle } from './RedactionToggle';
 import { UserTransactionTable } from './UserTransactionTable';
+import { RedactedText } from './RedactedText';
 import { MyContributionsModal } from './MyContributionsModal';
 import { isHiddenGroupName } from '../../utils/userMode/groupsForTag';
 import { useState } from 'react';
@@ -260,6 +261,7 @@ export function UserTransactionsPage() {
             isLiveMode={isLiveMode}
             filterDefinitions={scopedUserFilterDefinitions}
             filterDefinitionsLoading={userFilterDefinitionsLoading}
+            renderValue={(text) => <RedactedText text={text} />}
           />
         )}
 

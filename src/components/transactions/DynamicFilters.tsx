@@ -70,6 +70,10 @@ interface DynamicFiltersProps {
   filterDefinitionsLoading?: boolean;
   decimalMaxValues?: Map<string, number>;
   disabledFilterTags?: Set<string>;
+  /** Optional renderer for displayed filter VALUES (option labels, selected
+   *  chips). Used by the user portal to redact sensitive values. The value
+   *  sent to the backend is unaffected. Identity when omitted. */
+  renderValue?: (text: string) => ReactNode;
 }
 
 // ─── Shared dropdown hook ─────────────────────────────────────────────────────
@@ -506,13 +510,18 @@ function StringFromListDropdown({
   onFiltersChange,
   locked,
   disabled,
+  renderValue,
 }: {
   definition: FilterDefinition;
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
   locked?: boolean;
   disabled?: boolean;
+  /** Optional renderer for displayed option values (e.g. redaction in user
+   *  mode). Identity when omitted. The underlying filter value is unchanged. */
+  renderValue?: (text: string) => ReactNode;
 }) {
+  const rv = renderValue ?? ((t: string) => t);
   const { open, setOpen, ref } = useDropdown();
   const [search, setSearch] = useState('');
   const [highlightIndex, setHighlightIndex] = useState(0);
@@ -792,8 +801,8 @@ function StringFromListDropdown({
                         className="rounded border-border-strong shrink-0 mt-0.5"
                       />
                       <span className="min-w-0">
-                        <span className="block text-black dark:text-white font-medium truncate">{v.Label || v.Value}</span>
-                        {v.SubLabel && <span className="block text-[10px] text-muted truncate">{v.SubLabel}</span>}
+                        <span className="block text-black dark:text-white font-medium truncate">{rv(v.Label || v.Value || '')}</span>
+                        {v.SubLabel && <span className="block text-[10px] text-muted truncate">{rv(v.SubLabel)}</span>}
                       </span>
                     </label>
                   );
@@ -1554,6 +1563,7 @@ function ApiFilterRenderer({
   lockedColumns,
   disabled,
   numericBounds,
+  renderValue,
 }: {
   definition: FilterDefinition;
   filters: FilterState;
@@ -1561,13 +1571,14 @@ function ApiFilterRenderer({
   lockedColumns?: Set<string>;
   disabled?: boolean;
   numericBounds?: Map<string, number>;
+  renderValue?: (text: string) => ReactNode;
 }) {
   switch (definition.Type) {
     case 'LIST':
       if (definition.Operand === 'EQ') {
         return <ListEqDropdown definition={definition} filters={filters} onFiltersChange={onFiltersChange} />;
       }
-      return <StringFromListDropdown definition={definition} filters={filters} onFiltersChange={onFiltersChange} locked={lockedColumns?.has(definition.Tag)} disabled={disabled} />;
+      return <StringFromListDropdown definition={definition} filters={filters} onFiltersChange={onFiltersChange} locked={lockedColumns?.has(definition.Tag)} disabled={disabled} renderValue={renderValue} />;
     case 'SEARCH':
       return <SearchFilter definition={definition} filters={filters} onFiltersChange={onFiltersChange} />;
     case 'DECIMAL':
@@ -1592,10 +1603,12 @@ function AttributesFilterPopup({
   defs,
   filters,
   onFiltersChange,
+  renderValue,
 }: {
   defs: FilterDefinition[];
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
+  renderValue?: (text: string) => ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const [attrSearch, setAttrSearch] = useState('');
@@ -1710,6 +1723,7 @@ function AttributesFilterPopup({
                     def={def}
                     filters={filters}
                     onFiltersChange={onFiltersChange}
+                    renderValue={renderValue}
                   />
                 ))}
               </div>
@@ -1734,11 +1748,14 @@ function AttributeFilterCard({
   def,
   filters,
   onFiltersChange,
+  renderValue,
 }: {
   def: FilterDefinition;
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
+  renderValue?: (text: string) => ReactNode;
 }) {
+  const rv = renderValue ?? ((t: string) => t);
   const [search, setSearch] = useState('');
   const selected = filters[def.Tag] ?? EMPTY_SET;
 
@@ -1832,7 +1849,7 @@ function AttributeFilterCard({
         <div className="flex flex-wrap gap-1 px-3 pb-2 max-h-20 overflow-y-auto custom-scrollbar border-b border-border-subtle">
           {selectedList.map((val) => (
             <span key={val} className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary-dark dark:text-primary-light px-2 py-0.5 text-[10px] max-w-full">
-              <span className="truncate">{labelOf.get(val) ?? val}</span>
+              <span className="truncate">{rv(labelOf.get(val) ?? val)}</span>
               <button type="button" onClick={() => toggle(val)} className="hover:text-primary shrink-0" aria-label={`Remove ${labelOf.get(val) ?? val}`}>
                 <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -1862,8 +1879,8 @@ function AttributeFilterCard({
                     className="rounded border-border-strong shrink-0 mt-0.5"
                   />
                   <span className="min-w-0">
-                    <span className="block text-black dark:text-white truncate">{v.Label || v.Value}</span>
-                    {v.SubLabel && <span className="block text-[10px] text-muted truncate">{v.SubLabel}</span>}
+                    <span className="block text-black dark:text-white truncate">{rv(v.Label || v.Value || '')}</span>
+                    {v.SubLabel && <span className="block text-[10px] text-muted truncate">{rv(v.SubLabel)}</span>}
                   </span>
                 </label>
               );
@@ -1904,6 +1921,7 @@ export function DynamicFilters({
   filterDefinitionsLoading,
   decimalMaxValues,
   disabledFilterTags,
+  renderValue,
 }: DynamicFiltersProps) {
   const [expanded] = useState(true);
 
@@ -2088,6 +2106,7 @@ export function DynamicFilters({
                 lockedColumns={lockedColumns}
                 disabled={disabledFilterTags?.has(def.Tag)}
                 numericBounds={numericBounds}
+                renderValue={renderValue}
               />
             );
             return (
@@ -2098,7 +2117,7 @@ export function DynamicFilters({
                     {/* basis-full forces a line break in the wrapping flex bar
                         so the Attributes row starts on its own line. */}
                     <div className="basis-full h-0" aria-hidden="true" />
-                    <AttributesFilterPopup defs={attrs} filters={filters} onFiltersChange={onFiltersChange} />
+                    <AttributesFilterPopup defs={attrs} filters={filters} onFiltersChange={onFiltersChange} renderValue={renderValue} />
                   </>
                 )}
               </>
