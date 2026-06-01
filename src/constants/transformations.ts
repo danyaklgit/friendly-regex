@@ -113,8 +113,12 @@ export const TRANSFORMATION_METHODS: TransformationMethodDef[] = [
     label: 'Reformat Date',
     category: 'Formatting',
     args: [
-      { key: 'fromFormat', label: 'From Format', placeholder: 'e.g., MM/DD/YYYY', type: 'text', required: true },
-      { key: 'toFormat', label: 'To Format', placeholder: 'e.g., DD/MM/YYYY', type: 'text', required: true },
+      // Drop the `e.g., ` prefix on these two — the label already states
+      // it's a format string, and the long placeholder truncated to
+      // "e.g., MM/DD/" at typical row widths. Bare "MM/DD/YYYY" fits in
+      // the same input box without losing meaning.
+      { key: 'fromFormat', label: 'From Format', placeholder: 'MM/DD/YYYY', type: 'text', required: true },
+      { key: 'toFormat', label: 'To Format', placeholder: 'DD/MM/YYYY', type: 'text', required: true },
     ],
   },
   {
