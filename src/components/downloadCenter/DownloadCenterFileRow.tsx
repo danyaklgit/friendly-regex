@@ -120,18 +120,25 @@ export function DownloadCenterFileRow({ file, onDownload, onDelete }: DownloadCe
             </Button>
           </Tooltip>
         )}
-        <Tooltip content="Remove from Download Center" placement="top">
-          <Button
-            variant="ghost"
-            size="xs"
-            onClick={handleDelete}
-            loading={busy === 'delete'}
-            disabled={busy !== null}
-            className="text-red-400 hover:text-red-500"
-          >
-            Delete
-          </Button>
-        </Tooltip>
+        {/* Delete is hidden while the backend job is still running — the
+            export hasn't materialised yet, so there's nothing to remove
+            and a delete call mid-flight would race the job's final
+            commit. Once the row flips to READY or FAILED the button
+            comes back. */}
+        {file.Status !== 'INPROGRESS' && (
+          <Tooltip content="Remove from Download Center" placement="top">
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={handleDelete}
+              loading={busy === 'delete'}
+              disabled={busy !== null}
+              className="text-red-400 hover:text-red-500"
+            >
+              Delete
+            </Button>
+          </Tooltip>
+        )}
       </div>
     </div>
   );
