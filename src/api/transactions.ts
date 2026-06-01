@@ -57,6 +57,57 @@ export const DEFAULT_SORTING: SortProperty[] = [
   { ColumnName: 'Sequence', SortingLevel: 2, SortingOrder: 'ASC' },
 ];
 
+// Columns the operator may sort the transactions table by. Kept as a
+// const tuple so the literal type drives both the override shape and the
+// TransactionTable header click handler.
+export const SORTABLE_FIELDS = [
+  'IBAN',
+  'BankReference',
+  'Description1',
+  'Description2',
+  'AdditionalInformation',
+] as const;
+
+export type SortableField = (typeof SORTABLE_FIELDS)[number];
+
+export interface SortOverride {
+  field: SortableField;
+  order: 'ASC' | 'DESC';
+}
+
+/**
+ * Build the SortingProperties payload sent to the backend (or used by the
+ * client-side sorter in sample / upload mode). When no override is active
+ * the default StatementDate + Sequence ordering is used as-is. When an
+ * override is active the user's column becomes the primary sort and the
+ * default ordering drops to a secondary / tertiary tiebreaker so rows with
+ * equal values stay in a predictable date order.
+ */
+export function buildSortingProperties(override: SortOverride | null | undefined): SortProperty[] {
+  if (!override) return DEFAULT_SORTING;
+  return [
+    { ColumnName: override.field, SortingLevel: 1, SortingOrder: override.order },
+    { ColumnName: 'StatementDate', SortingLevel: 2, SortingOrder: 'ASC' },
+    { ColumnName: 'Sequence', SortingLevel: 3, SortingOrder: 'ASC' },
+  ];
+}
+
+const SORTABLE_FIELD_SET: ReadonlySet<string> = new Set(SORTABLE_FIELDS);
+
+/**
+ * Validate an unknown value (typically from localStorage) as a SortOverride
+ * and return it, or null when the shape is unexpected. Rejecting unknown
+ * fields here protects against renamed columns silently sorting on a field
+ * the backend no longer knows.
+ */
+export function parseSortOverride(raw: unknown): SortOverride | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const obj = raw as { field?: unknown; order?: unknown };
+  if (typeof obj.field !== 'string' || !SORTABLE_FIELD_SET.has(obj.field)) return null;
+  if (obj.order !== 'ASC' && obj.order !== 'DESC') return null;
+  return { field: obj.field as SortableField, order: obj.order };
+}
+
 // --- Filter definitions (from GetFilters API) ---
 
 export type FilterType = 'LIST' | 'SEARCH' | 'DECIMAL' | 'DATE';

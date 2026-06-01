@@ -16,8 +16,9 @@ import {
   hasIncompleteAttribute,
 } from '../../utils/attributeFingerprint';
 import type { FilterProperty } from '../../api/transactions';
-import { getAllTransactionTags, DEFAULT_SORTING } from '../../api/transactions';
+import { getAllTransactionTags, buildSortingProperties, parseSortOverride, type SortOverride } from '../../api/transactions';
 import { translateFilters } from '../../utils/translateFilters';
+import { humanizeFieldName } from '../../utils/humanizeFieldName';
 import { useOptionalDownloadCenter } from '../../context/DownloadCenterContext';
 import { useWizardForm, fromExistingDefinition } from '../../hooks/useWizardForm';
 import type { TagSpecDefinition, TagSpecLibrary, AnalyzedTransaction, WizardFormState, RuleExpression, CheckoutState, TransactionRow } from '../../types';
@@ -362,6 +363,21 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       return parsed;
     } catch { return []; }
   });
+  // Per-user alphabetical sort override on a single column. `null` means
+  // fall back to DEFAULT_SORTING (StatementDate ASC + Sequence ASC).
+  // parseSortOverride rejects unknown fields so a stale localStorage entry
+  // from a renamed column silently reverts to default instead of sending an
+  // invalid sort key to the backend.
+  const [sortOverride, setSortOverride] = useState<SortOverride | null>(() => {
+    try {
+      const stored = localStorage.getItem('tep:sortOverride');
+      return stored ? parseSortOverride(JSON.parse(stored)) : null;
+    } catch { return null; }
+  });
+  // Memoize the effective sort property array so passing it into useEffect
+  // / useCallback dependency lists is stable as long as the override hasn't
+  // changed. Falls back to DEFAULT_SORTING when no override is active.
+  const effectiveSorting = useMemo(() => buildSortingProperties(sortOverride), [sortOverride]);
   const [tableColumns, setTableColumns] = useState<ColumnDef[]>([]);
   const [visibleTableColumns, setVisibleTableColumns] = useState<ColumnDef[]>([]);
   const [filters, setFilters] = useState<Record<string, Set<string>>>({});
@@ -527,6 +543,12 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   useEffect(() => { try { localStorage.setItem('tep:relaxedMode', String(relaxedMode)); } catch { /* ignore */ } }, [relaxedMode]);
   useEffect(() => { if (hiddenColumns !== null) { try { localStorage.setItem('tep:hiddenColumns', JSON.stringify([...hiddenColumns])); } catch { /* ignore */ } } }, [hiddenColumns]);
   useEffect(() => { try { localStorage.setItem('tep:columnOrder', JSON.stringify(columnOrder)); } catch { /* ignore */ } }, [columnOrder]);
+  useEffect(() => {
+    try {
+      if (sortOverride) localStorage.setItem('tep:sortOverride', JSON.stringify(sortOverride));
+      else localStorage.removeItem('tep:sortOverride');
+    } catch { /* ignore */ }
+  }, [sortOverride]);
 
   // Track builder panel height so the table can adjust its maxHeight
   useEffect(() => {
@@ -834,11 +856,11 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     if (filterDefinitions.length === 0) return;
     if (activeCheckout?.pendingDefinitionId) return;
     const timer = setTimeout(() => {
-      fetchPage(outgoingFilters, false, incrementalPagination ? undefined : 0, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined);
+      fetchPage(outgoingFilters, false, incrementalPagination ? undefined : 0, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined, effectiveSorting);
       if (!incrementalPagination) { setCurrentPage(0); setPageInputValue('1'); }
     }, 50);
     return () => clearTimeout(timer);
-  }, [isLiveMode, filterDefinitions.length, outgoingFilters, fetchPage, incrementalPagination, activeExtraFilters, activeCheckout?.pendingDefinitionId]);
+  }, [isLiveMode, filterDefinitions.length, outgoingFilters, fetchPage, incrementalPagination, activeExtraFilters, activeCheckout?.pendingDefinitionId, effectiveSorting]);
 
   // Capture Call 2 total count (definition-based) before Call 3 can overwrite it
   useEffect(() => {
@@ -923,7 +945,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         ...translateFilters(outgoingFilters, filterDefinitions),
         ...activeExtraFilters,
       ];
-      await downloadCenter.triggerExport(filtersPayload, DEFAULT_SORTING);
+      await downloadCenter.triggerExport(filtersPayload, effectiveSorting);
       setToast({
         message: 'Export queued — check the Download Center when ready.',
         type: 'success',
@@ -938,7 +960,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       // the same breath. The button label says "Queueing…" during the lockout.
       setTimeout(() => setExporting(false), 1500);
     }
-  }, [downloadCenter, outgoingFilters, filterDefinitions, activeExtraFilters]);
+  }, [downloadCenter, outgoingFilters, filterDefinitions, activeExtraFilters, effectiveSorting]);
 
   // Drafts queued from inside the wizard. Held here so the save handler can
   // flush after `tagSpecLibrarySave` resolves; the same value is passed down
@@ -1292,8 +1314,33 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       );
     }
 
+    // Sample / upload mode: apply the alphabetical override client-side. Live
+    // mode skips this — the backend already returns rows in the requested
+    // order, and re-sorting would just burn CPU. Tiebreakers mirror
+    // buildSortingProperties so equal values keep StatementDate / Sequence
+    // order across both modes.
+    if (!isLiveMode && sortOverride) {
+      const dir = sortOverride.order === 'ASC' ? 1 : -1;
+      const field = sortOverride.field;
+      const sorted = [...result];
+      sorted.sort((a, b) => {
+        const av = String(a.row[field] ?? '');
+        const bv = String(b.row[field] ?? '');
+        const primary = av.localeCompare(bv, undefined, { sensitivity: 'base', numeric: true });
+        if (primary !== 0) return primary * dir;
+        const ad = String(a.row['StatementDate'] ?? '');
+        const bd = String(b.row['StatementDate'] ?? '');
+        const secondary = ad.localeCompare(bd);
+        if (secondary !== 0) return secondary;
+        const as = Number(a.row['Sequence'] ?? 0);
+        const bs = Number(b.row['Sequence'] ?? 0);
+        return as - bs;
+      });
+      result = sorted;
+    }
+
     return result;
-  }, [analyzedData, showOnlyUntagged, showOnlyMultiTagged, showOnlyDeadEnd, filters, isLiveMode, builderOpen, builder.formState.transactionTypeCode, hiddenDefIds]);
+  }, [analyzedData, showOnlyUntagged, showOnlyMultiTagged, showOnlyDeadEnd, filters, isLiveMode, builderOpen, builder.formState.transactionTypeCode, hiddenDefIds, sortOverride]);
 
   // Count of loaded rows that match any hidden tag spec. Drives the "live
   // total minus hidden" adjustment in the Transactions header AND the
@@ -1460,7 +1507,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     while (!done && visibleAdded < size && attempts < maxAttempts) {
       // Don't pass pageSize — let fetchPage use PAGE_SIZE so pageIndex
       // increments cleanly from one append to the next.
-      const newRows = await fetchPage(outgoingFilters, true, undefined, undefined, extras);
+      const newRows = await fetchPage(outgoingFilters, true, undefined, undefined, extras, effectiveSorting);
       if (newRows.length === 0) break;
       for (let i = 0; i < newRows.length; i++) {
         const isVisible = hasHideFilter
@@ -1476,7 +1523,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       }
       attempts++;
     }
-  }, [isLiveMode, activeExtraFilters, hiddenDefIds, fetchPage, outgoingFilters, transactions.length, totalTransactionsCount, allLibraries, trimLoadedTransactions]);
+  }, [isLiveMode, activeExtraFilters, hiddenDefIds, fetchPage, outgoingFilters, transactions.length, totalTransactionsCount, allLibraries, trimLoadedTransactions, effectiveSorting]);
 
   // Auto-fetch when the hide-tag-spec filter drops the visible row count
   // below the default page size and more rows are available on the backend.
@@ -1762,9 +1809,9 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     } else if (isLiveMode) {
       // No filter change to piggyback on — explicitly refetch so the freshly
       // saved rule's tags appear on the transactions list immediately.
-      fetchPage(outgoingFilters, false, incrementalPagination ? undefined : 0, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined);
+      fetchPage(outgoingFilters, false, incrementalPagination ? undefined : 0, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined, effectiveSorting);
     }
-  }, [dispatch, builder, editingDef, tagClickState, baseFilters, activeCheckout, libraries, refreshIfNeeded, getAuthHeaders, userId, tepConfig, saveBaseline, isLiveMode, outgoingFilters, fetchPage, incrementalPagination, activeExtraFilters, fetchFilterDefinitions, wizardCommentDrafts]);
+  }, [dispatch, builder, editingDef, tagClickState, baseFilters, activeCheckout, libraries, refreshIfNeeded, getAuthHeaders, userId, tepConfig, saveBaseline, isLiveMode, outgoingFilters, fetchPage, incrementalPagination, activeExtraFilters, fetchFilterDefinitions, wizardCommentDrafts, effectiveSorting]);
 
   const handleWizardClose = useCallback(() => {
     setWizardOpen(false);
@@ -1951,7 +1998,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
               setCurrentPage(0);
               setPageInputValue('1');
               setVisibleCount(BATCH_SIZE);
-              if (!v && isLiveMode) fetchPage(outgoingFilters, false, 0, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined);
+              if (!v && isLiveMode) fetchPage(outgoingFilters, false, 0, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined, effectiveSorting);
             }} />
             <span data-tour="show-attributes-toggle"><Toggle label="Show attributes" checked={showAttributes} onChange={setShowAttributes} /></span>
           </div>
@@ -2126,6 +2173,24 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
             )}
             {tableColumns.length > 0 && (
               <ColumnPicker columns={tableColumns} hiddenColumns={effectiveHiddenColumns} onChange={setHiddenColumns} columnOrder={columnOrder} onColumnOrderChange={setColumnOrder} defaultHiddenColumns={defaultHiddenColumns} onReset={handleColumnReset} lockedVisibleKeys={forcedSideColumnKeys} />
+            )}
+            {sortOverride && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSortOverride(null);
+                  setCurrentPage(0);
+                  setPageInputValue('1');
+                  setVisibleCount(BATCH_SIZE);
+                }}
+                title={`Sorted by ${humanizeFieldName(sortOverride.field)} ${sortOverride.order === 'ASC' ? 'A→Z' : 'Z→A'}. Click to clear and return to default sort.`}
+                className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-primary/30 bg-primary/10 text-primary-dark dark:text-primary-light hover:bg-primary/15 transition-colors whitespace-nowrap"
+              >
+                <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l6 6M9 3l-6 6" />
+                </svg>
+                Reset sort
+              </button>
             )}
           </div>
         ) : undefined}
@@ -2668,6 +2733,16 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         interactiveCellHint="Double-click to use as the rule's Transaction Type"
         originalEditingDef={editingDef}
         activeDefinitionId={tagClickDefinitionId ?? editingDef?.Id}
+        sortOverride={sortOverride}
+        onSortChange={(next) => {
+          setSortOverride(next);
+          // Sort changes invalidate the current page. Snap the operator back
+          // to the top of the freshly-ordered dataset in both paginators so
+          // they don't land on an empty/mismatched page after the resort.
+          setCurrentPage(0);
+          setPageInputValue('1');
+          setVisibleCount(BATCH_SIZE);
+        }}
       />
       )}
 
@@ -2769,7 +2844,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                 const newPage = currentPage - 1;
                 setCurrentPage(newPage);
                 setPageInputValue(String(newPage + 1));
-                if (isLiveMode) fetchPage(outgoingFilters, false, newPage, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined);
+                if (isLiveMode) fetchPage(outgoingFilters, false, newPage, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined, effectiveSorting);
               }}>
                 &larr; Previous
               </Button>
@@ -2785,7 +2860,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                     const num = parseInt(pageInputValue, 10);
                     if (!isNaN(num) && num >= 1 && num <= classicTotalPages) {
                       setCurrentPage(num - 1);
-                      if (isLiveMode) fetchPage(outgoingFilters, false, num - 1, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined);
+                      if (isLiveMode) fetchPage(outgoingFilters, false, num - 1, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined, effectiveSorting);
                     }
                     setPageInputValue(String(currentPage + 1));
                   }}
@@ -2795,7 +2870,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                       if (!isNaN(num) && num >= 1 && num <= classicTotalPages) {
                         setCurrentPage(num - 1);
                         setPageInputValue(String(num));
-                        if (isLiveMode) fetchPage(outgoingFilters, false, num - 1, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined);
+                        if (isLiveMode) fetchPage(outgoingFilters, false, num - 1, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined, effectiveSorting);
                       } else {
                         setPageInputValue(String(currentPage + 1));
                       }
@@ -2808,7 +2883,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                 const newPage = currentPage + 1;
                 setCurrentPage(newPage);
                 setPageInputValue(String(newPage + 1));
-                if (isLiveMode) fetchPage(outgoingFilters, false, newPage, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined);
+                if (isLiveMode) fetchPage(outgoingFilters, false, newPage, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined, effectiveSorting);
               }}>
                 Next &rarr;
               </Button>

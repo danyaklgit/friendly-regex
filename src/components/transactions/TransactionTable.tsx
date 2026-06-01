@@ -20,7 +20,10 @@ import { CommentDialog, type CommentDialogResult } from './CommentDialog';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { Modal } from '../shared/Modal';
 import { Button } from '../shared/Button';
-import type { SetTransactionsCommentEntry } from '../../api/transactions';
+import type { SetTransactionsCommentEntry, SortOverride, SortableField } from '../../api/transactions';
+import { SORTABLE_FIELDS } from '../../api/transactions';
+
+const SORTABLE_FIELD_SET = new Set<string>(SORTABLE_FIELDS);
 
 interface TransactionTableProps {
   data: AnalyzedTransaction[];
@@ -69,6 +72,12 @@ interface TransactionTableProps {
    * attribute name but extract different values.
    */
   activeDefinitionId?: string;
+  /** Current alphabetical sort override, or null when default sort is in
+   *  effect. Drives the chevron indicator on sortable column headers. */
+  sortOverride?: SortOverride | null;
+  /** Click handler for sortable column headers. Receives the next override
+   *  the table wants to apply (null clears back to default sorting). */
+  onSortChange?: (next: SortOverride | null) => void;
 }
 
 type ColumnDef =
@@ -490,7 +499,36 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
 
 export type { ColumnDef };
 
-export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, definitionSourceMap, definitionVersions, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, onFlagDeadEndWithComment, onSetComments, onHideTagDefs, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, accentHue = 190, onRowContextMenu, onCellDoubleClick, interactiveCellFields, interactiveCellHint, originalEditingDef, activeDefinitionId }: TransactionTableProps) {
+/**
+ * Tiny chevron indicator for sortable column headers. When inactive, both
+ * up and down arrows render at low opacity (revealed on header hover via
+ * group-hover) so operators discover that the header is interactive. When
+ * a direction is active, only that arrow renders at full strength.
+ */
+function SortChevron({ activeOrder }: { activeOrder: 'ASC' | 'DESC' | null }) {
+  if (activeOrder === 'ASC') {
+    return (
+      <svg className="w-3 h-3 shrink-0" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+        <path strokeLinecap="round" strokeLinejoin="round" d="m3 7 3-3 3 3" />
+      </svg>
+    );
+  }
+  if (activeOrder === 'DESC') {
+    return (
+      <svg className="w-3 h-3 shrink-0" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+        <path strokeLinecap="round" strokeLinejoin="round" d="m3 5 3 3 3-3" />
+      </svg>
+    );
+  }
+  return (
+    <svg className="w-3 h-3 shrink-0 opacity-30 group-hover:opacity-70 transition-opacity" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" d="m3 5 3-3 3 3" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="m3 7 3 3 3-3" />
+    </svg>
+  );
+}
+
+export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, definitionSourceMap, definitionVersions, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, onFlagDeadEndWithComment, onSetComments, onHideTagDefs, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, accentHue = 190, onRowContextMenu, onCellDoubleClick, interactiveCellFields, interactiveCellHint, originalEditingDef, activeDefinitionId, sortOverride = null, onSortChange }: TransactionTableProps) {
   const { fieldMeta } = useTransactionData();
   const { lovLookup } = useLovAttributes();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -1977,14 +2015,43 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
             <tr>
               {visibleColumns.map((col, idx) => {
                 const isAttr = col.type === 'attribute';
+                const isSortable = col.type === 'data' && !!onSortChange && SORTABLE_FIELD_SET.has(col.field);
+                const activeSort = isSortable && sortOverride && sortOverride.field === col.field ? sortOverride.order : null;
+                const ariaSort: 'ascending' | 'descending' | 'none' | undefined =
+                  isSortable ? (activeSort === 'ASC' ? 'ascending' : activeSort === 'DESC' ? 'descending' : 'none') : undefined;
+                const handleSortClick = () => {
+                  if (!isSortable || !onSortChange) return;
+                  const field = col.field as SortableField;
+                  if (!sortOverride || sortOverride.field !== field) onSortChange({ field, order: 'ASC' });
+                  else if (sortOverride.order === 'ASC') onSortChange({ field, order: 'DESC' });
+                  else onSortChange(null);
+                };
+                const sortTitle = !isSortable
+                  ? undefined
+                  : activeSort === 'ASC'
+                    ? 'Sorted A→Z. Click to sort Z→A.'
+                    : activeSort === 'DESC'
+                      ? 'Sorted Z→A. Click to clear sort.'
+                      : 'Click to sort A→Z.';
                 return (
                   <th
                     key={col.key}
                     className={`px-3 ${cellPy} text-left text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap ${isAttr ? 'text-primary-dark bg-white dark:bg-slate-800' : 'text-body-secondary bg-surface-secondary'
                       }`}
                     style={{ ...getCellStyle(idx, true),paddingBottom: 8, boxShadow: hasOverflow ? `inset 0 -3px 0 ${columnAccentColors.get(col.key)}` : undefined }}
+                    aria-sort={ariaSort}
                   >
-                    {col.type === 'data' && humanizeFieldName(col.field)}
+                    {col.type === 'data' && (isSortable ? (
+                      <button
+                        type="button"
+                        onClick={handleSortClick}
+                        title={sortTitle}
+                        className={`group inline-flex items-center gap-1 -my-1 -ml-1 pl-1 pr-1.5 py-1 rounded hover:bg-primary/10 transition-colors ${activeSort ? 'text-primary-dark dark:text-primary-light' : 'text-body-secondary'}`}
+                      >
+                        <span>{humanizeFieldName(col.field)}</span>
+                        <SortChevron activeOrder={activeSort} />
+                      </button>
+                    ) : humanizeFieldName(col.field))}
                     {col.type === 'attribute' && humanizeFieldName(col.name)}
                     {col.type === 'tags' && (
                       <div className="flex items-center gap-1.5">

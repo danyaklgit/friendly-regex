@@ -2,7 +2,7 @@ import { createContext, useState, useMemo, useCallback, useRef, useEffect, type 
 import type { TransactionRow } from '../types';
 import { deriveFieldMeta, type FieldMeta } from '../utils/deriveFieldMeta';
 import { translateFilters } from '../utils/translateFilters';
-import { getTransactions, getFilters, getUserFilters, markTransactionsAsDeadEnd, unmarkDeadEndTransactions, setTransactionsComment, DEFAULT_SORTING, type TepHeaders, type FilterDefinition, type FilterProperty, type SetTransactionsCommentEntry } from '../api/transactions';
+import { getTransactions, getFilters, getUserFilters, markTransactionsAsDeadEnd, unmarkDeadEndTransactions, setTransactionsComment, DEFAULT_SORTING, type TepHeaders, type FilterDefinition, type FilterProperty, type SetTransactionsCommentEntry, type SortProperty } from '../api/transactions';
 import { useAuth } from './AuthContext';
 import { useTepConfig } from './TepConfigContext';
 import sampleTransactionData from '../data/sampleData.json';
@@ -26,8 +26,8 @@ export interface TransactionDataContextValue {
   /** Fetches a page of transactions. Resolves with the rows that were just
    *  loaded (the new chunk in append mode, or the full page in replace mode).
    *  Resolves with an empty array on abort, error, or non-live mode. */
-  fetchPage: (filters: Record<string, Set<string>>, append: boolean, pageIndex?: number, pageSize?: number, extraFilters?: FilterProperty[]) => Promise<TransactionRow[]>;
-  fetchCount: (filters: Record<string, Set<string>>, extraFilters?: FilterProperty[]) => Promise<number | null>;
+  fetchPage: (filters: Record<string, Set<string>>, append: boolean, pageIndex?: number, pageSize?: number, extraFilters?: FilterProperty[], sortingProperties?: SortProperty[]) => Promise<TransactionRow[]>;
+  fetchCount: (filters: Record<string, Set<string>>, extraFilters?: FilterProperty[], sortingProperties?: SortProperty[]) => Promise<number | null>;
   trimLoadedTransactions: (count: number) => void;
   filterDefinitions: FilterDefinition[];
   filterDefinitionsLoading: boolean;
@@ -289,7 +289,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
     if (results.size > 0) setDecimalMaxValues(results);
   }, [isLiveMode, getAuthHeaders, refreshIfNeeded, userId, tepConfig]);
 
-  const fetchPage = useCallback(async (filters: Record<string, Set<string>>, append: boolean, explicitPage?: number, pageSize?: number, extraFilters?: FilterProperty[]): Promise<TransactionRow[]> => {
+  const fetchPage = useCallback(async (filters: Record<string, Set<string>>, append: boolean, explicitPage?: number, pageSize?: number, extraFilters?: FilterProperty[], sortingProperties?: SortProperty[]): Promise<TransactionRow[]> => {
     if (!isLiveMode) return [];
 
     // Auto-refresh session if <5 min remaining
@@ -330,7 +330,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
       const data = await getTransactions(
         {
           FilteringProperties: [...translateFilters(filters, filterDefinitionsRef.current), ...(extraFilters ?? [])],
-          SortingProperties: DEFAULT_SORTING,
+          SortingProperties: sortingProperties ?? DEFAULT_SORTING,
           Pagination: { PageIndex: pageIndex, PageSize: effectivePageSize },
         },
         token,
@@ -382,7 +382,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
     }
   }, [isLiveMode, getAuthHeaders, refreshIfNeeded, userId, tepConfig]);
 
-  const fetchCount = useCallback(async (filters: Record<string, Set<string>>, extraFilters?: FilterProperty[]): Promise<number | null> => {
+  const fetchCount = useCallback(async (filters: Record<string, Set<string>>, extraFilters?: FilterProperty[], sortingProperties?: SortProperty[]): Promise<number | null> => {
     if (!isLiveMode) return null;
     await refreshIfNeeded();
     const authHeaders = getAuthHeaders();
@@ -400,7 +400,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
       const data = await getTransactions(
         {
           FilteringProperties: [...translateFilters(filters, filterDefinitionsRef.current), ...(extraFilters ?? [])],
-          SortingProperties: DEFAULT_SORTING,
+          SortingProperties: sortingProperties ?? DEFAULT_SORTING,
           Pagination: { PageIndex: 0, PageSize: 1 },
         },
         token,
