@@ -379,7 +379,7 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
       {open && (
         <>
           <DropdownBackdrop onClick={() => { setOpen(false); setSearch(''); }} />
-          <div ref={scrollContainerRef} className="absolute top-full mt-1 right-0 z-50 bg-surface border border-border rounded-lg shadow-lg min-w-64 max-h-72 overflow-y-auto custom-scrollbar p-1.5">
+          <div ref={scrollContainerRef} className="absolute top-full mt-1 right-0 z-50 bg-surface border border-border rounded-lg shadow-lg min-w-64 max-h-72 overflow-y-auto custom-scrollbar px-1.5 pb-1.5">
             <div className="sticky top-0 bg-surface z-10 border-b border-border-subtle mb-1 pt-2 pb-1.5">
               <div className="px-2 pb-1.5">
                 <input
