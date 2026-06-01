@@ -200,10 +200,44 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
   }, [attribute, snapshot]);
 
   const handleDiscard = useCallback(() => {
-    if (snapshot) {
-      onUpdate(snapshot);
-      setSnapshot({ ...snapshot });
-    }
+    if (!snapshot) return;
+    // Build an explicit reset payload covering every modifiable field.
+    // `onUpdate` is a partial merge in the parent, and `{ ...snapshot }`
+    // for a brand-new attribute lacks keys the operator added later
+    // (e.g. `isConstant`, `constantValue`, `pattern`) — those keys
+    // weren't created by `createEmptyAttribute`, so spreading the
+    // snapshot leaves whatever the operator toggled on still set.
+    // Listing each field forces the merge to overwrite, so Discard
+    // truly restores the row to its pre-edit state.
+    const reset: Partial<AttributeFormValue> = {
+      attributeTag: snapshot.attributeTag,
+      isMandatory: snapshot.isMandatory ?? false,
+      validationRuleTag: snapshot.validationRuleTag ?? '',
+      sourceField: snapshot.sourceField ?? '',
+      extractionOperation: snapshot.extractionOperation,
+      prefix: snapshot.prefix ?? '',
+      suffix: snapshot.suffix ?? '',
+      pattern: snapshot.pattern,
+      verifyValue: snapshot.verifyValue,
+      numChars: snapshot.numChars,
+      toStr: snapshot.toStr,
+      occurrence: snapshot.occurrence,
+      startingPosition: snapshot.startingPosition,
+      fromPosition: snapshot.fromPosition,
+      toStart: snapshot.toStart,
+      tillEndOfInput: snapshot.tillEndOfInput,
+      prefixOccurrence: snapshot.prefixOccurrence,
+      suffixOccurrence: snapshot.suffixOccurrence,
+      suffixOrEndOfInput: snapshot.suffixOrEndOfInput,
+      isConstant: snapshot.isConstant ?? false,
+      constantValue: snapshot.constantValue,
+      isLovBased: snapshot.isLovBased ?? false,
+      lovTag: snapshot.lovTag ?? null,
+      transformations: snapshot.transformations ?? [],
+      _originalRegex: snapshot._originalRegex,
+    };
+    onUpdate(reset);
+    setSnapshot({ ...snapshot });
   }, [snapshot, onUpdate]);
 
   const selectedOp = EXTRACTION_OPERATIONS.find((op) => op.key === attribute.extractionOperation);
