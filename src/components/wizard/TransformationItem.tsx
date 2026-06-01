@@ -105,9 +105,12 @@ export function TransformationItem({
         />
       </div>
 
-      {/* Dynamic args */}
+      {/* Dynamic args. `items-end` mirrors the outer row so siblings whose
+          labels wrap to two lines (e.g. "Pick Index (0-based)") don't drop
+          their input below the rest of the row — every input bottom-aligns
+          on the same baseline regardless of label height. */}
       {hasArgs && (
-        <div className="flex gap-1.5 flex-1 min-w-0">
+        <div className="flex items-end gap-1.5 flex-1 min-w-0">
           {methodDef!.args.map((argDef) => {
             const isCheckbox = argDef.type === 'checkbox';
             const checked = transformation.args[argDef.key] === 'true';
