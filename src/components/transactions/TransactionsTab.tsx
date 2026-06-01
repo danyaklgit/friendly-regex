@@ -320,6 +320,10 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     [libraries, builder.formState.tag, builderAttributeNamesKey],
   );
   const [builderOpen, setBuilderOpen] = useState(false);
+  // When collapsed the builder shows only its header bar (title, type/tag
+  // picker, action buttons) so the operator can hand the rest of the screen
+  // over to the transactions table without closing the builder entirely.
+  const [builderCollapsed, setBuilderCollapsed] = useState(false);
   const [lovBrowserOpen, setLovBrowserOpen] = useState(false);
   const [searchPanelOpen, setSearchPanelOpen] = useState(false);
   const builderRef = useRef<HTMLDivElement>(null);
@@ -531,6 +535,12 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     const ro = new ResizeObserver(([entry]) => setBuilderHeight(entry.contentRect.height));
     ro.observe(el);
     return () => ro.disconnect();
+  }, [builderOpen]);
+
+  // Reset the collapse toggle whenever the builder closes so the next open
+  // starts expanded — operators rarely want a freshly-opened builder hidden.
+  useEffect(() => {
+    if (!builderOpen) setBuilderCollapsed(false);
   }, [builderOpen]);
 
 
@@ -2161,57 +2171,84 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
               // user clicked in the table to drill into.
               const currentTagName = editingDef?.Tag ?? tagClickState?.tagName ?? null;
               const currentTagId = editingDef?.Id ?? tagClickState?.definitionId ?? null;
+              const collapseToggle = (
+                <button
+                  type="button"
+                  onClick={() => setBuilderCollapsed((v) => !v)}
+                  className="inline-flex items-center justify-center w-5 h-5 rounded-full text-white/90 hover:text-white hover:bg-white/10 transition-all duration-200 ease-out"
+                  title={builderCollapsed ? 'Expand the rule builder' : 'Collapse the rule builder to give the table more space'}
+                  aria-label={builderCollapsed ? 'Expand rule builder' : 'Collapse rule builder'}
+                  aria-expanded={!builderCollapsed}
+                >
+                  <svg
+                    className={`w-3.5 h-3.5 transition-transform duration-200 ease-out ${builderCollapsed ? '-rotate-90' : ''}`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={2.25}
+                    stroke="currentColor"
+                    aria-hidden
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                  </svg>
+                </button>
+              );
               if (currentTagName) {
                 return (
-                  <div className="min-w-0">
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-primary-dark/70">
-                      Rule Builder
-                    </div>
-                    <div className="flex items-center gap-2.5 flex-wrap mt-1">
-                      <span className="font-mono text-sm font-semibold text-primary-dark truncate">
-                        {currentTagName}
-                      </span>
-                      {currentTagId && (
-                        <CopyableId id={currentTagId} truncateAt={12} tone="default" />
-                      )}
-                      {ruleBuilderLibraryId && (
-                        <WizardCommentIconButton
-                          formKey={WIZARD_DEFINITION_FORM_KEY}
-                          kind="definition"
-                          targetLabel={currentTagName}
-                          persistedTarget={
-                            editingDef?.Id
-                              ? {
-                                  TagSpecLibraryId: ruleBuilderLibraryId,
-                                  TagSpecDefinitionId: editingDef.Id,
-                                }
-                              : null
-                          }
-                          size="xs"
-                        />
-                      )}
+                  <div className="flex items-start gap-2 min-w-0">
+                    <span className="flex items-center h-3.5">{collapseToggle}</span>
+                    <div className="min-w-0">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-primary-dark/70 leading-3.5">
+                        Rule Builder
+                      </div>
+                      <div className="flex items-center gap-2.5 flex-wrap mt-1">
+                        <span className="font-mono text-sm font-semibold text-primary-dark truncate">
+                          {currentTagName}
+                        </span>
+                        {currentTagId && (
+                          <CopyableId id={currentTagId} truncateAt={12} tone="default" />
+                        )}
+                        {ruleBuilderLibraryId && (
+                          <WizardCommentIconButton
+                            formKey={WIZARD_DEFINITION_FORM_KEY}
+                            kind="definition"
+                            targetLabel={currentTagName}
+                            persistedTarget={
+                              editingDef?.Id
+                                ? {
+                                    TagSpecLibraryId: ruleBuilderLibraryId,
+                                    TagSpecDefinitionId: editingDef.Id,
+                                  }
+                                : null
+                            }
+                            size="xs"
+                          />
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
               }
               return (
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2.5">
-                    <h3 className="text-sm font-semibold text-primary-dark">Rule Builder</h3>
-                    {ruleBuilderLibraryId && (
-                      <WizardCommentIconButton
-                        formKey={WIZARD_DEFINITION_FORM_KEY}
-                        kind="definition"
-                        targetLabel={builder.formState.tag || 'New tag'}
-                        persistedTarget={null}
-                        size="xs"
-                        title="Comment on this tag (queued until Save)"
-                      />
-                    )}
+                <div className="flex items-start gap-2 min-w-0">
+                  <span className="flex items-center h-5">{collapseToggle}</span>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2.5">
+                      <h3 className="text-sm font-semibold text-primary-dark leading-5">Rule Builder</h3>
+                      {ruleBuilderLibraryId && (
+                        <WizardCommentIconButton
+                          formKey={WIZARD_DEFINITION_FORM_KEY}
+                          kind="definition"
+                          targetLabel={builder.formState.tag || 'New tag'}
+                          persistedTarget={null}
+                          size="xs"
+                          title="Comment on this tag (queued until Save)"
+                        />
+                      )}
+                    </div>
+                    <p className="text-xs text-primary-dark">
+                      Build rules and see their effect on the table in real time.
+                    </p>
                   </div>
-                  <p className="text-xs text-primary-dark">
-                    Build rules and see their effect on the table in real time.
-                  </p>
                 </div>
               );
             })()}
@@ -2329,6 +2366,13 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
           </div>
 
 
+          <div
+            className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${
+              builderCollapsed ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100'
+            }`}
+            aria-hidden={builderCollapsed}
+          >
+          <div className="overflow-hidden min-h-0">
           <div className="p-5 flex flex-col md:flex-row  flex-1 gap-5">
             {/* Matching rules section */}
             <div className='w-full md:w-1/2'>
@@ -2520,6 +2564,8 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
               </Button>
             </div>
           )}
+          </div>
+          </div>
         </div>
         );
         return ruleBuilderLibraryId ? (
