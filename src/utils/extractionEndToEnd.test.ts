@@ -248,4 +248,42 @@ describe('extraction end-to-end: suffixOrEndOfInput (the "/ORDP/(.*?)(?:/|$)" sh
     });
     expect(extract(row, a)).toBeNull();
   });
+
+  // Regression: when the prefix is immediately followed by the suffix char
+  // (very common with single-space suffix on padded narratives), the lazy
+  // `(.*?)` matches zero chars and the regex captures an empty string. The
+  // backend interprets this rule as "the next non-suffix chunk after the
+  // prefix" and stores the right value post-check-in; the frontend now
+  // matches that behavior so the rule preview / live view don't diverge.
+  it('skips leading suffix runs when the prefix sits right before the suffix (space-suffix case)', () => {
+    const row: TransactionRow = {
+      AdditionalInformation: 'Your account is credited with USD 37884,00 ITTR EPHS981242043524 20240722002 05871',
+    };
+    const a = attr({
+      sourceField: 'AdditionalInformation',
+      operation: 'extract_between',
+      extraction: { prefix: 'EPHS981242043524', suffix: ' ', suffixOrEndOfInput: true },
+    });
+    expect(extract(row, a)).toBe('20240722002');
+  });
+
+  it('skips multiple leading suffix chars before capturing the next chunk', () => {
+    const row: TransactionRow = { AdditionalInformation: 'TAG   value end' };
+    const a = attr({
+      sourceField: 'AdditionalInformation',
+      operation: 'extract_between',
+      extraction: { prefix: 'TAG', suffix: ' ', suffixOrEndOfInput: true },
+    });
+    expect(extract(row, a)).toBe('value');
+  });
+
+  it('still captures the natural value when no leading suffix run is present', () => {
+    const row: TransactionRow = { AdditionalInformation: 'TAGvalue end' };
+    const a = attr({
+      sourceField: 'AdditionalInformation',
+      operation: 'extract_between',
+      extraction: { prefix: 'TAG', suffix: ' ', suffixOrEndOfInput: true },
+    });
+    expect(extract(row, a)).toBe('value');
+  });
 });

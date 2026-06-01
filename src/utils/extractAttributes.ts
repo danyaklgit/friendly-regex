@@ -25,6 +25,30 @@ export function stringifyFieldValue(sourceField: string, value: unknown): string
 }
 
 /**
+ * Run a regex against the field string and return the LAST defined capture
+ * group, or null if the regex doesn't match. The "last defined" rule (vs.
+ * always taking group 1) matters for user-authored patterns like
+ * `(?:.*?/(.*)){3}(/(.*))` where the intended value sits in a later group
+ * rather than the iteration-reused group 1.
+ *
+ * Returns the literal empty string when the match captured no characters
+ * (distinct from null / "no match at all"). Callers that care about the
+ * difference (e.g. retry-on-empty for the lazy `(?:X|$)` shape) can branch
+ * on it; callers that don't can treat null and "" interchangeably.
+ */
+function matchAndPickCapture(fieldString: string, regexStr: string): string | null {
+  const regex = new RegExp(regexStr);
+  const match = fieldString.match(regex);
+  if (!match) return null;
+  for (let i = match.length - 1; i >= 1; i--) {
+    if (match[i] !== undefined) {
+      return match[i];
+    }
+  }
+  return null;
+}
+
+/**
  * Extracts attribute values from a matched transaction row.
  * Returns a record of { attributeTag → extracted value or null }.
  *
@@ -66,22 +90,24 @@ export function extractAttributes(
       extracted = fieldString;
     } else {
       try {
-        const regex = new RegExp(regexStr);
-        const match = fieldString.match(regex);
-        // Pick the LAST defined capture group rather than always group 1.
-        // - regexify-generated patterns have a single capture group → unchanged
-        //   behavior (last group === group 1).
-        // - user-authored patterns like `(?:.*?/(.*)){3}(/(.*))` where the
-        //   intended value sits in a later/inner group now extract correctly.
-        //   In JS, group 1 of that pattern is the LAST iteration of the
-        //   repeated `(.*)`, not the desired tail — so always taking [1]
-        //   silently returned the wrong segment.
-        extracted = null;
-        if (match) {
-          for (let i = match.length - 1; i >= 1; i--) {
-            if (match[i] !== undefined) {
-              extracted = match[i];
-              break;
+        extracted = matchAndPickCapture(fieldString, regexStr);
+        // "Between X and (space-or-end)" patterns shaped like
+        // `<prefix>(.*?)(?:<suffix>|$)` lazily capture an EMPTY string when
+        // the prefix is immediately followed by the suffix character. The
+        // operator's intent is the next non-suffix chunk — the backend
+        // extracts it correctly post-check-in, so the displayed cell would
+        // otherwise diverge from the saved truth. Retry once with a
+        // greedy leading-suffix skip + non-empty capture and accept that
+        // result if it pulls a real value out.
+        if (extracted === '') {
+          const eoiMatch = regexStr.match(/^(.*)\(\.\*\?\)\(\?:(.+?)\|\$\)$/);
+          if (eoiMatch) {
+            const head = eoiMatch[1];
+            const suf = eoiMatch[2];
+            const rewritten = `${head}(?:${suf})*(.+?)(?:${suf}|$)`;
+            const retry = matchAndPickCapture(fieldString, rewritten);
+            if (retry !== null && retry !== '') {
+              extracted = retry;
             }
           }
         }
