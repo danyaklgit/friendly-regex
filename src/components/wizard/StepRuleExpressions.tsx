@@ -18,6 +18,9 @@ interface StepRuleExpressionsProps {
   /** Forwarded to nested ConditionEditors so they can render comment icons. */
   libraryId?: string;
   definitionId?: string;
+  /** Forwarded from TransactionsTab so the Create Rule button can disable
+   *  while any condition is still mid-edit. */
+  onConditionEditingChange?: (conditionId: string, editing: boolean) => void;
 }
 
 export function StepRuleExpressions({
@@ -33,6 +36,7 @@ export function StepRuleExpressions({
   readOnly,
   libraryId,
   definitionId,
+  onConditionEditingChange,
 }: StepRuleExpressionsProps) {
   // For each rule set, which OTHER rule set has the same canonical conditions
   // (or null when unique). Computed once for all groups so every duplicate
@@ -74,6 +78,7 @@ export function StepRuleExpressions({
               duplicateOfGroupIndex={duplicateOfIndex[i]}
               libraryId={libraryId}
               definitionId={definitionId}
+              onConditionEditingChange={onConditionEditingChange}
             />
           </div>
         ))

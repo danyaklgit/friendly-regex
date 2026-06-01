@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import type { AttributeFormValue, TransactionRow } from '../../types';
 import { Input } from '../shared/Input';
 import { SearchableSelect } from '../shared/SearchableSelect';
@@ -82,6 +82,11 @@ interface AttributeEditorProps {
    *  the active filter columns (ACTIVE / released). Defaults to 'ops' in
    *  the modal when omitted. */
   tagSpecKind?: 'ops' | 'active';
+  /** Fired whenever this row's local Save/Discard edit mode flips so the
+   *  outer Create Rule button can disable while any row is still
+   *  uncommitted. Also fires on unmount with `false` so removed rows
+   *  leave the parent's "currently editing" set. */
+  onEditingChange?: (attributeId: string, editing: boolean) => void;
 }
 
 /**
@@ -122,7 +127,7 @@ function BoundaryHintIcon({
   );
 }
 
-export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transactions, startCollapsed, readOnly, isDuplicateName, suggestedAttributeNames, suggestedTagName, libraryId, definitionId, tagSpecKind }: AttributeEditorProps) {
+export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transactions, startCollapsed, readOnly, isDuplicateName, suggestedAttributeNames, suggestedTagName, libraryId, definitionId, tagSpecKind, onEditingChange }: AttributeEditorProps) {
   const { fieldMeta } = useTransactionData();
   const { activeAttributes, validationClasses, validationOptions, lovOptions, lovLookup, createNewAttribute, transformationMethods, extractionMethods } = useLovAttributes();
   const [showDistinct, setShowDistinct] = useState(false);
@@ -141,6 +146,18 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
   const [snapshot, setSnapshot] = useState<AttributeFormValue | null>(() =>
     !startCollapsed ? { ...attribute } : null
   );
+
+  // Bubble edit-mode state up to the rule-builder header so the "Create
+  // Rule with current settings" button can stay disabled while any
+  // attribute is still mid-edit. Cleanup fires `false` on unmount so a
+  // removed row doesn't leave the parent's set thinking it's still
+  // editing.
+  useEffect(() => {
+    onEditingChange?.(attribute.id, editing);
+    return () => {
+      onEditingChange?.(attribute.id, false);
+    };
+  }, [editing, attribute.id, onEditingChange]);
 
   // Build attribute name options from backend attributes, with optional
   // "Suggested from other 'X' defs" section pinned at the top.

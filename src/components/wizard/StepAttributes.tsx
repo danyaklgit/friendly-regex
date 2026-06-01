@@ -39,9 +39,12 @@ interface StepAttributesProps {
   /** Lifecycle of the parent library; forwarded to AttributeEditor so the
    *  distinct-values modal picks the right column family (ops vs active). */
   tagSpecKind?: 'ops' | 'active';
+  /** Forwarded from TransactionsTab so the Create Rule button can disable
+   *  while any attribute is still mid-edit. */
+  onAttributeEditingChange?: (attributeId: string, editing: boolean) => void;
 }
 
-export function StepAttributes({ attributes, onAdd, onRemove, onClone, onUpdate, onReorder, transactions, startCollapsed, readOnly, suggestedAttributeNames, suggestedTagName, libraryId, definitionId, tagSpecKind }: StepAttributesProps) {
+export function StepAttributes({ attributes, onAdd, onRemove, onClone, onUpdate, onReorder, transactions, startCollapsed, readOnly, suggestedAttributeNames, suggestedTagName, libraryId, definitionId, tagSpecKind, onAttributeEditingChange }: StepAttributesProps) {
   // For each attribute, the index of the earlier row sharing its (trimmed,
   // case-insensitive) name, or null when it's unique. Only the later
   // duplicate carries the flag so the original stays clean.
@@ -121,6 +124,7 @@ export function StepAttributes({ attributes, onAdd, onRemove, onClone, onUpdate,
                     libraryId={libraryId}
                     definitionId={definitionId}
                     tagSpecKind={tagSpecKind}
+                    onEditingChange={onAttributeEditingChange}
                   />
                 </SortableAttributeRow>
               ))}

@@ -27,6 +27,9 @@ interface RuleGroupEditorProps {
   /** Forwarded to each ConditionEditor so it can render a comment icon. */
   libraryId?: string;
   definitionId?: string;
+  /** Forwarded from the outer step so the Create Rule button can see when
+   *  a condition is still mid-edit. */
+  onConditionEditingChange?: (conditionId: string, editing: boolean) => void;
 }
 
 export function RuleGroupEditor({
@@ -44,6 +47,7 @@ export function RuleGroupEditor({
   duplicateOfGroupIndex,
   libraryId,
   definitionId,
+  onConditionEditingChange,
 }: RuleGroupEditorProps) {
   const [isExpanded, setIsExpanded] = useState(!startCollapsed);
 
@@ -155,6 +159,7 @@ export function RuleGroupEditor({
                     isGroupDuplicate={duplicateOfGroupIndex != null}
                     libraryId={libraryId}
                     definitionId={definitionId}
+                    onEditingChange={onConditionEditingChange}
                   />
                 );
               })}

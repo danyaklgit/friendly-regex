@@ -1064,11 +1064,33 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     hasIncompleteCondition(builder.formState.ruleGroups)
       || hasEmptyRuleGroup(builder.formState.ruleGroups)
   ), [builder.formState.ruleGroups]);
+
+  // Set of condition / attribute IDs whose Save / Discard buttons are
+  // currently visible (the row is mid-edit but uncommitted). Each editor
+  // bubbles its local `editing` flag up via `onEditingChange`; cleanup on
+  // unmount fires `false` so removed rows leave the set automatically.
+  // While the set is non-empty the Create Rule button is blocked — saving
+  // now would persist a stale form value while the visible editor still
+  // shows an unsaved one.
+  const [editingRowIds, setEditingRowIds] = useState<Set<string>>(new Set());
+  const handleRowEditingChange = useCallback((id: string, editing: boolean) => {
+    setEditingRowIds((prev) => {
+      const has = prev.has(id);
+      if (editing === has) return prev;
+      const next = new Set(prev);
+      if (editing) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }, []);
+  const builderHasUnsavedRow = editingRowIds.size > 0;
+
   const canCreateFromBuilder =
     canSubmitBuilder
     && !builderHasDuplicates
     && !builderHasIncompleteAttribute
-    && !builderHasIncompleteRule;
+    && !builderHasIncompleteRule
+    && !builderHasUnsavedRow;
 
   // Live preview: which existing tag definitions match the rule the user is
   // currently authoring? Fired only while the builder is open. Hook owns the
@@ -2274,7 +2296,9 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                           ? 'Finish filling (or remove) the unsaved rule set before saving.'
                           : builderHasIncompleteAttribute
                             ? 'Finish filling (or remove) the unsaved attribute before saving.'
-                            : 'Fix or remove the duplicate rule sets, conditions, or attributes flagged above before saving.'
+                            : builderHasUnsavedRow
+                              ? 'Save or discard the open condition/attribute editor before creating the rule.'
+                              : 'Fix or remove the duplicate rule sets, conditions, or attributes flagged above before saving.'
                     }
                     placement="bottom"
                   >
@@ -2350,6 +2374,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                   : builder.removeCondition}
                 onUpdateCondition={builder.updateCondition}
                 onConditionSave={tagClickState ? () => handleApplyRules() : undefined}
+                onConditionEditingChange={handleRowEditingChange}
                 startCollapsed={!!editingDef}
                 readOnly={isReadOnly}
               />
@@ -2380,6 +2405,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                     ? 'ops'
                     : 'active'
                 }
+                onAttributeEditingChange={handleRowEditingChange}
               />
             </div>
           </div>

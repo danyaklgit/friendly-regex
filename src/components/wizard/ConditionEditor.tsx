@@ -48,6 +48,11 @@ interface ConditionEditorProps {
   /** Comment scope — passed in from the editor that knows the library + def. */
   libraryId?: string;
   definitionId?: string;
+  /** Fired whenever this row's local Save/Discard edit mode flips so the
+   *  outer Create Rule button can disable while any row is still
+   *  uncommitted. Also fires on unmount with `false` so removed rows
+   *  leave the parent's "currently editing" set. */
+  onEditingChange?: (conditionId: string, editing: boolean) => void;
 }
 
 
@@ -64,6 +69,7 @@ export function ConditionEditor({
   isGroupDuplicate,
   libraryId,
   definitionId,
+  onEditingChange,
 }: ConditionEditorProps) {
   const { fieldMeta, transactions } = useTransactionData();
   const [editing, setEditing] = useState(
@@ -72,6 +78,18 @@ export function ConditionEditor({
   const [snapshot, setSnapshot] = useState<ConditionFormValue | null>(() =>
     !startCollapsed ? { ...condition } : null
   );
+
+  // Bubble local edit-mode state up to the rule-builder header so the
+  // "Create Rule with current settings" button can stay disabled while
+  // any condition is still mid-edit (Save/Discard buttons visible).
+  // Cleanup fires `false` on unmount so removed rows don't leave the
+  // parent's set thinking they're still editing.
+  useEffect(() => {
+    onEditingChange?.(condition.id, editing);
+    return () => {
+      onEditingChange?.(condition.id, false);
+    };
+  }, [editing, condition.id, onEditingChange]);
 
   const hasChanges = useMemo(() => {
     if (!snapshot) return false;
