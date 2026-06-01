@@ -1982,10 +1982,9 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
           )}
           {/* Export — only meaningful in live mode (the backend owns the
               dataset); hidden in sample/upload modes where there's no
-              server-side data to export. Stays available while the Rule
-              Builder is open: exporting is a read-only data action, not a
-              tag mutation, so it doesn't interfere with builder state. */}
-          {isLiveMode && downloadCenter && (() => {
+              server-side data to export. Also hidden while the Rule Builder
+              is open so the toolbar focuses on builder controls. */}
+          {isLiveMode && downloadCenter && !builderOpen && (() => {
             const exportBtn = (
               <Button
                 variant="secondary"
