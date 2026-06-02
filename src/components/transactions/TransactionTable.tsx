@@ -78,7 +78,36 @@ interface TransactionTableProps {
   /** Click handler for sortable column headers. Receives the next override
    *  the table wants to apply (null clears back to default sorting). */
   onSortChange?: (next: SortOverride | null) => void;
+  /** Per-column width override map, keyed by `ColumnDef.key` (e.g.
+   *  "data:AdditionalInformation"). Absent keys fall back to the column's
+   *  natural width — the resize handle on the header is what populates
+   *  entries here. */
+  columnWidths?: Record<string, number>;
+  /** Fired when the operator drags a column resize handle. Passing `null`
+   *  for `width` clears the override and reverts to natural width. */
+  onColumnWidthChange?: (key: string, width: number | null) => void;
 }
+
+// Default widths (in px) for columns whose natural width is too wide to
+// render comfortably in the half-screen budget the table is given when
+// the rule builder is open. The Additional Information narrative is the
+// dominant case — without a sensible default it wraps to 5+ lines per
+// row, which then prevents collapsing the rule builder from showing any
+// extra rows in the table. Columns not listed here fall back to the
+// browser's auto-layout sizing.
+const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
+  'data:AdditionalInformation': 320,
+};
+// Columns operators may drag to resize. Restricted to the narrative
+// fields where width matters and where the line-clamp + drag-to-extend
+// affordance pays off. Other data columns are short enough that auto
+// layout handles them fine.
+const RESIZABLE_COLUMN_KEYS = new Set([
+  'data:AdditionalInformation',
+  'data:Description1',
+  'data:Description2',
+  'data:TransactionDetails',
+]);
 
 type ColumnDef =
   | { type: 'data'; key: string; field: string }
@@ -500,6 +529,71 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
 export type { ColumnDef };
 
 /**
+ * Vertical drag handle pinned to the right edge of a resizable column
+ * header. Holds a pointer-down listener that switches to window-level
+ * mousemove / mouseup so the drag survives leaving the cell, and pushes
+ * the new width through `onChange` while the operator is still dragging
+ * (so the layout previews live, not just on release). Double-click
+ * clears any override and reverts to the column's natural / default
+ * width so it's easy to undo an over-zoom.
+ *
+ * Width is floored at 120px so the column can't shrink small enough to
+ * eat its own header label, and capped at 1200px to avoid an accidental
+ * drag past the visible viewport.
+ */
+function ColumnResizeHandle({
+  currentWidth,
+  onChange,
+}: {
+  currentWidth: number;
+  onChange: (next: number | null) => void;
+}) {
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      // Left button only — right-click / context menu interactions on
+      // the handle would otherwise spawn a stale resize session.
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const startX = e.clientX;
+      const startWidth = currentWidth > 0 ? currentWidth : (e.currentTarget.parentElement?.getBoundingClientRect().width ?? 200);
+      const onMove = (ev: PointerEvent) => {
+        const next = Math.max(120, Math.min(1200, startWidth + (ev.clientX - startX)));
+        onChange(next);
+      };
+      const onUp = () => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      };
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    },
+    [currentWidth, onChange],
+  );
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Drag to resize column. Double-click to reset."
+      onPointerDown={handlePointerDown}
+      onDoubleClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onChange(null);
+      }}
+      title="Drag to resize. Double-click to reset."
+      className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize group/resize select-none"
+    >
+      <div className="absolute inset-y-0 right-0 w-px bg-border-strong/40 group-hover/resize:bg-primary group-hover/resize:w-0.5 transition-all" />
+    </div>
+  );
+}
+
+/**
  * Tiny chevron indicator for sortable column headers. When inactive, both
  * up and down arrows render at low opacity (revealed on header hover via
  * group-hover) so operators discover that the header is interactive. When
@@ -528,7 +622,18 @@ function SortChevron({ activeOrder }: { activeOrder: 'ASC' | 'DESC' | null }) {
   );
 }
 
-export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, definitionSourceMap, definitionVersions, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, onFlagDeadEndWithComment, onSetComments, onHideTagDefs, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, accentHue = 190, onRowContextMenu, onCellDoubleClick, interactiveCellFields, interactiveCellHint, originalEditingDef, activeDefinitionId, sortOverride = null, onSortChange }: TransactionTableProps) {
+export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, definitionSourceMap, definitionVersions, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, onFlagDeadEndWithComment, onSetComments, onHideTagDefs, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, accentHue = 190, onRowContextMenu, onCellDoubleClick, interactiveCellFields, interactiveCellHint, originalEditingDef, activeDefinitionId, sortOverride = null, onSortChange, columnWidths, onColumnWidthChange }: TransactionTableProps) {
+  // Resolve the effective width for a column: explicit override wins,
+  // otherwise the catalog default, otherwise undefined (browser
+  // auto-layout). Memoized so the lookup is O(1) per header / cell.
+  const resolveColumnWidth = useCallback(
+    (key: string): number | undefined => {
+      const override = columnWidths?.[key];
+      if (typeof override === 'number' && Number.isFinite(override) && override > 0) return override;
+      return DEFAULT_COLUMN_WIDTHS[key];
+    },
+    [columnWidths],
+  );
   const { fieldMeta } = useTransactionData();
   const { lovLookup } = useLovAttributes();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -2033,12 +2138,14 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                     : activeSort === 'DESC'
                       ? 'Sorted Z→A. Click to clear sort.'
                       : 'Click to sort A→Z.';
+                const isResizable = !!onColumnWidthChange && RESIZABLE_COLUMN_KEYS.has(col.key);
+                const explicitWidth = resolveColumnWidth(col.key);
                 return (
                   <th
                     key={col.key}
-                    className={`px-3 ${cellPy} text-left text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap ${isAttr ? 'text-primary-dark bg-white dark:bg-slate-800' : 'text-body-secondary bg-surface-secondary'
+                    className={`relative px-3 ${cellPy} text-left text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap ${isAttr ? 'text-primary-dark bg-white dark:bg-slate-800' : 'text-body-secondary bg-surface-secondary'
                       }`}
-                    style={{ ...getCellStyle(idx, true),paddingBottom: 8, boxShadow: hasOverflow ? `inset 0 -3px 0 ${columnAccentColors.get(col.key)}` : undefined }}
+                    style={{ ...getCellStyle(idx, true), paddingBottom: 8, width: explicitWidth, minWidth: explicitWidth, boxShadow: hasOverflow ? `inset 0 -3px 0 ${columnAccentColors.get(col.key)}` : undefined }}
                     aria-sort={ariaSort}
                   >
                     {col.type === 'data' && (isSortable ? (
@@ -2053,6 +2160,12 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                       </button>
                     ) : humanizeFieldName(col.field))}
                     {col.type === 'attribute' && humanizeFieldName(col.name)}
+                    {isResizable && onColumnWidthChange && (
+                      <ColumnResizeHandle
+                        currentWidth={explicitWidth ?? 0}
+                        onChange={(next) => onColumnWidthChange(col.key, next)}
+                      />
+                    )}
                     {col.type === 'tags' && (
                       <div className="flex items-center gap-1.5">
                         {onFlagDeadEnd && (
@@ -2146,19 +2259,42 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                           {
                             const isInteractive =
                               !!onCellDoubleClick && !!interactiveCellFields?.has(col.field);
+                            const cellWidth = resolveColumnWidth(col.key);
+                            // In non-compact mode, narrative columns
+                            // (Additional Information, Description 1 / 2,
+                            // Transaction Details) clamp to 3 lines. Without
+                            // this clamp a single long-narrative row eats 5+
+                            // line-heights of vertical space, which then
+                            // negates collapsing the rule builder (the
+                            // freed maxHeight only fits 1-2 of those tall
+                            // rows). Operators that need the full text can
+                            // drag the column wider via the header handle.
+                            const clampNarrative = !relaxedMode && RESIZABLE_COLUMN_KEYS.has(col.key);
+                            const rawValue = item.row[col.field];
+                            const titleAttr = isInteractive
+                              ? (interactiveCellHint ?? 'Double-click to use')
+                              : clampNarrative && rawValue != null
+                                ? String(rawValue)
+                                : undefined;
                             return (
                               <td
                                 key={col.key}
-                                className={`px-3 ${cellPy} text-xs text-body-secondary ${relaxedMode ? 'whitespace-nowrap' : 'max-w-200'} ${stickyBg} ${isHighlighted ? 'ring-1 ring-primary/30 ring-inset bg-primary/5 dark:bg-primary/10' : ''} ${isInteractive ? 'cursor-pointer hover:ring-1 hover:ring-primary/50 hover:bg-primary/5 dark:hover:bg-primary/10 transition-shadow select-none' : ''}`}
-                                style={getCellStyle(colIdx, false)}
-                                title={isInteractive ? (interactiveCellHint ?? 'Double-click to use') : undefined}
+                                className={`px-3 ${cellPy} text-xs text-body-secondary ${relaxedMode ? 'whitespace-nowrap' : 'align-top'} ${stickyBg} ${isHighlighted ? 'ring-1 ring-primary/30 ring-inset bg-primary/5 dark:bg-primary/10' : ''} ${isInteractive ? 'cursor-pointer hover:ring-1 hover:ring-primary/50 hover:bg-primary/5 dark:hover:bg-primary/10 transition-shadow select-none' : ''}`}
+                                style={{ ...getCellStyle(colIdx, false), width: cellWidth, maxWidth: cellWidth }}
+                                title={titleAttr}
                                 onDoubleClick={
                                   onCellDoubleClick
                                     ? () => onCellDoubleClick(col.field, item.row[col.field], item.row)
                                     : undefined
                                 }
                               >
-                                {renderCellContent(col.field, item.row[col.field])}
+                                {clampNarrative ? (
+                                  <div className="line-clamp-3 whitespace-pre-wrap break-words">
+                                    {renderCellContent(col.field, rawValue)}
+                                  </div>
+                                ) : (
+                                  renderCellContent(col.field, rawValue)
+                                )}
                                 {stickyEdgeShadow(colIdx)}
                               </td>
                             );

@@ -374,6 +374,26 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       return stored ? parseSortOverride(JSON.parse(stored)) : null;
     } catch { return null; }
   });
+  // Per-column width overrides, in pixels. Lets the operator drag the
+  // Additional Information (and any other narrative) column wider when
+  // the default + line-clamp is too tight to read. Keyed by column key
+  // (e.g. "data:AdditionalInformation"); absent keys fall back to the
+  // column's natural / default width.
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => {
+    try {
+      const stored = localStorage.getItem('tep:columnWidths');
+      if (!stored) return {};
+      const parsed = JSON.parse(stored);
+      if (parsed && typeof parsed === 'object') {
+        const cleaned: Record<string, number> = {};
+        for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+          if (typeof v === 'number' && Number.isFinite(v) && v > 0) cleaned[k] = v;
+        }
+        return cleaned;
+      }
+      return {};
+    } catch { return {}; }
+  });
   // Memoize the effective sort property array so passing it into useEffect
   // / useCallback dependency lists is stable as long as the override hasn't
   // changed. Falls back to DEFAULT_SORTING when no override is active.
@@ -549,6 +569,12 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       else localStorage.removeItem('tep:sortOverride');
     } catch { /* ignore */ }
   }, [sortOverride]);
+  useEffect(() => {
+    try {
+      if (Object.keys(columnWidths).length === 0) localStorage.removeItem('tep:columnWidths');
+      else localStorage.setItem('tep:columnWidths', JSON.stringify(columnWidths));
+    } catch { /* ignore */ }
+  }, [columnWidths]);
 
   // Track builder panel height so the table can adjust its maxHeight
   useEffect(() => {
@@ -2750,6 +2776,15 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
           setCurrentPage(0);
           setPageInputValue('1');
           setVisibleCount(BATCH_SIZE);
+        }}
+        columnWidths={columnWidths}
+        onColumnWidthChange={(key, width) => {
+          setColumnWidths((prev) => {
+            const next = { ...prev };
+            if (width == null) delete next[key];
+            else next[key] = width;
+            return next;
+          });
         }}
       />
       )}
