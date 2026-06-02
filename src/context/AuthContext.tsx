@@ -230,6 +230,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(id);
   }, [session]);
 
+  // Keep usersMap fresh for the lifetime of the session. Previously the map
+  // was populated only during login() and never touched again — if the
+  // initial getUsersInfo silently failed, or if the map was ever cleared,
+  // there was no recovery path for the rest of the session and the Backlog
+  // OPERATOR column reverted to raw UUIDs even though every other API call
+  // continued to work with the auto-refreshed token. Refetching on every
+  // accessToken change (login + each silent refresh) gives a self-heal
+  // path; preserving the prior map on failure means a single transient
+  // backend hiccup never blanks the operator names mid-session.
+  useEffect(() => {
+    const token = session?.accessToken;
+    if (!token) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const allUsers = sanitizeUsers(await getUsersInfo(token));
+        if (cancelled) return;
+        const entries: [string, string][] = allUsers.map(
+          (u) => [u.id, `${u.firstName} ${u.lastName}`.trim()],
+        );
+        // An empty list almost always means the backend rejected the call
+        // (the live tenant has >0 operators). Preserve the prior map so
+        // sanitizeUsers stripping every entry can't blank the names.
+        if (entries.length === 0) return;
+        setUsersMap(new Map(entries));
+        try {
+          localStorage.setItem(USERS_MAP_KEY, JSON.stringify(entries));
+        } catch { /* ignore quota errors */ }
+      } catch {
+        // Keep prior usersMap so a transient network / auth blip doesn't
+        // surface as the bug we're trying to fix. The next token refresh
+        // re-runs this effect and gets another chance.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [session?.accessToken]);
+
   const login = useCallback(async (user: string, pass: string, useDummy = true): Promise<LoginResult> => {
     try {
       const hashedPassword = await sha256(pass);
