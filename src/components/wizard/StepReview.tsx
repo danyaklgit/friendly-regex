@@ -2,6 +2,17 @@ import type { WizardFormState } from '../../types';
 import { Badge } from '../shared/Badge';
 import { RulePreview } from './RulePreview';
 
+/** Render a validity range as plain text for the Review summary. Single-
+ *  sided ranges fall back to "From <date>" / "Until <date>" and the
+ *  fully-empty case surfaces "No validity" so the row always reads as a
+ *  positive answer instead of being missing. */
+function formatValidity(start: string | null, end: string | null): string {
+  if (start && end) return `${start} to ${end}`;
+  if (start) return `From ${start}`;
+  if (end) return `Until ${end}`;
+  return 'No validity';
+}
+
 interface StepReviewProps {
   formState: WizardFormState;
   isEditing: boolean;
@@ -46,14 +57,10 @@ export function StepReview({ formState, isEditing }: StepReviewProps) {
             {formState.certaintyLevelTag}
           </Badge>
 
-          {(formState.validity.StartDate || formState.validity.EndDate) && (
-            <>
-              <span className="text-muted">Validity</span>
-              <span className="text-heading">
-                {formState.validity.StartDate}{formState.validity.EndDate ? ` to ${formState.validity.EndDate}` : ''}
-              </span>
-            </>
-          )}
+          <span className="text-muted">Validity</span>
+          <span className="text-heading">
+            {formatValidity(formState.validity.StartDate, formState.validity.EndDate)}
+          </span>
         </div>
       </div>
 

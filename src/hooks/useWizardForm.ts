@@ -22,6 +22,31 @@ import {
 import { generateId, generateExpressionId } from '../utils/uuid';
 import { cloneRulesAndAttributesFrom } from '../utils/cloneRulesAndAttributes';
 
+/**
+ * Sentinel value the backend ships on `Validity.StartDate` to mean "no
+ * validity start" — every rule in the live GetTagSpecLibraries snapshot
+ * carries this exact string when the operator hasn't set a real start
+ * date. Treating it as a literal date would surface "12/31/2025" in the
+ * Basic Info Validity section for rules that the operator believes have
+ * no validity, and would also fire the per-picker × clear button. We
+ * normalize it to `null` on read so the form state matches operator
+ * intent; the existing `tagSpecLibrarySave` sanitizer already accepts
+ * null on write and the backend re-defaults to the sentinel server-side.
+ *
+ * Extend this list if additional backend defaults surface (e.g. an
+ * EndDate sentinel). Exact-match only — bare dates like "2025-12-31"
+ * (no time portion) are real operator-set values and must pass through.
+ */
+const VALIDITY_NO_BOUND_SENTINELS: ReadonlySet<string> = new Set([
+  '2025-12-31T22:00:00Z',
+]);
+
+function normalizeValidityBound(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  if (VALIDITY_NO_BOUND_SENTINELS.has(raw)) return null;
+  return raw;
+}
+
 export function fromExistingDefinition(
   def: TagSpecDefinition,
   parentLib?: TagSpecLibrary,
@@ -59,7 +84,10 @@ export function fromExistingDefinition(
     transactionTypeCode: getContextValue(def.Context, 'TransactionTypeCode') ?? '',
     statusTag: def.StatusTag,
     certaintyLevelTag: def.CertaintyLevelTag,
-    validity: { ...def.Validity },
+    validity: {
+      StartDate: normalizeValidityBound(def.Validity.StartDate),
+      EndDate: normalizeValidityBound(def.Validity.EndDate),
+    },
     ruleGroups: ruleGroupsWithIds,
     attributes: attributesWithOriginalRegex,
   };

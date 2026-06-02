@@ -86,16 +86,24 @@ export function TagWizardModal({ existingDef, parentLib, initialFormState, initi
 
   const isStepValid = (step: WizardStep): boolean => {
     switch (step) {
-      case 1:
+      case 1: {
         // Transaction type is always required: a tag with only a transaction
         // type is a valid rule (matches every row of that type), so it must
         // be set even when the rest of the wizard is empty.
+        // Validity is optional; when both bounds are set the range must not
+        // be inverted. Lexicographic compare on YYYY-MM-DD ISO strings is
+        // sufficient (no Date parsing). Either bound being null or empty
+        // short-circuits to valid — single-sided ranges are allowed.
+        const { StartDate, EndDate } = wizard.formState.validity;
+        const validityValid = !StartDate || !EndDate || StartDate <= EndDate;
         return (
           wizard.formState.tag.trim().length > 0 &&
           wizard.formState.side.trim().length > 0 &&
           wizard.formState.bankSwiftCode.trim().length > 0 &&
-          wizard.formState.transactionTypeCode.trim().length > 0
+          wizard.formState.transactionTypeCode.trim().length > 0 &&
+          validityValid
         );
+      }
       case 2:
         // Rule expressions are optional, but a duplicate OR an unfinished
         // placeholder rule set blocks forward progress — both would otherwise
@@ -119,6 +127,12 @@ export function TagWizardModal({ existingDef, parentLib, initialFormState, initi
   // reasons since a row that isn't filled in yet can't meaningfully be a
   // duplicate either.
   const nextBlockedReason = (() => {
+    if (wizard.currentStep === 1) {
+      const { StartDate, EndDate } = wizard.formState.validity;
+      if (StartDate && EndDate && StartDate > EndDate) {
+        return 'Valid To cannot be earlier than Valid From.';
+      }
+    }
     if (wizard.currentStep === 2) {
       if (hasIncompleteRule) {
         return 'Finish filling (or remove) the unsaved rule set before continuing.';
