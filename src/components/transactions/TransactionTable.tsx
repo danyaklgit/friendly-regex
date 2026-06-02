@@ -98,11 +98,13 @@ interface TransactionTableProps {
 const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
   'data:AdditionalInformation': 320,
 };
-// Columns operators may drag to resize. Restricted to the narrative
-// fields where width matters and where the line-clamp + drag-to-extend
-// affordance pays off. Other data columns are short enough that auto
-// layout handles them fine.
-const RESIZABLE_COLUMN_KEYS = new Set([
+// Narrative columns: in non-compact mode their content wraps and gets
+// clamped to 3 lines so a single long row doesn't crowd out the table.
+// Other column types (numeric, codes, dates) clip with ellipsis in
+// compact mode but don't need the line-clamp treatment because they
+// don't carry multi-line content. Resize is allowed on every column;
+// this set only controls the wrap/clamp behavior.
+const NARRATIVE_COLUMN_KEYS = new Set([
   'data:AdditionalInformation',
   'data:Description1',
   'data:Description2',
@@ -529,6 +531,44 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
 export type { ColumnDef };
 
 /**
+ * Wraps a data-cell's content so it respects the cell's `max-width`
+ * without bleeding into the next column. Auto-layout tables don't honor
+ * `max-width` on `<td>` for `whitespace-nowrap` content unless the
+ * overflow is handled here.
+ *
+ * - Compact mode + width override: single line, ellipsis truncate
+ * - Non-compact mode + narrative column: three-line clamp (whitespace
+ *   preserved so multi-paragraph narratives still read naturally)
+ * - Non-compact mode + non-narrative column: natural wrap (default)
+ *
+ * Without a width override the wrapper degrades to a passthrough so
+ * legacy columns keep their previous behavior.
+ */
+function CellContentWrapper({
+  relaxedMode,
+  narrative,
+  hasWidth,
+  children,
+}: {
+  relaxedMode: boolean;
+  narrative: boolean;
+  hasWidth: boolean;
+  children: React.ReactNode;
+}) {
+  if (relaxedMode) {
+    if (!hasWidth) return <>{children}</>;
+    return <div className="truncate">{children}</div>;
+  }
+  if (narrative) {
+    return <div className="line-clamp-3 whitespace-pre-wrap break-words">{children}</div>;
+  }
+  if (hasWidth) {
+    return <div className="break-words">{children}</div>;
+  }
+  return <>{children}</>;
+}
+
+/**
  * Vertical drag handle pinned to the right edge of a resizable column
  * header. Holds a pointer-down listener that switches to window-level
  * mousemove / mouseup so the drag survives leaving the cell, and pushes
@@ -625,14 +665,21 @@ function SortChevron({ activeOrder }: { activeOrder: 'ASC' | 'DESC' | null }) {
 export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, definitionSourceMap, definitionVersions, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, onFlagDeadEndWithComment, onSetComments, onHideTagDefs, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, accentHue = 190, onRowContextMenu, onCellDoubleClick, interactiveCellFields, interactiveCellHint, originalEditingDef, activeDefinitionId, sortOverride = null, onSortChange, columnWidths, onColumnWidthChange }: TransactionTableProps) {
   // Resolve the effective width for a column: explicit override wins,
   // otherwise the catalog default, otherwise undefined (browser
-  // auto-layout). Memoized so the lookup is O(1) per header / cell.
+  // auto-layout). Width overrides are intentionally scoped to non-compact
+  // mode — operators rely on compact mode for its natural single-line
+  // auto-layout, and carrying widths over would re-introduce the
+  // overlapping-cell artifacts a saved override from non-compact mode
+  // produced. The resize handle is hidden in compact mode for the same
+  // reason: dragging it would not visibly take effect until the operator
+  // switched modes, which reads as a broken control.
   const resolveColumnWidth = useCallback(
     (key: string): number | undefined => {
+      if (relaxedMode) return undefined;
       const override = columnWidths?.[key];
       if (typeof override === 'number' && Number.isFinite(override) && override > 0) return override;
       return DEFAULT_COLUMN_WIDTHS[key];
     },
-    [columnWidths],
+    [columnWidths, relaxedMode],
   );
   const { fieldMeta } = useTransactionData();
   const { lovLookup } = useLovAttributes();
@@ -2138,14 +2185,18 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                     : activeSort === 'DESC'
                       ? 'Sorted Z→A. Click to clear sort.'
                       : 'Click to sort A→Z.';
-                const isResizable = !!onColumnWidthChange && RESIZABLE_COLUMN_KEYS.has(col.key);
+                // Compact mode keeps the original auto-layout behavior, so
+                // the resize handle is suppressed there. Persisted widths
+                // are preserved on disk — switching back to non-compact
+                // restores them.
+                const isResizable = !!onColumnWidthChange && !relaxedMode;
                 const explicitWidth = resolveColumnWidth(col.key);
                 return (
                   <th
                     key={col.key}
                     className={`relative px-3 ${cellPy} text-left text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap ${isAttr ? 'text-primary-dark bg-white dark:bg-slate-800' : 'text-body-secondary bg-surface-secondary'
                       }`}
-                    style={{ ...getCellStyle(idx, true), paddingBottom: 8, width: explicitWidth, minWidth: explicitWidth, boxShadow: hasOverflow ? `inset 0 -3px 0 ${columnAccentColors.get(col.key)}` : undefined }}
+                    style={{ ...getCellStyle(idx, true), paddingBottom: 8, width: explicitWidth, minWidth: explicitWidth, maxWidth: explicitWidth, boxShadow: hasOverflow ? `inset 0 -3px 0 ${columnAccentColors.get(col.key)}` : undefined }}
                     aria-sort={ariaSort}
                   >
                     {col.type === 'data' && (isSortable ? (
@@ -2260,26 +2311,22 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                             const isInteractive =
                               !!onCellDoubleClick && !!interactiveCellFields?.has(col.field);
                             const cellWidth = resolveColumnWidth(col.key);
-                            // In non-compact mode, narrative columns
-                            // (Additional Information, Description 1 / 2,
-                            // Transaction Details) clamp to 3 lines. Without
-                            // this clamp a single long-narrative row eats 5+
-                            // line-heights of vertical space, which then
-                            // negates collapsing the rule builder (the
-                            // freed maxHeight only fits 1-2 of those tall
-                            // rows). Operators that need the full text can
-                            // drag the column wider via the header handle.
-                            const clampNarrative = !relaxedMode && RESIZABLE_COLUMN_KEYS.has(col.key);
+                            const isNarrative = NARRATIVE_COLUMN_KEYS.has(col.key);
                             const rawValue = item.row[col.field];
+                            // Always expose the raw value via title when the
+                            // cell is at risk of clipping (narrative columns,
+                            // or any column with an explicit width override).
+                            // The interactive double-click hint takes priority
+                            // when set so the operator still sees it.
                             const titleAttr = isInteractive
                               ? (interactiveCellHint ?? 'Double-click to use')
-                              : clampNarrative && rawValue != null
+                              : (isNarrative || cellWidth != null) && rawValue != null
                                 ? String(rawValue)
                                 : undefined;
                             return (
                               <td
                                 key={col.key}
-                                className={`px-3 ${cellPy} text-xs text-body-secondary ${relaxedMode ? 'whitespace-nowrap' : 'align-top'} ${stickyBg} ${isHighlighted ? 'ring-1 ring-primary/30 ring-inset bg-primary/5 dark:bg-primary/10' : ''} ${isInteractive ? 'cursor-pointer hover:ring-1 hover:ring-primary/50 hover:bg-primary/5 dark:hover:bg-primary/10 transition-shadow select-none' : ''}`}
+                                className={`px-3 ${cellPy} text-xs text-body-secondary ${relaxedMode ? 'whitespace-nowrap' : 'align-top'} ${cellWidth != null ? 'overflow-hidden' : ''} ${stickyBg} ${isHighlighted ? 'ring-1 ring-primary/30 ring-inset bg-primary/5 dark:bg-primary/10' : ''} ${isInteractive ? 'cursor-pointer hover:ring-1 hover:ring-primary/50 hover:bg-primary/5 dark:hover:bg-primary/10 transition-shadow select-none' : ''}`}
                                 style={{ ...getCellStyle(colIdx, false), width: cellWidth, maxWidth: cellWidth }}
                                 title={titleAttr}
                                 onDoubleClick={
@@ -2288,21 +2335,26 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                                     : undefined
                                 }
                               >
-                                {clampNarrative ? (
-                                  <div className="line-clamp-3 whitespace-pre-wrap break-words">
-                                    {renderCellContent(col.field, rawValue)}
-                                  </div>
-                                ) : (
-                                  renderCellContent(col.field, rawValue)
-                                )}
+                                <CellContentWrapper
+                                  relaxedMode={relaxedMode}
+                                  narrative={isNarrative}
+                                  hasWidth={cellWidth != null}
+                                >
+                                  {renderCellContent(col.field, rawValue)}
+                                </CellContentWrapper>
                                 {stickyEdgeShadow(colIdx)}
                               </td>
                             );
                           }
                         }
-                        case 'dates':
+                        case 'dates': {
+                          const cellWidth = resolveColumnWidth(col.key);
                           return (
-                            <td key={col.key} className={`px-3 ${cellPy} text-xs text-body-secondary ${stickyBg}`} style={getCellStyle(colIdx, false)}>
+                            <td
+                              key={col.key}
+                              className={`px-3 ${cellPy} text-xs text-body-secondary ${cellWidth != null ? 'overflow-hidden' : ''} ${stickyBg}`}
+                              style={{ ...getCellStyle(colIdx, false), width: cellWidth, maxWidth: cellWidth }}
+                            >
                               <div className={relaxedMode ? 'flex gap-2 whitespace-nowrap' : 'flex flex-col gap-0.5'}>
                                 {col.fields.map((f) => {
                                   const val = item.row[f.key];
@@ -2318,13 +2370,19 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                               {stickyEdgeShadow(colIdx)}
                             </td>
                           );
+                        }
                         case 'debit': {
                           const side = String(item.row['Side'] ?? '');
                           const isDebit = side === 'DR' || side === 'RC';
                           const isReturn = side === 'RC';
                           const amt = isDebit ? item.row['Amount'] : null;
+                          const cellWidth = resolveColumnWidth(col.key);
                           return (
-                            <td key={col.key} className={`px-3 ${cellPy} text-xs text-right font-medium whitespace-nowrap ${amt != null ? 'text-red-600 dark:text-rose-300' : 'text-faint'} ${stickyBg} `} style={getCellStyle(colIdx, false)}>
+                            <td
+                              key={col.key}
+                              className={`px-3 ${cellPy} text-xs text-right font-medium whitespace-nowrap ${cellWidth != null ? 'overflow-hidden' : ''} ${amt != null ? 'text-red-600 dark:text-rose-300' : 'text-faint'} ${stickyBg} `}
+                              style={{ ...getCellStyle(colIdx, false), width: cellWidth, maxWidth: cellWidth }}
+                            >
                               {amt != null ? (
                                 <div className="flex items-center justify-end gap-1">
                                   {isReturn && <Badge variant="amber" size="xs" className="border border-amber-200">RTN</Badge>}
@@ -2340,8 +2398,13 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                           const isCredit = side === 'CR' || side === 'RD';
                           const isReturn = side === 'RD';
                           const amt = isCredit ? item.row['Amount'] : null;
+                          const cellWidth = resolveColumnWidth(col.key);
                           return (
-                            <td key={col.key} className={`px-3 ${cellPy} text-xs text-right font-medium whitespace-nowrap ${amt != null ? 'text-emerald-500 dark:text-emerald-300' : 'text-faint'} ${stickyBg}`} style={getCellStyle(colIdx, false)}>
+                            <td
+                              key={col.key}
+                              className={`px-3 ${cellPy} text-xs text-right font-medium whitespace-nowrap ${cellWidth != null ? 'overflow-hidden' : ''} ${amt != null ? 'text-emerald-500 dark:text-emerald-300' : 'text-faint'} ${stickyBg}`}
+                              style={{ ...getCellStyle(colIdx, false), width: cellWidth, maxWidth: cellWidth }}
+                            >
                               {amt != null ? (
                                 <div className="flex items-center justify-end gap-1">
                                   {isReturn && <Badge variant="amber" size="xs" className="border border-amber-200">RTN</Badge>}
@@ -2353,13 +2416,14 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                           );
                         }
                         case 'attribute': {
+                          const attrCellWidth = resolveColumnWidth(col.key);
                           // Untagged transactions should not display any attribute value
                           if (item.analysis.tags.length === 0) {
                             return (
                               <td
                                 key={col.key}
-                                className={`px-3 ${cellPy} text-xs text-left ${isStickyCol ? 'bg-primary/10 group-hover:bg-primary/15' : 'bg-primary/5'}`}
-                                style={getCellStyle(colIdx, false)}
+                                className={`px-3 ${cellPy} text-xs text-left ${attrCellWidth != null ? 'overflow-hidden' : ''} ${isStickyCol ? 'bg-primary/10 group-hover:bg-primary/15' : 'bg-primary/5'}`}
+                                style={{ ...getCellStyle(colIdx, false), width: attrCellWidth, maxWidth: attrCellWidth }}
                               >
                                 <span className="text-faint">-</span>
                                 {stickyEdgeShadow(colIdx)}
@@ -2419,11 +2483,11 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                           return (
                             <td
                               key={col.key}
-                              className={`px-3 ${cellPy} text-xs ${relaxedMode ? 'whitespace-nowrap' : ''}
+                              className={`px-3 ${cellPy} text-xs ${relaxedMode ? 'whitespace-nowrap' : ''} ${attrCellWidth != null ? 'overflow-hidden' : ''}
                               ${validationIcon ? 'text-center' : 'text-left'}
                               ${validationPassed === true ? 'text-emerald-500 dark:text-emerald-300' : validationPassed === false ? 'text-red-400 dark:text-rose-300' : 'text-primary-dark'}
                               ${isAttrHighlighted ? 'ring-2 ring-blue-400/60 ring-inset bg-blue-50 dark:bg-blue-900/30' : isStickyCol ? 'bg-primary/10 group-hover:bg-primary/15' : 'bg-primary/5'}`}
-                              style={getCellStyle(colIdx, false)}
+                              style={{ ...getCellStyle(colIdx, false), width: attrCellWidth, maxWidth: attrCellWidth }}
                               onMouseEnter={() => {
                                 if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
                                 if (srcField) {
@@ -2437,8 +2501,8 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                               }}
                             >
                               <Tooltip content={getAttributeTooltip(item, col.name) ?? col.name} offsetAmount={8} placement="bottom" delay={500}>
-                                <div className="w-full h-full flex items-center">
-                                  {displayVal ? <span>{validationIcon}{displayVal}</span> : <span className="text-faint">-</span>}
+                                <div className={`w-full h-full flex items-center ${attrCellWidth != null ? (relaxedMode ? 'truncate' : 'overflow-hidden') : ''}`}>
+                                  {displayVal ? <span className={attrCellWidth != null && relaxedMode ? 'truncate' : ''}>{validationIcon}{displayVal}</span> : <span className="text-faint">-</span>}
                                 </div>
                               </Tooltip>
                               {stickyEdgeShadow(colIdx)}
@@ -2448,8 +2512,13 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                         case 'tags': {
                           const hints = getHints(item.row);
                           const hasHints = hints.length > 0;
+                          const tagsCellWidth = resolveColumnWidth(col.key);
                           return (
-                            <td key={col.key} className={`px-3 ${cellPy} ${stickyBg}`} style={getCellStyle(colIdx, false)}>
+                            <td
+                              key={col.key}
+                              className={`px-3 ${cellPy} ${tagsCellWidth != null ? 'overflow-hidden' : ''} ${stickyBg}`}
+                              style={{ ...getCellStyle(colIdx, false), width: tagsCellWidth, maxWidth: tagsCellWidth }}
+                            >
                               <div className="flex items-center gap-1.5">
                                 {onFlagDeadEnd && (
                                   <input

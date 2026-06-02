@@ -117,10 +117,15 @@ export function TransformationItem({
             return (
               <div
                 key={argDef.key}
-                // Checkbox cells size to their label so the in-control text
-                // never truncates; sibling text/number inputs share the
-                // remaining row width equally.
-                className={isCheckbox ? 'shrink-0' : 'flex-1 min-w-0'}
+                // Checkbox cells are sized to a fixed width that fits the
+                // toggle comfortably; the label above the toggle wraps to
+                // multiple lines when needed instead of stretching the cell
+                // horizontally. The previous `shrink-0 + whitespace-nowrap`
+                // combo let long labels (e.g. "Break at special character")
+                // size the cell to the full label, squeezing sibling text /
+                // number inputs to the point where their placeholders got
+                // clipped — even on the cell with the matching arg.
+                className={isCheckbox ? 'w-28 shrink-0' : 'flex-1 min-w-0'}
               >
                 {isCheckbox ? (
                   // Boolean args ride the Record<string,string> form-state as
@@ -130,7 +135,7 @@ export function TransformationItem({
                   // Input's px-3 py-2 + text-sm + rounded-lg border so the row
                   // reads as a single rhythm of equal-height fields.
                   <div className="flex flex-col gap-1">
-                    <span className="text-xs font-medium text-body pl-1 whitespace-nowrap">
+                    <span className="text-xs font-medium text-body pl-1 leading-tight">
                       {argDef.label}
                       {argDef.required && <span className="text-red-500 ml-0.5">*</span>}
                     </span>

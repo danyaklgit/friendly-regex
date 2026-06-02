@@ -585,6 +585,24 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     return () => ro.disconnect();
   }, [builderOpen]);
 
+  // Belt-and-braces re-measure on collapse / expand. The grid-template-rows
+  // transition runs over 300ms; ResizeObserver should pick up the
+  // intermediate frames AND the final size, but browsers batch RO callbacks
+  // and the final reading can be missed when the transition ends on the
+  // same frame as a re-render. Without this, the table's maxHeight stays
+  // anchored to the expanded builder size and operators don't see the
+  // extra rows the collapse was meant to free up. Reads
+  // `getBoundingClientRect().height` after the transition lands so the
+  // table's maxHeight calc always converges to the truth.
+  useEffect(() => {
+    if (!builderOpen) return;
+    const t = setTimeout(() => {
+      const el = builderRef.current;
+      if (el) setBuilderHeight(el.getBoundingClientRect().height);
+    }, 320);
+    return () => clearTimeout(t);
+  }, [builderCollapsed, builderOpen]);
+
   // Reset the collapse toggle whenever the builder closes so the next open
   // starts expanded — operators rarely want a freshly-opened builder hidden.
   useEffect(() => {
@@ -2457,13 +2475,26 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
           </div>
 
 
+          {/* Body collapse uses a max-height + opacity transition rather
+              than the grid-template-rows 1fr/0fr technique. The grid
+              technique animates smoothly visually but, in some browsers,
+              keeps the `1fr` track sized to content even when the container
+              has no explicit height — which leaves the OUTER builder
+              wrapper's borderbox unchanged, so the ResizeObserver below
+              never observes the collapse and the table's maxHeight stays
+              anchored to the expanded size. max-height definitively
+              shrinks the wrapper, the observer picks up the new height,
+              and the table grows into the freed space. The cap is set
+              generously (2000px) so any realistic builder body fits
+              without clipping mid-transition. */}
           <div
-            className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${
-              builderCollapsed ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100'
-            }`}
+            className="overflow-hidden transition-[max-height,opacity] duration-300 ease-out"
+            style={{
+              maxHeight: builderCollapsed ? '0px' : '2000px',
+              opacity: builderCollapsed ? 0 : 1,
+            }}
             aria-hidden={builderCollapsed}
           >
-          <div className="overflow-hidden min-h-0">
           <div className="p-5 flex flex-col md:flex-row  flex-1 gap-5">
             {/* Matching rules section */}
             <div className='w-full md:w-1/2'>
@@ -2663,7 +2694,6 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
               </Button>
             </div>
           )}
-          </div>
           </div>
         </div>
         );

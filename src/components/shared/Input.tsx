@@ -26,8 +26,16 @@ export function Input({ label, className = '', id, error, labelAdornment, ...pro
         <input
           id={inputId}
           aria-invalid={error || undefined}
+          // The two `appearance` utilities and the WebKit pseudo-element
+          // rules strip the browser's native spinner buttons on number
+          // inputs. Those buttons silently consume ~18px on the right edge
+          // of the field, which clips short placeholders ("e.g., 15") in
+          // the narrow transformation arg cells of the rule builder. The
+          // rules are no-ops for text/email/etc. inputs.
           className={`block w-full rounded-lg border ${borderClass} bg-input-bg px-3 py-2 ${error ? 'pr-9' : ''} text-sm text-heading
-            placeholder:text-placeholder focus:ring-1 outline-none transition-colors ${className}`}
+            placeholder:text-placeholder focus:ring-1 outline-none transition-colors
+            [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-outer-spin-button]:m-0
+            [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-inner-spin-button]:m-0 ${className}`}
           {...props}
         />
         {error && (
