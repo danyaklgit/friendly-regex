@@ -43,14 +43,19 @@ export const TRANSFORMATION_METHODS: TransformationMethodDef[] = [
   { key: 'remove_special_chars', label: 'Remove Special Characters', category: 'Removal', args: [] },
   { key: 'remove_spaces_and_line_breaks', label: 'Remove Spaces and Line Breaks', category: 'Removal', args: [] },
 
-  // Find/Replace
+  // Find/Replace.
+  // Placeholders are deliberately short ("e.g., …" style) — the transformations
+  // section sits in the half-width Attributes column of the rule builder, so a
+  // two-arg row's inputs land at ~100-150px each and longer hint copy gets
+  // clipped mid-word. Concrete examples carry more information at that width
+  // than the descriptive sentences they replaced.
   {
     key: 'replace',
     label: 'Replace',
     category: 'Find/Replace',
     args: [
-      { key: 'find', label: 'Find', placeholder: 'Text to find', type: 'text', required: true },
-      { key: 'replaceWith', label: 'Replace With', placeholder: 'Replace with', type: 'text', required: true },
+      { key: 'find', label: 'Find', placeholder: 'e.g., NMSC', type: 'text', required: true },
+      { key: 'replaceWith', label: 'Replace With', placeholder: 'e.g., -X', type: 'text', required: true },
     ],
   },
   {
@@ -58,8 +63,8 @@ export const TRANSFORMATION_METHODS: TransformationMethodDef[] = [
     label: 'Regex Replace',
     category: 'Find/Replace',
     args: [
-      { key: 'pattern', label: 'Pattern', placeholder: 'Regex pattern', type: 'text', required: true },
-      { key: 'replaceWith', label: 'Replace With', placeholder: 'Replace with', type: 'text', required: true },
+      { key: 'pattern', label: 'Pattern', placeholder: 'e.g., \\d+', type: 'text', required: true },
+      { key: 'replaceWith', label: 'Replace With', placeholder: 'e.g., -X', type: 'text', required: true },
     ],
   },
   {
@@ -72,8 +77,8 @@ export const TRANSFORMATION_METHODS: TransformationMethodDef[] = [
     description: 'Args: prefix, replaceWith. Example: "SRCACT//12345" -> "ACC-12345" (prefix "SRCACT//", replaceWith "ACC-")',
     category: 'Find/Replace',
     args: [
-      { key: 'prefix', label: 'Prefix', placeholder: 'Text the value must start with', type: 'text', required: true },
-      { key: 'replaceWith', label: 'Replace With', placeholder: 'Replacement for the prefix', type: 'text', required: true },
+      { key: 'prefix', label: 'Prefix', placeholder: 'e.g., SRCACT//', type: 'text', required: true },
+      { key: 'replaceWith', label: 'Replace With', placeholder: 'e.g., ACC-', type: 'text', required: true },
     ],
   },
   {
@@ -84,8 +89,8 @@ export const TRANSFORMATION_METHODS: TransformationMethodDef[] = [
     description: 'Args: suffix, replaceWith. Example: "12345NMSC" -> "12345-X" (suffix "NMSC", replaceWith "-X")',
     category: 'Find/Replace',
     args: [
-      { key: 'suffix', label: 'Suffix', placeholder: 'Text the value must end with', type: 'text', required: true },
-      { key: 'replaceWith', label: 'Replace With', placeholder: 'Replacement for the suffix', type: 'text', required: true },
+      { key: 'suffix', label: 'Suffix', placeholder: 'e.g., NMSC', type: 'text', required: true },
+      { key: 'replaceWith', label: 'Replace With', placeholder: 'e.g., -X', type: 'text', required: true },
     ],
   },
 
@@ -129,7 +134,7 @@ export const TRANSFORMATION_METHODS: TransformationMethodDef[] = [
     description: 'Args: text. Example: "12345" -> "ACC-12345" (text "ACC-")',
     category: 'Formatting',
     args: [
-      { key: 'text', label: 'Text', placeholder: 'Text to prepend', type: 'text', required: true },
+      { key: 'text', label: 'Text', placeholder: 'e.g., ACC-', type: 'text', required: true },
     ],
   },
   {
@@ -139,7 +144,7 @@ export const TRANSFORMATION_METHODS: TransformationMethodDef[] = [
     description: 'Args: text. Example: "12345" -> "12345-X" (text "-X")',
     category: 'Formatting',
     args: [
-      { key: 'text', label: 'Text', placeholder: 'Text to append', type: 'text', required: true },
+      { key: 'text', label: 'Text', placeholder: 'e.g., -X', type: 'text', required: true },
     ],
   },
 
