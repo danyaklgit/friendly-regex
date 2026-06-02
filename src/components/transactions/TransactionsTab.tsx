@@ -2514,6 +2514,14 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                     : 'active'
                 }
                 onAttributeEditingChange={handleRowEditingChange}
+                libraries={libraries}
+                bankSwiftCode={
+                  // Editing an existing rule: scope to the parent library's bank.
+                  // Creating a new rule: scope to the active checkout's bank.
+                  editingParentLib
+                    ? getContextValue(editingParentLib.Context, 'BankSwiftCode') ?? null
+                    : activeCheckout?.bank ?? null
+                }
               />
             </div>
           </div>

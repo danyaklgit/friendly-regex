@@ -14,11 +14,13 @@ import {
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
-import type { AttributeFormValue, TransactionRow } from '../../types';
+import type { AttributeFormValue, TagSpecLibrary, TransactionRow } from '../../types';
 import { AttributeEditor } from './AttributeEditor';
 import { SortableAttributeRow } from './SortableAttributeRow';
 import { Button } from '../shared/Button';
 import { computeDuplicateAttributeIndexes } from '../../utils/attributeFingerprint';
+import { getAttributeConfigSuggestions, type AttributeConfigSuggestion } from '../../utils/attributeConfigSuggestions';
+import { useLovAttributes } from '../../context/LovAttributesContext';
 
 interface StepAttributesProps {
   attributes: AttributeFormValue[];
@@ -42,13 +44,48 @@ interface StepAttributesProps {
   /** Forwarded from TransactionsTab so the Create Rule button can disable
    *  while any attribute is still mid-edit. */
   onAttributeEditingChange?: (attributeId: string, editing: boolean) => void;
+  /** All known TagSpec libraries. Used to compute same-bank extraction
+   *  suggestions per attribute row. When empty / undefined, the Suggestions
+   *  button stays hidden. */
+  libraries?: TagSpecLibrary[];
+  /** Bank SWIFT code the current rule is scoped to (from `activeCheckout` or
+   *  the editing definition's parent library). Suggestions are sourced from
+   *  this bank only — across CR / DR / RC / RD sides. */
+  bankSwiftCode?: string | null;
 }
 
-export function StepAttributes({ attributes, onAdd, onRemove, onClone, onUpdate, onReorder, transactions, startCollapsed, readOnly, suggestedAttributeNames, suggestedTagName, libraryId, definitionId, tagSpecKind, onAttributeEditingChange }: StepAttributesProps) {
+export function StepAttributes({ attributes, onAdd, onRemove, onClone, onUpdate, onReorder, transactions, startCollapsed, readOnly, suggestedAttributeNames, suggestedTagName, libraryId, definitionId, tagSpecKind, onAttributeEditingChange, libraries, bankSwiftCode }: StepAttributesProps) {
   // For each attribute, the index of the earlier row sharing its (trimmed,
   // case-insensitive) name, or null when it's unique. Only the later
   // duplicate carries the flag so the original stays clean.
   const duplicateOfIndex = useMemo(() => computeDuplicateAttributeIndexes(attributes), [attributes]);
+
+  // Per-attribute-name extraction config suggestions sourced from same-bank
+  // sibling definitions. Computed once per (libraries, bank, lov, current
+  // def) tuple and shared across every row that picks the same attribute
+  // name — recomputing per row would re-walk every library on every render.
+  // Suggestions for the current definition are filtered out so the operator
+  // never sees themselves suggested back when editing in place.
+  const { extractionMethods } = useLovAttributes();
+  const suggestionsByName = useMemo<Map<string, AttributeConfigSuggestion[]>>(() => {
+    const map = new Map<string, AttributeConfigSuggestion[]>();
+    if (!libraries || libraries.length === 0 || !bankSwiftCode) return map;
+    const seenNames = new Set<string>();
+    for (const attr of attributes) {
+      const key = attr.attributeTag.trim().toLowerCase();
+      if (!key || seenNames.has(key)) continue;
+      seenNames.add(key);
+      const suggestions = getAttributeConfigSuggestions(
+        libraries,
+        bankSwiftCode,
+        attr.attributeTag,
+        extractionMethods,
+        definitionId,
+      );
+      if (suggestions.length > 0) map.set(key, suggestions);
+    }
+    return map;
+  }, [libraries, bankSwiftCode, attributes, extractionMethods, definitionId]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -125,6 +162,7 @@ export function StepAttributes({ attributes, onAdd, onRemove, onClone, onUpdate,
                     definitionId={definitionId}
                     tagSpecKind={tagSpecKind}
                     onEditingChange={onAttributeEditingChange}
+                    configSuggestions={suggestionsByName.get(attr.attributeTag.trim().toLowerCase())}
                   />
                 </SortableAttributeRow>
               ))}

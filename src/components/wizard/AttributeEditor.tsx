@@ -19,6 +19,8 @@ import { AttributeFormModal } from '../attributes/AttributeFormModal';
 import { TransformationList } from './TransformationList';
 import { WizardCommentIconButton } from './WizardCommentIconButton';
 import { DistinctValuesModal } from './DistinctValuesModal';
+import { AttributeConfigSuggestionsModal } from './AttributeConfigSuggestionsModal';
+import type { AttributeConfigSuggestion } from '../../utils/attributeConfigSuggestions';
 
 const ALLOWED_SOURCE_FIELDS = new Set([
   'AdditionalInformation', 'Amount', 'BankReference', 'CurrencyCode',
@@ -87,6 +89,13 @@ interface AttributeEditorProps {
    *  uncommitted. Also fires on unmount with `false` so removed rows
    *  leave the parent's "currently editing" set. */
   onEditingChange?: (attributeId: string, editing: boolean) => void;
+  /** Same-bank extraction configs the operator can borrow for the current
+   *  attribute name. Computed upstream from `libraries + activeCheckout.bank
+   *  + attribute.attributeTag`. When non-empty, a "Suggestions" button shows
+   *  up next to the attribute-name picker; clicking it opens a modal where
+   *  the operator picks a card to overwrite source field / extraction /
+   *  transformations / validation in this row. */
+  configSuggestions?: AttributeConfigSuggestion[];
 }
 
 /**
@@ -127,7 +136,7 @@ function BoundaryHintIcon({
   );
 }
 
-export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transactions, startCollapsed, readOnly, isDuplicateName, suggestedAttributeNames, suggestedTagName, libraryId, definitionId, tagSpecKind, onEditingChange }: AttributeEditorProps) {
+export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transactions, startCollapsed, readOnly, isDuplicateName, suggestedAttributeNames, suggestedTagName, libraryId, definitionId, tagSpecKind, onEditingChange, configSuggestions }: AttributeEditorProps) {
   const { fieldMeta } = useTransactionData();
   const { activeAttributes, validationClasses, validationOptions, lovOptions, lovLookup, createNewAttribute, transformationMethods, extractionMethods } = useLovAttributes();
   const [showDistinct, setShowDistinct] = useState(false);
@@ -139,6 +148,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
     !startCollapsed && attribute.attributeTag.trim().length === 0,
   );
   const [createAttrOpen, setCreateAttrOpen] = useState(false);
+  const [configSuggestionsOpen, setConfigSuggestionsOpen] = useState(false);
   const [showValidation, setShowValidation] = useState(!!attribute.validationRuleTag);
   const [hasSaved, setHasSaved] = useState(
     !!startCollapsed || attribute.attributeTag.trim().length > 0,
@@ -740,64 +750,90 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
           </div>
 
           {/* Attribute Name */}
-          <SearchableSelect
-            label="Attribute Name"
-            value={attribute.attributeTag}
-            onChange={(val) => {
-              // Re-picking the same name is a no-op so we don't blow away
-              // a half-filled row just because the operator clicked the
-              // current selection.
-              if (val === attribute.attributeTag) return;
-              const backend = activeAttributes.find((a) => a.Value === val);
-              // Changing the Attribute Name implies "this is a different
-              // field" — any source field, extraction op, toggle, prefix /
-              // suffix, transformations, or validation tag the operator
-              // had filled in for the previous name no longer applies and
-              // would mislead the next save. Reset the row to its blank
-              // shape, then re-apply the new name and any backend LOV
-              // suggestion. `id` is preserved so React keys stay stable
-              // and the row doesn't unmount underneath the operator.
-              const updates: Partial<AttributeFormValue> = {
-                attributeTag: val,
-                isMandatory: false,
-                validationRuleTag: '',
-                sourceField: '',
-                extractionOperation: '' as AttributeFormValue['extractionOperation'],
-                prefix: '',
-                suffix: '',
-                pattern: undefined,
-                verifyValue: undefined,
-                numChars: undefined,
-                toStr: undefined,
-                occurrence: undefined,
-                startingPosition: undefined,
-                fromPosition: undefined,
-                toStart: undefined,
-                tillEndOfInput: undefined,
-                prefixOccurrence: undefined,
-                suffixOccurrence: undefined,
-                suffixOrEndOfInput: undefined,
-                isConstant: false,
-                constantValue: undefined,
-                isLovBased: false,
-                lovTag: null,
-                transformations: [],
-                _originalRegex: undefined,
-              };
-              if (backend?.PossibleLOVTag) {
-                updates.isLovBased = true;
-                updates.lovTag = backend.PossibleLOVTag;
-              }
-              onUpdate(updates);
-            }}
-            options={attributeNameOptions}
-            placeholder="Select attribute…"
-            disabled={readOnly}
-            required={!readOnly}
-            error={!readOnly && attribute.attributeTag.trim().length === 0}
-            onCreateNew={readOnly ? undefined : () => setCreateAttrOpen(true)}
-            createNewLabel="+ Create New Attribute"
-          />
+          <div className="flex items-end gap-2">
+            <div className="flex-1 min-w-0">
+              <SearchableSelect
+                label="Attribute Name"
+                value={attribute.attributeTag}
+                onChange={(val) => {
+                  // Re-picking the same name is a no-op so we don't blow away
+                  // a half-filled row just because the operator clicked the
+                  // current selection.
+                  if (val === attribute.attributeTag) return;
+                  const backend = activeAttributes.find((a) => a.Value === val);
+                  // Changing the Attribute Name implies "this is a different
+                  // field" — any source field, extraction op, toggle, prefix /
+                  // suffix, transformations, or validation tag the operator
+                  // had filled in for the previous name no longer applies and
+                  // would mislead the next save. Reset the row to its blank
+                  // shape, then re-apply the new name and any backend LOV
+                  // suggestion. `id` is preserved so React keys stay stable
+                  // and the row doesn't unmount underneath the operator.
+                  const updates: Partial<AttributeFormValue> = {
+                    attributeTag: val,
+                    isMandatory: false,
+                    validationRuleTag: '',
+                    sourceField: '',
+                    extractionOperation: '' as AttributeFormValue['extractionOperation'],
+                    prefix: '',
+                    suffix: '',
+                    pattern: undefined,
+                    verifyValue: undefined,
+                    numChars: undefined,
+                    toStr: undefined,
+                    occurrence: undefined,
+                    startingPosition: undefined,
+                    fromPosition: undefined,
+                    toStart: undefined,
+                    tillEndOfInput: undefined,
+                    prefixOccurrence: undefined,
+                    suffixOccurrence: undefined,
+                    suffixOrEndOfInput: undefined,
+                    isConstant: false,
+                    constantValue: undefined,
+                    isLovBased: false,
+                    lovTag: null,
+                    transformations: [],
+                    _originalRegex: undefined,
+                  };
+                  if (backend?.PossibleLOVTag) {
+                    updates.isLovBased = true;
+                    updates.lovTag = backend.PossibleLOVTag;
+                  }
+                  onUpdate(updates);
+                }}
+                options={attributeNameOptions}
+                placeholder="Select attribute…"
+                disabled={readOnly}
+                required={!readOnly}
+                error={!readOnly && attribute.attributeTag.trim().length === 0}
+                onCreateNew={readOnly ? undefined : () => setCreateAttrOpen(true)}
+                createNewLabel="+ Create New Attribute"
+              />
+            </div>
+            {!readOnly && configSuggestions && configSuggestions.length > 0 && (
+              <Tooltip
+                content={`Reuse an extraction config from ${configSuggestions.length} other definition(s) in this bank`}
+                placement="top"
+              >
+                <Button
+                  variant="secondary"
+                  size="xs"
+                  onClick={() => setConfigSuggestionsOpen(true)}
+                  className="shrink-0 whitespace-nowrap inline-flex items-center gap-1.5"
+                  data-tour="attribute-config-suggestions"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                  </svg>
+                  Suggestions
+                  <span className="text-[10px] font-semibold bg-primary/15 text-primary-dark dark:text-primary-light rounded-full px-1.5 py-0.5">
+                    {configSuggestions.length}
+                  </span>
+                </Button>
+              </Tooltip>
+            )}
+          </div>
 
           {/* Toggles + LOV */}
           <div className="flex items-center gap-3">
@@ -1437,6 +1473,45 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
           onSave={async (payload) => {
             await createNewAttribute({ Value: payload.Value, Details: payload.Details });
             onUpdate({ attributeTag: payload.Value });
+          }}
+        />
+      )}
+
+      {configSuggestionsOpen && configSuggestions && (
+        <AttributeConfigSuggestionsModal
+          open
+          attributeTag={attribute.attributeTag}
+          suggestions={configSuggestions}
+          onClose={() => setConfigSuggestionsOpen(false)}
+          onApply={(picked) => {
+            // Preserve the row's identity + the operator's stated intent
+            // (attribute name + Mandatory flag); overwrite everything that
+            // describes HOW the value is extracted from the source field.
+            // _originalRegex is intentionally dropped — keeping it would
+            // mask the freshly-applied extraction params on save.
+            onUpdate({
+              sourceField: picked.sourceField,
+              extractionOperation: picked.extractionOperation,
+              prefix: picked.prefix,
+              suffix: picked.suffix,
+              pattern: picked.pattern,
+              suffixOrEndOfInput: picked.suffixOrEndOfInput,
+              numChars: picked.numChars,
+              fromPosition: picked.fromPosition,
+              tillEndOfInput: picked.tillEndOfInput,
+              verifyValue: picked.verifyValue,
+              isConstant: picked.isConstant ?? false,
+              constantValue: picked.constantValue,
+              isLovBased: picked.isLovBased ?? false,
+              lovTag: picked.lovTag ?? null,
+              validationRuleTag: picked.validationRuleTag,
+              transformations: (picked.transformations ?? []).map((t) => ({
+                id: crypto.randomUUID(),
+                method: t.method,
+                args: { ...t.args },
+              })),
+              _originalRegex: undefined,
+            });
           }}
         />
       )}
