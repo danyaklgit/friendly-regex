@@ -1,14 +1,23 @@
 import type { TagSpecLibrary, TagSpecDefinition } from '../types';
 
-export function exportTagLibraries(libraries: TagSpecLibrary[], filename?: string): void {
-  const json = JSON.stringify(libraries, null, 2);
+/**
+ * Stream an arbitrary JSON-serializable value to the user as a downloaded
+ * `.json` file. Mirrors the tag-libraries export path so other Settings
+ * surfaces (hierarchy, attributes) can offer the same UI affordance.
+ */
+export function exportJson(data: unknown, filename: string): void {
+  const json = JSON.stringify(data, null, 2);
   const blob = new Blob([json], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = filename ?? 'tag-libraries.json';
+  a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+export function exportTagLibraries(libraries: TagSpecLibrary[], filename?: string): void {
+  exportJson(libraries, filename ?? 'tag-libraries.json');
 }
 
 export function exportSingleDefinition(

@@ -3,9 +3,11 @@ import { useLovAttributes } from '../../context/LovAttributesContext';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '../shared/Button';
 import { Toast } from '../shared/Toast';
+import { Tooltip } from '../shared/Tooltip';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { AttributeFormModal } from './AttributeFormModal';
 import type { BackendAttribute } from '../../types/lov';
+import { exportJson } from '../../utils/persistence';
 
 export function AttributesPage() {
   const {
@@ -37,6 +39,21 @@ export function AttributesPage() {
   const handleCreate = useCallback(() => {
     setFormOpen(true);
   }, []);
+
+  // UI-based export: stream the currently loaded active attributes (the same
+  // list rendered in the table, minus the search filter) as a .json file.
+  // Mirrors the tags-hierarchy and backlog exports for cross-Settings symmetry.
+  const activeAttributes = useMemo(
+    () => backendAttributes.filter((a) => a.StatusTag === 'ACTIVE' || a.StatusTag === null),
+    [backendAttributes],
+  );
+  const handleExport = useCallback(() => {
+    if (activeAttributes.length === 0) {
+      setToast({ message: 'Nothing to export yet', type: 'error' });
+      return;
+    }
+    exportJson(activeAttributes, 'attributes.json');
+  }, [activeAttributes]);
 
   const handleSave = useCallback(async (payload: { Id?: number; Value: string; PossibleLOVTag?: string | null; Details: { LanguageCode: string; Name: string; ShortDescription: string }[] }) => {
     try {
@@ -81,6 +98,20 @@ export function AttributesPage() {
           />
         </div>
         <div className="flex items-center gap-2 ml-auto">
+          <Tooltip content="Download the current attribute catalog as JSON" placement="bottom">
+            <Button
+              data-tour="attributes-export-button"
+              variant="secondary"
+              size="sm"
+              onClick={handleExport}
+              disabled={activeAttributes.length === 0}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+              </svg>
+              Export
+            </Button>
+          </Tooltip>
           {!isAudit && (
             <Button variant="primary" size="sm" onClick={handleCreate} data-tour="attributes-create-button">
               + Create Attribute

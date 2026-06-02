@@ -13,6 +13,7 @@ import { Toast } from '../shared/Toast';
 import { Tooltip } from '../shared/Tooltip';
 import { EmptyState } from '../shared/EmptyState';
 import { getNodeName, getNodeDesc } from '../../utils/tagHierarchyNode';
+import { exportJson } from '../../utils/persistence';
 
 function highlightText(text: string, q: string) {
   if (!q) return text;
@@ -277,6 +278,17 @@ export function TagsHierarchyTab() {
     }
   }, [refetchHierarchy]);
 
+  // UI-based export: stream whatever the operator currently sees on screen
+  // (raw hierarchy nodes incl. local unsynced edits) as a .json file. Matches
+  // the backlog tab's "Export All" affordance for symmetry across Settings.
+  const handleExport = useCallback(() => {
+    if (rawHierarchyNodes.length === 0) {
+      setToast({ message: 'Nothing to export yet', type: 'error' });
+      return;
+    }
+    exportJson(rawHierarchyNodes, 'tags-hierarchy.json');
+  }, [rawHierarchyNodes]);
+
   const handleSync = useCallback(async () => {
     setSyncing(true);
     try {
@@ -349,6 +361,20 @@ export function TagsHierarchyTab() {
             </svg>
             {refreshing ? 'Refreshing...' : 'Refresh'}
           </Button>
+          <Tooltip content="Download the current tags hierarchy as JSON" placement="bottom">
+            <Button
+              data-tour="tags-export-button"
+              variant="secondary"
+              size="sm"
+              onClick={handleExport}
+              disabled={rawHierarchyNodes.length === 0}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+              </svg>
+              Export
+            </Button>
+          </Tooltip>
           {!isAudit && (
             <Button data-tour="new-tag-button" variant="primary" size="sm" onClick={handleCreate}>
               + New Tag
