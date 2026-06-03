@@ -533,20 +533,11 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     if (builderOpen && builder.formState.transactionTypeCode) {
       extra.push({ ColumnName: 'TransactionTypeCode', Value: builder.formState.transactionTypeCode, Operand: 'EQ' });
     }
-    // Builder Validity → backend StatementDate range filter. Pushed as
-    // raw StandardFilterProperty entries so it bypasses the named-filter
-    // pipeline (translateFilters needs a backend FilterDefinition.Tag
-    // match for the "_GTE/_LTE" key shape, and we can't rely on the Tag
-    // always being literally "StatementDate" across deployments). The
-    // table-side defensive filter in filteredData also enforces this
-    // client-side, so the operator never sees out-of-range rows even
-    // during pagination loads.
-    if (builderOpen && validityStartDate) {
-      extra.push({ ColumnName: 'StatementDate', Value: validityStartDate, Operand: 'GTE' });
-    }
-    if (builderOpen && validityEndDate) {
-      extra.push({ ColumnName: 'StatementDate', Value: validityEndDate, Operand: 'LTE' });
-    }
+    // Builder Validity → backend StatementDate range filter goes through
+    // the named-filter pipeline (see the useEffect that mirrors validity
+    // into `filters[Tag_GTE/LTE]`). translateFilters then forwards the
+    // entries to GetMT940Transactions with the authoritative column name
+    // from the filter definition. No extra push needed here.
     // While authoring a rule, also scope the live transactions fetch by the
     // ruleset being composed so the table reflects what the rule will catch.
     // Bank/side/TransactionTypeCode are already wired up above, so we only
@@ -624,21 +615,59 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     if (!builderOpen) setBuilderCollapsed(false);
   }, [builderOpen]);
 
-  // Builder Validity → effective filter inputs. Applied DIRECTLY to the
-  // pipeline (filteredData + activeExtraFilters) rather than going through
-  // the named `filters['StatementDate_GTE'/'LTE']` state for two reasons:
-  //   - In sample mode the filteredData loop treats every entry in
-  //     `filters` as an exact-match against `row[field]`, so a key shaped
-  //     like "StatementDate_GTE" would match nothing and silently filter
-  //     the whole table to zero rows.
-  //   - In live mode the named-filter path goes through translateFilters,
-  //     which silently drops the entry if the backend filter definition's
-  //     `Tag` differs from the literal "StatementDate" — and we can't rely
-  //     on that always being true across deployments.
-  // Pulling the bounds out here once keeps the dependency arrays of the
-  // two downstream useMemos cheap and explicit.
+  // Builder Validity → StatementDate range filter, wired through the same
+  // named-filter pipeline the DynamicFilters DateFilter uses, so the
+  // request that hits GetMT940Transactions carries identical
+  // FilteringProperties entries whether the operator set the range from
+  // the filter bar or from the inline rule builder.
+  //
+  // The pipeline expects keys shaped like `${FilterDefinition.Tag}_GTE` /
+  // `_LTE`, where the Tag comes from the backend's filter catalog (it
+  // happens to be "StatementDate" in the live snapshot but we look it up
+  // at runtime so the wire stays correct across deployments and across
+  // any future filter-Tag renames). In sample mode `filterDefinitions` is
+  // empty, so the mirror is a no-op and the client-side filteredData
+  // check below is the only enforcement.
   const validityStartDate = builder.formState.validity.StartDate;
   const validityEndDate = builder.formState.validity.EndDate;
+  const statementDateFilterTag = useMemo<string | null>(() => {
+    const def = filterDefinitions.find(
+      (d) => d.Type === 'DATE' && d.Values.some((v) => v.Column === 'StatementDate'),
+    );
+    return def?.Tag ?? null;
+  }, [filterDefinitions]);
+  useEffect(() => {
+    if (!statementDateFilterTag) return;
+    const gteKey = `${statementDateFilterTag}_GTE`;
+    const lteKey = `${statementDateFilterTag}_LTE`;
+    const desiredStart = builderOpen && validityStartDate ? validityStartDate : null;
+    const desiredEnd = builderOpen && validityEndDate ? validityEndDate : null;
+    setFilters((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      if (desiredStart) {
+        const cur = prev[gteKey];
+        if (!cur || cur.size !== 1 || !cur.has(desiredStart)) {
+          next[gteKey] = new Set([desiredStart]);
+          changed = true;
+        }
+      } else if (gteKey in prev) {
+        delete next[gteKey];
+        changed = true;
+      }
+      if (desiredEnd) {
+        const cur = prev[lteKey];
+        if (!cur || cur.size !== 1 || !cur.has(desiredEnd)) {
+          next[lteKey] = new Set([desiredEnd]);
+          changed = true;
+        }
+      } else if (lteKey in prev) {
+        delete next[lteKey];
+        changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [builderOpen, validityStartDate, validityEndDate, statementDateFilterTag]);
 
 
   const defaultHiddenColumns = useMemo(() => {
@@ -1367,7 +1396,14 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
           item.analysis.tags.some((tag) => selectedValues.has(tag))
         );
       } else if (!isLiveMode) {
-        // In live mode, data-field filtering is handled server-side by the API
+        // In live mode, data-field filtering is handled server-side by the API.
+        // Sample mode skips range-shaped keys (`Tag_GTE` / `Tag_LTE`) here —
+        // the loop's exact-match semantics would otherwise drop every row
+        // (no row carries a `StatementDate_GTE` column). DATE / DECIMAL
+        // range filters need a dedicated range comparison; the only one we
+        // currently surface in sample mode is the builder's Validity, which
+        // is enforced by the explicit StatementDate check further below.
+        if (field.endsWith('_GTE') || field.endsWith('_LTE')) continue;
         result = result.filter((item) => {
           const val = item.row[field];
           return val !== null && val !== undefined && selectedValues.has(String(val));
