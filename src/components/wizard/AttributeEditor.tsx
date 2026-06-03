@@ -761,14 +761,35 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
                   // current selection.
                   if (val === attribute.attributeTag) return;
                   const backend = activeAttributes.find((a) => a.Value === val);
-                  // Changing the Attribute Name implies "this is a different
-                  // field" — any source field, extraction op, toggle, prefix /
-                  // suffix, transformations, or validation tag the operator
-                  // had filled in for the previous name no longer applies and
-                  // would mislead the next save. Reset the row to its blank
-                  // shape, then re-apply the new name and any backend LOV
-                  // suggestion. `id` is preserved so React keys stay stable
-                  // and the row doesn't unmount underneath the operator.
+                  // Two distinct flows land here. The right signal isn't the
+                  // previous *name* (cloneAttribute deliberately blanks the
+                  // name on the clone so the operator picks a new one) but
+                  // whether the row already carries meaningful config:
+                  //   1. FRESH ROW (no source field, no extraction op, no
+                  //      transformations, no constant value, no LOV) — the
+                  //      row was just added via "+ Add Attribute" and has
+                  //      nothing worth preserving. Seed defaults and apply
+                  //      any backend LOV suggestion as a hint.
+                  //   2. POPULATED ROW (any of those fields is set) — comes
+                  //      from Clone, from a mid-edit name change, or from
+                  //      having borrowed an extraction config via the
+                  //      Suggestions modal. The operator's input belongs to
+                  //      them, not the system. Wiping it on every rename
+                  //      destroyed cloned config, which is the bug this
+                  //      branch fixes. Update the name only.
+                  // `id` is preserved in both flows so React keys stay stable.
+                  const hasConfig =
+                    !!attribute.sourceField
+                    || !!attribute.extractionOperation
+                    || (attribute.transformations?.length ?? 0) > 0
+                    || !!attribute.isConstant
+                    || !!attribute.isLovBased
+                    || !!attribute.lovTag
+                    || !!attribute.validationRuleTag;
+                  if (hasConfig) {
+                    onUpdate({ attributeTag: val });
+                    return;
+                  }
                   const updates: Partial<AttributeFormValue> = {
                     attributeTag: val,
                     isMandatory: false,
