@@ -35,6 +35,7 @@ import { TagBadge } from './TagBadge';
 import { StepRuleExpressions } from '../wizard/StepRuleExpressions';
 import { StepAttributes } from '../wizard/StepAttributes';
 import { TagWizardModal } from '../wizard/TagWizardModal';
+import { ValidityEditor } from '../wizard/ValidityEditor';
 import { DuplicateRulesButton } from '../wizard/DuplicateRulesButton';
 import { LovBrowserDrawer } from '../lovs/LovBrowserDrawer';
 import { Button } from '../shared/Button';
@@ -532,6 +533,20 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     if (builderOpen && builder.formState.transactionTypeCode) {
       extra.push({ ColumnName: 'TransactionTypeCode', Value: builder.formState.transactionTypeCode, Operand: 'EQ' });
     }
+    // Builder Validity → backend StatementDate range filter. Pushed as
+    // raw StandardFilterProperty entries so it bypasses the named-filter
+    // pipeline (translateFilters needs a backend FilterDefinition.Tag
+    // match for the "_GTE/_LTE" key shape, and we can't rely on the Tag
+    // always being literally "StatementDate" across deployments). The
+    // table-side defensive filter in filteredData also enforces this
+    // client-side, so the operator never sees out-of-range rows even
+    // during pagination loads.
+    if (builderOpen && validityStartDate) {
+      extra.push({ ColumnName: 'StatementDate', Value: validityStartDate, Operand: 'GTE' });
+    }
+    if (builderOpen && validityEndDate) {
+      extra.push({ ColumnName: 'StatementDate', Value: validityEndDate, Operand: 'LTE' });
+    }
     // While authoring a rule, also scope the live transactions fetch by the
     // ruleset being composed so the table reflects what the rule will catch.
     // Bank/side/TransactionTypeCode are already wired up above, so we only
@@ -608,6 +623,22 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   useEffect(() => {
     if (!builderOpen) setBuilderCollapsed(false);
   }, [builderOpen]);
+
+  // Builder Validity → effective filter inputs. Applied DIRECTLY to the
+  // pipeline (filteredData + activeExtraFilters) rather than going through
+  // the named `filters['StatementDate_GTE'/'LTE']` state for two reasons:
+  //   - In sample mode the filteredData loop treats every entry in
+  //     `filters` as an exact-match against `row[field]`, so a key shaped
+  //     like "StatementDate_GTE" would match nothing and silently filter
+  //     the whole table to zero rows.
+  //   - In live mode the named-filter path goes through translateFilters,
+  //     which silently drops the entry if the backend filter definition's
+  //     `Tag` differs from the literal "StatementDate" — and we can't rely
+  //     on that always being true across deployments.
+  // Pulling the bounds out here once keeps the dependency arrays of the
+  // two downstream useMemos cheap and explicit.
+  const validityStartDate = builder.formState.validity.StartDate;
+  const validityEndDate = builder.formState.validity.EndDate;
 
 
   const defaultHiddenColumns = useMemo(() => {
@@ -1349,6 +1380,24 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       result = result.filter((item) => item.row['TransactionTypeCode'] === builder.formState.transactionTypeCode);
     }
 
+    // Builder Validity filter. Applied client-side in BOTH live and sample
+    // mode — in live mode the backend filter (see activeExtraFilters) is
+    // the primary gate, but a defensive client check guarantees the table
+    // never surfaces a row outside the range even if the backend response
+    // hasn't refreshed yet or the operator's column is paginated. Trim any
+    // T-suffix from StatementDate so a backend that ships ISO datetimes
+    // doesn't break the lexicographic compare on YYYY-MM-DD.
+    if (builderOpen && (validityStartDate || validityEndDate)) {
+      result = result.filter((item) => {
+        const raw = item.row['StatementDate'];
+        if (raw == null) return false;
+        const sd = String(raw).split('T')[0];
+        if (validityStartDate && sd < validityStartDate) return false;
+        if (validityEndDate && sd > validityEndDate) return false;
+        return true;
+      });
+    }
+
     // Drop rows whose matched definitions include any hidden tag spec. Hide
     // Tag Spec is a pure view-layer filter — server payload is unchanged so
     // the operator can restore the spec from the side panel.
@@ -1384,7 +1433,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     }
 
     return result;
-  }, [analyzedData, showOnlyUntagged, showOnlyMultiTagged, showOnlyDeadEnd, filters, isLiveMode, builderOpen, builder.formState.transactionTypeCode, hiddenDefIds, sortOverride]);
+  }, [analyzedData, showOnlyUntagged, showOnlyMultiTagged, showOnlyDeadEnd, filters, isLiveMode, builderOpen, builder.formState.transactionTypeCode, hiddenDefIds, sortOverride, validityStartDate, validityEndDate]);
 
   // Count of loaded rows that match any hidden tag spec. Drives the "live
   // total minus hidden" adjustment in the Transactions header AND the
@@ -1609,14 +1658,33 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // tag IDs reference hidden defs that re-evaluate to non-hidden ones via
   // analyzeRow — clamp the displayed hidden so `loadedNow + hidden = total`
   // and `loadedNow <= totalNow` always hold.
+  //
+  // When the rule builder has a Validity bound set we collapse both raw
+  // counts to `filteredLen`. The validity filter is enforced client-side
+  // (see filteredData), so the visible row count is the only honest
+  // number to expose — the backend buffer's `transactions.length` and
+  // `totalTransactionsCount` reflect the unfiltered fetch and would read
+  // as "27 loaded · 27 total" while the table actually shows 3 rows. The
+  // backend-side StatementDate filter in activeExtraFilters also nudges
+  // those numbers down on future fetches; this just keeps the displayed
+  // counts consistent regardless of what the backend returned.
+  const validityFilterActive = builderOpen && (!!validityStartDate || !!validityEndDate);
   const displayCounts = useMemo(() => {
-    const loadedRaw = isLiveMode ? transactions.length : visibleCount;
-    const totalRaw = isLiveMode ? (totalTransactionsCount ?? transactions.length) : filteredLen;
+    const loadedRaw = validityFilterActive
+      ? filteredLen
+      : isLiveMode
+        ? transactions.length
+        : visibleCount;
+    const totalRaw = validityFilterActive
+      ? filteredLen
+      : isLiveMode
+        ? (totalTransactionsCount ?? transactions.length)
+        : filteredLen;
     const loadedNow = Math.max(0, loadedRaw - hiddenLoadedCount);
     const hiddenDisplay = Math.min(hiddenTotalCount, Math.max(0, totalRaw - loadedNow));
     const totalNow = Math.max(loadedNow, totalRaw - hiddenDisplay);
     return { loadedRaw, totalRaw, loadedNow, totalNow, hiddenDisplay };
-  }, [isLiveMode, transactions.length, visibleCount, totalTransactionsCount, filteredLen, hiddenLoadedCount, hiddenTotalCount]);
+  }, [isLiveMode, transactions.length, visibleCount, totalTransactionsCount, filteredLen, hiddenLoadedCount, hiddenTotalCount, validityFilterActive]);
 
   useEffect(() => {
     if (isLiveMode && !incrementalPagination) return; // page managed by nav controls + filter effect
@@ -1669,7 +1737,11 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         side: activeCheckout!.side,
         bankSwiftCode: activeCheckout!.bank,
         transactionTypeCode: builder.formState.transactionTypeCode,
-        validity: { StartDate: '', EndDate: null },
+        // Preserve the validity range the operator entered inline so it
+        // pre-populates the Basic Info Validity section of the save popup.
+        // Earlier this was forcibly reset to { '', null }, which wiped any
+        // validity dates the operator set in the inline rule builder.
+        validity: builder.formState.validity,
       } : {}),
     };
     setWizardInitialState(state);
@@ -2497,7 +2569,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
           >
           <div className="p-5 flex flex-col md:flex-row  flex-1 gap-5">
             {/* Matching rules section */}
-            <div className='w-full md:w-1/2'>
+            <div className='w-full md:w-1/2 space-y-4'>
               <h4 className="text-xs font-semibold text-body-secondary uppercase tracking-wide mb-1">
                 Matching Rules
               </h4>
@@ -2542,6 +2614,21 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                 onConditionEditingChange={handleRowEditingChange}
                 startCollapsed={!!editingDef}
                 readOnly={isReadOnly}
+              />
+
+              {/* Validity section. Sits as a sub-section under Matching
+                  Rules in the left half of the body, lining up beside
+                  Attributes on the right. The two date inputs feed back
+                  into `filters['StatementDate_GTE/LTE']` via the effect
+                  above, so the table reflects only rows the rule would
+                  actually tag — the same end-state as the operator
+                  manually setting the Statement Date filter from the
+                  DynamicFilters bar. */}
+              <ValidityEditor
+                validity={builder.formState.validity}
+                onChange={(validity) => builder.updateBasicInfo({ validity })}
+                readOnly={isReadOnly}
+                helperText="Both fields are optional. While set, the transactions table is filtered to rows whose Statement Date falls in this range."
               />
             </div>
 
