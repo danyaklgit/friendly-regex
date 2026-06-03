@@ -129,6 +129,21 @@ export function applyTransformation(
       return value.slice(0, limit);
     }
 
+    // Collapses a value that is two byte-identical uppercase-alphanumeric
+    // halves into one — used to clean fields like "ABC123ABC123" → "ABC123"
+    // where the source data accidentally double-prints the same identifier.
+    // No-op when the value isn't a perfect doubled pair, so it composes
+    // cleanly with longer pipelines on rows that don't carry duplicates.
+    case 'dedupe':
+      return value.replace(/^([A-Z0-9]+)\1$/, '$1');
+
+    // Strips leading zero padding from a numeric string, keeping at least
+    // one digit so "0000" → "0" (rather than empty). Useful for account
+    // numbers / reference ids the bank zero-pads on the wire but the
+    // operator wants to surface unpadded.
+    case 'remove_leading_zeros':
+      return value.replace(/^0+(\d)/, '$1');
+
     default:
       return value;
   }

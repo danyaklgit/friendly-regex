@@ -342,6 +342,55 @@ describe('applyTransformation', () => {
     expect(applyTransformation('max_char_limit', { length: '15', breakAtSpecial: '1' }, 'ABC/DEFGHIJKLMNOPQ')).toBe('ABC/DEFGHIJKLMN');
   });
 
+  // --- Dedupe ---
+  it('dedupe collapses a perfectly doubled uppercase-alphanumeric string', () => {
+    expect(applyTransformation('dedupe', {}, 'ABC123ABC123')).toBe('ABC123');
+  });
+
+  it('dedupe handles digits-only doubled values', () => {
+    expect(applyTransformation('dedupe', {}, '12341234')).toBe('1234');
+  });
+
+  it('dedupe handles letters-only doubled values', () => {
+    expect(applyTransformation('dedupe', {}, 'ACMEACME')).toBe('ACME');
+  });
+
+  it('dedupe is a no-op when the value is not a perfect doubled pair', () => {
+    expect(applyTransformation('dedupe', {}, 'ABC123ABC124')).toBe('ABC123ABC124');
+    expect(applyTransformation('dedupe', {}, 'ABC')).toBe('ABC');
+  });
+
+  it('dedupe is case-sensitive — lowercase halves do not collapse', () => {
+    // The pattern intentionally restricts to [A-Z0-9] so mixed-case ids
+    // (which usually carry meaning) are never silently dedup'd.
+    expect(applyTransformation('dedupe', {}, 'abc123abc123')).toBe('abc123abc123');
+  });
+
+  it('dedupe leaves the empty string unchanged', () => {
+    expect(applyTransformation('dedupe', {}, '')).toBe('');
+  });
+
+  // --- Remove Leading Zeros ---
+  it('remove_leading_zeros strips leading zeros from a numeric string', () => {
+    expect(applyTransformation('remove_leading_zeros', {}, '00012345')).toBe('12345');
+  });
+
+  it('remove_leading_zeros keeps a single trailing zero when value is all zeros', () => {
+    expect(applyTransformation('remove_leading_zeros', {}, '0000')).toBe('0');
+  });
+
+  it('remove_leading_zeros is a no-op when there are no leading zeros', () => {
+    expect(applyTransformation('remove_leading_zeros', {}, '12345')).toBe('12345');
+  });
+
+  it('remove_leading_zeros only strips leading zeros, preserving inner / trailing zeros', () => {
+    expect(applyTransformation('remove_leading_zeros', {}, '00010200')).toBe('10200');
+  });
+
+  it('remove_leading_zeros is a no-op for non-digit-led values', () => {
+    expect(applyTransformation('remove_leading_zeros', {}, 'ABC123')).toBe('ABC123');
+  });
+
   // --- Unknown method ---
   it('returns original value for unknown method', () => {
     expect(applyTransformation('nonexistent', {}, 'hello')).toBe('hello');

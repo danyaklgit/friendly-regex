@@ -179,6 +179,26 @@ export const TRANSFORMATION_METHODS: TransformationMethodDef[] = [
       { key: 'breakAtSpecial', label: 'Break at special character', placeholder: '', type: 'checkbox', required: false },
     ],
   },
+  {
+    // Backend regex: ^([A-Z0-9]+)\1$ → $1
+    // Collapses a doubled identifier on itself ("ABC123ABC123" -> "ABC123").
+    // No args, no-op when the value isn't a perfect doubled pair.
+    key: 'dedupe',
+    label: 'Dedupe',
+    description: 'No args. Example: "ABC123ABC123" -> "ABC123"',
+    category: 'Find/Replace',
+    args: [],
+  },
+  {
+    // Backend regex: ^0+(\d) → $1
+    // Strips leading zeros from a numeric string, keeping at least one
+    // digit so "0000" -> "0". No-op for non-zero-padded values.
+    key: 'remove_leading_zeros',
+    label: 'Remove Leading Zeros',
+    description: 'No args. Example: "00012345" -> "12345"',
+    category: 'Removal',
+    args: [],
+  },
 ];
 
 export const TRANSFORMATION_METHOD_MAP = new Map(
