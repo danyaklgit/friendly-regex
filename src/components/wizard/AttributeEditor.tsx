@@ -459,6 +459,48 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
 
   // Distinct values WITH the transformation pipeline applied. Used by the
   // "See all distinct values" popup so it matches what the table renders.
+  // First row in the transactions sample whose source field contains a
+  // value the current extraction regex captures. Used to render an
+  // "Extraction Preview" panel below the extraction inputs so the
+  // operator can see what their regex produces from real data before
+  // setting up any post-extraction transformations. Null when there's no
+  // source field, no extraction method, no transactions, or no row in
+  // the loaded sample where the regex matches.
+  const extractionPreview = useMemo<{ source: string; extracted: string } | null>(() => {
+    if (attribute.isConstant) return null;
+    if (!transactions || transactions.length === 0) return null;
+    if (!attribute.sourceField || !attribute.extractionOperation) return null;
+    try {
+      const rebuilt = regexifyExtraction(attribute.extractionOperation, extractionParams);
+      const regexStr = attribute._originalRegex || rebuilt;
+      if (!regexStr) return null;
+      const regex = new RegExp(regexStr);
+      for (const row of transactions) {
+        const fieldValue = row[attribute.sourceField];
+        if (fieldValue === undefined || fieldValue === null) continue;
+        const str = stringifyFieldValue(attribute.sourceField, fieldValue);
+        if (!str) continue;
+        const match = str.match(regex);
+        // Mirror rawDistinctValues: fall back to match[0] when the pattern
+        // has no explicit capture group (lookahead-style extractions).
+        const captured = match ? (match[1] ?? match[0]) : undefined;
+        if (captured) {
+          return { source: str, extracted: captured };
+        }
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }, [
+    transactions,
+    attribute.sourceField,
+    attribute.extractionOperation,
+    attribute.isConstant,
+    attribute._originalRegex,
+    extractionParams,
+  ]);
+
   // Deduped after transformation so two raw values that map to the same
   // output collapse to one row.
   const distinctValues = useMemo(() => {
@@ -1261,6 +1303,37 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
             </div>
           )}
           </div>
+
+          {/* ── Extraction Preview ── */}
+          {/* One source / extracted pair from the loaded transactions sample
+              so the operator can sanity-check the regex against real data
+              before adding transformations on top. Renders only when the
+              regex matches at least one row in the sample; absent state is
+              quiet by design so a brand-new attribute that hasn't picked an
+              extraction method yet doesn't show an empty box. No top
+              border / padding — the preview is part of the Extraction
+              block visually, not a separate section. */}
+          {extractionPreview && (
+            <div className="rounded-lg border border-border bg-surface-secondary p-2.5 space-y-1 mt-2">
+              <p className="text-xs font-semibold text-primary uppercase tracking-wide mb-1.5">
+                Extraction Preview
+              </p>
+              <div className="flex items-start gap-2 text-xs">
+                <span className="shrink-0 w-5 text-right text-faint font-mono">&bull;</span>
+                <span className="text-faint text-[10px] shrink-0 w-20">Source</span>
+                <code className="font-mono text-body-secondary break-all">
+                  "{extractionPreview.source.length > 240
+                    ? `${extractionPreview.source.slice(0, 240)}…`
+                    : extractionPreview.source}"
+                </code>
+              </div>
+              <div className="flex items-start gap-2 text-xs">
+                <span className="shrink-0 w-5 text-right text-faint font-mono">&rarr;</span>
+                <span className="text-orange-500 dark:text-orange-300 text-[10px] shrink-0 w-20">Extracted</span>
+                <code className="font-mono text-primary break-all">"{extractionPreview.extracted}"</code>
+              </div>
+            </div>
+          )}
 
           {/* ── Post-extraction Transformations ── */}
           {!!attribute.sourceField && !(readOnly && (attribute.transformations ?? []).length === 0) && (
