@@ -47,6 +47,24 @@ function normalizeValidityBound(raw: string | null | undefined): string | null {
   return raw;
 }
 
+/**
+ * Promote a bare `YYYY-MM-DD` date (what `<input type="date">` writes
+ * into form state) to the full ISO datetime shape the backend stores
+ * Validity bounds in — `YYYY-MM-DDT00:00:00Z`. Without this lift, the
+ * tagging engine receives a value it can't reconcile with the
+ * `"2025-12-31T22:00:00Z"`-shaped baseline, treats the rule as having
+ * no usable validity start, and leaves matching rows untagged after
+ * check-in. Values that already carry a `T` portion (operator pasted a
+ * datetime, or we round-tripped a backend value) pass through
+ * unchanged. Null / empty becomes null so the existing sanitizer keeps
+ * collapsing "unset" to null on the wire.
+ */
+function serializeValidityBound(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  if (raw.includes('T')) return raw;
+  return `${raw}T00:00:00Z`;
+}
+
 export function fromExistingDefinition(
   def: TagSpecDefinition,
   parentLib?: TagSpecLibrary,
@@ -436,8 +454,13 @@ export function useWizardForm(
       StatusTag: formState.statusTag,
       CertaintyLevelTag: formState.certaintyLevelTag,
       Validity: {
-        StartDate: formState.validity.StartDate || null,
-        EndDate: formState.validity.EndDate || null,
+        // Lift bare YYYY-MM-DD dates to full ISO datetimes (see
+        // serializeValidityBound). The tagging engine compares stored
+        // validity bounds against transaction StatementDate timestamps;
+        // shipping the date without a time portion was the regression
+        // that left rows untagged after check-in.
+        StartDate: serializeValidityBound(formState.validity.StartDate),
+        EndDate: serializeValidityBound(formState.validity.EndDate),
       },
       TagRuleExpressions: formState.ruleGroups.map((group) =>
         group.conditions.map((c) => {

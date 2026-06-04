@@ -100,7 +100,7 @@ describe('useWizardForm — Validity round-trip via the hook', () => {
     expect(result.current.formState.validity).toEqual({ StartDate: '2024-01-01', EndDate: '2024-12-31' });
   });
 
-  it('writes updated Validity dates back through toTagSpecDefinition', () => {
+  it('writes updated Validity dates back through toTagSpecDefinition (lifted to ISO datetime)', () => {
     const { result } = renderHook(() => useWizardForm(undefined, undefined, undefined, mkLib()));
     act(() => {
       result.current.updateBasicInfo({ tag: 'SALARY', transactionTypeCode: '101' });
@@ -111,7 +111,10 @@ describe('useWizardForm — Validity round-trip via the hook', () => {
       });
     });
     const { definition } = result.current.toTagSpecDefinition('lib-1');
-    expect(definition.Validity).toEqual({ StartDate: '2024-06-01', EndDate: '2024-06-30' });
+    expect(definition.Validity).toEqual({
+      StartDate: '2024-06-01T00:00:00Z',
+      EndDate: '2024-06-30T00:00:00Z',
+    });
   });
 
   it('coerces empty-string Validity bounds to null on save', () => {
@@ -137,6 +140,38 @@ describe('useWizardForm — Validity round-trip via the hook', () => {
       });
     });
     const { definition } = result.current.toTagSpecDefinition('lib-1');
-    expect(definition.Validity).toEqual({ StartDate: '2024-09-01', EndDate: null });
+    expect(definition.Validity).toEqual({ StartDate: '2024-09-01T00:00:00Z', EndDate: null });
+  });
+
+  it('lifts bare YYYY-MM-DD validity bounds to full ISO datetimes on save', () => {
+    // The backend stores Validity as a full ISO datetime (the sentinel
+    // for "no bound" is "2025-12-31T22:00:00Z"). Without lifting bare
+    // dates, the tagging engine fails to reconcile the value against
+    // transaction StatementDate timestamps and leaves matching rows
+    // untagged after check-in.
+    const { result } = renderHook(() => useWizardForm(undefined, undefined, undefined, mkLib()));
+    act(() => {
+      result.current.updateBasicInfo({
+        validity: { StartDate: '2024-01-01', EndDate: '2024-12-31' },
+      });
+    });
+    const { definition } = result.current.toTagSpecDefinition('lib-1');
+    expect(definition.Validity).toEqual({
+      StartDate: '2024-01-01T00:00:00Z',
+      EndDate: '2024-12-31T00:00:00Z',
+    });
+  });
+
+  it('passes through validity bounds that already carry a time portion', () => {
+    // Operator pasted a datetime, or we round-tripped a backend value
+    // unchanged — leave it alone instead of double-suffixing the T.
+    const { result } = renderHook(() => useWizardForm(undefined, undefined, undefined, mkLib()));
+    act(() => {
+      result.current.updateBasicInfo({
+        validity: { StartDate: '2024-01-01T08:30:00Z', EndDate: null },
+      });
+    });
+    const { definition } = result.current.toTagSpecDefinition('lib-1');
+    expect(definition.Validity.StartDate).toBe('2024-01-01T08:30:00Z');
   });
 });
