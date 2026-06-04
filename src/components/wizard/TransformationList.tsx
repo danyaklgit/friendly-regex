@@ -64,6 +64,21 @@ export function TransformationList({
     ]);
   }, [transformations, onChange]);
 
+  // Shortcut for the single most common transformation operators tack onto
+  // an extraction. Adds a `trim` row already configured (no-arg method,
+  // method key set), so the operator doesn't pay the dropdown round-trip
+  // for the everyday case. Suppressed when a `trim` is already present —
+  // trim is a no-arg method so applying it twice is wasted machinery, and
+  // the dropdown's `usedNoArgMethods` filter already prevents stacking it
+  // via the regular path; mirror that here.
+  const hasTrim = transformations.some((t) => t.method === 'trim');
+  const handleAddTrim = useCallback(() => {
+    onChange([
+      ...transformations,
+      { id: crypto.randomUUID(), method: 'trim', args: {} },
+    ]);
+  }, [transformations, onChange]);
+
   const handleRemove = useCallback(
     (id: string) => {
       onChange(transformations.filter((t) => t.id !== id));
@@ -114,9 +129,20 @@ export function TransformationList({
           Post-extraction Transformations
         </p>
         {!readOnly && (
-          <Button variant="ghost" size="xs" onClick={handleAdd} disabled={hasUnselected}>
-            + Add Transformation
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={handleAddTrim}
+              disabled={hasUnselected || hasTrim}
+              title={hasTrim ? 'Trim is already in the pipeline' : 'Add a Trim transformation'}
+            >
+              + Add Trim
+            </Button>
+            <Button variant="ghost" size="xs" onClick={handleAdd} disabled={hasUnselected}>
+              + Add Transformation
+            </Button>
+          </div>
         )}
       </div>
 
