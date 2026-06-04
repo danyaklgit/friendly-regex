@@ -300,10 +300,24 @@ export function LovAttributesProvider({ tepHeaders, children }: LovAttributesPro
     if (backendList && backendList.Items.length > 0) {
       return backendList.Items.map((item) => {
         const local = TRANSFORMATION_METHODS.find((m) => m.key === item.Value);
+        // Description fallback: prefer the backend's copy when it carries a
+        // parseable example (contains an arrow), otherwise use the local
+        // catalog's structured "Args/No args. Example: …" string. The
+        // transformation dropdown's sublabel parses input→output pairs out
+        // of this text and renders a rich preview; backend descriptions
+        // like "Prepends a specified string…" are technically present but
+        // carry no example, so without the local fallback those rows would
+        // look bare next to their documented siblings (Pad Right, Date
+        // Reformat, etc.).
+        const backendDesc = item.Description?.trim();
+        const backendHasArrow = !!backendDesc && /->|→/.test(backendDesc);
+        const description = backendHasArrow
+          ? backendDesc
+          : (local?.description ?? backendDesc);
         return {
           key: item.Value,
           label: item.Name,
-          description: item.Description,
+          description,
           category: item.Tags?.[0] ?? local?.category ?? 'Other',
           args: local?.args ?? [],
         };

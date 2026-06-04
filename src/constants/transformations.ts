@@ -41,7 +41,13 @@ export const TRANSFORMATION_METHODS: TransformationMethodDef[] = [
   { key: 'remove_numeric', label: 'Remove Numeric', category: 'Removal', args: [] },
   { key: 'remove_non_numeric', label: 'Remove Non-Numeric', category: 'Removal', args: [] },
   { key: 'remove_special_chars', label: 'Remove Special Characters', category: 'Removal', args: [] },
-  { key: 'remove_spaces_and_line_breaks', label: 'Remove Spaces and Line Breaks', category: 'Removal', args: [] },
+  {
+    key: 'remove_spaces_and_line_breaks',
+    label: 'Remove Spaces and Line Breaks',
+    description: 'No args. Example: "AB 12\\n34" -> "AB1234"',
+    category: 'Removal',
+    args: [],
+  },
 
   // Find/Replace.
   // Placeholders are deliberately short ("e.g., …" style) — the transformations

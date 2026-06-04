@@ -287,32 +287,53 @@ function highlightAdded(text: string, kept: Set<number>): ReactNode {
   return <>{spans}</>;
 }
 
-/** Build a rich sublabel node from the description's example portion */
+/** Build a rich sublabel node from the description's example portion.
+ *  Tolerates both the ASCII arrow (`->`) and the Unicode arrow (`→`), and
+ *  finds the example pair anywhere in the description rather than after a
+ *  strict "Args: …." / "No args." preamble. Backend payloads from
+ *  ATTRIBUTE_TRANSFORMATON use either arrow depending on the entry, and
+ *  newer entries embed the example mid-sentence (e.g. "…Example: \"X\" → \"Y\"")
+ *  without the preamble the old matcher required. */
 function buildExampleNode(description?: string): ReactNode | undefined {
   if (!description) return undefined;
-  const hasArgs = /Args[^.]*\./i.test(description) && !/No args\./i.test(description);
-  const match = description.match(/(?:No args\.|Args[^.]*\.)\s*(.*)/i);
-  const example = match?.[1]?.trim();
-  if (!example) return undefined;
-
-  const parts = example.split(/\s*->\s*/);
-  if (parts.length === 2) {
-    const raw0 = parts[0].trim();
-    const raw1 = parts[1].trim();
-    const inner0 = stripQuotes(raw0);
-    // Keep quotes when whitespace matters (leading/trailing spaces or multiple consecutive spaces)
-    const keepQuotes = inner0 !== inner0.trim() || /\s{2,}/.test(inner0);
-    const input = keepQuotes ? raw0 : inner0;
-    const output = keepQuotes ? raw1 : stripQuotes(raw1);
-
-    const { keptA, keptB } = lcsKeptSets(input, output);
-    return (
-      <span className="font-mono">
-        {hasArgs ? input : highlightRemoved(input, keptA, output.length)} &rarr; {highlightAdded(output, keptB)}
-      </span>
-    );
+  // Normalize Unicode → to ASCII -> so a single matcher handles both arrows.
+  const normalized = description.replace(/→/g, '->');
+  // First try a quoted pair anywhere in the string: "input" -> "output".
+  // Backend descriptions like `length="5", char="0": "42" -> "00042"` have
+  // multiple quoted spans; the regex picks the leftmost pair where the
+  // closer of the first quoted run is immediately followed by `\s*->\s*`
+  // and another quoted run — which lands on the example, not the arg
+  // bindings.
+  const quoted = normalized.match(/"([^"]*)"\s*->\s*"([^"]*)"/);
+  let inputRaw: string | undefined;
+  let outputRaw: string | undefined;
+  if (quoted) {
+    inputRaw = quoted[1];
+    outputRaw = quoted[2];
+  } else {
+    // Bare (unquoted) pair as a fallback. Restrict to single words / short
+    // runs so a description sentence with a stray `->` doesn't get hijacked.
+    const bare = normalized.match(/(?:Example:\s*)?(\S[^\s][^\n]{0,40}?)\s*->\s*([^\s][^\n]{0,40})/);
+    if (bare) {
+      inputRaw = bare[1].trim();
+      outputRaw = bare[2].trim();
+    }
   }
-  return <span>{stripQuotes(example)}</span>;
+  if (inputRaw === undefined || outputRaw === undefined) return undefined;
+
+  const hasArgs = /Args[^.]*\./i.test(description) && !/No args\./i.test(description);
+  const inner0 = stripQuotes(inputRaw);
+  // Keep quotes when whitespace matters (leading/trailing spaces or multiple consecutive spaces).
+  const keepQuotes = inner0 !== inner0.trim() || /\s{2,}/.test(inner0);
+  const input = keepQuotes ? `"${inner0}"` : inner0;
+  const output = keepQuotes ? `"${stripQuotes(outputRaw)}"` : stripQuotes(outputRaw);
+
+  const { keptA, keptB } = lcsKeptSets(input, output);
+  return (
+    <span className="font-mono">
+      {hasArgs ? input : highlightRemoved(input, keptA, output.length)} &rarr; {highlightAdded(output, keptB)}
+    </span>
+  );
 }
 
 function buildMethodOptions(methods: TransformationMethodDef[]) {
