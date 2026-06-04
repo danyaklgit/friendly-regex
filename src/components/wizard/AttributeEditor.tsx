@@ -1354,9 +1354,31 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
               <div className="flex items-center justify-between">
                 <p className="text-xs font-semibold text-primary uppercase tracking-wide">Validations</p>
                 {!showValidation && !readOnly && (
-                  <Button variant="ghost" size="xs" onClick={() => setShowValidation(true)}>
-                    + Add Validation
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    {/* Shortcut for the most common validation class — sets
+                        validationRuleTag = 'STRING' and reveals the picker
+                        already populated, saving the dropdown round-trip.
+                        Gated on the catalog actually offering a STRING
+                        option so a deployment with a different class list
+                        doesn't render a button that picks an unknown
+                        value. */}
+                    {validationRuleOptions.some((o) => o.value === 'STRING') && (
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        onClick={() => {
+                          onUpdate({ validationRuleTag: 'STRING' });
+                          setShowValidation(true);
+                        }}
+                        title="Add a String validation"
+                      >
+                        + Add String Validation
+                      </Button>
+                    )}
+                    <Button variant="ghost" size="xs" onClick={() => setShowValidation(true)}>
+                      + Add Validation
+                    </Button>
+                  </div>
                 )}
               </div>
               {showValidation && (
