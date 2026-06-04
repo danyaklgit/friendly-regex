@@ -1,4 +1,5 @@
 import type { TransformationFormValue } from '../types';
+import { isCompleteTransformation } from './attributeFingerprint';
 
 export function applyTransformation(
   method: string,
@@ -94,6 +95,14 @@ export function applyTransformation(
 
     // Extraction Refinement
     case 'substring': {
+      // `start` is a required arg — a missing value used to silently
+      // coerce to 0 (and produce a full-string "result") which surfaced
+      // as a misleading live preview. Require an explicit non-empty
+      // value before applying; otherwise pass the input through
+      // unchanged. The save gate (isCompleteAttribute) already blocks
+      // persistence of this state, so this is purely defensive for the
+      // in-builder display.
+      if (args.start == null || args.start === '') return value;
       const start = Number(args.start) || 0;
       const end = args.end ? Number(args.end) : undefined;
       return value.substring(start, end);
@@ -106,7 +115,12 @@ export function applyTransformation(
       // `'abc'.split('x')` returns `['abc']`, so a naive `parts[0]` lookup
       // after a non-matching split would have leaked the full string at
       // index 0 — the explicit `includes` guard prevents that.
+      // Both delimiter AND index are required; without an explicit index
+      // the old code defaulted to 0 and produced a real-looking result
+      // even when the operator hadn't picked one yet. Treat the missing
+      // index as "not configured" and pass the input through unchanged.
       if (!args.delimiter) return '';
+      if (args.index == null || args.index === '') return value;
       if (!value.includes(args.delimiter)) return '';
       const parts = value.split(args.delimiter);
       const idx = Number(args.index) || 0;
@@ -164,6 +178,13 @@ export function applyTransformationPipeline(
   let current = value;
   for (let i = 0; i < transformations.length; i++) {
     const t = transformations[i];
+    // Stop at the first transformation with missing required args so the
+    // preview never shows a misleading result for an unfinished row
+    // (e.g. Split & Pick with an empty index would otherwise default to
+    // 0 and surface a real-looking output). Subsequent steps are dropped
+    // too — running them on a not-yet-defined input would compound the
+    // misleading state.
+    if (!isCompleteTransformation(t)) break;
     current = applyTransformation(t.method, t.args, current);
     steps.push({ index: i, method: t.method, label: t.method, result: current });
   }

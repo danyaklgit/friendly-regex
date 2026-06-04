@@ -1,5 +1,31 @@
-import type { AttributeFormValue } from '../types';
+import type { AttributeFormValue, TransformationFormValue } from '../types';
 import { EXTRACTION_OPERATIONS } from '../constants/operations';
+import { TRANSFORMATION_METHOD_MAP } from '../constants/transformations';
+
+/** True when every `required: true` arg the transformation method declares
+ *  carries a non-empty value. Returns false on an empty `method` (still in
+ *  the "pick a method" state) so an unfinished row blocks save / preview.
+ *  An unknown method (not in TRANSFORMATION_METHOD_MAP — happens
+ *  defensively for legacy data) is treated as complete so we don't
+ *  permanently lock out an existing attribute on a backend list refresh.
+ *
+ *  Empty-string check uses raw length (not `.trim()`) so a single-space
+ *  delimiter — e.g. `replace` with `find: ' '`, or `split_and_pick` with
+ *  `delimiter: ' '` — counts as a real, meaningful value. Mirrors the
+ *  extraction-field gate in isCompleteAttribute. */
+export function isCompleteTransformation(t: TransformationFormValue): boolean {
+  if (!t.method) return false;
+  const def = TRANSFORMATION_METHOD_MAP.get(t.method);
+  if (!def) return true;
+  for (const arg of def.args) {
+    if (!arg.required) continue;
+    const val = t.args?.[arg.key];
+    if (val == null || val.length === 0) {
+      return false;
+    }
+  }
+  return true;
+}
 
 /** True if an attribute has been named — empty placeholder rows are ignored
  *  for duplicate comparisons so adding a fresh row never false-flags. */
@@ -71,6 +97,15 @@ export function isCompleteAttribute(a: AttributeFormValue): boolean {
     // extract_skip_take needs a defined capture: either an explicit take count
     // or the "till end of input" toggle. The skip count defaults to 0.
     if (op.key === 'extract_skip_take' && !a.tillEndOfInput && !(a.numChars && a.numChars > 0)) return false;
+  }
+  // Each post-extraction transformation row must have its required args
+  // filled in. Without this gate, a Split & Pick with a missing index
+  // would save with a default-0 pick (the live preview was producing a
+  // misleadingly-real result), and other multi-arg transforms (Replace,
+  // Regex Replace, Pad Left/Right, Reformat Date) would silently save
+  // with empty inputs that the runtime then interprets as no-ops.
+  for (const t of a.transformations ?? []) {
+    if (!isCompleteTransformation(t)) return false;
   }
   return true;
 }

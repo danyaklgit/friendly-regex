@@ -9,6 +9,7 @@ import { VALIDATION_RULE_TAG_OPTIONS } from '../../constants/fields';
 import { useLovAttributes } from '../../context/LovAttributesContext';
 import { useTransactionData } from '../../hooks/useTransactionData';
 import { EXTRACTION_OPERATIONS, PREDEFINED_PATTERNS } from '../../constants/operations';
+import { TRANSFORMATION_METHOD_MAP } from '../../constants/transformations';
 import { generateExtractionPrompt, regexifyExtraction } from '../../utils/regexify';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
 import { describeLiteralBoundary } from '../../utils/engregxify';
@@ -302,6 +303,30 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
         missing.push('Take (characters)');
       }
     }
+    // Each post-extraction transformation row must have its required args
+    // filled. Without this gate, a Split & Pick row with an empty Pick
+    // Index would let the operator click Save while the transformation
+    // silently defaulted to index 0 at runtime — same trap covered by
+    // hasIncompleteAttribute at the wizard level, mirrored here for the
+    // per-row Save button.
+    for (const t of attribute.transformations ?? []) {
+      if (!t.method) {
+        missing.push('Transformation Method');
+        continue;
+      }
+      const def = TRANSFORMATION_METHOD_MAP.get(t.method);
+      if (!def) continue;
+      for (const arg of def.args) {
+        if (!arg.required) continue;
+        // Raw length (no trim) so a single-space delimiter — a real,
+        // meaningful value for `replace.find` / `split_and_pick.delimiter`
+        // — counts as present. Matches the extraction-field gate above.
+        const val = t.args?.[arg.key];
+        if (val == null || val.length === 0) {
+          missing.push(`${def.label}: ${arg.label}`);
+        }
+      }
+    }
     return missing;
   }, [
     attribute.attributeTag,
@@ -315,6 +340,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
     attribute.tillEndOfInput,
     attribute.isConstant,
     attribute.constantValue,
+    attribute.transformations,
     selectedOp,
   ]);
   const canSaveAttribute = missingSaveFields.length === 0;

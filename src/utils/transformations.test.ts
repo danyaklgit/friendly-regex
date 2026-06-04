@@ -312,11 +312,16 @@ describe('applyTransformation', () => {
     // a naive `parts[0]` would leak the original full field. Guard ensures
     // index 0 still returns '' when the delimiter never appears.
     expect(applyTransformation('split_and_pick', { delimiter: '9', index: '0' }, 'NCBK82423324AMRG')).toBe('');
-    expect(applyTransformation('split_and_pick', { delimiter: '9', index: '' }, 'NCBK82423324AMRG')).toBe('');
   });
 
-  it('split_and_pick defaults index to 0', () => {
-    expect(applyTransformation('split_and_pick', { delimiter: '/', index: '' }, 'A/B/C')).toBe('A');
+  it('split_and_pick passes the input through unchanged when index is missing', () => {
+    // index is required — an empty value used to silently coerce to 0 and
+    // produce a real-looking result (the in-builder preview / inline Save
+    // gate would lie). Now the transformation is a no-op until the
+    // operator fills the field; the save gate (isCompleteAttribute) also
+    // blocks persistence of this state.
+    expect(applyTransformation('split_and_pick', { delimiter: '/', index: '' }, 'A/B/C')).toBe('A/B/C');
+    expect(applyTransformation('split_and_pick', { delimiter: '9', index: '' }, 'NCBK82423324AMRG')).toBe('NCBK82423324AMRG');
   });
 
   // --- Maximum Characters ---
@@ -416,6 +421,46 @@ describe('applyTransformation', () => {
   // --- Unknown method ---
   it('returns original value for unknown method', () => {
     expect(applyTransformation('nonexistent', {}, 'hello')).toBe('hello');
+  });
+});
+
+describe('applyTransformationPipeline incompleteness handling', () => {
+  it('stops the pipeline at the first transformation with a missing required arg', () => {
+    // Split & Pick with an empty index used to silently default to 0
+    // and surface a real-looking result in the in-builder preview. The
+    // pipeline now stops at the incomplete row so no misleading output
+    // renders, and subsequent steps are dropped (running them on a
+    // not-yet-defined input would compound the misleading state).
+    const transformations: TransformationFormValue[] = [
+      { id: '1', method: 'trim', args: {} },
+      { id: '2', method: 'split_and_pick', args: { delimiter: 'A', index: '' } },
+      { id: '3', method: 'to_uppercase', args: {} },
+    ];
+    const steps = applyTransformationPipeline(transformations, '  BTBA00237241223  ');
+    expect(steps).toHaveLength(1);
+    expect(steps[0].method).toBe('trim');
+    expect(steps[0].result).toBe('BTBA00237241223');
+  });
+
+  it('stops the pipeline when the very first transformation is incomplete', () => {
+    const transformations: TransformationFormValue[] = [
+      { id: '1', method: 'split_and_pick', args: { delimiter: 'A', index: '' } },
+      { id: '2', method: 'to_uppercase', args: {} },
+    ];
+    const steps = applyTransformationPipeline(transformations, 'BTBA00237241223');
+    expect(steps).toHaveLength(0);
+  });
+
+  it('treats an empty method as incomplete and stops there', () => {
+    // The row was just added via "+ Add Transformation" but the operator
+    // hasn't picked a method yet — preview should be empty.
+    const transformations: TransformationFormValue[] = [
+      { id: '1', method: 'trim', args: {} },
+      { id: '2', method: '', args: {} },
+    ];
+    const steps = applyTransformationPipeline(transformations, '  hello  ');
+    expect(steps).toHaveLength(1);
+    expect(steps[0].method).toBe('trim');
   });
 });
 
