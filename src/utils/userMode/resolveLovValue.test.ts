@@ -27,10 +27,10 @@ describe('buildAttrLovTagMap', () => {
 });
 
 describe('resolveLovValue', () => {
-  const map = buildAttrLovTagMap([attr('BillerCode', 'SADAD_BILLERS')]);
+  const map = buildAttrLovTagMap([attr('BillerName', 'SADAD_BILLERS')]);
 
   it('resolves a catalog-mapped attribute via its LOV', () => {
-    expect(resolveLovValue('BillerCode', '001', lovLookup, map)).toBe('National Water Company');
+    expect(resolveLovValue('BillerName', '001', lovLookup, map)).toBe('National Water Company');
   });
 
   it('falls back to the heuristic for bank-like names without a catalog entry', () => {
@@ -55,5 +55,28 @@ describe('resolveLovValue', () => {
 
   it('trims the value before lookup', () => {
     expect(resolveLovValue('BeneficiaryBank', '  NCBKSAJE  ', lovLookup, new Map())).toBe('Saudi National Bank');
+  });
+
+  it('passes a code-shaped attribute through unresolved even when the heuristic matches', () => {
+    // SadadBillerCode contains "biller" so the heuristic would otherwise
+    // hit SADAD_BILLERS and replace the code with the friendly name,
+    // making the displayed "Sadad Biller Code" cell read identical to
+    // the "Sadad Biller Name" cell beside it.
+    expect(resolveLovValue('SadadBillerCode', '001', lovLookup, new Map())).toBe('001');
+  });
+
+  it('passes a code-shaped attribute through unresolved even when the catalog explicitly maps it', () => {
+    // Catalog deliberately pairs SadadBillerCode with SADAD_BILLERS so
+    // operator-mode can show the resolved name on hover; user-mode
+    // surfaces Code AND Name side by side, so the Code label must
+    // stay raw.
+    const catalogMap = buildAttrLovTagMap([attr('SadadBillerCode', 'SADAD_BILLERS')]);
+    expect(resolveLovValue('SadadBillerCode', '001', lovLookup, catalogMap)).toBe('001');
+  });
+
+  it('still resolves the matching Name attribute', () => {
+    // Companion check: SadadBillerName resolves via the heuristic so the
+    // friendly name is what the user sees on that row.
+    expect(resolveLovValue('SadadBillerName', '001', lovLookup, new Map())).toBe('National Water Company');
   });
 });

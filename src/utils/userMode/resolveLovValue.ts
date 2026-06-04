@@ -45,8 +45,22 @@ function lookupLov(lovLookup: LovLookup, lovTag: string): Map<string, string> | 
   return lovLookup.get(lovTag) ?? lovLookup.get(lovTag.replace(/[_ ]/g, '').toLowerCase());
 }
 
-/** Resolve the LOVTag for an attribute name: catalog first, then heuristic. */
+/** Attribute names whose value is the literal code, never the friendly
+ *  resolved name. "SadadBillerCode", "BankCode", "CountryCode", etc.
+ *  Both the heuristic and the catalog can otherwise pair these with a
+ *  LOV (e.g. SadadBillerName + SadadBillerCode often share LOVTag
+ *  "SADAD_BILLERS"), which would surface the resolved name on a row
+ *  labeled "Code" — confusing in user-mode where the Code and Name are
+ *  shown side by side. The "Code" suffix wins over any LOV mapping. */
+function looksLikeCodeAttribute(name: string): boolean {
+  return /code/i.test(name);
+}
+
+/** Resolve the LOVTag for an attribute name: catalog first, then heuristic.
+ *  Returns undefined for code-shaped attribute names so their raw value
+ *  passes through unresolved. */
 function lovTagForAttr(name: string, map: AttrLovTagMap): string | undefined {
+  if (looksLikeCodeAttribute(name)) return undefined;
   const direct = map.get(name.trim().toLowerCase());
   if (direct) return direct;
   for (const rule of HEURISTIC_RULES) {
