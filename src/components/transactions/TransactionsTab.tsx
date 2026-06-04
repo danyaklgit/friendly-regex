@@ -2805,19 +2805,40 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
             })()}
           </span>
 
-          {!isReadOnly && editingDef && (
-            <div className="px-5 pb-3 flex justify-end">
+          {/* Footer row. Three-column grid so the centered Collapse stays
+              anchored to the row midpoint regardless of whether the
+              edit-mode Delete is present — a flex justify-between would
+              shift the button left when Delete renders. Collapse mirrors
+              the header chevron so operators can free up the table from
+              the bottom of a tall builder without scrolling back up. */}
+          <div className="px-5 pb-3 grid grid-cols-3 items-center gap-2">
+            <div />
+            <div className="flex justify-center">
               <Button
-                variant="danger_ghost"
+                variant="outline"
                 size="xs"
-                onClick={handleRequestDelete}
-                className="whitespace-nowrap dark:bg-red-500/10 dark:text-red-300 dark:border-red-500/40 dark:hover:bg-red-500/20 dark:hover:border-red-500/60"
-                title="Delete this tag rule"
+                onClick={() => setBuilderCollapsed(true)}
+                className="whitespace-nowrap"
+                title="Collapse the rule builder to give the table more space"
+                aria-label="Collapse rule builder"
               >
-                Delete
+                Collapse
               </Button>
             </div>
-          )}
+            <div className="flex justify-end">
+              {!isReadOnly && editingDef && (
+                <Button
+                  variant="danger_ghost"
+                  size="xs"
+                  onClick={handleRequestDelete}
+                  className="whitespace-nowrap dark:bg-red-500/10 dark:text-red-300 dark:border-red-500/40 dark:hover:bg-red-500/20 dark:hover:border-red-500/60"
+                  title="Delete this tag rule"
+                >
+                  Delete
+                </Button>
+              )}
+            </div>
+          </div>
           </div>
         </div>
         );
