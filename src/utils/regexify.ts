@@ -93,6 +93,16 @@ export function regexify(
       return `__NUMERIC_GTE:${value}`;
     case 'less_than_or_equal':
       return `__NUMERIC_LTE:${value}`;
+    case 'is_blank_or_empty':
+      // Whole string is empty or whitespace-only. The backend matcher uses
+      // anchored evaluation, so `^\s*$` correctly excludes any row whose
+      // source field carries a non-whitespace character.
+      return `^\\s*$`;
+    case 'is_not_blank_or_empty':
+      // Matches any string that contains at least one non-whitespace
+      // character. Anchored so the backend can evaluate it as a full-string
+      // match without quirky partial-match behavior.
+      return `^\\s*\\S[\\s\\S]*$`;
     default:
       return escaped;
   }
@@ -291,6 +301,10 @@ export function generateExpressionPrompt(
       return `Greater than or equal to '${value}'`;
     case 'less_than_or_equal':
       return `Less than or equal to '${value}'`;
+    case 'is_blank_or_empty':
+      return `Is blank or empty`;
+    case 'is_not_blank_or_empty':
+      return `Is not blank or empty`;
     default:
       return value;
   }

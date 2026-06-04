@@ -3,9 +3,16 @@ import { MATCH_OPERATIONS } from '../constants/operations';
 
 /** True if a condition has been filled in enough to matter for matching. An
  *  empty placeholder row (no sourceField or empty value) contributes nothing
- *  to a group's identity and is excluded from duplicate comparisons. */
+ *  to a group's identity and is excluded from duplicate comparisons.
+ *  Nullary operations (Is Blank or Empty / Is Not Blank or Empty) count as
+ *  filled once Source Field + Operation are set — they carry no value, so the
+ *  legacy "value.trim().length > 0" guard would mis-classify them as empty
+ *  placeholders and exclude them from duplicate detection. */
 export function isFilledCondition(c: ConditionFormValue): boolean {
-  return !!c.sourceField && c.value.trim().length > 0;
+  if (!c.sourceField) return false;
+  const def = MATCH_OPERATIONS.find((m) => m.key === c.operation);
+  if (def?.noValueRequired) return true;
+  return c.value.trim().length > 0;
 }
 
 /** Canonical fingerprint of a single condition. */
@@ -84,6 +91,8 @@ export function isCompleteCondition(c: ConditionFormValue): boolean {
   const op = c.operation as string;
   if (!op || op.trim().length === 0) return false;
   const def = MATCH_OPERATIONS.find((m) => m.key === c.operation);
+  // Nullary ops are complete once Source Field + Operation are set.
+  if (def?.noValueRequired) return true;
   if (def?.requiresMultipleValues) {
     return !!(c.values && c.values.some((v) => v.trim().length > 0));
   }

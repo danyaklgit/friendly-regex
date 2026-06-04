@@ -129,6 +129,25 @@ describe('isCompleteCondition', () => {
     });
     expect(isCompleteCondition(whitespaceOnly)).toBe(false);
   });
+
+  it('accepts nullary operations with no value (is_blank_or_empty)', () => {
+    // Nullary ops carry no Value input; completeness depends on Source Field
+    // + Operation only. Without the carve-out, the value.trim()==='' branch
+    // would falsely reject this and block Save.
+    const blank = cond({
+      operation: 'is_blank_or_empty' as ConditionFormValue['operation'],
+      value: '',
+    });
+    expect(isCompleteCondition(blank)).toBe(true);
+  });
+
+  it('accepts nullary operations with no value (is_not_blank_or_empty)', () => {
+    const notBlank = cond({
+      operation: 'is_not_blank_or_empty' as ConditionFormValue['operation'],
+      value: '',
+    });
+    expect(isCompleteCondition(notBlank)).toBe(true);
+  });
 });
 
 describe('hasIncompleteCondition', () => {

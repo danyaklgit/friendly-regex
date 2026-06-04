@@ -57,6 +57,46 @@ describe('buildRulesetFilters', () => {
     });
   });
 
+  it('keeps nullary conditions (is_blank_or_empty) in the REGEX payload despite empty Value', () => {
+    // The old gate filtered out any condition with `value.trim().length === 0`,
+    // which silently dropped nullary ops from the GETMT940 payload and left
+    // the table unfiltered. The REGEX inner-condition Value must carry the
+    // anchored whitespace-only pattern so the backend filters server-side.
+    const filters = buildRulesetFilters(makeFormState({
+      ruleGroups: [{
+        id: 'g1',
+        conditions: [
+          { id: 'c1', sourceField: 'AdditionalInformation', operation: 'is_blank_or_empty', value: '' },
+        ],
+      }],
+    }));
+    const r = regexBlock(filters);
+    expect(r?.Regex[0]).toHaveLength(1);
+    expect(r?.Regex[0][0]).toEqual({
+      ColumnName: 'AdditionalInformation',
+      Value: '^\\s*$',
+      Options: '',
+    });
+  });
+
+  it('keeps nullary conditions (is_not_blank_or_empty) in the REGEX payload despite empty Value', () => {
+    const filters = buildRulesetFilters(makeFormState({
+      ruleGroups: [{
+        id: 'g1',
+        conditions: [
+          { id: 'c1', sourceField: 'AdditionalInformation', operation: 'is_not_blank_or_empty', value: '' },
+        ],
+      }],
+    }));
+    const r = regexBlock(filters);
+    expect(r?.Regex[0]).toHaveLength(1);
+    expect(r?.Regex[0][0]).toEqual({
+      ColumnName: 'AdditionalInformation',
+      Value: '^\\s*\\S[\\s\\S]*$',
+      Options: '',
+    });
+  });
+
   it('drops conditions with empty values', () => {
     const filters = buildRulesetFilters(makeFormState({
       ruleGroups: [{

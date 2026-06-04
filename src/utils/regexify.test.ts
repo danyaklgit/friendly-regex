@@ -62,6 +62,16 @@ describe('regexify', () => {
     expect(regexify('less_than_or_equal', '999')).toBe('__NUMERIC_LTE:999');
   });
 
+  it('is_blank_or_empty: anchored whitespace-only regex (value ignored)', () => {
+    expect(regexify('is_blank_or_empty', '')).toBe('^\\s*$');
+    expect(regexify('is_blank_or_empty', 'ignored')).toBe('^\\s*$');
+  });
+
+  it('is_not_blank_or_empty: anchored at-least-one-non-whitespace regex (value ignored)', () => {
+    expect(regexify('is_not_blank_or_empty', '')).toBe('^\\s*\\S[\\s\\S]*$');
+    expect(regexify('is_not_blank_or_empty', 'ignored')).toBe('^\\s*\\S[\\s\\S]*$');
+  });
+
   it('does not escape forward slash (not a regex metachar)', () => {
     expect(regexify('contains', 'USD/SAR')).toBe('USD/SAR');
   });
@@ -430,6 +440,16 @@ describe('generateExpressionPrompt', () => {
 
   it('less_than_or_equal', () => {
     expect(generateExpressionPrompt('less_than_or_equal', '999')).toBe("Less than or equal to '999'");
+  });
+
+  it('is_blank_or_empty: nullary prompt (value ignored)', () => {
+    expect(generateExpressionPrompt('is_blank_or_empty', '')).toBe('Is blank or empty');
+    expect(generateExpressionPrompt('is_blank_or_empty', 'whatever')).toBe('Is blank or empty');
+  });
+
+  it('is_not_blank_or_empty: nullary prompt (value ignored)', () => {
+    expect(generateExpressionPrompt('is_not_blank_or_empty', '')).toBe('Is not blank or empty');
+    expect(generateExpressionPrompt('is_not_blank_or_empty', 'whatever')).toBe('Is not blank or empty');
   });
 
   it('default returns value', () => {

@@ -18,7 +18,9 @@ export type MatchOperation =
   | 'greater_than'
   | 'less_than'
   | 'greater_than_or_equal'
-  | 'less_than_or_equal';
+  | 'less_than_or_equal'
+  | 'is_blank_or_empty'
+  | 'is_not_blank_or_empty';
 
 export type ExtractionOperation =
   | 'extract_between'

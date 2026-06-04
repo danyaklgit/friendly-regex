@@ -21,6 +21,24 @@ describe('engregxify', () => {
     expect(engregxify('__NUMERIC_LTE:999')).toBe("Less than or equal to '999'");
   });
 
+  // Nullary operations
+  it('is blank or empty: anchored whitespace-only regex', () => {
+    expect(engregxify('^\\s*$')).toBe('Is blank or empty');
+  });
+
+  it('is not blank or empty: anchored at-least-one-non-whitespace regex', () => {
+    expect(engregxify('^\\s*\\S[\\s\\S]*$')).toBe('Is not blank or empty');
+  });
+
+  // Round-trip: regexify → engregxify lands back on the friendly prompt.
+  it('round-trips is_blank_or_empty via regexify', () => {
+    expect(engregxify(regexify('is_blank_or_empty', ''))).toBe('Is blank or empty');
+  });
+
+  it('round-trips is_not_blank_or_empty via regexify', () => {
+    expect(engregxify(regexify('is_not_blank_or_empty', ''))).toBe('Is not blank or empty');
+  });
+
   // Does not start with / does not end with
   it('does not start with: ^(?!CFT)', () => {
     expect(engregxify('^(?!CFT)')).toBe("Does not start with 'CFT'");

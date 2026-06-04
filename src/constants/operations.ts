@@ -7,6 +7,10 @@ export interface MatchOperationDef {
   requiresMultipleValues: boolean;
   requiresExtraction?: boolean;
   isNumeric?: boolean;
+  /** Nullary operations — they emit a regex with no operator-supplied value,
+   *  so the Value input must hide and the per-row Save / inline duplicate-
+   *  detection gates must not require a value. */
+  noValueRequired?: boolean;
 }
 
 export const MATCH_OPERATIONS: MatchOperationDef[] = [
@@ -24,6 +28,8 @@ export const MATCH_OPERATIONS: MatchOperationDef[] = [
   { key: 'less_than', label: 'Less than', description: 'Numeric value is less than the given number', requiresMultipleValues: false, isNumeric: true },
   { key: 'greater_than_or_equal', label: 'Greater than or equal', description: 'Numeric value is greater than or equal to the given number', requiresMultipleValues: false, isNumeric: true },
   { key: 'less_than_or_equal', label: 'Less than or equal', description: 'Numeric value is less than or equal to the given number', requiresMultipleValues: false, isNumeric: true },
+  { key: 'is_blank_or_empty', label: 'Is Blank or Empty', description: 'Value is empty or contains only whitespace', requiresMultipleValues: false, noValueRequired: true },
+  { key: 'is_not_blank_or_empty', label: 'Is Not Blank or Empty', description: 'Value contains at least one non-whitespace character', requiresMultipleValues: false, noValueRequired: true },
 ];
 
 export interface ExtractionOperationDef {

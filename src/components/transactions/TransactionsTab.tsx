@@ -10,6 +10,7 @@ import {
   hasEmptyRuleGroup,
   hasIncompleteCondition,
   hasWithinGroupConditionDuplicates,
+  isFilledCondition,
 } from '../../utils/ruleFingerprint';
 import {
   hasDuplicateAttributeNames,
@@ -106,7 +107,7 @@ interface TransactionsTabProps {
 
 function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinition | null {
   const hasCondition = formState.ruleGroups.some((g) =>
-    g.conditions.some((c) => c.value.trim().length > 0)
+    g.conditions.some(isFilledCondition)
   );
   const hasAttribute = formState.attributes.some((a) => a.attributeTag.trim().length > 0);
   // A transaction type alone is a valid rule: the resulting tag matches every
@@ -127,7 +128,7 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
     },
     TagRuleExpressions: formState.ruleGroups.map((group) =>
       group.conditions
-        .filter((c) => c.value.trim().length > 0)
+        .filter(isFilledCondition)
         .map((c) => {
           const prompt = generateExpressionPrompt(c.operation, c.value, c.values);
           return {
@@ -1168,7 +1169,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
 
   // Check if builder has any real content
   const builderHasContent = builder.formState.ruleGroups.some((g) =>
-    g.conditions.some((c) => c.value.trim().length > 0)
+    g.conditions.some(isFilledCondition)
   ) || builder.formState.attributes.some((a) => a.attributeTag.trim().length > 0);
 
   // Rule creation only requires a transaction type. Rule expressions and

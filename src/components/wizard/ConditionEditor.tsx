@@ -130,18 +130,31 @@ export function ConditionEditor({
   // numerically server-side. Falls back to the heuristic (all values parse
   // as numbers) when the column name isn't on the explicit numeric list, so
   // future numeric columns work without a code change.
+  //
+  // Null/empty escape hatch: if ANY row in the sample has the field as
+  // null/undefined/'' the heuristic short-circuits to 'text', so the operator
+  // gets the full operation list (including Is Blank or Empty / Is Not Blank
+  // or Empty) on a column where blanks actually occur. Without this, columns
+  // whose populated rows happen to all be numeric would be locked into the
+  // numeric op set even though `is_blank_or_empty` is exactly what's needed
+  // to find the empties.
   const fieldKind = useMemo<'date' | 'numeric' | 'text'>(() => {
     const f = condition.sourceField;
     if (!f) return 'text';
     if (DATE_SOURCE_FIELDS.has(f)) return 'date';
     if (NUMERIC_SOURCE_FIELDS.has(f)) return 'numeric';
     if (transactions.length > 0) {
-      const allNumeric = transactions.every((row) => {
+      let sawBlank = false;
+      let allNumeric = true;
+      for (const row of transactions) {
         const val = row[f];
-        if (val === null || val === undefined || val === '') return true;
-        return !isNaN(Number(val));
-      });
-      if (allNumeric) return 'numeric';
+        if (val === null || val === undefined || val === '') {
+          sawBlank = true;
+          break;
+        }
+        if (isNaN(Number(val))) { allNumeric = false; break; }
+      }
+      if (!sawBlank && allNumeric) return 'numeric';
     }
     return 'text';
   }, [condition.sourceField, transactions]);
@@ -161,13 +174,20 @@ export function ConditionEditor({
   const PREVIEW_CLAMP = 40;
   const clampForPreview = (s: string | undefined): string | undefined =>
     s && s.length > PREVIEW_CLAMP ? s.slice(0, PREVIEW_CLAMP - 1) + '…' : s;
-  const preview = condition.value
-    ? generateExpressionPrompt(
-        condition.operation,
-        clampForPreview(condition.value) ?? '',
-        condition.values?.map((v) => clampForPreview(v) ?? ''),
-      )
-    : '';
+  // Nullary operations (Is Blank or Empty / Is Not Blank or Empty) need a
+  // preview even when condition.value is empty — they carry their meaning
+  // entirely in the operation key. For value-bearing ops, suppress the
+  // preview until the user has typed something so a half-edited row doesn't
+  // render a noisy "Field → Contains ''" chip.
+  const preview = selectedOp?.noValueRequired
+    ? generateExpressionPrompt(condition.operation, '')
+    : condition.value
+      ? generateExpressionPrompt(
+          condition.operation,
+          clampForPreview(condition.value) ?? '',
+          condition.values?.map((v) => clampForPreview(v) ?? ''),
+        )
+      : '';
 
   // Required-field check for the inline Save button. Mirrors
   // `isCompleteCondition` (utils/ruleFingerprint) but tailored to surface the
@@ -180,7 +200,9 @@ export function ConditionEditor({
     if (!condition.operation || (condition.operation as string).trim().length === 0) {
       missing.push('Operation');
     }
-    if (selectedOp?.requiresMultipleValues) {
+    if (selectedOp?.noValueRequired) {
+      // Nullary ops carry no value — Save gates on Source Field + Operation only.
+    } else if (selectedOp?.requiresMultipleValues) {
       if (!condition.values || !condition.values.some((v) => v.trim().length > 0)) {
         missing.push('Value');
       }
@@ -240,17 +262,27 @@ export function ConditionEditor({
                   // Recompute the new field's kind so we can clear any
                   // operation that won't be valid on it (text-only ops on a
                   // date/numeric field, or a numeric op on a text field).
-                  const newKind: 'date' | 'numeric' | 'text' = DATE_SOURCE_FIELDS.has(newField)
-                    ? 'date'
-                    : NUMERIC_SOURCE_FIELDS.has(newField)
-                      ? 'numeric'
-                      : transactions.length > 0 && transactions.every((row) => {
-                          const val = row[newField];
-                          if (val === null || val === undefined || val === '') return true;
-                          return !isNaN(Number(val));
-                        })
-                        ? 'numeric'
-                        : 'text';
+                  let newKind: 'date' | 'numeric' | 'text';
+                  if (DATE_SOURCE_FIELDS.has(newField)) {
+                    newKind = 'date';
+                  } else if (NUMERIC_SOURCE_FIELDS.has(newField)) {
+                    newKind = 'numeric';
+                  } else {
+                    newKind = 'text';
+                    if (transactions.length > 0) {
+                      let sawBlank = false;
+                      let allNumeric = true;
+                      for (const row of transactions) {
+                        const val = row[newField];
+                        if (val === null || val === undefined || val === '') {
+                          sawBlank = true;
+                          break;
+                        }
+                        if (isNaN(Number(val))) { allNumeric = false; break; }
+                      }
+                      if (!sawBlank && allNumeric) newKind = 'numeric';
+                    }
+                  }
                   const allowed = newKind === 'text'
                     ? new Set(MATCH_OPERATIONS.filter((op) => !op.isNumeric).map((op) => op.key))
                     : ORDERED_NUMERIC_DATE_OPS;
@@ -277,12 +309,29 @@ export function ConditionEditor({
                 placeholder='Select operation'
                 value={condition.operation}
                 disabled={readOnly}
-                onChange={(val) => onUpdate({ operation: val as ConditionFormValue['operation'] })}
+                onChange={(val) => {
+                  const newOp = val as ConditionFormValue['operation'];
+                  const newOpDef = MATCH_OPERATIONS.find((op) => op.key === newOp);
+                  const updates: Partial<ConditionFormValue> = { operation: newOp };
+                  // Nullary ops carry no value — wipe any stale single/multi
+                  // value so a later mode flip doesn't surface a value the
+                  // user can't see (the Value input is hidden in this mode).
+                  if (newOpDef?.noValueRequired) {
+                    updates.value = '';
+                    updates.values = undefined;
+                  }
+                  onUpdate(updates);
+                }}
                 options={availableOperations.map((op) => ({ value: op.key, label: op.label }))}
               />
             </div>
             <div data-tour="condition-value">
-              {selectedOp?.requiresMultipleValues ? (
+              {selectedOp?.noValueRequired ? (
+                // No input — the operation alone fully specifies the rule.
+                // Keep the column slot so the 3-up grid layout stays stable
+                // with the Source Field + Operation row above the preview.
+                <div className="h-full" aria-hidden="true" />
+              ) : selectedOp?.requiresMultipleValues ? (
                 <Input
                   label='Value'
                   placeholder="Value1, Value2, ..."

@@ -390,6 +390,12 @@ export function engregxify(regex: string): string {
   if (regex.startsWith('__NUMERIC_GTE:')) return `Greater than or equal to '${regex.slice('__NUMERIC_GTE:'.length)}'`;
   if (regex.startsWith('__NUMERIC_LTE:')) return `Less than or equal to '${regex.slice('__NUMERIC_LTE:'.length)}'`;
 
+  // Nullary operations — match the exact regex shapes regexify() emits for
+  // is_blank_or_empty / is_not_blank_or_empty. Checked before the lookahead
+  // patterns since these are anchored, no-value forms with no captured payload.
+  if (regex === '^\\s*$') return 'Is blank or empty';
+  if (regex === '^\\s*\\S[\\s\\S]*$') return 'Is not blank or empty';
+
   // Negative lookbehind: does not end with — (?<!value)$ (legacy form)
   const doesNotEndWithMatch = regex.match(/^\(\?<!(.+)\)\$$/);
   if (doesNotEndWithMatch) {

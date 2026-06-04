@@ -4,7 +4,7 @@ import { ConditionEditor } from './ConditionEditor';
 import { Button } from '../shared/Button';
 import { generateExpressionPrompt } from '../../utils/regexify';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
-import { isSameCondition, isCompleteCondition } from '../../utils/ruleFingerprint';
+import { isSameCondition, isCompleteCondition, isFilledCondition } from '../../utils/ruleFingerprint';
 
 interface RuleGroupEditorProps {
   group: AndGroupFormValue;
@@ -58,7 +58,7 @@ export function RuleGroupEditor({
   // honour `startCollapsed`.
   const [isExpanded, setIsExpanded] = useState(() => {
     if (!startCollapsed) return true;
-    return !group.conditions.some((c) => c.value.trim().length > 0);
+    return !group.conditions.some(isFilledCondition);
   });
 
   // Clone is only meaningful once every condition is complete (no half-filled
@@ -91,7 +91,7 @@ export function RuleGroupEditor({
             Rule Set {groupIndex + 1}
           </span>
           {!isExpanded && (() => {
-            const filled = group.conditions.filter((c) => c.value.trim().length > 0);
+            const filled = group.conditions.filter(isFilledCondition);
             if (filled.length === 0) return (
               <span className="text-xs text-faint ml-1">(empty)</span>
             );

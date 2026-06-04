@@ -3,6 +3,7 @@ import type { WizardFormState } from '../types';
 import type { TepHeaders, FilterProperty } from '../api/transactions';
 import { getAllTransactionTags } from '../api/transactions';
 import { buildRulesetFilters } from '../utils/buildRulesetFilters';
+import { isFilledCondition } from '../utils/ruleFingerprint';
 import { useAuth } from '../context/AuthContext';
 import { useTepConfig } from '../context/TepConfigContext';
 import { useTransactionData } from './useTransactionData';
@@ -49,7 +50,7 @@ export function useMatchingTagIds(
   const hasNarrowingCriteria =
     formState.transactionTypeCode.trim().length > 0 ||
     formState.ruleGroups.some((g) =>
-      g.conditions.some((c) => c.value.trim().length > 0),
+      g.conditions.some(isFilledCondition),
     );
 
   // Build the payload outside the effect so its identity is content-derived

@@ -4,6 +4,7 @@ import { regexify } from './regexify';
 import { DATE_SOURCE_FIELDS } from '../constants/fields';
 import { compileDateRangeRegex } from './dateRangeRegex';
 import { compileNumericRangeRegex } from './numericRangeRegex';
+import { isFilledCondition } from './ruleFingerprint';
 
 type RegexCondition = { ColumnName: string; Value: string; Options: string };
 
@@ -63,10 +64,15 @@ export function buildRulesetFilters(formState: WizardFormState): FilterProperty[
     filters.push({ ColumnName: 'TransactionTypeCode', Value: formState.transactionTypeCode, Operand: 'EQ' });
   }
 
+  // `isFilledCondition` is the source of truth for "this condition carries
+  // meaning for the backend." It accepts nullary ops (Is Blank or Empty /
+  // Is Not Blank or Empty) which have no Value — without it, those rows
+  // would be silently dropped from the REGEX payload here and the table
+  // would return the unfiltered dataset.
   const regexGroups = formState.ruleGroups
     .map((group) =>
       group.conditions
-        .filter((c) => c.value.trim().length > 0)
+        .filter(isFilledCondition)
         .map(buildInnerCondition)
         .filter((r): r is RegexCondition => r !== null),
     )
