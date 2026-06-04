@@ -49,7 +49,17 @@ export function RuleGroupEditor({
   definitionId,
   onConditionEditingChange,
 }: RuleGroupEditorProps) {
-  const [isExpanded, setIsExpanded] = useState(!startCollapsed);
+  // Empty groups always start expanded — even when the editor opens in
+  // `startCollapsed` mode (editing an existing definition), a freshly
+  // added Rule Set has nothing to summarise behind the "(empty)" label,
+  // so the operator would just see a collapsed placeholder. Auto-expand
+  // when no condition has been filled in yet so the row is immediately
+  // ready for input. Groups that already carry filled conditions still
+  // honour `startCollapsed`.
+  const [isExpanded, setIsExpanded] = useState(() => {
+    if (!startCollapsed) return true;
+    return !group.conditions.some((c) => c.value.trim().length > 0);
+  });
 
   // Clone is only meaningful once every condition is complete (no half-filled
   // placeholder rows). We deliberately allow cloning even when this set is a
