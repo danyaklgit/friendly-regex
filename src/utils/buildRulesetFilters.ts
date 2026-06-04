@@ -24,6 +24,18 @@ const NUMERIC_RE = /^-?\d+(\.\d+)?$/;
  * so the caller can drop the condition without producing a broken payload.
  */
 function buildInnerCondition(c: ConditionFormValue): RegexCondition | null {
+  // Nullary blank operations carry no regex the server can use to match
+  // NULL columns (SQL regex against NULL returns NULL/false). Dropping
+  // them from the server payload means the backend returns the broader
+  // result set (rows whose columns may be NULL), and the table's
+  // client-side post-filter in TransactionsTab/filteredData narrows
+  // down using evaluateRuleSet's null-aware nullary handling. Both
+  // halves are required: skipping here without the post-filter would
+  // surface too many rows; the post-filter without skipping here would
+  // never see a row because the backend already dropped them.
+  if (c.operation === 'is_blank_or_empty' || c.operation === 'is_not_blank_or_empty') {
+    return null;
+  }
   if (c.operation === 'greater_than' || c.operation === 'less_than') {
     const op = c.operation === 'greater_than' ? 'gt' : 'lt';
     const isDate = DATE_SOURCE_FIELDS.has(c.sourceField) || ISO_DATE_RE.test(c.value.trim());

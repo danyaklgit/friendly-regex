@@ -21,12 +21,31 @@ describe('engregxify', () => {
     expect(engregxify('__NUMERIC_LTE:999')).toBe("Less than or equal to '999'");
   });
 
-  // Nullary operations
-  it('is blank or empty: anchored whitespace-only regex', () => {
+  // Nullary operations — current regex shapes
+  it('is blank or empty: ^[\\s-]*$ matches empty / whitespace / dash-only', () => {
+    expect(engregxify('^[\\s-]*$')).toBe('Is blank or empty');
+  });
+
+  it('is not blank or empty: ^.*[^\\s-].*$ matches any non-blank, non-dash content', () => {
+    expect(engregxify('^.*[^\\s-].*$')).toBe('Is not blank or empty');
+  });
+
+  // Legacy shapes (sentinel form + pure whitespace regex) still decode for
+  // backward compat — any saved TagSpec library from prior frontend releases
+  // carries these and should still surface the friendly label.
+  it('legacy sentinel form still decodes (blank)', () => {
+    expect(engregxify('__IS_BLANK_OR_EMPTY:')).toBe('Is blank or empty');
+  });
+
+  it('legacy sentinel form still decodes (not blank)', () => {
+    expect(engregxify('__IS_NOT_BLANK_OR_EMPTY:')).toBe('Is not blank or empty');
+  });
+
+  it('legacy whitespace-only regex still decodes (blank)', () => {
     expect(engregxify('^\\s*$')).toBe('Is blank or empty');
   });
 
-  it('is not blank or empty: anchored at-least-one-non-whitespace regex', () => {
+  it('legacy whitespace-only regex still decodes (not blank)', () => {
     expect(engregxify('^\\s*\\S[\\s\\S]*$')).toBe('Is not blank or empty');
   });
 

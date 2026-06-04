@@ -15,9 +15,35 @@ function compareWithOp<T extends number | string>(a: T, b: T, op: CompareOp): bo
  * Evaluates a single AND group against a transaction row.
  * Returns true if ALL conditions in the group match.
  */
+// Regex shapes emitted by regexify() for the nullary blank operations.
+// These need null-aware semantics that a regex engine cannot express on
+// its own — kept here (matched against the literal Regex string) so the
+// client-side rule evaluator behaves correctly and so the post-filter
+// in TransactionsTab/filteredData converges with what the operator sees
+// in the UI ("-" placeholder == blank).
+const IS_BLANK_OR_EMPTY_REGEX = '^[\\s-]*$';
+const IS_NOT_BLANK_OR_EMPTY_REGEX = '^.*[^\\s-].*$';
+
 export function evaluateRuleSet(andGroup: AndGroup, row: TransactionRow): boolean {
   return andGroup.every((condition) => {
     const fieldValue = row[condition.SourceField];
+
+    // Nullary blank operations — evaluated BEFORE the null/undefined
+    // guard below, because their entire point is to evaluate the
+    // column's emptiness state. Null/undefined, the empty string, a
+    // standalone whitespace run, and a standalone "-" all count as
+    // blank (matching the UI's missing-data placeholder convention).
+    if (condition.Regex === IS_BLANK_OR_EMPTY_REGEX) {
+      if (fieldValue === undefined || fieldValue === null) return true;
+      const s = String(fieldValue);
+      return /^[\s-]*$/.test(s);
+    }
+    if (condition.Regex === IS_NOT_BLANK_OR_EMPTY_REGEX) {
+      if (fieldValue === undefined || fieldValue === null) return false;
+      const s = String(fieldValue);
+      return /[^\s-]/.test(s);
+    }
+
     if (fieldValue === undefined || fieldValue === null) return false;
 
     // Numeric / date comparison operations. The regexify sentinel

@@ -390,9 +390,19 @@ export function engregxify(regex: string): string {
   if (regex.startsWith('__NUMERIC_GTE:')) return `Greater than or equal to '${regex.slice('__NUMERIC_GTE:'.length)}'`;
   if (regex.startsWith('__NUMERIC_LTE:')) return `Less than or equal to '${regex.slice('__NUMERIC_LTE:'.length)}'`;
 
-  // Nullary operations — match the exact regex shapes regexify() emits for
-  // is_blank_or_empty / is_not_blank_or_empty. Checked before the lookahead
-  // patterns since these are anchored, no-value forms with no captured payload.
+  // Nullary operations — regex shapes emitted by regexify() for
+  // is_blank_or_empty / is_not_blank_or_empty. The "blank" shape matches
+  // empty, whitespace-only, and dash-only values; the "not blank" shape
+  // matches anything with at least one non-whitespace, non-dash character.
+  // Checked before the lookahead patterns since these are anchored, no-
+  // value forms.
+  if (regex === '^[\\s-]*$') return 'Is blank or empty';
+  if (regex === '^.*[^\\s-].*$') return 'Is not blank or empty';
+  // Legacy shapes the frontend briefly emitted (sentinel form + pure
+  // whitespace regex). Saved TagSpec libraries from those releases still
+  // need to surface the friendly label.
+  if (regex === '__IS_BLANK_OR_EMPTY:' || regex === '__IS_BLANK_OR_EMPTY') return 'Is blank or empty';
+  if (regex === '__IS_NOT_BLANK_OR_EMPTY:' || regex === '__IS_NOT_BLANK_OR_EMPTY') return 'Is not blank or empty';
   if (regex === '^\\s*$') return 'Is blank or empty';
   if (regex === '^\\s*\\S[\\s\\S]*$') return 'Is not blank or empty';
 

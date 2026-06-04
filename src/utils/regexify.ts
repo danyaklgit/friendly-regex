@@ -94,15 +94,26 @@ export function regexify(
     case 'less_than_or_equal':
       return `__NUMERIC_LTE:${value}`;
     case 'is_blank_or_empty':
-      // Whole string is empty or whitespace-only. The backend matcher uses
-      // anchored evaluation, so `^\s*$` correctly excludes any row whose
-      // source field carries a non-whitespace character.
-      return `^\\s*$`;
+      // Frontend-only nullary blank check. The regex matches empty,
+      // whitespace-only, or dash-only values — the standalone-space and
+      // standalone-`-` arms of "considered empty" per the operator's
+      // mental model. The null arm is handled separately:
+      //   * buildRulesetFilters SKIPS this condition from the server
+      //     payload (a regex can't match a NULL column in SQL), so the
+      //     server returns null-column rows in the first place.
+      //   * evaluateRuleSet (client-side) treats null/undefined as a
+      //     match for this regex shape, and TransactionsTab applies a
+      //     defensive client-side post-filter using that evaluator so
+      //     null rows survive the view-layer filter chain.
+      return `^[\\s-]*$`;
     case 'is_not_blank_or_empty':
-      // Matches any string that contains at least one non-whitespace
-      // character. Anchored so the backend can evaluate it as a full-string
-      // match without quirky partial-match behavior.
-      return `^\\s*\\S[\\s\\S]*$`;
+      // Symmetric counterpart: at least one character that is neither
+      // whitespace nor a dash. Anchored so client-side regex evaluation
+      // is unambiguous; the server-side path naturally drops null
+      // columns (SQL regex against NULL returns NULL/false) which is
+      // exactly what we want — null is "blank", so it should NOT pass
+      // this filter.
+      return `^.*[^\\s-].*$`;
     default:
       return escaped;
   }

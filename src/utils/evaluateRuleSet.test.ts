@@ -40,6 +40,45 @@ describe('evaluateRuleSet', () => {
     expect(evaluateRuleSet(group, row)).toBe(false);
   });
 
+  describe('nullary blank ops', () => {
+    const BLANK = '^[\\s-]*$';
+    const NOT_BLANK = '^.*[^\\s-].*$';
+
+    it('is_blank_or_empty matches null/undefined fields', () => {
+      // Cell renders "-" placeholder for missing data; the operator's
+      // mental model of "blank" must include backend NULL.
+      expect(evaluateRuleSet([makeCondition('Missing', BLANK)], row)).toBe(true);
+      expect(evaluateRuleSet([makeCondition('AlsoMissing', BLANK)], { Description1: 'x' })).toBe(true);
+    });
+
+    it('is_blank_or_empty matches empty / whitespace / dash-only', () => {
+      expect(evaluateRuleSet([makeCondition('F', BLANK)], { F: '' })).toBe(true);
+      expect(evaluateRuleSet([makeCondition('F', BLANK)], { F: '   ' })).toBe(true);
+      expect(evaluateRuleSet([makeCondition('F', BLANK)], { F: '-' })).toBe(true);
+      expect(evaluateRuleSet([makeCondition('F', BLANK)], { F: ' - ' })).toBe(true);
+    });
+
+    it('is_blank_or_empty does NOT match real content', () => {
+      expect(evaluateRuleSet([makeCondition('F', BLANK)], { F: 'FAVOR' })).toBe(false);
+      expect(evaluateRuleSet([makeCondition('F', BLANK)], { F: 'A-B' })).toBe(false);
+    });
+
+    it('is_not_blank_or_empty does NOT match null/undefined', () => {
+      expect(evaluateRuleSet([makeCondition('Missing', NOT_BLANK)], row)).toBe(false);
+    });
+
+    it('is_not_blank_or_empty does NOT match empty / whitespace / dash-only', () => {
+      expect(evaluateRuleSet([makeCondition('F', NOT_BLANK)], { F: '' })).toBe(false);
+      expect(evaluateRuleSet([makeCondition('F', NOT_BLANK)], { F: '   ' })).toBe(false);
+      expect(evaluateRuleSet([makeCondition('F', NOT_BLANK)], { F: '-' })).toBe(false);
+    });
+
+    it('is_not_blank_or_empty matches real content', () => {
+      expect(evaluateRuleSet([makeCondition('F', NOT_BLANK)], { F: 'FAVOR' })).toBe(true);
+      expect(evaluateRuleSet([makeCondition('F', NOT_BLANK)], { F: ' - X - ' })).toBe(true);
+    });
+  });
+
   it('handles contains regex', () => {
     const group: AndGroup = [makeCondition('Description1', 'ACME')];
     expect(evaluateRuleSet(group, row)).toBe(true);

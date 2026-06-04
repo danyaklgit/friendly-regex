@@ -57,11 +57,14 @@ describe('buildRulesetFilters', () => {
     });
   });
 
-  it('keeps nullary conditions (is_blank_or_empty) in the REGEX payload despite empty Value', () => {
-    // The old gate filtered out any condition with `value.trim().length === 0`,
-    // which silently dropped nullary ops from the GETMT940 payload and left
-    // the table unfiltered. The REGEX inner-condition Value must carry the
-    // anchored whitespace-only pattern so the backend filters server-side.
+  it('skips nullary conditions (is_blank_or_empty) from the server payload', () => {
+    // Nullary blank ops are evaluated client-side (see TransactionsTab's
+    // filteredData post-filter and evaluateRuleSet's nullary handling). A
+    // SQL regex can't match a NULL column, so emitting the regex here
+    // would silently drop every row whose column is NULL — the opposite
+    // of the operator's intent. Dropping the condition lets the backend
+    // return the broader set, then the client narrows down using
+    // null-aware semantics.
     const filters = buildRulesetFilters(makeFormState({
       ruleGroups: [{
         id: 'g1',
@@ -70,16 +73,12 @@ describe('buildRulesetFilters', () => {
         ],
       }],
     }));
-    const r = regexBlock(filters);
-    expect(r?.Regex[0]).toHaveLength(1);
-    expect(r?.Regex[0][0]).toEqual({
-      ColumnName: 'AdditionalInformation',
-      Value: '^\\s*$',
-      Options: '',
-    });
+    // The group becomes empty after dropping the only nullary condition,
+    // so no REGEX block is emitted at all.
+    expect(filters.find((f) => f.Operand === 'REGEX')).toBeUndefined();
   });
 
-  it('keeps nullary conditions (is_not_blank_or_empty) in the REGEX payload despite empty Value', () => {
+  it('skips nullary conditions (is_not_blank_or_empty) from the server payload', () => {
     const filters = buildRulesetFilters(makeFormState({
       ruleGroups: [{
         id: 'g1',
@@ -88,13 +87,26 @@ describe('buildRulesetFilters', () => {
         ],
       }],
     }));
+    expect(filters.find((f) => f.Operand === 'REGEX')).toBeUndefined();
+  });
+
+  it('still emits a REGEX block for non-nullary siblings of a nullary condition', () => {
+    // Mixed-group case: the non-blank condition stays in the wire
+    // payload while the nullary blank is dropped (and applied client
+    // side). Server narrows by non-blank, client narrows further by
+    // blank.
+    const filters = buildRulesetFilters(makeFormState({
+      ruleGroups: [{
+        id: 'g1',
+        conditions: [
+          { id: 'c1', sourceField: 'Description1', operation: 'contains', value: 'SALARY' },
+          { id: 'c2', sourceField: 'AdditionalInformation', operation: 'is_blank_or_empty', value: '' },
+        ],
+      }],
+    }));
     const r = regexBlock(filters);
     expect(r?.Regex[0]).toHaveLength(1);
-    expect(r?.Regex[0][0]).toEqual({
-      ColumnName: 'AdditionalInformation',
-      Value: '^\\s*\\S[\\s\\S]*$',
-      Options: '',
-    });
+    expect(r?.Regex[0][0].ColumnName).toBe('Description1');
   });
 
   it('drops conditions with empty values', () => {

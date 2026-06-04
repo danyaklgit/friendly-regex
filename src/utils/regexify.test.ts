@@ -62,14 +62,29 @@ describe('regexify', () => {
     expect(regexify('less_than_or_equal', '999')).toBe('__NUMERIC_LTE:999');
   });
 
-  it('is_blank_or_empty: anchored whitespace-only regex (value ignored)', () => {
-    expect(regexify('is_blank_or_empty', '')).toBe('^\\s*$');
-    expect(regexify('is_blank_or_empty', 'ignored')).toBe('^\\s*$');
+  it('is_blank_or_empty: anchored regex matching empty / whitespace / dash-only (value ignored)', () => {
+    // Dash is included so the UI placeholder "-" (and any MT940 pipeline
+    // that stores a literal "-" for missing data) is treated as blank.
+    expect(regexify('is_blank_or_empty', '')).toBe('^[\\s-]*$');
+    expect(regexify('is_blank_or_empty', 'ignored')).toBe('^[\\s-]*$');
+    // Behavioral sanity — the regex itself.
+    const r = new RegExp(regexify('is_blank_or_empty', ''));
+    expect(r.test('')).toBe(true);
+    expect(r.test('   ')).toBe(true);
+    expect(r.test('-')).toBe(true);
+    expect(r.test('- - -')).toBe(true);
+    expect(r.test('FAVOR')).toBe(false);
   });
 
-  it('is_not_blank_or_empty: anchored at-least-one-non-whitespace regex (value ignored)', () => {
-    expect(regexify('is_not_blank_or_empty', '')).toBe('^\\s*\\S[\\s\\S]*$');
-    expect(regexify('is_not_blank_or_empty', 'ignored')).toBe('^\\s*\\S[\\s\\S]*$');
+  it('is_not_blank_or_empty: anchored regex matching any non-blank / non-dash content (value ignored)', () => {
+    expect(regexify('is_not_blank_or_empty', '')).toBe('^.*[^\\s-].*$');
+    expect(regexify('is_not_blank_or_empty', 'ignored')).toBe('^.*[^\\s-].*$');
+    const r = new RegExp(regexify('is_not_blank_or_empty', ''));
+    expect(r.test('FAVOR GRC360')).toBe(true);
+    expect(r.test('')).toBe(false);
+    expect(r.test('   ')).toBe(false);
+    expect(r.test('-')).toBe(false);
+    expect(r.test('- - -')).toBe(false);
   });
 
   it('does not escape forward slash (not a regex metachar)', () => {

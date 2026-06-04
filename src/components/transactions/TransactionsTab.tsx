@@ -25,6 +25,7 @@ import { useWizardForm, fromExistingDefinition } from '../../hooks/useWizardForm
 import type { TagSpecDefinition, TagSpecLibrary, AnalyzedTransaction, WizardFormState, RuleExpression, CheckoutState, TransactionRow } from '../../types';
 import type { WizardFormResult } from '../../hooks/useWizardForm';
 import { analyzeRow } from '../../utils/analyzeRow';
+import { evaluateRuleSet } from '../../utils/evaluateRuleSet';
 import { computeDefinitionVersions } from '../../utils/definitionVersions';
 import { getAllTagNameOptions, getAttributeSuggestionsForTag } from '../../utils/tagNameLookup';
 import { SearchableSelect } from '../shared/SearchableSelect';
@@ -1435,6 +1436,31 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       });
     }
 
+    // Nullary blank conditions (Is Blank or Empty / Is Not Blank or Empty)
+    // can't be expressed as a regex that matches NULL columns in SQL —
+    // see regexify.ts + buildRulesetFilters.ts — so the server filter
+    // SKIPS them and we narrow client-side here using the rule
+    // evaluator, which has null/empty/space/dash-aware semantics for
+    // the nullary regex shapes (evaluateRuleSet.ts). Gated on
+    // `rulesetApplied` so the table only narrows after the operator
+    // explicitly applies the rule, matching the standard rule-builder
+    // semantics (Save / Apply). Without this block, a rule with only
+    // a blank-check would return zero rows because the backend filter
+    // drops every NULL column instead of including them.
+    const hasNullaryBlankCondition =
+      builderOpen
+      && (tagClickState?.rulesetApplied ?? false)
+      && builder.formState.ruleGroups.some((g) =>
+        g.conditions.some(
+          (c) => c.operation === 'is_blank_or_empty' || c.operation === 'is_not_blank_or_empty',
+        ),
+      );
+    if (hasNullaryBlankCondition && tempDefinition && tempDefinition.TagRuleExpressions.length > 0) {
+      result = result.filter((item) =>
+        tempDefinition.TagRuleExpressions.some((group) => evaluateRuleSet(group, item.row)),
+      );
+    }
+
     // Drop rows whose matched definitions include any hidden tag spec. Hide
     // Tag Spec is a pure view-layer filter — server payload is unchanged so
     // the operator can restore the spec from the side panel.
@@ -1470,7 +1496,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     }
 
     return result;
-  }, [analyzedData, showOnlyUntagged, showOnlyMultiTagged, showOnlyDeadEnd, filters, isLiveMode, builderOpen, builder.formState.transactionTypeCode, hiddenDefIds, sortOverride, validityStartDate, validityEndDate]);
+  }, [analyzedData, showOnlyUntagged, showOnlyMultiTagged, showOnlyDeadEnd, filters, isLiveMode, builderOpen, builder.formState.transactionTypeCode, builder.formState.ruleGroups, tempDefinition, tagClickState?.rulesetApplied, hiddenDefIds, sortOverride, validityStartDate, validityEndDate]);
 
   // Count of loaded rows that match any hidden tag spec. Drives the "live
   // total minus hidden" adjustment in the Transactions header AND the
