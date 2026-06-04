@@ -2479,6 +2479,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                 filterDefinitions={filterDefinitions}
                 disabled={isReadOnly}
                 triggerClassName="!py-1 !text-xs !max-w-[220px]"
+                clearable
               />
               <label className="text-xs font-medium text-primary-dark whitespace-nowrap ml-2">
                 Tag Name

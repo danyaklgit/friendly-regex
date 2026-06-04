@@ -12,9 +12,14 @@ interface TransactionTypePickerProps {
   /** Extra classes for the trigger button. Use `!`-prefixed utilities to
    *  override defaults (e.g. `!py-1`, `!max-w-[180px]`). */
   triggerClassName?: string;
+  /** When true, render an inline × button next to the chevron once a
+   *  value is set so the operator can clear the selection without
+   *  opening the dropdown — mirrors the SearchableSelect `clearable`
+   *  affordance used by the Tag Name picker. */
+  clearable?: boolean;
 }
 
-export function TransactionTypePicker({ value, onChange, filterDefinitions, disabled, triggerClassName }: TransactionTypePickerProps) {
+export function TransactionTypePicker({ value, onChange, filterDefinitions, disabled, triggerClassName, clearable }: TransactionTypePickerProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [highlightIndex, setHighlightIndex] = useState(0);
@@ -176,9 +181,23 @@ export function TransactionTypePicker({ value, onChange, filterDefinitions, disa
         className={`flex items-center justify-between gap-1.5 min-w-28 rounded-lg border border-input-border bg-input-bg px-3 py-2 text-sm text-heading focus:outline-none focus:ring-1 focus:ring-primary transition-colors ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'} ${triggerClassName ?? ''}`}
       >
         <span className="truncate">{selectedLabel}</span>
-        <svg className="w-3 h-3 text-muted shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
+        <span className="flex items-center gap-1 shrink-0">
+          {clearable && value && !disabled && (
+            <span
+              role="button"
+              onClick={(e) => { e.stopPropagation(); onChange(''); }}
+              className="text-muted hover:text-heading transition-colors p-0.5"
+              title="Clear selection"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </span>
+          )}
+          <svg className="w-3 h-3 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </span>
       </button>
       {open && !disabled && menuPos && createPortal(
         <>
