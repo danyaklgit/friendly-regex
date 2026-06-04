@@ -170,6 +170,19 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
     };
   }, [editing, attribute.id, onEditingChange]);
 
+  // Dispatch the event TransactionTable listens for. The table walks the
+  // viewport into view (vertical) and scrolls the matching `<th data-
+  // column-key="attr:<name>">` into the horizontal frame. Guarded on a
+  // non-empty name because the column doesn't exist until the operator
+  // has picked one.
+  const handleViewAttrColumn = useCallback(() => {
+    const name = attribute.attributeTag.trim();
+    if (!name) return;
+    window.dispatchEvent(
+      new CustomEvent('tep:view-attr-column', { detail: { attributeName: name } }),
+    );
+  }, [attribute.attributeTag]);
+
   // Build attribute name options from backend attributes, with optional
   // "Suggested from other 'X' defs" section pinned at the top.
   const attributeNameOptions = useMemo(() => {
@@ -804,6 +817,17 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
                 }
                 size="xs"
               />
+            )}
+            {attribute.attributeTag.trim().length > 0 && (
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={handleViewAttrColumn}
+                className="text-primary shrink-0"
+                title="Scroll the transactions table to this attribute's column"
+              >
+                View Attr Column
+              </Button>
             )}
             {!readOnly && (
               <Button variant="ghost" size="xs" onClick={onClone} className="text-primary shrink-0">
@@ -1529,6 +1553,17 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
                 }
                 size="xs"
               />
+            )}
+            {attribute.attributeTag.trim().length > 0 && (
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={handleViewAttrColumn}
+                className="ml-1 text-primary"
+                title="Scroll the transactions table to this attribute's column"
+              >
+                View Attr Column
+              </Button>
             )}
             {!readOnly && (
               <Button variant="ghost" size="xs" onClick={onClone} className="ml-1 text-primary">

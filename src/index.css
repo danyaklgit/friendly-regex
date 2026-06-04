@@ -283,3 +283,27 @@ input[type="checkbox"]:hover:not(:checked) {
     animation: none;
   }
 }
+
+/* "View Attr Column" highlight. Applied to every <th>/<td> in the targeted
+   column for 1.8s after the rule builder's "View Attr Column" button
+   scrolls the table to it, so the eye can find the column even on dense
+   tables with many similar-looking attribute columns. The inset ring keeps
+   the highlight inside the cell box so it doesn't push siblings around,
+   and a tinted background reinforces the column as a vertical band. */
+@keyframes tep-col-flash-pulse {
+  0%   { background-color: rgba(18, 189, 206, 0.28); box-shadow: inset 0 0 0 2px rgba(18, 189, 206, 0.9); }
+  60%  { background-color: rgba(18, 189, 206, 0.18); box-shadow: inset 0 0 0 2px rgba(18, 189, 206, 0.65); }
+  100% { background-color: rgba(18, 189, 206, 0.00); box-shadow: inset 0 0 0 2px rgba(18, 189, 206, 0.00); }
+}
+
+.tep-col-flash {
+  animation: tep-col-flash-pulse 1.8s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tep-col-flash {
+    animation: none;
+    background-color: rgba(18, 189, 206, 0.18);
+    box-shadow: inset 0 0 0 2px rgba(18, 189, 206, 0.65);
+  }
+}

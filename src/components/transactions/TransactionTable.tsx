@@ -1323,6 +1323,64 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     };
   }, [visibleColumns, data, updateViewportIndicator]);
 
+  // External "scroll to a specific attribute column" trigger. The rule
+  // builder lives above the table; the Attribute Editor's "View Attr Column"
+  // button dispatches `tep:view-attr-column` with the attribute name as the
+  // event detail. We locate the matching `<th data-column-key="attr:<name>">`
+  // via the live DOM (not React state) so the lookup stays correct across
+  // column re-orderings the operator may have applied. The container's
+  // `scrollIntoView({ block: 'start' })` pulls the table into the page
+  // viewport (the page is what scrolls vertically here, not the table),
+  // then `el.scrollTo({ left })` puts the targeted column horizontally
+  // visible. While scrolling, every `<th>` + `<td>` at the matched
+  // colIndex gets a flash class — much easier to spot than a single
+  // highlighted header once the operator's eye lands on the table.
+  // The DOM-walk approach sidesteps the need to thread a "flashing column
+  // key" through every td branch in the cell renderer (debit/credit, tags,
+  // attribute, data, sticky variants).
+  useEffect(() => {
+    function onViewAttrColumn(e: Event) {
+      const detail = (e as CustomEvent<{ attributeName?: string }>).detail;
+      const name = detail?.attributeName;
+      if (!name) return;
+      const container = scrollContainerRef.current;
+      if (!container) return;
+      const th = container.querySelector<HTMLElement>(
+        `th[data-column-key="attr:${CSS.escape(name)}"]`,
+      );
+      if (!th) return;
+      const headerRow = th.parentElement;
+      const colIndex = headerRow ? Array.from(headerRow.children).indexOf(th) : -1;
+      container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // Defer the horizontal scroll so the vertical scroll above has time to
+      // settle. `scrollIntoView` on the th itself would also scroll the page
+      // vertically again (overscrolling past the header), so compute the
+      // target left manually using the th's offset within the scroll
+      // container.
+      const headerSticky = stickyLeftWidthRef.current;
+      const targetLeft = th.offsetLeft - headerSticky - 16;
+      requestAnimationFrame(() => {
+        container.scrollTo({ left: Math.max(0, targetLeft), behavior: 'smooth' });
+        // Collect every cell in the matched column position across both the
+        // header row and every body row, then drop the flash class after
+        // the timeout. Querying by nth-child(colIndex+1) on tr children
+        // catches the header th AND every body td in one selector — keeps
+        // the cleanup loop trivial. nth-child is 1-based.
+        if (colIndex < 0) return;
+        const cells = container.querySelectorAll<HTMLElement>(
+          `tr > :nth-child(${colIndex + 1})`,
+        );
+        const FLASH = ['tep-col-flash'];
+        cells.forEach((cell) => cell.classList.add(...FLASH));
+        window.setTimeout(() => {
+          cells.forEach((cell) => cell.classList.remove(...FLASH));
+        }, 1800);
+      });
+    }
+    window.addEventListener('tep:view-attr-column', onViewAttrColumn);
+    return () => window.removeEventListener('tep:view-attr-column', onViewAttrColumn);
+  }, []);
+
   // Per-column accent colors for minimap ↔ header visual link
   const columnAccentColors = useMemo(() => {
     const total = visibleColumns.length;
@@ -2194,6 +2252,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                 return (
                   <th
                     key={col.key}
+                    data-column-key={col.key}
                     className={`relative px-3 ${cellPy} text-left text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap ${isAttr ? 'text-primary-dark bg-white dark:bg-slate-800' : 'text-body-secondary bg-surface-secondary'
                       }`}
                     style={{ ...getCellStyle(idx, true), paddingBottom: 8, width: explicitWidth, minWidth: explicitWidth, maxWidth: explicitWidth, boxShadow: hasOverflow ? `inset 0 -3px 0 ${columnAccentColors.get(col.key)}` : undefined }}
