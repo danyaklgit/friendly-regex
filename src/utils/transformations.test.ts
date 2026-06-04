@@ -256,6 +256,28 @@ describe('applyTransformation', () => {
     expect(applyTransformation('date_reformat', { fromFormat: 'DD.MM.YYYY', toFormat: 'YYYY-MM-DD' }, '25.12.2024')).toBe('2024-12-25');
   });
 
+  it('date_reformat strips an ISO datetime time portion before splitting', () => {
+    // Real bug: an extracted `2023-11-23T00:00:00Z` value would otherwise
+    // split into ["2023", "11", "23T00:00:00Z"] and trap the time portion
+    // into the day segment, producing `23T00:00:00Z-11-2023` on a
+    // YYYY-MM-DD → DD-MM-YYYY reformat. Stripping at the `T` fixes it.
+    expect(
+      applyTransformation('date_reformat', { fromFormat: 'YYYY-MM-DD', toFormat: 'DD-MM-YYYY' }, '2023-11-23T00:00:00Z'),
+    ).toBe('23-11-2023');
+  });
+
+  it('date_reformat strips a time portion before reformatting with slash separators', () => {
+    expect(
+      applyTransformation('date_reformat', { fromFormat: 'YYYY-MM-DD', toFormat: 'MM/DD/YYYY' }, '2024-12-25T08:30:00Z'),
+    ).toBe('12/25/2024');
+  });
+
+  it('date_reformat leaves a bare date untouched when no time portion is present', () => {
+    expect(
+      applyTransformation('date_reformat', { fromFormat: 'YYYY-MM-DD', toFormat: 'DD-MM-YYYY' }, '2023-11-23'),
+    ).toBe('23-11-2023');
+  });
+
   // --- Extraction Refinement ---
   it('substring extracts from start index', () => {
     expect(applyTransformation('substring', { start: '6' }, 'Hello World')).toBe('World');

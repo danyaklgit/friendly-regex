@@ -5,6 +5,18 @@ import { TRANSFORMATION_METHOD_MAP } from '../../constants/transformations';
 
 const DEFAULT_SAMPLE = '  JOHN DOE / 12345 / PAYMENT  ';
 
+// Strip the ISO datetime time portion from a date-shaped sample for the
+// "Extracted" preview line so operators reformatting a backend datetime
+// field (Validity bounds, StatementDate, etc.) see a clean
+// `YYYY-MM-DD` instead of `YYYY-MM-DDT00:00:00Z`. Match the strict
+// "date prefix immediately followed by T + something" shape so values
+// that legitimately contain a T (free-text narratives, URIs, etc.)
+// aren't mangled. Only the displayed string changes — the transformation
+// pipeline below still receives the full sample.
+function displaySample(raw: string): string {
+  return /^\d{4}-\d{2}-\d{2}T.+/.test(raw) ? raw.split('T')[0] : raw;
+}
+
 interface TransformationPreviewProps {
   transformations: TransformationFormValue[];
   sampleValue?: string;
@@ -29,7 +41,7 @@ export function TransformationPreview({ transformations, sampleValue }: Transfor
       <div className="flex items-start gap-2 text-xs">
         <span className="shrink-0 w-5 text-right text-faint font-mono">&bull;</span>
         <span className="text-faint text-[10px] shrink-0 w-20">Extracted</span>
-        <code className="font-mono text-primary break-all">"{sample}"</code>
+        <code className="font-mono text-primary break-all">"{displaySample(sample)}"</code>
       </div>
 
       {steps.map((step) => {

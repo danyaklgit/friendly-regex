@@ -174,9 +174,18 @@ export function applyTransformationPipeline(
 function reformatDate(value: string, fromFormat: string, toFormat: string): string {
   if (!fromFormat || !toFormat) return value;
 
+  // Strip an ISO datetime time portion before splitting. The transformation
+  // pipeline routinely sees `YYYY-MM-DDT00:00:00Z`-shaped values after the
+  // Validity ISO lift and from any backend field that stores dates as
+  // datetimes. Without this strip the trailing `T00:00:00Z` rides along on
+  // the final segment, so reformatting `2023-11-23T00:00:00Z` with
+  // `YYYY-MM-DD` → `DD-MM-YYYY` produced `23T00:00:00Z-11-2023` instead of
+  // `23-11-2023`.
+  const cleanValue = value.includes('T') ? value.split('T')[0] : value;
+
   const fromParts = fromFormat.split(/[/\-.]/).map((p) => p.toUpperCase());
   const sep = fromFormat.match(/[/\-.]/)?.[0] ?? '/';
-  const valueParts = value.split(/[/\-.]/);
+  const valueParts = cleanValue.split(/[/\-.]/);
 
   if (fromParts.length !== valueParts.length) return value;
 
