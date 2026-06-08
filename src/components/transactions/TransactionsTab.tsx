@@ -294,7 +294,6 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     transactions, fieldMeta, loadTransactions, resetToSample, isCustomData, flagDeadEnd,
     setComments, flagDeadEndWithComment,
     isLiveMode, loading, hasMore: liveHasMore, totalTransactionsCount, fetchPage, replaceFromBeginning, fetchCount,
-    trimLoadedTransactions,
     filterDefinitions, filterDefinitionsLoading, fetchFilterDefinitions,
     decimalMaxValues,
   } = useTransactionData();
@@ -981,11 +980,23 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     if (filterDefinitions.length === 0) return;
     if (activeCheckout?.pendingDefinitionId) return;
     const timer = setTimeout(() => {
-      fetchPage(outgoingFilters, false, incrementalPagination ? undefined : 0, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined, effectiveSorting);
-      if (!incrementalPagination) { setCurrentPage(0); setPageInputValue('1'); }
+      // Honor the operator's last +N / Show all choice on incremental
+      // refetches. Without this, Refresh / tag toggle / hidden-tag
+      // change all reset the table back to PAGE_SIZE=50 even though
+      // the operator just loaded 44k rows via Show all. Classic
+      // pagination (incrementalPagination=false) sticks to PAGE_SIZE
+      // since each page click is its own navigation, not an extension.
+      const extras = activeExtraFilters.length > 0 ? activeExtraFilters : undefined;
+      const desired = desiredLoadedCountRef.current;
+      if (incrementalPagination && desired && desired > 0) {
+        replaceFromBeginning(outgoingFilters, desired, extras, effectiveSorting);
+      } else {
+        fetchPage(outgoingFilters, false, incrementalPagination ? undefined : 0, undefined, extras, effectiveSorting);
+        if (!incrementalPagination) { setCurrentPage(0); setPageInputValue('1'); }
+      }
     }, 50);
     return () => clearTimeout(timer);
-  }, [isLiveMode, filterDefinitions.length, outgoingFilters, fetchPage, incrementalPagination, activeExtraFilters, activeCheckout?.pendingDefinitionId, effectiveSorting]);
+  }, [isLiveMode, filterDefinitions.length, outgoingFilters, fetchPage, replaceFromBeginning, incrementalPagination, activeExtraFilters, activeCheckout?.pendingDefinitionId, effectiveSorting]);
 
   // Capture Call 2 total count (definition-based) before Call 3 can overwrite it
   useEffect(() => {
@@ -1737,6 +1748,23 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     return entries;
   }, [matchingTagDefIds, allLibraries, definitionVersions]);
 
+  // Operator's "desired loaded count" — set when they explicitly ask
+  // for more rows via +N / Show all. Null means "no explicit choice
+  // yet", so the standard filter-change refetch uses the default
+  // PAGE_SIZE (50). After a Show all click on 44k rows the operator
+  // expects subsequent filter changes (notably the Refresh button,
+  // which clears tag selections and thereby reruns the fetch effect)
+  // to keep all 44k loaded; this ref carries the intent forward.
+  // Resets to null on bank/side scope change so a new session starts
+  // fresh.
+  const desiredLoadedCountRef = useRef<number | null>(null);
+  useEffect(() => {
+    // Bank/side scope change = new session, drop the previous +N /
+    // Show all intent. Subsequent fetches go back to PAGE_SIZE=50
+    // until the operator explicitly extends again.
+    desiredLoadedCountRef.current = null;
+  }, [activeCheckout?.bank, activeCheckout?.side]);
+
   // Deliver +N visible rows in a SINGLE HTTP request.
   //
   // Backend confirmed `PageSize` is uncapped, so the cleanest path is:
@@ -1766,6 +1794,10 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     // so we never ask for more rows than exist (would round-trip a
     // larger response than needed).
     const targetTotal = Math.min(totalBackend, transactions.length + effectiveSize);
+    // Remember the desired window so a later filter-change refetch
+    // (Refresh button, hidden-tag toggle, etc.) restores the same
+    // size instead of falling back to PAGE_SIZE=50.
+    desiredLoadedCountRef.current = targetTotal;
     const extras = activeExtraFilters.length > 0 ? activeExtraFilters : undefined;
     await replaceFromBeginning(outgoingFilters, targetTotal, extras, effectiveSorting);
   }, [isLiveMode, activeExtraFilters, replaceFromBeginning, outgoingFilters, transactions.length, totalTransactionsCount, effectiveSorting]);
@@ -2399,14 +2431,17 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                   // also re-fire that fetch — otherwise a stale tag-spec
                   // list survives the refresh.
                   setMatchingTagReloadKey((k) => k + 1);
-                  // Also clear the operator's Detected Tag Specs selection
-                  // so Refresh acts as a clean slate, matching the Clear
-                  // Filters contract. Skip the clear when the filter is
-                  // locked to the current edit (rule builder open) — the
-                  // lock should survive a Refresh click.
-                  if (!detectedTagsLockedToId) {
-                    setCurrentTagFilterIds(new Set());
-                  }
+                  // Refresh deliberately does NOT clear the operator's
+                  // Detected Tag Specs selection. Clearing the selection
+                  // mutates activeExtraFilters, which triggers the
+                  // standard filter-change refetch — and after a Show
+                  // all that means re-fetching 40k+ rows (and the
+                  // multi-second wait that comes with it) just because
+                  // the operator wanted the filter metadata refreshed.
+                  // Clear Filters already provides the clean-slate
+                  // affordance for operators who want it; Refresh
+                  // sticks to its name: pull the latest filter / tag
+                  // metadata and leave the loaded transactions alone.
                 }}
                 disabled={filterDefinitionsLoading}
                 title="Refresh filters"
@@ -3076,16 +3111,13 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         // only one backward button would render). loaded / total / hidden are
         // shared with the header label via displayCounts so both surfaces are
         // self-consistent (loadedNow <= totalNow always).
-        const { loadedRaw, loadedNow, totalNow } = displayCounts;
-        // Removable in visible scope — the -N buttons are sized to the
-        // operator's perceived count, not the raw buffer. The actual trim
-        // call scales by the observed visible/raw ratio below.
-        const removable = Math.max(0, loadedNow - BATCH_SIZE);
-        const backBatches = (() => {
-          const b = [500, 200, 50, 25].filter((x) => x <= removable);
-          if (b.length === 0 && removable > 0) b.unshift(removable);
-          return b;
-        })();
+        const { loadedNow, totalNow } = displayCounts;
+        // Backwards (-N) batch buttons were removed: operators never used
+        // them in practice and the trim flow (setTimeout-driven loading
+        // flash + visible-ratio scaling against hidden rows) was a
+        // maintenance liability. Refresh and the page-scope filters
+        // already cover "show me less" use cases. The +N forward batch
+        // buttons stay.
         // "Remaining" drives the forward +N batch buttons. Use visible
         // scope (totalNow / loadedNow) so the offered increments match
         // what the operator can actually surface — asking for +25 when
@@ -3102,10 +3134,6 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         <div className="flex items-center justify-center gap-3 py-2 mt-1 border border-border bg-surface-secondary rounded-lg">
           {loading ? (
             <div className="flex items-center gap-3 animate-pulse">
-              {backBatches.map((_, i) => (
-                <div key={`back-skel-${i}`} className="h-5 w-10 rounded bg-gray-200 dark:bg-gray-700" />
-              ))}
-              {backBatches.length > 0 && <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />}
               <div className="h-4 w-28 rounded bg-gray-200 dark:bg-gray-700" />
               {fwdBatches.length > 0 && <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />}
               {fwdBatches.map((_, i) => (
@@ -3114,32 +3142,6 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
             </div>
           ) : incrementalPagination ? (
             <>
-              {backBatches.length > 0 && (
-                <>
-                  {backBatches.map((size) => (
-                    <Button key={`back-${size}`} variant="outline" size="xs" onClick={() => {
-                      if (!isLiveMode) {
-                        setVisibleCount((c) => Math.max(BATCH_SIZE, c - size));
-                        return;
-                      }
-                      if (hiddenDefIds.size === 0 || loadedNow === 0) {
-                        trimLoadedTransactions(size);
-                        return;
-                      }
-                      // Scale the raw trim by the observed visible ratio so
-                      // the operator's "-N" reduces visible rows by N (not
-                      // raw rows by N, which would barely move the visible
-                      // count when most rows are hidden).
-                      const visibleRatio = Math.max(0.05, loadedNow / loadedRaw);
-                      const rawTrim = Math.min(loadedRaw, Math.ceil(size / visibleRatio));
-                      trimLoadedTransactions(rawTrim);
-                    }}>
-                      &minus;{size.toLocaleString()}
-                    </Button>
-                  ))}
-                  <span className="text-border">|</span>
-                </>
-              )}
               <span className="text-xs text-muted">
                 <span className="font-medium text-heading">{loadedNow.toLocaleString()}</span>
                 {' loaded · '}

@@ -237,6 +237,16 @@ export async function getTransactions(
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
+      // Backend gzips the response on this endpoint when the dataset
+      // is large (e.g. Show all on 40k+ rows). Browsers send
+      // Accept-Encoding by default for GET, but for fetch + POST some
+      // proxies / middlewares only forward compression when the
+      // client signals support explicitly. Setting it here makes the
+      // contract unambiguous: the request opts in, the backend
+      // responds with Content-Encoding: gzip, the browser
+      // transparently decompresses before res.json() runs. Cuts the
+      // wire payload by ~10x on the heavy Show-all path.
+      'Accept-Encoding': 'gzip',
       Authorization: `Bearer ${authToken}`,
       'x-apikey': tepHeaders.apiKey,
       ActivityTag: 'GetMT940Transactions',
