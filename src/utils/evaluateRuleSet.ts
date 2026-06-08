@@ -11,6 +11,33 @@ function compareWithOp<T extends number | string>(a: T, b: T, op: CompareOp): bo
   }
 }
 
+// Module-level RegExp cache. `analyzeRow` runs evaluateRuleSet across
+// every loaded transaction × every active definition × every condition
+// — for a Show-all on a busy bank/side that can be hundreds of
+// thousands of evaluations, each previously allocating a fresh RegExp
+// from the same pattern string. `new RegExp(...)` is ~10-20µs which
+// multiplied out lands in the seconds-to-minutes range; the actual
+// `.test()` call is ~1µs. Caching collapses the construction cost to
+// once-per-unique-pattern. A `null` value means the pattern failed to
+// compile last time — kept so we don't pay the throw cost again on
+// every retry. The cache is unbounded because the universe of distinct
+// pattern strings is bounded by the rule library itself (small, slow-
+// changing) and the entries are tiny.
+const REGEX_CACHE: Map<string, RegExp | null> = new Map();
+
+function compileRegex(pattern: string): RegExp | null {
+  const cached = REGEX_CACHE.get(pattern);
+  if (cached !== undefined) return cached;
+  try {
+    const r = new RegExp(pattern);
+    REGEX_CACHE.set(pattern, r);
+    return r;
+  } catch {
+    REGEX_CACHE.set(pattern, null);
+    return null;
+  }
+}
+
 /**
  * Evaluates a single AND group against a transaction row.
  * Returns true if ALL conditions in the group match.
@@ -72,20 +99,17 @@ export function evaluateRuleSet(andGroup: AndGroup, row: TransactionRow): boolea
       }
     }
 
-    try {
-      const regex = new RegExp(condition.Regex);
-      const rawStr = String(fieldValue).trim();
-      // If the stored value is an ISO date-time string (YYYY-MM-DDThh:mm…),
-      // canonicalise to the date portion so user input like "2022-07-18"
-      // matches "2022-07-18T00:00:00Z". The time suffix on these fields is
-      // never meaningful (always 00:00:00) and matching it on the full string
-      // would let negative operations (does_not_end_with, does_not_equal) pass
-      // for rows the user clearly intended to exclude — the time-suffix only
-      // satisfies the negation, not the underlying date semantics.
-      const fieldStr = /^\d{4}-\d{2}-\d{2}T/.test(rawStr) ? rawStr.split('T')[0] : rawStr;
-      return regex.test(fieldStr);
-    } catch {
-      return false;
-    }
+    const regex = compileRegex(condition.Regex);
+    if (!regex) return false;
+    const rawStr = String(fieldValue).trim();
+    // If the stored value is an ISO date-time string (YYYY-MM-DDThh:mm…),
+    // canonicalise to the date portion so user input like "2022-07-18"
+    // matches "2022-07-18T00:00:00Z". The time suffix on these fields is
+    // never meaningful (always 00:00:00) and matching it on the full string
+    // would let negative operations (does_not_end_with, does_not_equal) pass
+    // for rows the user clearly intended to exclude — the time-suffix only
+    // satisfies the negation, not the underlying date semantics.
+    const fieldStr = /^\d{4}-\d{2}-\d{2}T/.test(rawStr) ? rawStr.split('T')[0] : rawStr;
+    return regex.test(fieldStr);
   });
 }

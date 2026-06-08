@@ -12,7 +12,15 @@ import { TRANSFORMATION_METHOD_MAP } from '../constants/transformations';
  *  Empty-string check uses raw length (not `.trim()`) so a single-space
  *  delimiter — e.g. `replace` with `find: ' '`, or `split_and_pick` with
  *  `delimiter: ' '` — counts as a real, meaningful value. Mirrors the
- *  extraction-field gate in isCompleteAttribute. */
+ *  extraction-field gate in isCompleteAttribute.
+ *
+ *  An arg flagged `allowEmpty: true` (e.g. the `replaceWith` arg on
+ *  `replace` / `regex_replace` / `starts_with_and_replace` /
+ *  `ends_with_and_replace`) is considered satisfied when the value is
+ *  present at all, including the empty string — operators routinely use
+ *  an empty replacement to DELETE matched text. We still require the key
+ *  be defined (typeof === 'string') so a totally absent arg is not
+ *  silently treated as "" and slip through. */
 export function isCompleteTransformation(t: TransformationFormValue): boolean {
   if (!t.method) return false;
   const def = TRANSFORMATION_METHOD_MAP.get(t.method);
@@ -20,9 +28,8 @@ export function isCompleteTransformation(t: TransformationFormValue): boolean {
   for (const arg of def.args) {
     if (!arg.required) continue;
     const val = t.args?.[arg.key];
-    if (val == null || val.length === 0) {
-      return false;
-    }
+    if (val == null) return false;
+    if (val.length === 0 && !arg.allowEmpty) return false;
   }
   return true;
 }

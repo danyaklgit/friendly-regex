@@ -14,8 +14,6 @@ interface TransformationItemProps {
   isFirst: boolean;
   isLast: boolean;
   methods: TransformationMethodDef[];
-  /** Methods already selected by sibling items (used to filter out no-arg duplicates) */
-  usedNoArgMethods: Set<string>;
   reorderDisabled?: boolean;
   readOnly?: boolean;
   onUpdate: (updates: Partial<TransformationFormValue>) => void;
@@ -30,7 +28,6 @@ export function TransformationItem({
   isFirst,
   isLast,
   methods,
-  usedNoArgMethods,
   reorderDisabled,
   readOnly,
   onUpdate,
@@ -55,11 +52,11 @@ export function TransformationItem({
 
   const methodDef = TRANSFORMATION_METHOD_MAP.get(transformation.method);
 
-  // Build grouped options, filtering out no-arg methods already used by siblings
-  const methodOptions = buildMethodOptions(methods).filter((opt) => {
-    if (opt.value === transformation.method) return true; // always show current selection
-    return !usedNoArgMethods.has(opt.value);
-  });
+  // Every transformation method stays available in every slot — operators
+  // can legitimately chain duplicates (Trim → Replace → Trim) and the old
+  // gate that hid no-arg methods after they'd been used once forced an
+  // awkward workaround.
+  const methodOptions = buildMethodOptions(methods);
 
   const hasArgs = !!methodDef && methodDef.args.length > 0;
 

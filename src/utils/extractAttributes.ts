@@ -36,8 +36,33 @@ export function stringifyFieldValue(sourceField: string, value: unknown): string
  * difference (e.g. retry-on-empty for the lazy `(?:X|$)` shape) can branch
  * on it; callers that don't can treat null and "" interchangeably.
  */
+// Module-level RegExp cache for attribute extractions. Mirrors the
+// cache in evaluateRuleSet — same rationale: extractAttributes runs
+// once per matched definition per row, each definition can carry
+// several attributes, and each attribute compiles its regex from a
+// pattern string that rarely changes across rows. Without caching,
+// `new RegExp(...)` allocated tens of thousands of identical regex
+// objects during a Show-all over 44k rows. `null` marks patterns
+// that previously failed to compile so we don't pay the throw cost
+// on every subsequent row.
+const EXTRACT_REGEX_CACHE: Map<string, RegExp | null> = new Map();
+
+function compileExtractRegex(pattern: string): RegExp | null {
+  const cached = EXTRACT_REGEX_CACHE.get(pattern);
+  if (cached !== undefined) return cached;
+  try {
+    const r = new RegExp(pattern);
+    EXTRACT_REGEX_CACHE.set(pattern, r);
+    return r;
+  } catch {
+    EXTRACT_REGEX_CACHE.set(pattern, null);
+    return null;
+  }
+}
+
 function matchAndPickCapture(fieldString: string, regexStr: string): string | null {
-  const regex = new RegExp(regexStr);
+  const regex = compileExtractRegex(regexStr);
+  if (!regex) return null;
   const match = fieldString.match(regex);
   if (!match) return null;
   for (let i = match.length - 1; i >= 1; i--) {

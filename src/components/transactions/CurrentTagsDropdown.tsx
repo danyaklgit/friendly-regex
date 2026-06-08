@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { DropdownBackdrop } from '../shared/DropdownBackdrop';
+import { Tooltip } from '../shared/Tooltip';
 import { TagBadge } from './TagBadge';
+import { renderTagTooltip } from './TransactionTable';
 import type { TagSpecDefinition } from '../../types';
 
 export interface CurrentTagEntry {
@@ -158,7 +160,7 @@ export function CurrentTagsDropdown({ entries, selectedIds, onChange, loading = 
     // While locked, only the locked entry stays interactive; every other
     // row dims to read-only with its checkbox visually inert.
     const rowDisabled = isLocked && id !== lockedToId;
-    return (
+    const row = (
       <label
         key={id}
         title={rowDisabled ? 'Locked to the tag currently open in the Rule Builder' : undefined}
@@ -192,6 +194,30 @@ export function CurrentTagsDropdown({ entries, selectedIds, onChange, loading = 
           )}
         </div>
       </label>
+    );
+    // Mirror the per-row hover content used on tag pills inside transaction
+    // rows (renderTagTooltip in TransactionTable). The operator gets the
+    // same certainty / rules summary whether they're hovering a badge in
+    // the table or a row in this dropdown. `source` is null here — the
+    // dropdown lists tag specs by definition only, not by per-row source
+    // (OpsTag vs OpsMultiTags); the tooltip suppresses the Source line
+    // when null. `versionInfo` is undefined because we only carry the
+    // per-row version index, not the library-wide total; rendering the
+    // version overlay on the TagBadge itself is enough cue here.
+    // `clickable=false` because the dropdown row's primary affordance is
+    // the checkbox, not a navigation click. Rows for tag specs not in
+    // the current library carry no def so the tooltip would have nothing
+    // useful to show — skip it.
+    if (!def) return row;
+    return (
+      <div key={id}>
+        <Tooltip
+          placement="top"
+          content={renderTagTooltip(null, def, false, undefined)}
+        >
+          {row}
+        </Tooltip>
+      </div>
     );
   };
 

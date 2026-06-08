@@ -24,7 +24,7 @@ import { useOptionalDownloadCenter } from '../../context/DownloadCenterContext';
 import { useWizardForm, fromExistingDefinition } from '../../hooks/useWizardForm';
 import type { TagSpecDefinition, TagSpecLibrary, AnalyzedTransaction, WizardFormState, RuleExpression, CheckoutState, TransactionRow } from '../../types';
 import type { WizardFormResult } from '../../hooks/useWizardForm';
-import { analyzeRow } from '../../utils/analyzeRow';
+import { analyzeRow, buildAnalyzeScratch } from '../../utils/analyzeRow';
 import { evaluateRuleSet } from '../../utils/evaluateRuleSet';
 import { computeDefinitionVersions } from '../../utils/definitionVersions';
 import { getAllTagNameOptions, getAttributeSuggestionsForTag } from '../../utils/tagNameLookup';
@@ -293,7 +293,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const {
     transactions, fieldMeta, loadTransactions, resetToSample, isCustomData, flagDeadEnd,
     setComments, flagDeadEndWithComment,
-    isLiveMode, loading, hasMore: liveHasMore, totalTransactionsCount, fetchPage, fetchCount,
+    isLiveMode, loading, hasMore: liveHasMore, totalTransactionsCount, fetchPage, replaceFromBeginning, fetchCount,
     trimLoadedTransactions,
     filterDefinitions, filterDefinitionsLoading, fetchFilterDefinitions,
     decimalMaxValues,
@@ -497,25 +497,44 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const tagClickShowingAll = tagClickState?.showingAll ?? false;
   const tagClickRulesetFilters = tagClickState?.rulesetFilters;
   const activeExtraFilters: FilterProperty[] = useMemo(() => {
+    // Hidden-tag-specs server-side exclusion. The hide list lives in
+    // `hiddenDefIds` (localStorage-backed, per bank/side); pushing it
+    // here as `NI` (Not In) makes the backend drop matching rows from
+    // the response, so the +N pagination overfetch loop doesn't have
+    // to issue several round trips to accumulate enough visible rows.
+    // Multi-value goes as a pipe-joined Value to mirror the existing
+    // `IN` shape used by the count call (CLAUDE.md gotcha #15). The
+    // count call itself stays on IN — it COUNTS hidden rows, so the
+    // inverse predicate of the filter here is exactly what it wants.
+    const hiddenFilter: FilterProperty | null = hiddenDefIds.size > 0
+      ? {
+          ColumnName: 'OpsTagSpecDefinitionId|OpsMultiTags.TagSpecDefinitionId',
+          Value: [...hiddenDefIds].join('|'),
+          Operand: 'NI',
+        }
+      : null;
+    const withHidden = (filters: FilterProperty[]): FilterProperty[] =>
+      hiddenFilter ? [...filters, hiddenFilter] : filters;
+
     if (tagClickDefinitionId != null) {
       // After "Apply Rules": use REGEX-based filters (Call 3)
       if (tagClickRulesetApplied) {
-        return [...(tagClickRulesetFilters ?? []), ...activePillFilters];
+        return withHidden([...(tagClickRulesetFilters ?? []), ...activePillFilters]);
       }
       // Default tag-click mode: scope by definition ID (Call 2)
       if (!tagClickShowingAll) {
-        return [
+        return withHidden([
           {
             ColumnName: 'OpsTagSpecDefinitionId|OpsMultiTags.TagSpecDefinitionId',
             Value: tagClickDefinitionId,
             Operand: 'IN',
           },
           ...activePillFilters,
-        ];
+        ]);
       }
       // "Show all" mode: don't scope by TransactionTypeCode — the tag name filter
       // (applied via `filters`) is what the user wants to broaden to.
-      return [...activePillFilters];
+      return withHidden([...activePillFilters]);
     }
     const extra: FilterProperty[] = [];
     // Current Tags multi-select scope. Multi-value IN goes as a pipe-joined
@@ -553,8 +572,8 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     // flag filters (OpsIsUntagged, OpsIsDeadEnd, OpsContainsInvalidAttributes,
     // etc.) that compose cleanly with the operator's other filters.
     extra.push(...activePillFilters);
-    return extra;
-  }, [tagClickDefinitionId, tagClickRulesetApplied, tagClickShowingAll, tagClickRulesetFilters, builderOpen, builder.formState, currentTagFilterIds, activePillFilters]);
+    return withHidden(extra);
+  }, [tagClickDefinitionId, tagClickRulesetApplied, tagClickShowingAll, tagClickRulesetFilters, builderOpen, builder.formState, currentTagFilterIds, activePillFilters, hiddenDefIds]);
 
   // Forward the UI filter state as-is. Earlier this hook stripped bank/side
   // when a TagSpecDefinitionId scope was active, on the theory that the
@@ -1264,23 +1283,105 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
 
 
 
-  // Analyze all rows
+  // Analyze all rows — chunked async so a 44k-row Show-all doesn't
+  // block the React commit / pagination footer behind a single
+  // 30s+ synchronous useMemo.
+  //
+  // The previous implementation was a synchronous `useMemo` that ran
+  // `analyzeRow` over every loaded transaction before React committed.
+  // For Show-all on a busy dataset that meant the pagination skeleton
+  // stayed visible (and the loading flag stayed effectively "true"
+  // from the operator's perspective) for as long as the analysis
+  // took — minutes on 44k rows even with the regex / scratch hoisting
+  // wins.
+  //
+  // New shape: keep `analyzedData` as React state, populate it in
+  // chunks via `requestIdleCallback` (with a setTimeout fallback so we
+  // still progress on browsers that lack ric or while the tab is idle
+  // for long enough that the browser holds the IC). Each chunk
+  // commits a partial array so the table renders rows + analyzed
+  // tag/attribute cells progressively. The cancel ref bumps on each
+  // effect re-run so a stale chunked pass can never overwrite a
+  // newer one's state.
+  const [analyzedData, setAnalyzedData] = useState<AnalyzedTransaction[]>([]);
+  const analyzeRunRef = useRef(0);
+  useEffect(() => {
+    const runId = ++analyzeRunRef.current;
+    // Empty transactions: drop to empty immediately and skip the
+    // chunking dance. Common path after a filter change that returns
+    // zero rows; no need to spin up RIC.
+    if (transactions.length === 0) {
+      setAnalyzedData([]);
+      return;
+    }
+    const scratch = buildAnalyzeScratch(allLibraries);
+    // Chunk size tuned for ~10-15ms per chunk on a mid-range machine
+    // — small enough to keep frame budget healthy, large enough that
+    // we don't spend most of the time on RIC overhead. The browser
+    // can re-tune by giving us a smaller `deadline.timeRemaining()`
+    // budget per chunk.
+    const CHUNK_SIZE = 500;
+    const builderActive = builderOpen && builderHasContent;
+    const tagClickActive = tagClickState !== null;
+    const editingDefId = editingDef?.Id;
+    const acc: AnalyzedTransaction[] = [];
 
-  const analyzedData: AnalyzedTransaction[] = useMemo(
-    () =>
-      transactions.map((row) => ({
-        row,
-        analysis: analyzeRow(row, allLibraries, isLiveMode),
-      })).filter(item => {
-        if (!builderOpen || !builderHasContent) return true;
-        // When tag click applied a server-side tag filter, skip client-side
-        // definition matching — the server already scoped results to this tag.
-        if (tagClickState !== null) return true;
-        if (editingDef) return item.analysis.matchedDefinitions.some(d => d.Id === editingDef.Id);
-        return item.analysis.tags.includes('Preview');
-      }),
-    [transactions, allLibraries, tempDefinition, editingDef, tagClickState, builderOpen, builderHasContent, isLiveMode]
-  );
+    const processChunk = (start: number) => {
+      if (runId !== analyzeRunRef.current) return; // newer run took over
+      const end = Math.min(start + CHUNK_SIZE, transactions.length);
+      for (let i = start; i < end; i++) {
+        const row = transactions[i];
+        const analysis = analyzeRow(row, allLibraries, isLiveMode, scratch);
+        // Apply the rule-builder preview filter inline so the
+        // resulting array matches the old `.map().filter()` contract.
+        // Mirrors the original branching: when the builder is open and
+        // has content, only rows that match the preview survive (or
+        // every row when a tag-click scope is active server-side).
+        if (builderActive && !tagClickActive) {
+          if (editingDefId) {
+            if (!analysis.matchedDefinitions.some(d => d.Id === editingDefId)) continue;
+          } else if (!analysis.tags.includes('Preview')) {
+            continue;
+          }
+        }
+        acc.push({ row, analysis });
+      }
+      // Commit progress. `[...acc]` keeps each render a distinct
+      // reference so memoized consumers (filteredData, hiddenTagItems,
+      // etc.) detect the change. Reading the same `acc` mutably across
+      // commits would let stale renders see future rows.
+      if (runId === analyzeRunRef.current) {
+        setAnalyzedData([...acc]);
+      }
+      if (end < transactions.length) {
+        scheduleNextChunk(end);
+      }
+    };
+
+    const scheduleNextChunk = (next: number) => {
+      // requestIdleCallback yields to the browser between chunks so
+      // the table can paint and the operator can interact. Falls back
+      // to setTimeout(0) on browsers without RIC (Safari < 16, etc.)
+      // — same yield semantics, slightly less considerate of frame
+      // budget but still unblocks the main thread.
+      if (typeof requestIdleCallback === 'function') {
+        requestIdleCallback(() => processChunk(next));
+      } else {
+        setTimeout(() => processChunk(next), 0);
+      }
+    };
+
+    // First chunk runs synchronously so the table at least gets a
+    // partial render in the SAME commit as the setTransactions —
+    // avoids a single frame of empty state.
+    processChunk(0);
+
+    return () => {
+      // Bump runId so any pending chunk callbacks observe `runId !==
+      // analyzeRunRef.current` and bail out without committing.
+      analyzeRunRef.current++;
+    };
+  }, [transactions, allLibraries, isLiveMode, builderOpen, builderHasContent, tagClickState, editingDef, tempDefinition]);
 
   // One panel entry per hidden tag spec. We pull the first matching row's
   // matched-definition object so the badge + tooltip carry the correct
@@ -1636,79 +1737,45 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     return entries;
   }, [matchingTagDefIds, allLibraries, definitionVersions]);
 
-  // Deliver +N visible rows. Always appends with the default page size so
-  // pageIndex in fetchPage (derived from loadedCount/pageSize) increments
-  // cleanly — varying pageSize mid-session would round back to an already-
-  // fetched page and produce duplicate rows. Two loops in one path:
-  //   - When no hide filter is active, every appended row counts as
-  //     visible; we stop as soon as visibleAdded >= size.
-  //   - When the hide filter is active, only rows that survive the
-  //     client-side hide check count toward visibleAdded; the loop keeps
-  //     fetching pages until we hit size or the backend is exhausted.
-  // Excess raw rows beyond the target are trimmed so the visible delta
-  // lands on exactly N.
+  // Deliver +N visible rows in a SINGLE HTTP request.
+  //
+  // Backend confirmed `PageSize` is uncapped, so the cleanest path is:
+  // ask for `loadedCount + N` rows from PageIndex=0 and replace the
+  // buffer atomically. One round trip per click regardless of N, no
+  // alignment math, no parallel batching.
+  //
+  // The bandwidth tax for incremental clicks (we re-fetch the rows we
+  // already had) is the cost. The wins:
+  //   - `+50` / `+200` / `+500` and `Show all`: 1 request each.
+  //   - No overfetch loop, no per-row analyzeRow check (hidden-tag
+  //     pre-filter from 1.2 already excludes those server-side).
+  //   - No flicker mid-fetch — replaceFromBeginning keeps the old
+  //     rows on screen until the new buffer commits atomically.
   const loadNVisible = useCallback(async (size: number) => {
     if (!isLiveMode) {
       setVisibleCount((c) => c + size);
       return;
     }
-    const extras = activeExtraFilters.length > 0 ? activeExtraFilters : undefined;
-    const hasHideFilter = hiddenDefIds.size > 0;
-    let visibleAdded = 0;
-    let attempts = 0;
+    if (size <= 0) return;
     const totalBackend = totalTransactionsCount ?? transactions.length;
     const remainingBackend = Math.max(0, totalBackend - transactions.length);
-    const maxAttempts = Math.max(1, Math.ceil(remainingBackend / BATCH_SIZE) + 2);
-    let done = false;
-    while (!done && visibleAdded < size && attempts < maxAttempts) {
-      // Don't pass pageSize — let fetchPage use PAGE_SIZE so pageIndex
-      // increments cleanly from one append to the next.
-      const newRows = await fetchPage(outgoingFilters, true, undefined, undefined, extras, effectiveSorting);
-      if (newRows.length === 0) break;
-      for (let i = 0; i < newRows.length; i++) {
-        const isVisible = hasHideFilter
-          ? !isRowHidden(analyzeRow(newRows[i], allLibraries, isLiveMode).matchedDefinitions, hiddenDefIds)
-          : true;
-        if (isVisible) visibleAdded++;
-        if (visibleAdded >= size) {
-          const excess = newRows.length - 1 - i;
-          if (excess > 0) trimLoadedTransactions(excess);
-          done = true;
-          break;
-        }
-      }
-      attempts++;
-    }
-  }, [isLiveMode, activeExtraFilters, hiddenDefIds, fetchPage, outgoingFilters, transactions.length, totalTransactionsCount, allLibraries, trimLoadedTransactions, effectiveSorting]);
+    if (remainingBackend <= 0) return;
+    const effectiveSize = Math.min(size, remainingBackend);
+    // Target buffer length after the fetch: existing rows + the new
+    // delta the operator just asked for. Clamped to the backend total
+    // so we never ask for more rows than exist (would round-trip a
+    // larger response than needed).
+    const targetTotal = Math.min(totalBackend, transactions.length + effectiveSize);
+    const extras = activeExtraFilters.length > 0 ? activeExtraFilters : undefined;
+    await replaceFromBeginning(outgoingFilters, targetTotal, extras, effectiveSorting);
+  }, [isLiveMode, activeExtraFilters, replaceFromBeginning, outgoingFilters, transactions.length, totalTransactionsCount, effectiveSorting]);
 
-  // Auto-fetch when the hide-tag-spec filter drops the visible row count
-  // below the default page size and more rows are available on the backend.
-  // Originally this only fired on `loadedNow === 0` (empty table), but
-  // operators expect a hide to leave the page looking full — hiding a tag
-  // on a 50-row page that consumes 25 of them should refill back to 50
-  // automatically, not leave a half-empty view. The fetch is capped at
-  // BATCH_SIZE minus what's still visible, or at the remaining total when
-  // the backend has fewer left than that. The signature ref prevents
-  // re-firing on identical (loaded, filters, hidden) snapshots; if
-  // `loadNVisible` appends raw rows that are still hidden,
-  // transactions.length advances and the signature changes so the effect
-  // keeps trying until the target is met or `liveHasMore` flips false.
-  const autoFetchSignatureRef = useRef<string>('');
-  useEffect(() => {
-    if (!isLiveMode || loading || builderOpen) return;
-    if (hiddenDefIds.size === 0) return;
-    if (!liveHasMore) return;
-    const loadedRaw = transactions.length;
-    const totalRaw = totalTransactionsCount ?? loadedRaw;
-    const loadedNow = Math.max(0, loadedRaw - hiddenLoadedCount);
-    const totalNow = Math.max(0, totalRaw - hiddenTotalCount);
-    const target = Math.min(BATCH_SIZE, totalNow);
-    if (loadedNow >= target) return;
-    const sig = `${loadedRaw}|${totalRaw}|${hiddenTotalCount}|${[...hiddenDefIds].sort().join(',')}`;
-    if (autoFetchSignatureRef.current === sig) return;
-    autoFetchSignatureRef.current = sig;
-    loadNVisible(target - loadedNow);
-  }, [isLiveMode, loading, builderOpen, hiddenDefIds, transactions.length, totalTransactionsCount, hiddenLoadedCount, hiddenTotalCount, liveHasMore, loadNVisible]);
+  // Auto-refill effect for partial visible pages after a hide action used
+  // to live here. It's no longer needed: hidden tag specs are excluded
+  // server-side via the `NI` filter in activeExtraFilters, so a fresh
+  // page is naturally full and the refetch fires through the standard
+  // filter-change effect (activeExtraFilters reference changes when
+  // `hiddenDefIds` does, which retriggers fetchPage at page 0).
 
   // Reset visible count / page when filtered data length changes
   // In live + classic pagination mode, data replaces on every page nav — don't reset page from here
@@ -1854,6 +1921,13 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // confirm dispatches the same DELETE action so the change tracker picks it
   // up for the next checkout save.
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; tag: string } | null>(null);
+  // "Show all" pagination confirmation. State holds the pending remaining
+  // count so we can render the exact number in the dialog body. Non-null
+  // means the dialog is open; null hides it. Above the 1000-row threshold
+  // we surface the confirm; at or below we fetch immediately. The
+  // overfetch loop in loadNVisible already handles arbitrary sizes.
+  const [showAllConfirmRemaining, setShowAllConfirmRemaining] = useState<number | null>(null);
+  const SHOW_ALL_CONFIRM_THRESHOLD = 1000;
   const handleRequestDelete = useCallback(() => {
     if (!editingDef) return;
     setDeleteTarget({ id: editingDef.Id, tag: editingDef.Tag });
@@ -3080,6 +3154,30 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                       +{size.toLocaleString()}
                     </Button>
                   ))}
+                  {/* Show all — load every remaining row in one go. Past
+                      the threshold we gate behind ConfirmDialog so the
+                      operator can opt out if they didn't realise how many
+                      rows are pending; under the threshold the cost is
+                      small enough to skip the prompt. `remaining` is the
+                      visible-scope delta computed above so the request
+                      mirrors the +N buttons' "visible rows to add"
+                      semantics. */}
+                  {remaining > 0 && (
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      title={`Load all ${remaining.toLocaleString()} remaining transactions`}
+                      onClick={() => {
+                        if (remaining > SHOW_ALL_CONFIRM_THRESHOLD) {
+                          setShowAllConfirmRemaining(remaining);
+                        } else {
+                          loadNVisible(remaining);
+                        }
+                      }}
+                    >
+                      Show all
+                    </Button>
+                  )}
                 </>
               )}
             </>
@@ -3175,6 +3273,22 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         message={`Are you sure you want to delete the tag "${deleteTarget?.tag}"? This cannot be undone.`}
         confirmLabel="Delete"
         variant="danger_ghost"
+      />
+
+      {/* Show all pagination confirmation. Past 1000 remaining rows the
+          fetch can chain multiple paginated round trips through the
+          overfetch loop, so we surface the count before committing. */}
+      <ConfirmDialog
+        open={showAllConfirmRemaining != null}
+        onClose={() => setShowAllConfirmRemaining(null)}
+        onConfirm={() => {
+          const n = showAllConfirmRemaining;
+          setShowAllConfirmRemaining(null);
+          if (n != null && n > 0) loadNVisible(n);
+        }}
+        title="Load all transactions?"
+        message={`This will fetch ${(showAllConfirmRemaining ?? 0).toLocaleString()} more transactions and may take a while. Continue?`}
+        confirmLabel="Load all"
       />
 
       {activeCheckout && shareDialogOpenProp && (

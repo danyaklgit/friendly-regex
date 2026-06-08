@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -15,7 +15,7 @@ import {
 } from '@dnd-kit/sortable';
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import type { TransformationFormValue } from '../../types';
-import { TRANSFORMATION_METHOD_MAP, type TransformationMethodDef } from '../../constants/transformations';
+import type { TransformationMethodDef } from '../../constants/transformations';
 import { TransformationItem } from './TransformationItem';
 import { TransformationPreview } from './TransformationPreview';
 import { Button } from '../shared/Button';
@@ -67,11 +67,10 @@ export function TransformationList({
   // Shortcut for the single most common transformation operators tack onto
   // an extraction. Adds a `trim` row already configured (no-arg method,
   // method key set), so the operator doesn't pay the dropdown round-trip
-  // for the everyday case. Suppressed when a `trim` is already present —
-  // trim is a no-arg method so applying it twice is wasted machinery, and
-  // the dropdown's `usedNoArgMethods` filter already prevents stacking it
-  // via the regular path; mirror that here.
-  const hasTrim = transformations.some((t) => t.method === 'trim');
+  // for the everyday case. Duplicate trims are allowed — operators may
+  // chain Trim → Replace → Trim to normalize before AND after a textual
+  // edit; gating against repeats would force a round-trip through the
+  // dropdown for a legitimate pattern.
   const handleAddTrim = useCallback(() => {
     onChange([
       ...transformations,
@@ -111,17 +110,6 @@ export function TransformationList({
   // Disable adding / reordering when any existing transformation has no method selected
   const hasUnselected = transformations.some((t) => !t.method);
 
-  // Collect no-arg methods already selected so siblings can't pick them again
-  const usedNoArgMethods = useMemo(() => {
-    const set = new Set<string>();
-    for (const t of transformations) {
-      if (!t.method) continue;
-      const def = TRANSFORMATION_METHOD_MAP.get(t.method);
-      if (def && def.args.length === 0) set.add(t.method);
-    }
-    return set;
-  }, [transformations]);
-
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
@@ -134,8 +122,8 @@ export function TransformationList({
               variant="ghost"
               size="xs"
               onClick={handleAddTrim}
-              disabled={hasUnselected || hasTrim}
-              title={hasTrim ? 'Trim is already in the pipeline' : 'Add a Trim transformation'}
+              disabled={hasUnselected}
+              title="Add a Trim transformation"
             >
               + Add Trim
             </Button>
@@ -166,7 +154,6 @@ export function TransformationList({
                   isFirst={i === 0}
                   isLast={i === transformations.length - 1}
                   methods={methods}
-                  usedNoArgMethods={usedNoArgMethods}
                   reorderDisabled={hasUnselected || readOnly}
                   readOnly={readOnly}
                   onUpdate={(updates) => handleUpdate(t.id, updates)}

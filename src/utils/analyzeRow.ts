@@ -4,6 +4,34 @@ import { evaluateRuleSet } from './evaluateRuleSet';
 import { extractAttributes } from './extractAttributes';
 
 /**
+ * Optional caller-supplied scratch state. `analyzeRow` runs across every
+ * loaded transaction (44k+ in worst case), so passing a pre-built
+ * "today" date and a pre-built `defById` lookup map saves recomputing
+ * them inside every per-row call. When omitted, `analyzeRow` builds
+ * them lazily (slower but contract-preserving for callers that only
+ * ever analyze one or two rows). The right pattern for batch callers
+ * is to compute these once with {@link buildAnalyzeScratch} and pass
+ * the same object to every analyzeRow invocation in the batch.
+ */
+export interface AnalyzeRowScratch {
+  todayISODate: string;
+  defById: Map<string, TagSpecDefinition>;
+}
+
+export function buildAnalyzeScratch(libraries: TagSpecLibrary[]): AnalyzeRowScratch {
+  const defById = new Map<string, TagSpecDefinition>();
+  for (const lib of libraries) {
+    for (const def of lib.TagSpecDefinitions) {
+      defById.set(def.Id, def);
+    }
+  }
+  return {
+    todayISODate: new Date().toISOString().split('T')[0],
+    defById,
+  };
+}
+
+/**
  * Checks tag rules against a transaction row.
  *
  * Sample mode (`useBackendTags=false`, the default):
@@ -29,10 +57,18 @@ export function analyzeRow(
   row: TransactionRow,
   libraries: TagSpecLibrary[],
   useBackendTags = false,
+  scratch?: AnalyzeRowScratch,
 ): RowAnalysisResult {
   const tags: string[] = [];
   const attributes: Record<string, Record<string, string | null>> = {};
   const matchedDefinitions: TagSpecDefinition[] = [];
+
+  // Today as YYYY-MM-DD for validity-window checks. Hoisted out of the
+  // per-definition loop because the inner allocation (`new Date()` +
+  // `toISOString().split('T')[0]`) ran tens of millions of times on a
+  // Show-all over 44k rows. Caller can pre-compute it once via
+  // `buildAnalyzeScratch` and pass it in.
+  const today = scratch?.todayISODate ?? new Date().toISOString().split('T')[0];
 
   for (const lib of libraries) {
     // Level 1: Check parent context (e.g. Side + BankSwiftCode).
@@ -46,9 +82,8 @@ export function analyzeRow(
     for (const def of lib.TagSpecDefinitions) {
       if (def.StatusTag !== 'ACTIVE') continue;
 
-      const now = new Date().toISOString().split('T')[0];
-      if (def.Validity.StartDate && now < def.Validity.StartDate) continue;
-      if (def.Validity.EndDate && now > def.Validity.EndDate) continue;
+      if (def.Validity.StartDate && today < def.Validity.StartDate) continue;
+      if (def.Validity.EndDate && today > def.Validity.EndDate) continue;
 
       // Level 2: Check child context (e.g. TransactionTypeCode)
       if (def.Context.length > 0 && !contextMatchesRow(def.Context, row)) continue;
@@ -97,12 +132,21 @@ export function analyzeRow(
     }
 
     if (backendDefIds.length > 0) {
-      const defById = new Map<string, TagSpecDefinition>();
-      for (const lib of libraries) {
-        for (const def of lib.TagSpecDefinitions) {
-          defById.set(def.Id, def);
+      // Caller-supplied `defById` lets a batch caller pay the
+      // Map-construction cost ONCE per analysis pass instead of per
+      // row (was the hot path for Show-all on a busy bank/side —
+      // libraries × defs × rows). When omitted (single-row callers
+      // like tag previews) the Map is built lazily here, same
+      // semantics as before.
+      const defById = scratch?.defById ?? (() => {
+        const m = new Map<string, TagSpecDefinition>();
+        for (const lib of libraries) {
+          for (const def of lib.TagSpecDefinitions) {
+            m.set(def.Id, def);
+          }
         }
-      }
+        return m;
+      })();
       for (const defId of backendDefIds) {
         const def = defById.get(defId);
         if (!def) continue;

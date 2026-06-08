@@ -84,9 +84,14 @@ export function OverflowMenu({
         title={triggerTitle}
         disabled={disabled}
         data-tour={dataTour}
-        className={`inline-flex items-center justify-center w-7 h-7 rounded-md text-body-secondary transition-colors
-          ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:text-heading hover:bg-surface-active cursor-pointer'}
-          ${isOpen ? 'bg-surface-active text-heading' : ''}`}
+        // Bordered trigger: matches the visual weight of the sibling
+        // `variant="outline"` action buttons (Compare, Transactions) on
+        // the Backlog row so the kebab doesn't read as a bare icon next
+        // to them. The border thickens / fills slightly on hover and
+        // the open-state keeps the active surface tone for context.
+        className={`inline-flex items-center justify-center w-7 h-7 rounded-md border text-body-secondary transition-colors
+          ${disabled ? 'opacity-50 cursor-not-allowed border-border' : 'border-border hover:text-heading hover:bg-surface-active hover:border-border-strong cursor-pointer'}
+          ${isOpen ? 'bg-surface-active text-heading border-border-strong' : ''}`}
         {...getReferenceProps()}
       >
         {/* Horizontal ellipsis (meatballs). Inline SVG so we don't pull a new icon dep. */}

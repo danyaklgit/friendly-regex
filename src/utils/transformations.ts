@@ -127,6 +127,24 @@ export function applyTransformation(
       return parts[idx] ?? '';
     }
 
+    // Take the leading N characters. Mirror of `extract_last_n_chars`
+    // (the EXTRACTION op) but applied as a post-extraction transformation
+    // so a longer extraction can be cropped to a fixed-length leading
+    // window. Length <= 0 produces an empty string; N >= value.length
+    // passes the value through (slice clamps naturally).
+    case 'take_first_n_chars': {
+      const len = Number(args.length);
+      if (!Number.isFinite(len) || len <= 0) return '';
+      return value.slice(0, len);
+    }
+
+    // Take the trailing N characters — symmetric counterpart.
+    case 'take_last_n_chars': {
+      const len = Number(args.length);
+      if (!Number.isFinite(len) || len <= 0) return '';
+      return value.slice(Math.max(0, value.length - len));
+    }
+
     case 'max_char_limit': {
       const len = Number(args.length);
       if (!Number.isFinite(len) || len <= 0) return value;

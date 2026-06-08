@@ -418,6 +418,59 @@ describe('applyTransformation', () => {
     expect(applyTransformation('remove_leading_zeros', {}, 'ABC123')).toBe('ABC123');
   });
 
+  // --- take_first_n_chars / take_last_n_chars ---
+  it('take_first_n_chars returns the leading N characters', () => {
+    expect(applyTransformation('take_first_n_chars', { length: '4' }, 'ABCDEFG')).toBe('ABCD');
+  });
+
+  it('take_first_n_chars clamps when N exceeds value length', () => {
+    expect(applyTransformation('take_first_n_chars', { length: '50' }, 'ABC')).toBe('ABC');
+  });
+
+  it('take_first_n_chars returns empty for N <= 0', () => {
+    expect(applyTransformation('take_first_n_chars', { length: '0' }, 'ABC')).toBe('');
+    expect(applyTransformation('take_first_n_chars', { length: '-3' }, 'ABC')).toBe('');
+  });
+
+  it('take_first_n_chars returns empty when length is missing or non-numeric', () => {
+    expect(applyTransformation('take_first_n_chars', {}, 'ABC')).toBe('');
+    expect(applyTransformation('take_first_n_chars', { length: 'abc' }, 'ABC')).toBe('');
+  });
+
+  it('take_last_n_chars returns the trailing N characters', () => {
+    expect(applyTransformation('take_last_n_chars', { length: '3' }, 'ABCDEFG')).toBe('EFG');
+  });
+
+  it('take_last_n_chars clamps when N exceeds value length', () => {
+    expect(applyTransformation('take_last_n_chars', { length: '50' }, 'ABC')).toBe('ABC');
+  });
+
+  it('take_last_n_chars returns empty for N <= 0', () => {
+    expect(applyTransformation('take_last_n_chars', { length: '0' }, 'ABC')).toBe('');
+    expect(applyTransformation('take_last_n_chars', { length: '-3' }, 'ABC')).toBe('');
+  });
+
+  // --- replaceWith empty string ---
+  it('replace deletes the matched text when replaceWith is an empty string', () => {
+    // Operators routinely want to delete a noise prefix / suffix by
+    // setting Replace With to empty. The runtime already coalesces an
+    // undefined replaceWith to ''; this assertion locks in the explicit
+    // "" case so the save / preview gate honors the same intent.
+    expect(applyTransformation('replace', { find: 'NMSC', replaceWith: '' }, 'NMSC12345')).toBe('12345');
+  });
+
+  it('regex_replace deletes regex matches when replaceWith is an empty string', () => {
+    expect(applyTransformation('regex_replace', { pattern: '\\d+', replaceWith: '' }, 'abc 123 def 456')).toBe('abc  def ');
+  });
+
+  it('starts_with_and_replace strips a matched prefix when replaceWith is empty', () => {
+    expect(applyTransformation('starts_with_and_replace', { prefix: 'SRCACT//', replaceWith: '' }, 'SRCACT//12345')).toBe('12345');
+  });
+
+  it('ends_with_and_replace strips a matched suffix when replaceWith is empty', () => {
+    expect(applyTransformation('ends_with_and_replace', { suffix: 'NMSC', replaceWith: '' }, '12345NMSC')).toBe('12345');
+  });
+
   // --- Unknown method ---
   it('returns original value for unknown method', () => {
     expect(applyTransformation('nonexistent', {}, 'hello')).toBe('hello');

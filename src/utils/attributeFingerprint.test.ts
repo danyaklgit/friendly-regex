@@ -1,11 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import type { AttributeFormValue } from '../types';
+import type { AttributeFormValue, TransformationFormValue } from '../types';
 import {
   attributeNameKey,
   computeDuplicateAttributeIndexes,
   hasDuplicateAttributeNames,
   hasIncompleteAttribute,
   isCompleteAttribute,
+  isCompleteTransformation,
   isFilledAttribute,
 } from './attributeFingerprint';
 
@@ -221,5 +222,62 @@ describe('hasIncompleteAttribute', () => {
       completeAttr(),
       completeAttr({ attributeTag: 'BankName', prefix: 'BANK:' }),
     ])).toBe(false);
+  });
+});
+
+describe('isCompleteTransformation', () => {
+  const t = (method: string, args: Record<string, string> = {}): TransformationFormValue => ({
+    id: 't1',
+    method,
+    args,
+  });
+
+  it('rejects an unselected method', () => {
+    expect(isCompleteTransformation(t(''))).toBe(false);
+  });
+
+  it('accepts a no-arg method with no args supplied', () => {
+    expect(isCompleteTransformation(t('trim'))).toBe(true);
+    expect(isCompleteTransformation(t('to_uppercase'))).toBe(true);
+  });
+
+  it('rejects a multi-arg method missing a required field', () => {
+    expect(isCompleteTransformation(t('replace', { find: 'X' }))).toBe(false);
+    expect(isCompleteTransformation(t('replace', { find: '', replaceWith: 'Y' }))).toBe(false);
+  });
+
+  it('accepts replaceWith as an empty string thanks to allowEmpty', () => {
+    // Operators delete matched text by leaving Replace With blank;
+    // the runtime coalesces `replaceWith` to '' and the completeness
+    // gate must let the row through without a real value.
+    expect(isCompleteTransformation(t('replace', { find: 'X', replaceWith: '' }))).toBe(true);
+    expect(isCompleteTransformation(t('regex_replace', { pattern: '\\d', replaceWith: '' }))).toBe(true);
+    expect(isCompleteTransformation(t('starts_with_and_replace', { prefix: 'X', replaceWith: '' }))).toBe(true);
+    expect(isCompleteTransformation(t('ends_with_and_replace', { suffix: 'X', replaceWith: '' }))).toBe(true);
+  });
+
+  it('accepts add_to_start / append_at_end text as an empty string thanks to allowEmpty', () => {
+    // Symmetric with replaceWith — leaving `text` blank turns the row
+    // into a no-op, which counts as a deliberate "keep this step but
+    // disable it" intent rather than a half-filled row.
+    expect(isCompleteTransformation(t('add_to_start', { text: '' }))).toBe(true);
+    expect(isCompleteTransformation(t('append_at_end', { text: '' }))).toBe(true);
+  });
+
+  it('does NOT accept other required args as empty strings', () => {
+    // allowEmpty is per-arg — only replaceWith carries it. `find`,
+    // `prefix`, `suffix`, `pattern` still need a real value.
+    expect(isCompleteTransformation(t('replace', { find: '', replaceWith: 'Y' }))).toBe(false);
+    expect(isCompleteTransformation(t('starts_with_and_replace', { prefix: '', replaceWith: 'Y' }))).toBe(false);
+  });
+
+  it('accepts the new take_first_n_chars and take_last_n_chars when length is provided', () => {
+    expect(isCompleteTransformation(t('take_first_n_chars', { length: '4' }))).toBe(true);
+    expect(isCompleteTransformation(t('take_last_n_chars', { length: '3' }))).toBe(true);
+  });
+
+  it('rejects take_first_n_chars / take_last_n_chars when length is missing', () => {
+    expect(isCompleteTransformation(t('take_first_n_chars', {}))).toBe(false);
+    expect(isCompleteTransformation(t('take_last_n_chars', { length: '' }))).toBe(false);
   });
 });

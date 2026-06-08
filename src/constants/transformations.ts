@@ -4,6 +4,12 @@ export interface TransformationArgDef {
   placeholder: string;
   type: 'text' | 'number' | 'checkbox';
   required: boolean;
+  /** When true, an empty string ("") counts as a valid value for this
+   *  required arg. Used by `replaceWith` so operators can DELETE matched
+   *  text — leaving the replacement blank is meaningful intent, not a
+   *  half-filled row. Without this flag the completeness gate treats
+   *  length-0 as missing and blocks Save / preview. */
+  allowEmpty?: boolean;
 }
 
 export interface TransformationMethodDef {
@@ -61,7 +67,9 @@ export const TRANSFORMATION_METHODS: TransformationMethodDef[] = [
     category: 'Find/Replace',
     args: [
       { key: 'find', label: 'Find', placeholder: 'e.g., NMSC', type: 'text', required: true },
-      { key: 'replaceWith', label: 'Replace With', placeholder: 'e.g., -X', type: 'text', required: true },
+      // `allowEmpty` lets the operator DELETE matched text by leaving
+      // Replace With blank — common when stripping fixed prefixes / noise.
+      { key: 'replaceWith', label: 'Replace With', placeholder: 'e.g., -X (blank = delete)', type: 'text', required: true, allowEmpty: true },
     ],
   },
   {
@@ -70,7 +78,7 @@ export const TRANSFORMATION_METHODS: TransformationMethodDef[] = [
     category: 'Find/Replace',
     args: [
       { key: 'pattern', label: 'Pattern', placeholder: 'e.g., \\d+', type: 'text', required: true },
-      { key: 'replaceWith', label: 'Replace With', placeholder: 'e.g., -X', type: 'text', required: true },
+      { key: 'replaceWith', label: 'Replace With', placeholder: 'e.g., -X (blank = delete)', type: 'text', required: true, allowEmpty: true },
     ],
   },
   {
@@ -84,7 +92,7 @@ export const TRANSFORMATION_METHODS: TransformationMethodDef[] = [
     category: 'Find/Replace',
     args: [
       { key: 'prefix', label: 'Prefix', placeholder: 'e.g., SRCACT//', type: 'text', required: true },
-      { key: 'replaceWith', label: 'Replace With', placeholder: 'e.g., ACC-', type: 'text', required: true },
+      { key: 'replaceWith', label: 'Replace With', placeholder: 'e.g., ACC- (blank = strip)', type: 'text', required: true, allowEmpty: true },
     ],
   },
   {
@@ -96,7 +104,7 @@ export const TRANSFORMATION_METHODS: TransformationMethodDef[] = [
     category: 'Find/Replace',
     args: [
       { key: 'suffix', label: 'Suffix', placeholder: 'e.g., NMSC', type: 'text', required: true },
-      { key: 'replaceWith', label: 'Replace With', placeholder: 'e.g., -X', type: 'text', required: true },
+      { key: 'replaceWith', label: 'Replace With', placeholder: 'e.g., -X (blank = strip)', type: 'text', required: true, allowEmpty: true },
     ],
   },
 
@@ -134,13 +142,16 @@ export const TRANSFORMATION_METHODS: TransformationMethodDef[] = [
   },
   {
     // Unconditionally prepends `text` to the value. Useful for namespacing
-    // extracted ids (e.g. "12345" -> "ACC-12345").
+    // extracted ids (e.g. "12345" -> "ACC-12345"). Empty `text` is allowed
+    // — it makes the row a no-op, which is a legitimate "disable this
+    // step without removing it" intent and stays symmetric with the
+    // replaceWith allowEmpty contract.
     key: 'add_to_start',
     label: 'Add to Start',
     description: 'Args: text. Example: "12345" -> "ACC-12345" (text "ACC-")',
     category: 'Formatting',
     args: [
-      { key: 'text', label: 'Text', placeholder: 'e.g., ACC-', type: 'text', required: true },
+      { key: 'text', label: 'Text', placeholder: 'e.g., ACC- (blank = no-op)', type: 'text', required: true, allowEmpty: true },
     ],
   },
   {
@@ -150,7 +161,7 @@ export const TRANSFORMATION_METHODS: TransformationMethodDef[] = [
     description: 'Args: text. Example: "12345" -> "12345-X" (text "-X")',
     category: 'Formatting',
     args: [
-      { key: 'text', label: 'Text', placeholder: 'e.g., -X', type: 'text', required: true },
+      { key: 'text', label: 'Text', placeholder: 'e.g., -X (blank = no-op)', type: 'text', required: true, allowEmpty: true },
     ],
   },
 
@@ -183,6 +194,30 @@ export const TRANSFORMATION_METHODS: TransformationMethodDef[] = [
     args: [
       { key: 'length', label: 'Max Characters', placeholder: 'e.g., 15', type: 'number', required: true },
       { key: 'breakAtSpecial', label: 'Break at special character', placeholder: '', type: 'checkbox', required: false },
+    ],
+  },
+  {
+    // Take the leading N characters. Mirrors the existing
+    // `extract_last_n_chars` EXTRACTION operation but on the
+    // post-extraction pipeline so an attribute can extract a region and
+    // then crop to a fixed-length leading window. Length <= 0 produces
+    // an empty string; N > value.length passes the value through.
+    key: 'take_first_n_chars',
+    label: 'Take first N characters',
+    description: 'Args: length. Example: length=4: "ABCDEFG" -> "ABCD"',
+    category: 'Extraction Refinement',
+    args: [
+      { key: 'length', label: 'N', placeholder: 'e.g., 4', type: 'number', required: true },
+    ],
+  },
+  {
+    // Take the trailing N characters. Mirror of take_first_n_chars.
+    key: 'take_last_n_chars',
+    label: 'Take last N characters',
+    description: 'Args: length. Example: length=3: "ABCDEFG" -> "EFG"',
+    category: 'Extraction Refinement',
+    args: [
+      { key: 'length', label: 'N', placeholder: 'e.g., 3', type: 'number', required: true },
     ],
   },
   {

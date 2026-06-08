@@ -11,6 +11,8 @@ import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { Toast } from '../shared/Toast';
 import { Tooltip } from '../shared/Tooltip';
 import { ComparisonModal } from './ComparisonModal';
+import { LibraryExportDialog } from './LibraryExportDialog';
+import { LibraryTableModal } from './LibraryTableModal';
 import { RollbackConfirmDialog } from './RollbackConfirmDialog';
 import { OverflowMenu } from '../shared/OverflowMenu';
 import { TaggingStatsCell } from './TaggingStatsCell';
@@ -183,6 +185,16 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [rollbackTarget, setRollbackTarget] = useState<DisplayRow | null>(null);
   const [compareTarget, setCompareTarget] = useState<DisplayRow | null>(null);
+  // Per-library Export picker target. Non-null when the operator clicked
+  // the row's Export button — opens a small dialog letting them pick
+  // ACTIVE / INPROGRESS / Both, then writes the JSON. Gated upstream on
+  // `row.isInProgress` so we always have an INPROGRESS sibling when set.
+  const [exportTarget, setExportTarget] = useState<DisplayRow | null>(null);
+  // Per-library "View as Table" target. Same visibility gate as export —
+  // only meaningful when an INPROGRESS counterpart exists alongside the
+  // ACTIVE one (otherwise the existing expanded card list covers the
+  // single-library inspection just fine).
+  const [tableTarget, setTableTarget] = useState<DisplayRow | null>(null);
   const [searchPanelOpen, setSearchPanelOpen] = useState(false);
 
   // Rows whose checkout state just changed — kept for 5s so the user can
@@ -884,21 +896,46 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                         {/* Actions */}
                         <div className="px-4 py-2.5 text-end flex-1 min-w-96">
                           <div className="flex items-center justify-end gap-2">
-                            {row.isOwnedByMe && !isAudit && (
-                              <OverflowMenu
-                                data-tour="backlog-rollback-button"
-                                disabled={isBeingTagged || isLoading}
-                                triggerTitle={taggingLockTitle}
-                                items={[
-                                  {
-                                    label: 'Rollback',
-                                    danger: true,
-                                    disabled: isBeingTagged || isLoading,
-                                    onClick: () => setRollbackTarget(row),
-                                  },
-                                ]}
-                              />
-                            )}
+                            {(() => {
+                              // Group secondary actions in a single kebab
+                              // menu so the row stays scannable. Rollback
+                              // is destructive (owner+non-audit only) and
+                              // benefits from the extra click before
+                              // firing; View as Table / Export only make
+                              // sense when an INPROGRESS sibling exists.
+                              // The menu renders only when at least one
+                              // item qualifies — empty kebabs are noise.
+                              const items: { label: string; onClick: () => void; danger?: boolean; disabled?: boolean; icon?: React.ReactNode }[] = [];
+                              if (row.isOwnedByMe && !isAudit) {
+                                items.push({
+                                  label: 'Rollback',
+                                  danger: true,
+                                  disabled: isBeingTagged || isLoading,
+                                  onClick: () => setRollbackTarget(row),
+                                });
+                              }
+                              if (row.isInProgress) {
+                                items.push({
+                                  label: 'View as Table',
+                                  disabled: isLoading,
+                                  onClick: () => setTableTarget(row),
+                                });
+                                items.push({
+                                  label: 'Export',
+                                  disabled: isLoading,
+                                  onClick: () => setExportTarget(row),
+                                });
+                              }
+                              if (items.length === 0) return null;
+                              return (
+                                <OverflowMenu
+                                  data-tour="backlog-rollback-button"
+                                  disabled={isBeingTagged || isLoading}
+                                  triggerTitle={taggingLockTitle}
+                                  items={items}
+                                />
+                              );
+                            })()}
                             {row.isOwnedByMe && !isAudit && (
                               <Button data-tour="backlog-checkin-button" variant="primary" size="xs" onClick={() => handleCheckin(row)} disabled={isBeingTagged} loading={isLoading} title={taggingLockTitle}>
                                 Checkin
@@ -926,6 +963,10 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                                 Compare
                               </Button>
                             )}
+                            {/* Export and View as Table moved into the
+                                OverflowMenu above — the action row was
+                                getting too crowded to render any of them
+                                on a single line. */}
                             <Button data-tour="backlog-transactions-button" variant="outline" size="xs" onClick={() => onViewTransactions(row.bank, row.side)} disabled={isLoading}>
                               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
                                 <path fillRule="evenodd" d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zm0 5A.75.75 0 012.75 9h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 9.75zm0 5a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75a.75.75 0 01-.75-.75z" clipRule="evenodd" />
@@ -946,10 +987,22 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                       {/* Expanded definitions */}
                       {isExpanded && (() => {
                         const changedIds = getChangedDefIds(row);
+                        // Tag-name alphabetical sort is the operator's
+                        // anchor when scanning a library's contents —
+                        // requested explicitly. Changed definitions keep
+                        // a soft "top of group" priority so the diff
+                        // affordance still surfaces, but within each
+                        // group (changed vs unchanged) tags read A-to-Z
+                        // case-insensitively, with the definition Id as
+                        // a tiebreaker so two same-named tags stay
+                        // stable across re-renders.
                         const sorted = [...definitions].sort((a, b) => {
                           const aChanged = changedIds.has(a.Id) ? 0 : 1;
                           const bChanged = changedIds.has(b.Id) ? 0 : 1;
-                          return aChanged - bChanged;
+                          if (aChanged !== bChanged) return aChanged - bChanged;
+                          const tagCmp = (a.Tag ?? '').localeCompare(b.Tag ?? '', undefined, { sensitivity: 'base' });
+                          if (tagCmp !== 0) return tagCmp;
+                          return (a.Id ?? '').localeCompare(b.Id ?? '');
                         });
                         return (
                           <div className="border-t border-border-subtle bg-surface-secondary/50 px-6 py-4">
@@ -1036,6 +1089,30 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
             setCompareTarget(null);
             onViewTransactions(bank, side, def.Id);
           }}
+        />
+      )}
+
+      {exportTarget && exportTarget.inProgressLib && (
+        <LibraryExportDialog
+          open
+          onClose={() => setExportTarget(null)}
+          activeLib={exportTarget.library}
+          inProgressLib={exportTarget.inProgressLib}
+          bank={exportTarget.bank}
+          side={exportTarget.side}
+          bankLabel={bankNameMap.get(exportTarget.bank)}
+        />
+      )}
+
+      {tableTarget && tableTarget.inProgressLib && (
+        <LibraryTableModal
+          open
+          onClose={() => setTableTarget(null)}
+          activeLib={tableTarget.library}
+          inProgressLib={tableTarget.inProgressLib}
+          bank={tableTarget.bank}
+          side={tableTarget.side}
+          bankLabel={bankNameMap.get(tableTarget.bank)}
         />
       )}
 
