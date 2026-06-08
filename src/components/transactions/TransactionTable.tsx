@@ -1,4 +1,5 @@
 import { useMemo, useLayoutEffect, useEffect, useRef, useState, useCallback, type ReactNode } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import type { AnalyzedTransaction, TagSpecDefinition, TagAttribute, RuleExpression, TransactionRow } from '../../types';
 import { useTransactionData } from '../../hooks/useTransactionData';
 import { useLovAttributes } from '../../context/LovAttributesContext';
@@ -1925,6 +1926,46 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
   const ACTION_BAR_H = 40;
   const actionBarOffset = hasSelection && onFlagDeadEnd ? ACTION_BAR_H : 0;
 
+  // Row virtualization. Without it, a Show-all on 44k rows mounts 44k
+  // `<tr>` nodes (each with ~10-20 `<td>`s and their own analyzed
+  // tag/attribute children) into the DOM and the browser crashes
+  // outright. `useVirtualizer` only mounts the rows whose virtual
+  // window intersects the viewport plus a small overscan buffer; the
+  // scroll position is held by leading / trailing spacer `<tr>`s
+  // sized to the rows that aren't mounted, so the scrollbar still
+  // represents the full dataset and clicking the scrollbar mid-track
+  // works exactly like before.
+  //
+  // `estimateSize` reflects the compact row height (`30.4px` matches
+  // the skeleton rows). Rows with multi-line content (long
+  // descriptions, multi-tag pills) get re-measured via the
+  // ResizeObserver tanstack-virtual wires up internally, so the
+  // virtual window stays accurate even when individual rows are
+  // taller than the estimate.
+  //
+  // The horizontal scroll lives on the SAME container; tanstack-
+  // virtual only manages vertical, so sticky headers / sticky
+  // columns / horizontal scroll all keep working untouched.
+  const rowVirtualizer = useVirtualizer({
+    count: data.length,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: () => 30.4,
+    overscan: 8,
+    // Stable per-row key so React can match measured heights across
+    // re-renders when the underlying data shifts (filter change,
+    // hide / unhide, +N append, etc.).
+    getItemKey: (index) => getRowId(data[index].row),
+  });
+  const virtualRows = rowVirtualizer.getVirtualItems();
+  // Total scroll height the table needs to feel like 44k rows are
+  // there; the leading spacer `<tr>` consumes everything above the
+  // first mounted row, the trailing spacer fills the rest.
+  const totalVirtualHeight = rowVirtualizer.getTotalSize();
+  const firstVirtual = virtualRows[0];
+  const lastVirtual = virtualRows[virtualRows.length - 1];
+  const paddingTop = firstVirtual ? firstVirtual.start : 0;
+  const paddingBottom = lastVirtual ? Math.max(0, totalVirtualHeight - lastVirtual.end) : 0;
+
   return (
     <div
       className="rounded-lg border border-border flex flex-col relative"
@@ -2328,12 +2369,31 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                 </td>
               </tr>
             ) : (
-              data.map((item, i) => {
-                const rowId = getRowId(item.row);
-                const isSelected = selectedIds.has(rowId);
-                const isDeadEnd = item.row['IsDeadEnd'] === true;
-                return (
-                  <tr key={i} className={`group transition-colors ${isDeadEnd ? 'bg-red-100/60 dark:bg-red-950/30 text-red-400 dark:text-red-500/70' : 'hover:bg-surface-hover'} ${isSelected ? 'bg-primary/10!' : ''}`} onContextMenu={onRowContextMenu ? (e) => { e.preventDefault(); onRowContextMenu(item.row, e.clientX, e.clientY); } : undefined}>
+              <>
+                {/* Leading spacer occupies the height of every row above
+                    the first virtually-mounted one. Its `td` spans the
+                    whole table width so the spacer doesn't disrupt the
+                    column grid; height is the scroll offset to the
+                    first visible row. */}
+                {paddingTop > 0 && (
+                  <tr aria-hidden style={{ height: `${paddingTop}px` }}>
+                    <td colSpan={visibleColumns.length} style={{ padding: 0, border: 0 }} />
+                  </tr>
+                )}
+                {virtualRows.map((virtualRow) => {
+                  const i = virtualRow.index;
+                  const item = data[i];
+                  const rowId = getRowId(item.row);
+                  const isSelected = selectedIds.has(rowId);
+                  const isDeadEnd = item.row['IsDeadEnd'] === true;
+                  return (
+                  <tr
+                    key={virtualRow.key}
+                    data-index={virtualRow.index}
+                    ref={rowVirtualizer.measureElement}
+                    className={`group transition-colors ${isDeadEnd ? 'bg-red-100/60 dark:bg-red-950/30 text-red-400 dark:text-red-500/70' : 'hover:bg-surface-hover'} ${isSelected ? 'bg-primary/10!' : ''}`}
+                    onContextMenu={onRowContextMenu ? (e) => { e.preventDefault(); onRowContextMenu(item.row, e.clientX, e.clientY); } : undefined}
+                  >
                     {visibleColumns.map((col, colIdx) => {
                       const isStickyCol = stickyLefts.has(colIdx) || stickyRights.has(colIdx);
                       const stickyBg = isStickyCol ? 'bg-surface group-hover:bg-surface-hover' : '';
@@ -2645,8 +2705,19 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                       }
                     })}
                   </tr>
-                );
-              })
+                  );
+                })}
+                {/* Trailing spacer occupies the height of every row
+                    below the last virtually-mounted one. Together with
+                    the leading spacer this preserves the scrollbar
+                    proportions so the scrollbar feels like the full
+                    44k-row dataset is rendered. */}
+                {paddingBottom > 0 && (
+                  <tr aria-hidden style={{ height: `${paddingBottom}px` }}>
+                    <td colSpan={visibleColumns.length} style={{ padding: 0, border: 0 }} />
+                  </tr>
+                )}
+              </>
             )}
           </tbody>
         </table>
