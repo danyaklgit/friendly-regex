@@ -648,6 +648,16 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // any future filter-Tag renames). In sample mode `filterDefinitions` is
   // empty, so the mirror is a no-op and the client-side filteredData
   // check below is the only enforcement.
+  //
+  // Mirror semantics: write-only. When Validity carries a bound we push
+  // it into the named filter; when Validity is empty we leave the
+  // filter alone. Operators routinely set a Statement Date filter
+  // BEFORE opening the rule builder (e.g. to scope to recent rows) and
+  // an earlier version of this effect treated "no validity" as "clear
+  // the filter," which silently wiped that pre-existing scope the
+  // moment Create-a-Rule was clicked. The clear-on-empty path is
+  // intentionally gone: if the operator wants to drop the Statement
+  // Date filter they have the chip's × in the filter row.
   const validityStartDate = builder.formState.validity.StartDate;
   const validityEndDate = builder.formState.validity.EndDate;
   const statementDateFilterTag = useMemo<string | null>(() => {
@@ -658,36 +668,65 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   }, [filterDefinitions]);
   useEffect(() => {
     if (!statementDateFilterTag) return;
+    if (!builderOpen) return;
+    if (!validityStartDate && !validityEndDate) return;
     const gteKey = `${statementDateFilterTag}_GTE`;
     const lteKey = `${statementDateFilterTag}_LTE`;
-    const desiredStart = builderOpen && validityStartDate ? validityStartDate : null;
-    const desiredEnd = builderOpen && validityEndDate ? validityEndDate : null;
     setFilters((prev) => {
       const next = { ...prev };
       let changed = false;
-      if (desiredStart) {
+      if (validityStartDate) {
         const cur = prev[gteKey];
-        if (!cur || cur.size !== 1 || !cur.has(desiredStart)) {
-          next[gteKey] = new Set([desiredStart]);
+        if (!cur || cur.size !== 1 || !cur.has(validityStartDate)) {
+          next[gteKey] = new Set([validityStartDate]);
           changed = true;
         }
-      } else if (gteKey in prev) {
-        delete next[gteKey];
-        changed = true;
       }
-      if (desiredEnd) {
+      if (validityEndDate) {
         const cur = prev[lteKey];
-        if (!cur || cur.size !== 1 || !cur.has(desiredEnd)) {
-          next[lteKey] = new Set([desiredEnd]);
+        if (!cur || cur.size !== 1 || !cur.has(validityEndDate)) {
+          next[lteKey] = new Set([validityEndDate]);
           changed = true;
         }
-      } else if (lteKey in prev) {
-        delete next[lteKey];
-        changed = true;
       }
       return changed ? next : prev;
     });
   }, [builderOpen, validityStartDate, validityEndDate, statementDateFilterTag]);
+
+  // Inverse seed: when the operator opens the rule builder while a
+  // Statement Date filter is already active, copy the filter's bounds
+  // INTO the builder's Validity section so the rule they're authoring
+  // inherits the scope they were already looking at. Fires once per
+  // open transition (`builderOpen` false → true), not on every render,
+  // because the Validity → filter mirror above would otherwise treat
+  // every render where the filter is set as "validity changed, write
+  // it back" and we'd ping-pong. Skips when validity is already set
+  // (operator's edit wins) or when no filter is active.
+  const prevBuilderOpenRef = useRef(builderOpen);
+  useEffect(() => {
+    const wasOpen = prevBuilderOpenRef.current;
+    prevBuilderOpenRef.current = builderOpen;
+    if (wasOpen || !builderOpen) return;
+    if (!statementDateFilterTag) return;
+    if (validityStartDate || validityEndDate) return;
+    const gteKey = `${statementDateFilterTag}_GTE`;
+    const lteKey = `${statementDateFilterTag}_LTE`;
+    const filterFrom = [...(filters[gteKey] ?? [])][0];
+    const filterTo = [...(filters[lteKey] ?? [])][0];
+    if (!filterFrom && !filterTo) return;
+    builder.updateBasicInfo({
+      validity: {
+        StartDate: filterFrom ?? null,
+        EndDate: filterTo ?? null,
+      },
+    });
+  // We deliberately depend ONLY on `builderOpen` here. Reading the
+  // current filter and validity values from closure on each open is
+  // the intended behavior — including them in deps would re-run the
+  // effect mid-session and re-seed validity any time the filter
+  // changed, fighting the operator's edits.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [builderOpen]);
 
 
   const defaultHiddenColumns = useMemo(() => {

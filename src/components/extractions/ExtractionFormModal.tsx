@@ -13,10 +13,16 @@ interface ExtractionFormModalProps {
     Value: string;
     Details: { LanguageCode: string; Name: string; ShortDescription: string }[];
   }) => Promise<void>;
+  /** Optional callback the modal invokes when the operator clicks Create
+   *  with a duplicate Name (English or Arabic). The parent owns the
+   *  app's toast surface; this hook lets us route the error through
+   *  the same Toast pattern used for the success / save-failed cases
+   *  instead of inline copy that crowds the modal body. */
+  onValidationError?: (message: string) => void;
   existing?: BackendExtraction;
 }
 
-export function ExtractionFormModal({ open, onClose, onSave, existing }: ExtractionFormModalProps) {
+export function ExtractionFormModal({ open, onClose, onSave, onValidationError, existing }: ExtractionFormModalProps) {
   const isEdit = !!existing;
   const { backendExtractions } = useLovAttributes();
 
@@ -46,6 +52,33 @@ export function ExtractionFormModal({ open, onClose, onSave, existing }: Extract
     ) ?? null;
   }, [regex, backendExtractions, isEdit, existing]);
 
+  // Duplicate detection by Name, per locale. Two extractions sharing a
+  // visible Name would collide in the dropdown — operators couldn't
+  // tell them apart by label and the extraction picker shows the Name,
+  // not the regex. Case-insensitive trimmed compare so "Saudi IBAN" and
+  // "  saudi iban  " count as the same name. Edit mode excludes the
+  // current row from the search so re-saving an unchanged Name doesn't
+  // flag itself as a duplicate.
+  const findDuplicateByName = (lang: 'en' | 'ar', name: string) => {
+    const needle = name.trim().toLowerCase();
+    if (!needle) return null;
+    return backendExtractions.find((e) => {
+      if (isEdit && e.Id === existing!.Id) return false;
+      const detail = e.Details.find((d) => d.LanguageCode === lang);
+      return detail?.Name.trim().toLowerCase() === needle;
+    }) ?? null;
+  };
+  const duplicateNameEn = useMemo(
+    () => findDuplicateByName('en', nameEn),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [nameEn, backendExtractions, isEdit, existing],
+  );
+  const duplicateNameAr = useMemo(
+    () => findDuplicateByName('ar', nameAr),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [nameAr, backendExtractions, isEdit, existing],
+  );
+
   // Validate that the regex actually parses. An invalid regex would break the
   // dropdown for every operator.
   const regexError = useMemo<string | null>(() => {
@@ -58,6 +91,13 @@ export function ExtractionFormModal({ open, onClose, onSave, existing }: Extract
     }
   }, [regex]);
 
+  // Required-field gating + regex validity + duplicate-regex stay as
+  // disable-button conditions because they're either trivially obvious
+  // (missing required field) or already accompanied by inline guidance
+  // (regex parse error / duplicate regex banner). Duplicate-NAME is
+  // routed through a click-time toast instead — the operator might
+  // genuinely want to keep typing and a permanently-disabled Create
+  // button on a partially-filled name field reads as a dead end.
   const canSave =
     nameEn.trim().length > 0 &&
     shortDescEn.trim().length > 0 &&
@@ -69,6 +109,18 @@ export function ExtractionFormModal({ open, onClose, onSave, existing }: Extract
 
   const handleSave = async () => {
     if (!canSave) return;
+    // Duplicate-name gate fires at click time and surfaces through
+    // the parent's Toast surface (set via `onValidationError`). The
+    // inputs still carry their red error state so the operator can
+    // see which field needs attention; the toast says WHY.
+    if (duplicateNameEn || duplicateNameAr) {
+      const messages: string[] = [];
+      if (duplicateNameEn) messages.push('An extraction with this English Name already exists.');
+      if (duplicateNameAr) messages.push('An extraction with this Arabic Name already exists.');
+      messages.push('Pick a different name to continue.');
+      onValidationError?.(messages.join(' '));
+      return;
+    }
     setSaving(true);
     try {
       await onSave({
@@ -143,6 +195,7 @@ export function ExtractionFormModal({ open, onClose, onSave, existing }: Extract
               placeholder="e.g. Saudi IBAN"
               required
               maxLength={100}
+              error={!!duplicateNameEn}
             />
             <Input
               data-tour="extraction-form-desc-en"
@@ -163,6 +216,7 @@ export function ExtractionFormModal({ open, onClose, onSave, existing }: Extract
               dir="rtl"
               required
               maxLength={100}
+              error={!!duplicateNameAr}
             />
             <Input
               label="Short Description"

@@ -178,6 +178,7 @@ export function ExtractionsPage() {
           open
           onClose={handleCloseForm}
           onSave={handleSave}
+          onValidationError={(message) => setToast({ message, type: 'error' })}
           existing={editTarget ?? undefined}
         />
       )}
