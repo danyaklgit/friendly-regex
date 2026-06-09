@@ -2801,7 +2801,6 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                 validity={builder.formState.validity}
                 onChange={(validity) => builder.updateBasicInfo({ validity })}
                 readOnly={isReadOnly}
-                helperText="Both fields are optional. While set, the transactions table is filtered to rows whose Statement Date falls in this range."
               />
             </div>
 

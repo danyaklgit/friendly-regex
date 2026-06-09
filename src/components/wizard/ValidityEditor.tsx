@@ -13,9 +13,11 @@ interface ValidityEditorProps {
    *  are suppressed, but any saved dates still render so operators can see
    *  the bound a checked-out rule carries. */
   readOnly?: boolean;
-  /** Optional helper text below the inputs. Defaults to the standard
-   *  "both fields optional" copy used by the wizard. Callers can override
-   *  to add context-specific guidance (e.g. "Also filters the table"). */
+  /** Optional helper text below the inputs. Defaults to the same copy
+   *  shown on every rule-creation surface (standalone Tag Wizard +
+   *  inline Rule Builder) so the operator gets a consistent explanation
+   *  of what setting a validity does. Callers can override for
+   *  read-only / preview contexts. */
   helperText?: string;
 }
 
@@ -37,7 +39,7 @@ export function ValidityEditor({
   validity,
   onChange,
   readOnly,
-  helperText = 'Both fields are optional. Empty fields mean the bound is unrestricted.',
+  helperText = 'Both fields are optional. While set, the transactions table is filtered to rows whose Statement Date falls in this range.',
 }: ValidityEditorProps) {
   // Local visibility flag. Defaults open whenever either bound is already
   // set so edit-mode entry surfaces the saved range; otherwise collapsed.
