@@ -1,7 +1,7 @@
 import type { MatchOperation, ExtractionOperation } from '../types';
 import { PREDEFINED_PATTERNS } from '../constants/operations';
 
-function escapeRegex(str: string): string {
+export function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 

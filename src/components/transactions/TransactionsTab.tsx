@@ -2875,6 +2875,26 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                       const source = definitionSourceMap.get(id) ?? 'Backend';
                       const isUserCreated = !originalDefinitionIds?.has(id);
                       const versionInfo = definitionVersions.get(id);
+                      const handleExclude = () => {
+                        // Exclude lives INSIDE the badge as a × icon;
+                        // see TagBadge's `onExclude` prop for the
+                        // stopPropagation wiring. This handler just
+                        // performs the form-state mutation and
+                        // surfaces the result toast.
+                        const result = builder.excludeTag(def);
+                        if (result.skipped) {
+                          setToast({
+                            message: result.reason ?? `Could not exclude "${def.Tag}"`,
+                            type: 'error',
+                          });
+                        } else {
+                          const n = result.conditions.length;
+                          setToast({
+                            message: `Excluded "${def.Tag}". Added ${n} condition${n === 1 ? '' : 's'} to the rule.`,
+                            type: 'success',
+                          });
+                        }
+                      };
                       return (
                         <Tooltip
                           key={id}
@@ -2888,6 +2908,8 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                               isUserCreated={isUserCreated}
                               version={versionInfo?.version}
                               onClick={() => setPreviewDef(def)}
+                              onExclude={handleExclude}
+                              excludeTitle={`Exclude "${def.Tag}" — add negative conditions so the current rule stops matching the same rows`}
                             />
                           </span>
                         </Tooltip>

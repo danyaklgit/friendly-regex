@@ -21,6 +21,7 @@ import {
 } from '../utils/regexify';
 import { generateId, generateExpressionId } from '../utils/uuid';
 import { cloneRulesAndAttributesFrom } from '../utils/cloneRulesAndAttributes';
+import { computeExclusionConditions, type ExclusionResult } from '../utils/computeExclusionConditions';
 
 /**
  * Sentinel value the backend ships on `Validity.StartDate` to mean "no
@@ -340,6 +341,51 @@ export function useWizardForm(
     []
   );
 
+  // Smart exclusion: take another tag's saved rule expressions, compute
+  // the conditions that differentiate it from the current draft, and
+  // append their negations to every AND group of the draft so the draft
+  // no longer matches the same rows the target tag matches.
+  //
+  // See `computeExclusionConditions` for the differentiator algorithm
+  // and the operation-by-operation negation table. The mutation is
+  // batched into a single `setFormState` call so consumers see one
+  // coherent update (the rule list jumps from N conditions to N + M in
+  // one render, not in M sequential commits).
+  //
+  // Returns a structured result so the caller (the UI button handler)
+  // can produce a meaningful toast: how many conditions were added,
+  // whether the action was skipped, and why.
+  const excludeTag = useCallback((targetDef: TagSpecDefinition): ExclusionResult => {
+    // Compute against a snapshot of the current ruleGroups. Reading
+    // from React state here is safe because the operator can only
+    // click Exclude once between renders, and we batch the mutation
+    // inside setFormState below.
+    let result: ExclusionResult = { conditions: [], skipped: true };
+    setFormState((prev) => {
+      result = computeExclusionConditions(prev.ruleGroups, targetDef);
+      if (result.skipped || result.conditions.length === 0) return prev;
+      // Append negated conditions to every existing AND group. When
+      // the operator hasn't authored any rules yet, create a single
+      // new group that holds them all — without this, the exclusion
+      // would have nothing to attach to and silently drop the work.
+      const groupsToWrite: AndGroupFormValue[] = prev.ruleGroups.length > 0
+        ? prev.ruleGroups
+        : [{ id: crypto.randomUUID(), conditions: [] }];
+      const nextGroups: AndGroupFormValue[] = groupsToWrite.map((g) => ({
+        ...g,
+        conditions: [
+          ...g.conditions,
+          // Fresh ids per AndGroup so the same logical "does not
+          // contain REF" can sit independently in every group
+          // without identity collisions.
+          ...result.conditions.map((c) => ({ ...c, id: crypto.randomUUID() })),
+        ],
+      }));
+      return { ...prev, ruleGroups: nextGroups };
+    });
+    return result;
+  }, []);
+
   // --- Attribute operations ---
   const addAttribute = useCallback(() => {
     setFormState((prev) => ({
@@ -559,6 +605,7 @@ export function useWizardForm(
     addCondition,
     removeCondition,
     updateCondition,
+    excludeTag,
     addAttribute,
     removeAttribute,
     cloneAttribute,
