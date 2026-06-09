@@ -174,6 +174,7 @@ export function AttributesPage() {
           open
           onClose={() => setFormOpen(false)}
           onSave={handleSave}
+          onValidationError={(message) => setToast({ message, type: 'error' })}
         />
       )}
 
