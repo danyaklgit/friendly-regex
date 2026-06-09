@@ -2470,29 +2470,29 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                   // also re-fire that fetch — otherwise a stale tag-spec
                   // list survives the refresh.
                   setMatchingTagReloadKey((k) => k + 1);
-                  // Refresh deliberately does NOT clear the operator's
-                  // Detected Tag Specs selection — that's what Clear
-                  // Filters is for.
-                  //
-                  // Pagination IS reset: drop the operator's previous
-                  // +N / Show all intent and refetch page 0 at the
-                  // default PAGE_SIZE (50). Refresh's contract is
-                  // "give me a clean snapshot," so starting from the
-                  // first 50 is consistent with what the operator
-                  // would have seen on a fresh tab open. The
-                  // `desiredLoadedCountRef` reset prevents the
-                  // standard filter-change effect from re-honoring the
-                  // old Show-all count on the next dep change.
+                  // Refresh's full contract: clean slate.
+                  //   - Reset pagination intent so the refetch lands on
+                  //     the default first 50 (drop any prior +N / Show
+                  //     all choice).
+                  //   - Empty every filter surface so the operator sees
+                  //     the same starting view they'd get on a fresh
+                  //     tab open: dynamic filter chips, Detected Tag
+                  //     Specs selection, Show Only pill filters, and
+                  //     the Show Only toggle row.
+                  //   - The standard filter-change effect picks up the
+                  //     emptied `filters` / `activeExtraFilters`
+                  //     dependencies and fires the data refetch
+                  //     (page 0, default PAGE_SIZE) — no manual
+                  //     fetchPage call needed here, which avoids the
+                  //     double-fetch we'd otherwise get from setFilters
+                  //     queuing the effect AND a direct fetchPage call.
                   desiredLoadedCountRef.current = null;
-                  const extras = activeExtraFilters.length > 0 ? activeExtraFilters : undefined;
-                  fetchPage(
-                    outgoingFilters,
-                    false,
-                    incrementalPagination ? undefined : 0,
-                    undefined,
-                    extras,
-                    effectiveSorting,
-                  );
+                  setFilters({});
+                  setCurrentTagFilterIds(new Set());
+                  setActivePillFilters([]);
+                  setShowOnlyUntagged(false);
+                  setShowOnlyMultiTagged(false);
+                  setShowOnlyDeadEnd(false);
                   if (!incrementalPagination) {
                     setCurrentPage(0);
                     setPageInputValue('1');
