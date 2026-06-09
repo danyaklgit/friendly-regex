@@ -6,6 +6,7 @@ import type { FilterDefinition } from '../../api/transactions';
 import { Button } from '../shared/Button';
 import { Modal } from '../shared/Modal';
 import { DropdownBackdrop } from '../shared/DropdownBackdrop';
+import { toDateInputValue } from '../shared/DateField';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
 
 type FilterState = Record<string, Set<string>>;
@@ -1158,8 +1159,22 @@ function DateFilter({
   const { open, setOpen, ref } = useDropdown();
   const gteKey = `${definition.Tag}_GTE`;
   const lteKey = `${definition.Tag}_LTE`;
-  const currentFrom = [...(filters[gteKey] ?? [])][0] ?? '';
-  const currentTo = [...(filters[lteKey] ?? [])][0] ?? '';
+  // Filter values can arrive carrying an ISO datetime tail
+  // (e.g. `2023-06-01T00:00:00Z`) when the rule-builder's Validity
+  // section mirrors itself into this filter, or when the backend
+  // ships a stored date as a full timestamp. Strip the time portion
+  // before display so:
+  //   1. The chip label reads "2023-06-01 - 2023-06-30" instead of
+  //      "2023-06-01T00:00:00Z - 2023-06-30T00:00:00Z".
+  //   2. The `<input type="date">` accepts the value and renders it
+  //      in the calendar popup. HTML date inputs silently reject any
+  //      string that isn't bare `YYYY-MM-DD`, so without this strip
+  //      the inputs show the placeholder even when the filter is
+  //      active.
+  const currentFromRaw = [...(filters[gteKey] ?? [])][0] ?? '';
+  const currentToRaw = [...(filters[lteKey] ?? [])][0] ?? '';
+  const currentFrom = toDateInputValue(currentFromRaw);
+  const currentTo = toDateInputValue(currentToRaw);
   const hasActive = !!currentFrom || !!currentTo;
 
   const handleChange = (from: string, to: string) => {
