@@ -6,7 +6,9 @@ import { LovItemsPane } from './LovItemsPane';
 // Internal LOV tags that aren't operator-facing — same exclusion list as
 // LovsPage. EXTRACTIONS joins the hidden set because its items are surfaced
 // via the AttributeEditor extraction dropdown, not as a reference list.
-const HIDDEN_LOV_TAGS = new Set(['ATTRIBUTES', 'ATTRIBUTE_TRANSFORMATON', 'EXTRACTIONS']);
+// DEMO_USER_COMPS drives the user-mode portal's company picker — purely
+// internal user-mode state with no operator-side use.
+const HIDDEN_LOV_TAGS = new Set(['ATTRIBUTES', 'ATTRIBUTE_TRANSFORMATON', 'EXTRACTIONS', 'DEMO_USER_COMPS']);
 
 interface LovBrowserDrawerProps {
   open: boolean;

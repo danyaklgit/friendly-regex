@@ -6,7 +6,9 @@ import { LovItemsPane } from './LovItemsPane';
 // LOV tags that belong to internal/derived flows and are already surfaced
 // elsewhere in the app (Attributes tab, transformation pipeline, the new
 // Extractions tab). Hide them from the operator-facing LOVs UI.
-const HIDDEN_LOV_TAGS = new Set(['ATTRIBUTES', 'ATTRIBUTE_TRANSFORMATON', 'EXTRACTIONS']);
+// DEMO_USER_COMPS drives the user-mode portal's company picker — purely
+// internal user-mode state with no operator-side use.
+const HIDDEN_LOV_TAGS = new Set(['ATTRIBUTES', 'ATTRIBUTE_TRANSFORMATON', 'EXTRACTIONS', 'DEMO_USER_COMPS']);
 
 export function LovsPage() {
   const { lovLists, lovLoading, refetchAll } = useLovAttributes();

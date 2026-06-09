@@ -273,8 +273,13 @@ export function LovAttributesProvider({ tepHeaders, children }: LovAttributesPro
   // Exclude internal LOV tags that aren't meant to surface as attribute value sources:
   //   - ATTRIBUTES: the list of available attribute names (used elsewhere).
   //   - ATTRIBUTE_TRANSFORMATON: the transformation method catalog (used by the transformation picker).
+  //   - DEMO_USER_COMPS: the user-mode portal's company picker LOV. The
+  //     backend ships it on every GetListsByTags response (it's in
+  //     LOV_TAGS) but it has no operator-side use and exposing it as
+  //     an attribute-value source would let operators accidentally bind
+  //     a tag's attribute to internal user-mode state.
   const lovOptions = useMemo(() => {
-    const HIDDEN_LOV_TAGS = new Set(['ATTRIBUTES', 'ATTRIBUTE_TRANSFORMATON']);
+    const HIDDEN_LOV_TAGS = new Set(['ATTRIBUTES', 'ATTRIBUTE_TRANSFORMATON', 'DEMO_USER_COMPS']);
     return lovLists
       .filter((l) => !HIDDEN_LOV_TAGS.has(l.Tag))
       .map((l) => ({ value: l.Tag, label: l.Name }));
