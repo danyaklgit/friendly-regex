@@ -750,8 +750,28 @@ function StringFromListDropdown({
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     onKeyDown={handleSearchKeyDown}
-                    className="w-full pl-7 pr-2 py-1.5 text-xs rounded border border-input-border bg-input-bg text-heading placeholder:text-placeholder focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors"
+                    className="w-full pl-7 pr-7 py-1.5 text-xs rounded border border-input-border bg-input-bg text-heading placeholder:text-placeholder focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors"
                   />
+                  {/* Clear-search × button. Shown only when there's
+                      a query so the search icon stays the only chrome
+                      at rest; clicking empties the query and
+                      re-focuses the input. */}
+                  {search && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearch('');
+                        searchInputRef.current?.focus();
+                      }}
+                      title="Clear search"
+                      aria-label="Clear search"
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-4 h-4 rounded-full text-muted hover:text-heading hover:bg-surface-active transition-colors cursor-pointer"
+                    >
+                      <svg viewBox="0 0 12 12" className="w-2.5 h-2.5" aria-hidden="true">
+                        <path d="M2 2 L10 10 M10 2 L2 10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                      </svg>
+                    </button>
+                  )}
                 </div>
               </div>
             )}

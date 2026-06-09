@@ -2471,16 +2471,32 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                   // list survives the refresh.
                   setMatchingTagReloadKey((k) => k + 1);
                   // Refresh deliberately does NOT clear the operator's
-                  // Detected Tag Specs selection. Clearing the selection
-                  // mutates activeExtraFilters, which triggers the
-                  // standard filter-change refetch — and after a Show
-                  // all that means re-fetching 40k+ rows (and the
-                  // multi-second wait that comes with it) just because
-                  // the operator wanted the filter metadata refreshed.
-                  // Clear Filters already provides the clean-slate
-                  // affordance for operators who want it; Refresh
-                  // sticks to its name: pull the latest filter / tag
-                  // metadata and leave the loaded transactions alone.
+                  // Detected Tag Specs selection — that's what Clear
+                  // Filters is for.
+                  //
+                  // Pagination IS reset: drop the operator's previous
+                  // +N / Show all intent and refetch page 0 at the
+                  // default PAGE_SIZE (50). Refresh's contract is
+                  // "give me a clean snapshot," so starting from the
+                  // first 50 is consistent with what the operator
+                  // would have seen on a fresh tab open. The
+                  // `desiredLoadedCountRef` reset prevents the
+                  // standard filter-change effect from re-honoring the
+                  // old Show-all count on the next dep change.
+                  desiredLoadedCountRef.current = null;
+                  const extras = activeExtraFilters.length > 0 ? activeExtraFilters : undefined;
+                  fetchPage(
+                    outgoingFilters,
+                    false,
+                    incrementalPagination ? undefined : 0,
+                    undefined,
+                    extras,
+                    effectiveSorting,
+                  );
+                  if (!incrementalPagination) {
+                    setCurrentPage(0);
+                    setPageInputValue('1');
+                  }
                 }}
                 disabled={filterDefinitionsLoading}
                 title="Refresh filters"
