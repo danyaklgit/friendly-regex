@@ -1,4 +1,4 @@
-import { useState, cloneElement, type ReactElement, type ReactNode } from 'react';
+import { useState, useSyncExternalStore, cloneElement, type ReactElement, type ReactNode } from 'react';
 import {
   useFloating,
   autoUpdate,
@@ -13,6 +13,7 @@ import {
   FloatingPortal,
   type Placement,
 } from '@floating-ui/react';
+import { subscribeScrolling, getScrollingSnapshot } from '../../utils/scrollingSignal';
 
 interface TooltipProps {
   content: ReactNode;
@@ -22,7 +23,36 @@ interface TooltipProps {
   delay?: number;
 }
 
-export function Tooltip({ content, placement = 'top', children, offsetAmount = 6, delay = 200 }: TooltipProps) {
+/**
+ * Tooltip wrapper. While the global `scrollingSignal` is true (the
+ * virtualized Transactions table is mid-scroll), this component skips
+ * mounting the heavy `FullTooltip` — which runs five floating-ui hooks
+ * — and just clones the child. A Show All on 44k rows mounts ~14
+ * Tooltips per row; without this short-circuit each newly-mounted row
+ * during fast scroll pays the full hook initialization cost and the
+ * viewport goes blank until scroll settles. At scroll-end the signal
+ * flips back to false and every Tooltip rerenders into its full
+ * floating-ui form in one batched pass.
+ */
+export function Tooltip(props: TooltipProps) {
+  const isScrolling = useSyncExternalStore(
+    subscribeScrolling,
+    getScrollingSnapshot,
+    getScrollingSnapshot,
+  );
+  if (isScrolling) {
+    // While scrolling, the tooltip is unreachable (the user can't
+    // reasonably hover anything in a moving viewport), so dropping
+    // floating-ui entirely is invisible to the user and removes the
+    // per-row mount cost that was causing the blank-during-scroll
+    // symptom. Once scroll settles, the FullTooltip branch below
+    // takes over and registers normal hover/focus interactions.
+    return cloneElement(props.children);
+  }
+  return <FullTooltip {...props} />;
+}
+
+function FullTooltip({ content, placement = 'top', children, offsetAmount = 6, delay = 200 }: TooltipProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   const { refs, floatingStyles, context } = useFloating({
@@ -57,7 +87,7 @@ export function Tooltip({ content, placement = 'top', children, offsetAmount = 6
             ref={refs.setFloating}
             style={floatingStyles}
             {...getFloatingProps()}
-            className="z-[9999] px-2 py-1 text-[11px] font-medium text-gray-900 bg-white border border-primary/50 dark:text-gray-100 dark:bg-gray-800 dark:border-primary/60 rounded shadow-[0_4px_16px_-2px_rgba(0,0,0,0.12),0_2px_6px_-1px_rgba(0,0,0,0.08)] dark:shadow-[0_4px_16px_-2px_rgba(0,0,0,0.4),0_2px_6px_-1px_rgba(0,0,0,0.3)] pointer-events-none"
+            className="z-9999 px-2 py-1 text-[11px] font-medium text-gray-900 bg-white border border-primary/50 dark:text-gray-100 dark:bg-gray-800 dark:border-primary/60 rounded shadow-[0_4px_16px_-2px_rgba(0,0,0,0.12),0_2px_6px_-1px_rgba(0,0,0,0.08)] dark:shadow-[0_4px_16px_-2px_rgba(0,0,0,0.4),0_2px_6px_-1px_rgba(0,0,0,0.3)] pointer-events-none"
           >
             {content}
           </div>

@@ -13,6 +13,7 @@ import { humanizeFieldName } from '../../utils/humanizeFieldName';
 import { decomposeExtractionRegex, engregxify } from '../../utils/engregxify';
 import { getRegexDescription } from '../../types/tagSpec';
 import { regexifyExtraction } from '../../utils/regexify';
+import { setScrolling } from '../../utils/scrollingSignal';
 import { extractAttributes } from '../../utils/extractAttributes';
 import type { DefinitionVersionInfo } from '../../utils/definitionVersions';
 import { diffStrings } from '../../utils/textDiff';
@@ -1943,6 +1944,17 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
   // virtual window stays accurate even when individual rows are
   // taller than the estimate.
   //
+  // `overscan` stays modest (12 rows on each side). Trial showed that
+  // bumping it higher (40) actually makes scroll feel laggier even
+  // though more rows are buffered: per-re-render mount cost scales
+  // with how many rows are mounted, and each row mounts ~14 Tooltips
+  // (CLAUDE.md gotcha #14) plus other heavy cell content. The real
+  // fix to "blank viewport during fast scroll" is making per-row
+  // mount cheaper or memoizing the row component so unchanged rows
+  // skip re-rendering on scroll-triggered updates — see the
+  // architectural debt entries in docs/code-review.md. This modest
+  // bump from the previous 8 just gives a little more headroom.
+  //
   // The horizontal scroll lives on the SAME container; tanstack-
   // virtual only manages vertical, so sticky headers / sticky
   // columns / horizontal scroll all keep working untouched.
@@ -1950,13 +1962,30 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     count: data.length,
     getScrollElement: () => scrollContainerRef.current,
     estimateSize: () => 30.4,
-    overscan: 8,
+    overscan: 12,
     // Stable per-row key so React can match measured heights across
     // re-renders when the underlying data shifts (filter change,
     // hide / unhide, +N append, etc.).
     getItemKey: (index) => getRowId(data[index].row),
   });
   const virtualRows = rowVirtualizer.getVirtualItems();
+
+  // Mirror tanstack-virtual's `isScrolling` into the global scrolling
+  // signal so Tooltip (and any future subscribers) can short-circuit
+  // their heavy hook initialization while the table is in motion.
+  // tanstack-virtual already debounces this flag — true on scroll
+  // start, back to false ~150ms after the last scroll event — so the
+  // signal flips at most twice per scroll gesture.
+  //
+  // Cleanup ensures we don't leave the global signal stuck true if
+  // the table unmounts mid-scroll (e.g. tab change while the wheel
+  // is still spinning).
+  useEffect(() => {
+    setScrolling(rowVirtualizer.isScrolling);
+  }, [rowVirtualizer.isScrolling]);
+  useEffect(() => {
+    return () => setScrolling(false);
+  }, []);
   // Total scroll height the table needs to feel like 44k rows are
   // there; the leading spacer `<tr>` consumes everything above the
   // first mounted row, the trailing spacer fills the rest.
