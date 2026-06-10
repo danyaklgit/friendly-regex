@@ -2308,21 +2308,35 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         <div className='flex flex-col md:flex-row items-start justify-end md:items-center gap-2'>
           <h2 className="text-base font-semibold text-heading">Transactions</h2>
           {(() => {
-            // Header count is the raw backend total for the current filter
-            // scope. The "· N hidden" suffix is the BACKEND-aware count of
-            // rows in the same filter scope that match a hidden definition —
-            // not bounded by what's loaded — so it doesn't drift on
-            // pagination. "all hidden" surfaces when hidden covers the
-            // entire filter scope.
+            // Header count is the operator-relevant total: raw backend total
+            // for the current filter scope MINUS hidden-tag rows (mirrors
+            // the pagination footer, see `displayCounts.totalNow`). Reading
+            // `totalTransactionsCount` directly here drifted the header
+            // away from the footer once the operator hid any tags (e.g.
+            // header showed "543" while the footer + table both showed
+            // 164 = 543 − 379 hidden). The "· N hidden" suffix is the
+            // BACKEND-aware hidden count in the same filter scope, so
+            // header now reads "164 · 379 hidden" in that scenario.
+            // "all hidden" surfaces when hidden covers the entire filter
+            // scope.
             const displayed = builderOpen && builderHasContent
               ? filteredData.length
               : isLiveMode && totalTransactionsCount != null
-                ? totalTransactionsCount
+                ? displayCounts.totalNow
                 : filteredData.length;
             const hiddenSuffix = (() => {
               if (builderOpen) return '';
               if (displayCounts.hiddenDisplay <= 0) return '';
-              if (displayed > 0 && displayCounts.hiddenDisplay >= displayed) return ' · all hidden';
+              // "all hidden" must compare against the RAW scope total
+              // (`displayCounts.totalRaw`), not the post-hidden `displayed`
+              // value above — otherwise as soon as hidden > visible the
+              // condition fires even though visible rows remain (e.g.
+              // raw=543, hidden=379, visible=164 → hidden >= visible
+              // would incorrectly read "all hidden" while 164 rows are
+              // still on screen).
+              if (displayCounts.totalRaw > 0 && displayCounts.hiddenDisplay >= displayCounts.totalRaw) {
+                return ' · all hidden';
+              }
               return ` · ${displayCounts.hiddenDisplay.toLocaleString()} hidden`;
             })();
             return (
