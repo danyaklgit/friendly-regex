@@ -1,5 +1,5 @@
-import type { FilterProperty } from '../api/transactions';
-import type { ConditionFormValue, WizardFormState } from '../types/wizard';
+import type { FilterProperty, RegexFilterProperty } from '../api/transactions';
+import type { AndGroupFormValue, ConditionFormValue, WizardFormState } from '../types/wizard';
 import { regexify } from './regexify';
 import { DATE_SOURCE_FIELDS } from '../constants/fields';
 import { compileDateRangeRegex } from './dateRangeRegex';
@@ -55,6 +55,30 @@ function buildInnerCondition(c: ConditionFormValue): RegexCondition | null {
 }
 
 /**
+ * Compile a list of form-state AndGroups into the single REGEX
+ * FilterProperty entry the backend understands. Returns `null` when
+ * every group is empty (no filled conditions) so the caller can decide
+ * whether to send no filter at all vs. an empty one.
+ *
+ * Extracted from {@link buildRulesetFilters} so other surfaces (the
+ * standalone "Matching Rules" filter chip in the Transactions
+ * filter row) can produce the same REGEX shape without dragging
+ * along the bank/side/TxType context the rule wizard needs.
+ */
+export function buildRegexFilterFromRuleGroups(ruleGroups: AndGroupFormValue[]): RegexFilterProperty | null {
+  const regexGroups = ruleGroups
+    .map((group) =>
+      group.conditions
+        .filter(isFilledCondition)
+        .map(buildInnerCondition)
+        .filter((r): r is RegexCondition => r !== null),
+    )
+    .filter((group) => group.length > 0);
+  if (regexGroups.length === 0) return null;
+  return { Operand: 'REGEX', Regex: regexGroups };
+}
+
+/**
  * Build the FilterProperty[] payload from the rule builder's form state.
  *
  * Emits BankSwiftCode + Side as `IN` filters, optionally TransactionTypeCode
@@ -76,23 +100,10 @@ export function buildRulesetFilters(formState: WizardFormState): FilterProperty[
     filters.push({ ColumnName: 'TransactionTypeCode', Value: formState.transactionTypeCode, Operand: 'EQ' });
   }
 
-  // `isFilledCondition` is the source of truth for "this condition carries
-  // meaning for the backend." It accepts nullary ops (Is Blank or Empty /
-  // Is Not Blank or Empty) which have no Value — without it, those rows
-  // would be silently dropped from the REGEX payload here and the table
-  // would return the unfiltered dataset.
-  const regexGroups = formState.ruleGroups
-    .map((group) =>
-      group.conditions
-        .filter(isFilledCondition)
-        .map(buildInnerCondition)
-        .filter((r): r is RegexCondition => r !== null),
-    )
-    .filter((group) => group.length > 0);
-
-  if (regexGroups.length > 0) {
-    filters.push({ Operand: 'REGEX', Regex: regexGroups });
-  }
+  // Route through the shared helper so the same REGEX shape is used
+  // by every surface that builds it from form-state AndGroups.
+  const regexFilter = buildRegexFilterFromRuleGroups(formState.ruleGroups);
+  if (regexFilter) filters.push(regexFilter);
 
   return filters;
 }

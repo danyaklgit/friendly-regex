@@ -145,6 +145,25 @@ export function applyTransformation(
       return value.slice(Math.max(0, value.length - len));
     }
 
+    // Drop the leading N characters and keep the remainder. Length <= 0
+    // returns the value unchanged (nothing to drop); N >= value.length
+    // returns the empty string (everything was dropped). Mirror of
+    // take_first_n_chars semantically — together they partition the
+    // string at position N.
+    case 'remove_first_n_chars': {
+      const len = Number(args.length);
+      if (!Number.isFinite(len) || len <= 0) return value;
+      return value.slice(len);
+    }
+
+    // Drop the trailing N characters and keep the prefix. Symmetric
+    // counterpart of remove_first_n_chars.
+    case 'remove_last_n_chars': {
+      const len = Number(args.length);
+      if (!Number.isFinite(len) || len <= 0) return value;
+      return value.slice(0, Math.max(0, value.length - len));
+    }
+
     case 'max_char_limit': {
       const len = Number(args.length);
       if (!Number.isFinite(len) || len <= 0) return value;

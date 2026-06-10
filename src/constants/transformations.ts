@@ -221,6 +221,30 @@ export const TRANSFORMATION_METHODS: TransformationMethodDef[] = [
     ],
   },
   {
+    // Drop the leading N characters. Mirror of take_first_n_chars but
+    // returns the REMAINDER instead of the prefix — useful when the
+    // operator wants to strip a fixed-length header from an extraction
+    // without recomputing the substring boundaries.
+    key: 'remove_first_n_chars',
+    label: 'Remove first N characters',
+    description: 'Args: length. Example: length=3: "ABCDEFG" -> "DEFG"',
+    category: 'Extraction Refinement',
+    args: [
+      { key: 'length', label: 'N', placeholder: 'e.g., 3', type: 'number', required: true },
+    ],
+  },
+  {
+    // Drop the trailing N characters. Mirror of take_last_n_chars but
+    // returns the REMAINDER instead of the suffix.
+    key: 'remove_last_n_chars',
+    label: 'Remove last N characters',
+    description: 'Args: length. Example: length=3: "ABCDEFG" -> "ABCD"',
+    category: 'Extraction Refinement',
+    args: [
+      { key: 'length', label: 'N', placeholder: 'e.g., 3', type: 'number', required: true },
+    ],
+  },
+  {
     // Backend regex: ^([A-Z0-9]+)\1$ → $1
     // Collapses a doubled identifier on itself ("ABC123ABC123" -> "ABC123").
     // No args, no-op when the value isn't a perfect doubled pair.

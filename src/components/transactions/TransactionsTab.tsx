@@ -4,7 +4,8 @@ import { useAuth } from '../../context/AuthContext';
 import { useTransactionData } from '../../hooks/useTransactionData';
 import { useLovAttributes } from '../../context/LovAttributesContext';
 import { useMatchingTagIds } from '../../hooks/useMatchingTagIds';
-import { buildRulesetFilters } from '../../utils/buildRulesetFilters';
+import { buildRulesetFilters, buildRegexFilterFromRuleGroups } from '../../utils/buildRulesetFilters';
+import { MatchingRulesFilterButton } from './MatchingRulesFilterButton';
 import {
   hasDuplicateGroups,
   hasEmptyRuleGroup,
@@ -22,7 +23,7 @@ import { translateFilters } from '../../utils/translateFilters';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
 import { useOptionalDownloadCenter } from '../../context/DownloadCenterContext';
 import { useWizardForm, fromExistingDefinition } from '../../hooks/useWizardForm';
-import type { TagSpecDefinition, TagSpecLibrary, AnalyzedTransaction, WizardFormState, RuleExpression, CheckoutState, TransactionRow } from '../../types';
+import type { TagSpecDefinition, TagSpecLibrary, AnalyzedTransaction, WizardFormState, RuleExpression, CheckoutState, TransactionRow, AndGroupFormValue } from '../../types';
 import type { WizardFormResult } from '../../hooks/useWizardForm';
 import { analyzeRow, buildAnalyzeScratch } from '../../utils/analyzeRow';
 import { evaluateRuleSet } from '../../utils/evaluateRuleSet';
@@ -470,6 +471,13 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // see the lock-sync effect colocated with `editingDef` below.
   const [currentTagFilterIds, setCurrentTagFilterIds] = useState<Set<string>>(new Set());
 
+  // Operator-authored matching-rules filter. Same construction surface as the
+  // Rule Builder (RuleGroupEditor + ConditionEditor under the hood), but
+  // applied as a server-side REGEX FilterProperty so the table reflects the
+  // rules without saving them as a real TagSpec. Empty array = filter off.
+  // Survives builder open/close because it's its own filter surface.
+  const [matchingRulesFilter, setMatchingRulesFilter] = useState<AndGroupFormValue[]>([]);
+
   // Pill-scope filters: consumed once from the parent on mount/change and
   // held locally so they survive subsequent renders and outgoing-filter
   // recomputes. Cleared by the user via the standard Clear Filters control
@@ -571,8 +579,16 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     // flag filters (OpsIsUntagged, OpsIsDeadEnd, OpsContainsInvalidAttributes,
     // etc.) that compose cleanly with the operator's other filters.
     extra.push(...activePillFilters);
+    // Operator-authored matching-rules filter (the "Matching Rules" chip in
+    // the filter row). Compiles to a REGEX FilterProperty via the same
+    // helper the Rule Builder uses, so the two surfaces produce identical
+    // server payload shapes. When the builder ALSO has a REGEX in flight
+    // we send both entries; the backend ANDs FilterProperty[] at the top
+    // level, which is what the operator expects from stacking two filters.
+    const manualRegex = buildRegexFilterFromRuleGroups(matchingRulesFilter);
+    if (manualRegex) extra.push(manualRegex);
     return withHidden(extra);
-  }, [tagClickDefinitionId, tagClickRulesetApplied, tagClickShowingAll, tagClickRulesetFilters, builderOpen, builder.formState, currentTagFilterIds, activePillFilters, hiddenDefIds]);
+  }, [tagClickDefinitionId, tagClickRulesetApplied, tagClickShowingAll, tagClickRulesetFilters, builderOpen, builder.formState, currentTagFilterIds, activePillFilters, hiddenDefIds, matchingRulesFilter]);
 
   // Forward the UI filter state as-is. Earlier this hook stripped bank/side
   // when a TagSpecDefinitionId scope was active, on the theory that the
@@ -2442,21 +2458,37 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         filterDefinitionsLoading={filterDefinitionsLoading}
         decimalMaxValues={decimalMaxValues}
         disabledFilterTags={tagClickState?.showingAll && tagClickState.tagFilterKey ? new Set([tagClickState.tagFilterKey]) : undefined}
-        leadingActionSlot={isLiveMode && activeCheckout && (matchingTagEntries.length > 0 || matchingTagsListLoading) ? (
-          <CurrentTagsDropdown
-            entries={matchingTagEntries}
-            selectedIds={currentTagFilterIds}
-            onChange={setCurrentTagFilterIds}
-            loading={matchingTagsListLoading}
-            lockedToId={detectedTagsLockedToId}
-          />
+        leadingActionSlot={isLiveMode ? (
+          <div className="flex items-center gap-2">
+            {activeCheckout && (matchingTagEntries.length > 0 || matchingTagsListLoading) ? (
+              <CurrentTagsDropdown
+                entries={matchingTagEntries}
+                selectedIds={currentTagFilterIds}
+                onChange={setCurrentTagFilterIds}
+                loading={matchingTagsListLoading}
+                lockedToId={detectedTagsLockedToId}
+              />
+            ) : null}
+            <MatchingRulesFilterButton
+              value={matchingRulesFilter}
+              onChange={setMatchingRulesFilter}
+            />
+          </div>
         ) : null}
-        // The Detected Tag Specs picker lives outside DynamicFilters' own
-        // state but reads as part of the same filter row to the operator —
-        // fold it into the Clear-filters affordance so one click resets
-        // everything the operator can see.
-        extraActiveFilterCount={currentTagFilterIds.size + (activePillFilters.length > 0 ? 1 : 0)}
-        onClearExtraFilters={() => { setCurrentTagFilterIds(new Set()); setActivePillFilters([]); }}
+        // The Detected Tag Specs picker + matching-rules chip live outside
+        // DynamicFilters' own state but read as part of the same filter row
+        // to the operator — fold them into the Clear-filters affordance so
+        // one click resets everything the operator can see.
+        extraActiveFilterCount={
+          currentTagFilterIds.size
+          + (activePillFilters.length > 0 ? 1 : 0)
+          + (buildRegexFilterFromRuleGroups(matchingRulesFilter) ? 1 : 0)
+        }
+        onClearExtraFilters={() => {
+          setCurrentTagFilterIds(new Set());
+          setActivePillFilters([]);
+          setMatchingRulesFilter([]);
+        }}
         endSlot={(isLiveMode || tableColumns.length > 0) ? (
           <div className="flex items-center gap-2">
             {isLiveMode && (
@@ -2490,6 +2522,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                   setFilters({});
                   setCurrentTagFilterIds(new Set());
                   setActivePillFilters([]);
+                  setMatchingRulesFilter([]);
                   setShowOnlyUntagged(false);
                   setShowOnlyMultiTagged(false);
                   setShowOnlyDeadEnd(false);

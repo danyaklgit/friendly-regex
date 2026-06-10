@@ -450,6 +450,50 @@ describe('applyTransformation', () => {
     expect(applyTransformation('take_last_n_chars', { length: '-3' }, 'ABC')).toBe('');
   });
 
+  // --- remove_first_n_chars / remove_last_n_chars ---
+  it('remove_first_n_chars drops the leading N characters', () => {
+    expect(applyTransformation('remove_first_n_chars', { length: '3' }, 'ABCDEFG')).toBe('DEFG');
+  });
+
+  it('remove_first_n_chars returns empty string when N >= value length', () => {
+    expect(applyTransformation('remove_first_n_chars', { length: '50' }, 'ABC')).toBe('');
+    expect(applyTransformation('remove_first_n_chars', { length: '3' }, 'ABC')).toBe('');
+  });
+
+  it('remove_first_n_chars passes value through for N <= 0 or missing length', () => {
+    // Nothing to drop → identity.
+    expect(applyTransformation('remove_first_n_chars', { length: '0' }, 'ABC')).toBe('ABC');
+    expect(applyTransformation('remove_first_n_chars', { length: '-3' }, 'ABC')).toBe('ABC');
+    expect(applyTransformation('remove_first_n_chars', {}, 'ABC')).toBe('ABC');
+    expect(applyTransformation('remove_first_n_chars', { length: 'abc' }, 'ABC')).toBe('ABC');
+  });
+
+  it('remove_last_n_chars drops the trailing N characters', () => {
+    expect(applyTransformation('remove_last_n_chars', { length: '3' }, 'ABCDEFG')).toBe('ABCD');
+  });
+
+  it('remove_last_n_chars returns empty string when N >= value length', () => {
+    expect(applyTransformation('remove_last_n_chars', { length: '50' }, 'ABC')).toBe('');
+    expect(applyTransformation('remove_last_n_chars', { length: '3' }, 'ABC')).toBe('');
+  });
+
+  it('remove_last_n_chars passes value through for N <= 0 or missing length', () => {
+    expect(applyTransformation('remove_last_n_chars', { length: '0' }, 'ABC')).toBe('ABC');
+    expect(applyTransformation('remove_last_n_chars', { length: '-3' }, 'ABC')).toBe('ABC');
+    expect(applyTransformation('remove_last_n_chars', {}, 'ABC')).toBe('ABC');
+  });
+
+  it('remove_first_n_chars + take_first_n_chars partition the string at position N', () => {
+    // Behavior witness: applying take_first(N) and remove_first(N) to
+    // the same input gives the prefix and suffix exactly, with no
+    // overlap or gap.
+    const value = 'ABCDEFG';
+    const n = '3';
+    const prefix = applyTransformation('take_first_n_chars', { length: n }, value);
+    const suffix = applyTransformation('remove_first_n_chars', { length: n }, value);
+    expect(prefix + suffix).toBe(value);
+  });
+
   // --- replaceWith empty string ---
   it('replace deletes the matched text when replaceWith is an empty string', () => {
     // Operators routinely want to delete a noise prefix / suffix by
