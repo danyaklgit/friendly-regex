@@ -1210,11 +1210,24 @@ function DateFilter({
     onFiltersChange(next);
   };
 
+  // Inline × clear on the chip. Mirrors the affordance on the numeric
+  // range filter (and on the value-list filter chips above) so the
+  // operator can drop the entire date range without opening the
+  // popover. stopPropagation prevents the click from also toggling
+  // the popover open.
+  const clearFilter = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const next = { ...filters };
+    delete next[gteKey];
+    delete next[lteKey];
+    onFiltersChange(next);
+  };
+
   return (
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+        className={`text-xs px-3 py-1.5 rounded-lg border transition-colors inline-flex items-center gap-1 ${
           hasActive
             ? 'bg-primary/10 border-primary/30 text-primary-dark'
             : 'bg-surface border-border-strong text-body hover:bg-surface-hover'
@@ -1222,19 +1235,39 @@ function DateFilter({
       >
         {definition.Label}
         {hasActive && (
-          <span className="ml-1 opacity-70">
-            ({currentFrom && currentTo
-              ? `${currentFrom} - ${currentTo}`
-              : currentFrom
-                ? `From - ${currentFrom}`
-                : `Until - ${currentTo}`})
-          </span>
+          <>
+            <span className="opacity-70">
+              ({currentFrom && currentTo
+                ? `${currentFrom} - ${currentTo}`
+                : currentFrom
+                  ? `From - ${currentFrom}`
+                  : `Until - ${currentTo}`})
+            </span>
+            <span
+              role="button"
+              aria-label={`Clear ${definition.Label} filter`}
+              onClick={clearFilter}
+              className="ml-0.5 opacity-60 hover:opacity-100 cursor-pointer"
+            >
+              &times;
+            </span>
+          </>
         )}
       </button>
       {open && (
         <>
           <DropdownBackdrop onClick={() => setOpen(false)} />
           <div className="absolute top-full mt-1 left-0 z-50 bg-surface border border-border rounded-lg shadow-lg p-3 min-w-52">
+            {hasActive && (
+              <div className="flex items-center justify-end mb-2">
+                <button
+                  onClick={clearFilter}
+                  className="text-[10px] text-muted hover:text-body transition-colors cursor-pointer"
+                >
+                  Clear
+                </button>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <div className="flex-1">
                 <label className="text-[10px] text-muted block mb-0.5">From</label>

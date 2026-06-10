@@ -571,9 +571,13 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         Operand: 'IN',
       });
     }
-    if (builderOpen && builder.formState.transactionTypeCode) {
-      extra.push({ ColumnName: 'TransactionTypeCode', Value: builder.formState.transactionTypeCode, Operand: 'EQ' });
-    }
+    // Note: the rule builder's Transaction Type used to be forwarded as
+    // an EQ FilterProperty here. That path is now handled by the
+    // builder → chip mirror (see effect below), which writes the
+    // selection into the named Transaction Types filter so the chip
+    // visibly reflects the builder's choice. Forwarding it here too
+    // would double-apply and conflict with operator-set multi-value
+    // chip selections.
     // Builder Validity → backend StatementDate range filter goes through
     // the named-filter pipeline (see the useEffect that mirrors validity
     // into `filters[Tag_GTE/LTE]`). translateFilters then forwards the
@@ -678,15 +682,19 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // empty, so the mirror is a no-op and the client-side filteredData
   // check below is the only enforcement.
   //
-  // Mirror semantics: write-only. When Validity carries a bound we push
-  // it into the named filter; when Validity is empty we leave the
-  // filter alone. Operators routinely set a Statement Date filter
-  // BEFORE opening the rule builder (e.g. to scope to recent rows) and
-  // an earlier version of this effect treated "no validity" as "clear
-  // the filter," which silently wiped that pre-existing scope the
-  // moment Create-a-Rule was clicked. The clear-on-empty path is
-  // intentionally gone: if the operator wants to drop the Statement
-  // Date filter they have the chip's × in the filter row.
+  // Mirror semantics: bidirectional on the SET→UNSET transition. When
+  // Validity carries a bound we push it into the named filter; when a
+  // bound transitions from set to null (operator cleared the field or
+  // clicked "Remove Validity") we drop the corresponding filter key so
+  // the chip clears too. Tracking the PREVIOUS validity via a ref is
+  // what makes this safe: the open-time render where validity is null
+  // and was always null leaves the filter alone, so an operator who
+  // pre-set a Statement Date filter before opening the rule builder
+  // doesn't lose that scope on open. Only an explicit operator-driven
+  // transition (set → null) triggers a clear. The inverse-seed effect
+  // below populates validity from the existing filter on open, so by
+  // the time the operator interacts with the validity fields the two
+  // surfaces are in sync.
   const validityStartDate = builder.formState.validity.StartDate;
   const validityEndDate = builder.formState.validity.EndDate;
   const statementDateFilterTag = useMemo<string | null>(() => {
@@ -695,32 +703,95 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     );
     return def?.Tag ?? null;
   }, [filterDefinitions]);
+  const prevValidityRef = useRef<{ start: string | null; end: string | null }>({
+    start: validityStartDate,
+    end: validityEndDate,
+  });
+  // Look up the Transaction Types filter's named-Tag too so the
+  // builder's Transaction Type dropdown can drive the chip. Same
+  // pattern as the StatementDate lookup above.
+  const transactionTypeFilterTag = useMemo<string | null>(() => {
+    const def = filterDefinitions.find(
+      (d) => d.Values.some((v) => v.Column === 'TransactionTypeCode'),
+    );
+    return def?.Tag ?? null;
+  }, [filterDefinitions]);
+  const builderTransactionType = builder.formState.transactionTypeCode;
+  const prevBuilderTtcRef = useRef<string>(builderTransactionType);
   useEffect(() => {
-    if (!statementDateFilterTag) return;
-    if (!builderOpen) return;
-    if (!validityStartDate && !validityEndDate) return;
+    if (!statementDateFilterTag || !builderOpen) {
+      // Builder closed (or no DATE filter definition available, e.g.
+      // sample mode). Keep the ref's idea of "previous validity" in
+      // sync with what's actually in state so the next time the
+      // builder opens we don't see a stale set→null transition.
+      prevValidityRef.current = { start: validityStartDate, end: validityEndDate };
+      return;
+    }
+    const prev = prevValidityRef.current;
+    prevValidityRef.current = { start: validityStartDate, end: validityEndDate };
     const gteKey = `${statementDateFilterTag}_GTE`;
     const lteKey = `${statementDateFilterTag}_LTE`;
-    setFilters((prev) => {
-      const next = { ...prev };
+    setFilters((prevFilters) => {
+      const next = { ...prevFilters };
       let changed = false;
+      // StartDate → GTE
       if (validityStartDate) {
-        const cur = prev[gteKey];
+        const cur = prevFilters[gteKey];
         if (!cur || cur.size !== 1 || !cur.has(validityStartDate)) {
           next[gteKey] = new Set([validityStartDate]);
           changed = true;
         }
+      } else if (prev.start && prevFilters[gteKey] !== undefined) {
+        // Operator transitioned StartDate from set → null. Drop the
+        // matching filter key so the chip in the filter row clears.
+        delete next[gteKey];
+        changed = true;
       }
+      // EndDate → LTE (symmetric)
       if (validityEndDate) {
-        const cur = prev[lteKey];
+        const cur = prevFilters[lteKey];
         if (!cur || cur.size !== 1 || !cur.has(validityEndDate)) {
           next[lteKey] = new Set([validityEndDate]);
           changed = true;
         }
+      } else if (prev.end && prevFilters[lteKey] !== undefined) {
+        delete next[lteKey];
+        changed = true;
       }
-      return changed ? next : prev;
+      return changed ? next : prevFilters;
     });
   }, [builderOpen, validityStartDate, validityEndDate, statementDateFilterTag]);
+
+  // Builder Transaction Type → Transaction Types filter chip mirror.
+  // Same set→null transition semantics as the validity mirror above:
+  // the chip updates when the operator picks/changes/removes a type
+  // inside the rule builder, but the open-time render with no
+  // builder selection doesn't wipe a pre-existing chip selection.
+  // The previous render's value is tracked via `prevBuilderTtcRef`;
+  // only an explicit `set → ''` transition clears the filter key.
+  useEffect(() => {
+    if (!transactionTypeFilterTag || !builderOpen) {
+      prevBuilderTtcRef.current = builderTransactionType;
+      return;
+    }
+    const prev = prevBuilderTtcRef.current;
+    prevBuilderTtcRef.current = builderTransactionType;
+    setFilters((prevFilters) => {
+      const next = { ...prevFilters };
+      let changed = false;
+      if (builderTransactionType) {
+        const cur = prevFilters[transactionTypeFilterTag];
+        if (!cur || cur.size !== 1 || !cur.has(builderTransactionType)) {
+          next[transactionTypeFilterTag] = new Set([builderTransactionType]);
+          changed = true;
+        }
+      } else if (prev && prevFilters[transactionTypeFilterTag] !== undefined) {
+        delete next[transactionTypeFilterTag];
+        changed = true;
+      }
+      return changed ? next : prevFilters;
+    });
+  }, [builderOpen, builderTransactionType, transactionTypeFilterTag]);
 
   // Inverse seed: when the operator opens the rule builder while a
   // Statement Date filter is already active, copy the filter's bounds
@@ -736,19 +807,34 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     const wasOpen = prevBuilderOpenRef.current;
     prevBuilderOpenRef.current = builderOpen;
     if (wasOpen || !builderOpen) return;
-    if (!statementDateFilterTag) return;
-    if (validityStartDate || validityEndDate) return;
-    const gteKey = `${statementDateFilterTag}_GTE`;
-    const lteKey = `${statementDateFilterTag}_LTE`;
-    const filterFrom = [...(filters[gteKey] ?? [])][0];
-    const filterTo = [...(filters[lteKey] ?? [])][0];
-    if (!filterFrom && !filterTo) return;
-    builder.updateBasicInfo({
-      validity: {
-        StartDate: filterFrom ?? null,
-        EndDate: filterTo ?? null,
-      },
-    });
+    // Validity ← Statement Date filter
+    if (statementDateFilterTag && !validityStartDate && !validityEndDate) {
+      const gteKey = `${statementDateFilterTag}_GTE`;
+      const lteKey = `${statementDateFilterTag}_LTE`;
+      const filterFrom = [...(filters[gteKey] ?? [])][0];
+      const filterTo = [...(filters[lteKey] ?? [])][0];
+      if (filterFrom || filterTo) {
+        builder.updateBasicInfo({
+          validity: {
+            StartDate: filterFrom ?? null,
+            EndDate: filterTo ?? null,
+          },
+        });
+      }
+    }
+    // Transaction Type ← chip filter. Only seeds when the chip carries
+    // exactly one value — the builder's dropdown is single-select, so a
+    // multi-value chip can't be losslessly copied into it, and we'd
+    // rather leave the builder empty than narrow the operator's view
+    // arbitrarily. The mirror above will pick up a subsequent
+    // operator-driven change to the builder dropdown.
+    if (transactionTypeFilterTag && !builderTransactionType) {
+      const chipValues = filters[transactionTypeFilterTag];
+      if (chipValues && chipValues.size === 1) {
+        const onlyValue = [...chipValues][0];
+        builder.updateBasicInfo({ transactionTypeCode: onlyValue });
+      }
+    }
   // We deliberately depend ONLY on `builderOpen` here. Reading the
   // current filter and validity values from closure on each open is
   // the intended behavior — including them in deps would re-run the
@@ -1598,14 +1684,18 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       result = result.filter((item) => item.row['TransactionTypeCode'] === builder.formState.transactionTypeCode);
     }
 
-    // Builder Validity filter. Applied client-side in BOTH live and sample
-    // mode — in live mode the backend filter (see activeExtraFilters) is
-    // the primary gate, but a defensive client check guarantees the table
-    // never surfaces a row outside the range even if the backend response
-    // hasn't refreshed yet or the operator's column is paginated. Trim any
-    // T-suffix from StatementDate so a backend that ships ISO datetimes
-    // doesn't break the lexicographic compare on YYYY-MM-DD.
-    if (builderOpen && (validityStartDate || validityEndDate)) {
+    // Builder Validity filter. Sample mode only — in live mode the
+    // Statement Date chip filter (kept in sync with builder validity
+    // via the bidirectional mirror) is the authoritative gate, and
+    // re-applying a client-side check here would surface a stale
+    // hide AFTER the operator cleared the chip: the server re-fetches
+    // broader rows, but if validity stays set in form state the
+    // client-side filter would mask everything until the operator
+    // also cleared validity. Aligns with the Transaction Type
+    // client-side filter below (also `!isLiveMode`-gated). Trim any
+    // T-suffix from StatementDate so a backend that ships ISO
+    // datetimes doesn't break the lexicographic compare on YYYY-MM-DD.
+    if (builderOpen && !isLiveMode && (validityStartDate || validityEndDate)) {
       result = result.filter((item) => {
         const raw = item.row['StatementDate'];
         if (raw == null) return false;
