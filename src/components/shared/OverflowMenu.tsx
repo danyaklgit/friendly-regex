@@ -111,9 +111,18 @@ export function OverflowMenu({
               className="z-[9999] min-w-[180px] bg-surface-elevated border border-border rounded-md shadow-lg py-1 outline-none"
             >
               {items.map((item, idx) => {
+                // Hover and keyboard-focus styling. `bg-surface-hover` was
+                // too close to `bg-surface-elevated` (the menu surface) to
+                // read as a state change in dark mode — operators couldn't
+                // tell which item they were pointing at. `bg-surface-active`
+                // is the next darker step and gives clear feedback. Danger
+                // items keep their red-tinted hover but bump it up so it's
+                // visible on the same elevated surface. `focus-visible`
+                // mirrors hover so keyboard navigation through the menu
+                // surfaces the same affordance.
                 const dangerClass = item.danger
-                  ? 'text-red-600 dark:text-rose-300 hover:bg-red-50 dark:hover:bg-red-900/20'
-                  : 'text-body hover:bg-surface-hover';
+                  ? 'text-red-600 dark:text-rose-300 hover:bg-red-100 dark:hover:bg-red-900/40 focus-visible:bg-red-100 dark:focus-visible:bg-red-900/40'
+                  : 'text-body hover:bg-surface-active hover:text-heading focus-visible:bg-surface-active focus-visible:text-heading';
                 const disabledClass = item.disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer';
                 return (
                   <button
@@ -121,7 +130,7 @@ export function OverflowMenu({
                     role="menuitem"
                     type="button"
                     disabled={item.disabled}
-                    className={`flex w-full items-center gap-2 px-3 py-1.5 text-sm text-left transition-colors ${dangerClass} ${disabledClass}`}
+                    className={`flex w-full items-center gap-2 px-3 py-1.5 text-sm text-left outline-none transition-colors ${dangerClass} ${disabledClass}`}
                     {...getItemProps({
                       onClick: () => {
                         if (item.disabled) return;

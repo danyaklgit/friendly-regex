@@ -43,6 +43,12 @@ interface StatsTabProps {
   ) => void;
   onViewAllTransactions: () => void;
   onCheckoutComplete: (bank: string, side: string) => void;
+  /** Releases a bank/side library checkout. Delegated to App so the
+   *  release path stays in lock-step with the header's "Release"
+   *  button (same save-then-release call sequence + activeCheckout
+   *  cleanup + clearChanges + library refetch). The kebab menu's
+   *  Release item routes through this. */
+  onRelease: (bank: string, side: string) => void | Promise<void>;
   authToken: string | null;
   tepHeaders: TepHeaders | null;
   /** Set when the user clicked "View in Backlog" from a comment thread.
@@ -157,7 +163,7 @@ interface DisplayRow {
   inProgressLib: TagSpecLibrary | undefined;
 }
 
-export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckoutComplete, authToken, tepHeaders, navigation, onNavigationConsumed, onNavigateToBacklog }: StatsTabProps) {
+export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckoutComplete, onRelease, authToken, tepHeaders, navigation, onNavigationConsumed, onNavigateToBacklog }: StatsTabProps) {
   const { libraries, tagDefinitions, loading, refetchTagSpecs, refetchLibraries, dispatch, taggingProgress, isPairBeingTagged, getTaggingFirstSeen } = useTagSpecs();
   const { usersMap, useDummyData, userId, isAudit } = useAuth();
   const { clearChanges } = useLocalChanges(undefined, undefined);
@@ -485,6 +491,21 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
       setActionLoading(null);
     }
   }, [authToken, tepHeaders, refreshAfterAction, onCheckoutComplete]);
+
+  // Release a checked-out library from the Backlog kebab menu. Routes
+  // through App's handleRelease so the save-then-release sequence,
+  // activeCheckout cleanup, and library refetch stay identical to
+  // the header's own Release button — no duplicate code path that
+  // could drift.
+  const handleReleaseRow = useCallback(async (row: DisplayRow) => {
+    if (!row.inProgressLib?.Id) return;
+    setActionLoading(row.library.Id!);
+    try {
+      await onRelease(row.bank, row.side);
+    } finally {
+      setActionLoading(null);
+    }
+  }, [onRelease]);
 
   const handleCheckin = useCallback(async (row: DisplayRow) => {
     if (!authToken || !tepHeaders || !row.inProgressLib?.Id) return;
@@ -906,7 +927,21 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                               // The menu renders only when at least one
                               // item qualifies — empty kebabs are noise.
                               const items: { label: string; onClick: () => void; danger?: boolean; disabled?: boolean; icon?: React.ReactNode }[] = [];
+                              // Release sits ABOVE Rollback in the menu —
+                              // it's the non-destructive equivalent (drops
+                              // the lock, keeps the data) and the more
+                              // common choice when an operator hands a
+                              // bank/side back without checking in. Only
+                              // the operator who owns the checkout can
+                              // release it (matches the header's Release
+                              // button visibility); audit role cannot
+                              // mutate checkouts at all.
                               if (row.isOwnedByMe && !isAudit) {
+                                items.push({
+                                  label: 'Release',
+                                  disabled: isBeingTagged || isLoading,
+                                  onClick: () => { void handleReleaseRow(row); },
+                                });
                                 items.push({
                                   label: 'Rollback',
                                   danger: true,

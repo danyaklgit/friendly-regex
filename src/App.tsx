@@ -276,7 +276,7 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
           activeIndex={activeTab}
           onTabChange={handleTabChange}
           tabs={[
-            { label: 'Backlog', content: <StatsTab onViewTransactions={handleViewTransactions} onViewAllTransactions={handleViewAllTransactions} onCheckoutComplete={handleCheckoutComplete} authToken={authToken} tepHeaders={tepHeaders} navigation={backlogNavigation} onNavigationConsumed={handleBacklogNavigationConsumed} onNavigateToBacklog={handleNavigateToBacklog} /> },
+            { label: 'Backlog', content: <StatsTab onViewTransactions={handleViewTransactions} onViewAllTransactions={handleViewAllTransactions} onCheckoutComplete={handleCheckoutComplete} onRelease={handleRelease} authToken={authToken} tepHeaders={tepHeaders} navigation={backlogNavigation} onNavigationConsumed={handleBacklogNavigationConsumed} onNavigateToBacklog={handleNavigateToBacklog} /> },
             { label: 'Transactions', content: <TransactionsTab activeCheckout={activeCheckout} onClearPendingDefinition={() => setActiveCheckout(prev => (prev && prev.pendingDefinitionId != null) ? { ...prev, pendingDefinitionId: undefined } : prev)} initialShareFilters={shareFilters} initialShareToggles={shareToggles} operatorName={operatorName} shareDialogOpen={shareDialogOpen} onShareDialogClose={() => setShareDialogOpen(false)} pendingPillFilters={pendingPillFilters} onPendingPillFiltersConsumed={() => setPendingPillFilters(null)} onBuilderOpenChange={setIsRuleBuilderOpen} /> },
             ...(isLiveMode && isDevops ? [{ label: 'Integration Logs', content: <IntegrationLogsTab /> }] : []),
             { label: 'Settings', content: <SettingsTab /> },
