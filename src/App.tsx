@@ -93,6 +93,10 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
   const [pendingPillFilters, setPendingPillFilters] = useState<FilterProperty[] | null>(null);
   const [undoTarget, setUndoTarget] = useState<{ bank: string; side: string } | null>(null);
   const [headerActionLoading, setHeaderActionLoading] = useState(false);
+  // Tracks whether the Transactions tab's rule builder is open so the
+  // checkout header can disable Release / Check-in while the operator is
+  // mid-authoring. Bubbled up via TransactionsTab's onBuilderOpenChange.
+  const [isRuleBuilderOpen, setIsRuleBuilderOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info'; duration?: number } | null>(null);
   // shareData drives the banner popup; shareFilters/shareToggles are passed to
   // TransactionsTab and must persist after the banner is dismissed.
@@ -273,7 +277,7 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
           onTabChange={handleTabChange}
           tabs={[
             { label: 'Backlog', content: <StatsTab onViewTransactions={handleViewTransactions} onViewAllTransactions={handleViewAllTransactions} onCheckoutComplete={handleCheckoutComplete} authToken={authToken} tepHeaders={tepHeaders} navigation={backlogNavigation} onNavigationConsumed={handleBacklogNavigationConsumed} onNavigateToBacklog={handleNavigateToBacklog} /> },
-            { label: 'Transactions', content: <TransactionsTab activeCheckout={activeCheckout} onClearPendingDefinition={() => setActiveCheckout(prev => (prev && prev.pendingDefinitionId != null) ? { ...prev, pendingDefinitionId: undefined } : prev)} initialShareFilters={shareFilters} initialShareToggles={shareToggles} operatorName={operatorName} shareDialogOpen={shareDialogOpen} onShareDialogClose={() => setShareDialogOpen(false)} pendingPillFilters={pendingPillFilters} onPendingPillFiltersConsumed={() => setPendingPillFilters(null)} /> },
+            { label: 'Transactions', content: <TransactionsTab activeCheckout={activeCheckout} onClearPendingDefinition={() => setActiveCheckout(prev => (prev && prev.pendingDefinitionId != null) ? { ...prev, pendingDefinitionId: undefined } : prev)} initialShareFilters={shareFilters} initialShareToggles={shareToggles} operatorName={operatorName} shareDialogOpen={shareDialogOpen} onShareDialogClose={() => setShareDialogOpen(false)} pendingPillFilters={pendingPillFilters} onPendingPillFiltersConsumed={() => setPendingPillFilters(null)} onBuilderOpenChange={setIsRuleBuilderOpen} /> },
             ...(isLiveMode && isDevops ? [{ label: 'Integration Logs', content: <IntegrationLogsTab /> }] : []),
             { label: 'Settings', content: <SettingsTab /> },
           ]}
@@ -287,7 +291,12 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
             side: activeCheckout.side,
             hasChanges: hasChanges ?? false,
             isReadOnly: isCheckoutReadOnly,
-            actionLoading: headerActionLoading,
+            // OR the rule-builder state into the disable signal — committing
+            // Release / Check-in while a rule is being authored would drop
+            // the in-progress definition without any save path, so we hide
+            // the option until the operator either saves or cancels the rule.
+            actionLoading: headerActionLoading || isRuleBuilderOpen,
+            disabledReason: isRuleBuilderOpen ? 'Finish or cancel the rule first' : undefined,
             onRelease: handleRelease,
             onCheckin: handleCheckinWithSave,
             onRequestUndo: handleRequestUndo,

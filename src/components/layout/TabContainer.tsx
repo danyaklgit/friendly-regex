@@ -13,6 +13,10 @@ interface CheckoutInfo {
   hasChanges: boolean;
   isReadOnly?: boolean;
   actionLoading?: boolean;
+  /** Tooltip shown when Release / Check-in are disabled (forwarded to
+   *  PageHeader). Pairs with `actionLoading=true` to explain WHY the
+   *  buttons are unavailable — e.g. while a rule is being authored. */
+  disabledReason?: string;
   onRelease: (bank: string, side: string) => void;
   onCheckin: (bank: string, side: string) => void;
   onRequestUndo?: (bank: string, side: string) => void;

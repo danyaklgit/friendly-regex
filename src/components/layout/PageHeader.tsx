@@ -22,6 +22,10 @@ interface CheckoutInfo {
   hasChanges: boolean;
   isReadOnly?: boolean;
   actionLoading?: boolean;
+  /** Tooltip shown over disabled Release / Check-in buttons explaining why
+   *  they're unavailable. Without this, the operator sees grayed buttons
+   *  with no context (e.g. while a rule is being authored). */
+  disabledReason?: string;
   onRelease: (bank: string, side: string) => void;
   onCheckin: (bank: string, side: string) => void;
   onRequestUndo?: (bank: string, side: string) => void;
@@ -89,12 +93,33 @@ export function PageHeader({ tabs, activeIndex, onTabChange, checkout, onOpenOnb
                   </Button>
                 )}
                 <span data-tour="checkout-actions" className="flex items-center gap-2 shrink-0">
-                  <Button variant="primary" size="xs" onClick={() => checkout.onRelease(checkout.bank, checkout.side)} disabled={checkout.actionLoading} className="whitespace-nowrap">
-                    {checkout.hasChanges ? 'Save and Release' : 'Release'}
-                  </Button>
-                  <Button variant="primary" size="xs" onClick={() => checkout.onCheckin(checkout.bank, checkout.side)} disabled={checkout.actionLoading} className="whitespace-nowrap">
-                    {checkout.hasChanges ? 'Save and Check In' : 'Check In'}
-                  </Button>
+                  {checkout.actionLoading && checkout.disabledReason ? (
+                    <>
+                      <Tooltip content={checkout.disabledReason} placement="bottom">
+                        <span>
+                          <Button variant="primary" size="xs" onClick={() => checkout.onRelease(checkout.bank, checkout.side)} disabled className="whitespace-nowrap">
+                            {checkout.hasChanges ? 'Save and Release' : 'Release'}
+                          </Button>
+                        </span>
+                      </Tooltip>
+                      <Tooltip content={checkout.disabledReason} placement="bottom">
+                        <span>
+                          <Button variant="primary" size="xs" onClick={() => checkout.onCheckin(checkout.bank, checkout.side)} disabled className="whitespace-nowrap">
+                            {checkout.hasChanges ? 'Save and Check In' : 'Check In'}
+                          </Button>
+                        </span>
+                      </Tooltip>
+                    </>
+                  ) : (
+                    <>
+                      <Button variant="primary" size="xs" onClick={() => checkout.onRelease(checkout.bank, checkout.side)} disabled={checkout.actionLoading} className="whitespace-nowrap">
+                        {checkout.hasChanges ? 'Save and Release' : 'Release'}
+                      </Button>
+                      <Button variant="primary" size="xs" onClick={() => checkout.onCheckin(checkout.bank, checkout.side)} disabled={checkout.actionLoading} className="whitespace-nowrap">
+                        {checkout.hasChanges ? 'Save and Check In' : 'Check In'}
+                      </Button>
+                    </>
+                  )}
                 </span>
               </>
             )}

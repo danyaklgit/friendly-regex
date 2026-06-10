@@ -105,6 +105,11 @@ interface TransactionsTabProps {
    *  null it out — prevents the same scope being reapplied if the user
    *  navigates back to the tab. */
   onPendingPillFiltersConsumed?: () => void;
+  /** Bubbles up the rule-builder open/close state so the parent header
+   *  can disable Release / Check-in while the operator is mid-authoring.
+   *  Without this signal the parent has no view into builder state — it
+   *  lives entirely inside this tab. */
+  onBuilderOpenChange?: (open: boolean) => void;
 }
 
 function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinition | null {
@@ -230,7 +235,7 @@ function isRowHidden(
 }
 
 
-export function TransactionsTab({ activeCheckout, onClearPendingDefinition, initialShareFilters, initialShareToggles, operatorName, shareDialogOpen: shareDialogOpenProp, onShareDialogClose, pendingPillFilters, onPendingPillFiltersConsumed }: TransactionsTabProps) {
+export function TransactionsTab({ activeCheckout, onClearPendingDefinition, initialShareFilters, initialShareToggles, operatorName, shareDialogOpen: shareDialogOpenProp, onShareDialogClose, pendingPillFilters, onPendingPillFiltersConsumed, onBuilderOpenChange }: TransactionsTabProps) {
   const { libraries, tagDefinitions, originalDefinitionIds, dispatch, isPairBeingTagged, rawHierarchyNodes } = useTagSpecs();
   const { userId, usersMap, getAuthHeaders, refreshIfNeeded, isAudit } = useAuth();
   const { extractionMethods } = useLovAttributes();
@@ -324,6 +329,14 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     [libraries, builder.formState.tag, builderAttributeNamesKey],
   );
   const [builderOpen, setBuilderOpen] = useState(false);
+  // Bubble builder open/close to the parent so the page header can disable
+  // Release / Check-in while a rule is being authored — committing those
+  // actions mid-authoring would drop the in-progress definition without
+  // a save path. The parent owns the actual disabling on the header
+  // buttons; this hook just forwards the signal.
+  useEffect(() => {
+    onBuilderOpenChange?.(builderOpen);
+  }, [builderOpen, onBuilderOpenChange]);
   // When collapsed the builder shows only its header bar (title, type/tag
   // picker, action buttons) so the operator can hand the rest of the screen
   // over to the transactions table without closing the builder entirely.
