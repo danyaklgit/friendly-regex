@@ -2532,6 +2532,26 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                 onClick={() => {
                   setShowOnlyUntagged(false)
                   setShowOnlyMultiTagged(false)
+                  // If a Matching Rules chip filter is active, carry
+                  // its rule sets INTO the new rule builder so the
+                  // operator can start authoring from the same shape
+                  // they were filtering by. IDs are regenerated so
+                  // the builder owns its own AndGroup/Condition
+                  // identity (the modal's draft state can come back
+                  // to life later without colliding). The filter
+                  // chip itself is cleared — the builder is now the
+                  // authoritative source of those rules, and leaving
+                  // the chip active would double-narrow the table
+                  // against rules the operator is mid-editing.
+                  if (matchingRulesFilter.length > 0) {
+                    const seededGroups: AndGroupFormValue[] = matchingRulesFilter.map((g) => ({
+                      id: crypto.randomUUID(),
+                      conditions: g.conditions.map((c) => ({ ...c, id: crypto.randomUUID() })),
+                    }));
+                    builder.resetForm();
+                    builder.setFormState((prev) => ({ ...prev, ruleGroups: seededGroups }));
+                    setMatchingRulesFilter([]);
+                  }
                   setBuilderOpen(true)
                 }}
               >

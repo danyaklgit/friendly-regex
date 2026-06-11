@@ -120,13 +120,15 @@ export function MatchingRulesFilterButton({ value, onChange }: MatchingRulesFilt
   };
 
   const handleClear = () => {
-    // Wipe the draft and the applied filter in one click; close the
-    // modal so the operator sees the chip return to the inactive
-    // state immediately. If they wanted to discard a draft WITHOUT
-    // clearing the applied filter, Cancel covers that.
+    // Drop the applied filter AND reset the draft to a fresh empty
+    // rule set, but KEEP the modal open so the operator can build a
+    // new set from scratch without reopening. Cancel is the right
+    // action for "close without applying"; Clear filter is purely
+    // about wiping values. Closing on Clear would be a UX trap: the
+    // operator who clicks Clear meaning "let me start over" would
+    // have to reopen the modal every time.
     onChange([]);
     setDraft([createEmptyGroup()]);
-    setOpen(false);
   };
 
   return (
