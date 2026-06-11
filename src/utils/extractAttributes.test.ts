@@ -145,4 +145,108 @@ describe('extractAttributes', () => {
     const result = extractAttributes(attrs, row);
     expect(result).toEqual({ Alt: 'ACME' });
   });
+
+  // ── Pre-extraction transformation pipeline ───────────────────────────────
+  // PreExtractionTransformations run on the stringified raw SourceField value
+  // BEFORE the extraction regex executes. Same shape and runtime as the
+  // post-extraction Transformations list — only the position in the pipeline
+  // differs. These tests cover the round-trip (pre runs first, regex sees the
+  // pre-transformed value), edge cases (Constant bypass, missing field), and
+  // the combined pre + post chain that is the feature's main draw.
+
+  it('applies pre-extraction transformations to the raw value before the regex runs', () => {
+    // Raw `Description1` is mixed-case with a leading space. The regex only
+    // matches uppercase ACME; without the pre-pipeline the match would miss
+    // because the input shape doesn't line up.
+    const messyRow: TransactionRow = { Description1: '  acme corp / REF / INV-9' };
+    const attrs: TagAttribute[] = [{
+      AttributeTag: 'Party',
+      IsMandatory: true,
+      LOVTag: null,
+      ValidationRuleTag: 'STRING',
+      AttributeRuleExpression: {
+        SourceField: 'Description1',
+        ExpressionPrompt: null,
+        ExpressionId: null,
+        Regex: '^(ACME [A-Z]+)',
+        RegexDetails: [],
+      },
+      PreExtractionTransformations: [
+        { Method: 'trim', Args: [] },
+        { Method: 'to_uppercase', Args: [] },
+      ],
+    }];
+    expect(extractAttributes(attrs, messyRow)).toEqual({ Party: 'ACME CORP' });
+  });
+
+  it('chains pre + extract + post transformations', () => {
+    // Raw `Description1` is sloppy. Pre normalizes; regex extracts; post
+    // re-cases. Verifies the four-stage chain top-to-bottom.
+    const messyRow: TransactionRow = { Description1: '  invoice  number  / 12345 / done' };
+    const attrs: TagAttribute[] = [{
+      AttributeTag: 'InvoiceLabel',
+      IsMandatory: true,
+      LOVTag: null,
+      ValidationRuleTag: 'STRING',
+      AttributeRuleExpression: {
+        SourceField: 'Description1',
+        ExpressionPrompt: null,
+        ExpressionId: null,
+        Regex: '^(\\S+ \\S+)',
+        RegexDetails: [],
+      },
+      PreExtractionTransformations: [
+        { Method: 'trim', Args: [] },
+        { Method: 'collapse_whitespace', Args: [] },
+      ],
+      Transformations: [
+        { Method: 'to_uppercase', Args: [] },
+      ],
+    }];
+    expect(extractAttributes(attrs, messyRow)).toEqual({ InvoiceLabel: 'INVOICE NUMBER' });
+  });
+
+  it('treats a missing PreExtractionTransformations field as a no-op (backwards compat)', () => {
+    // Older saved AttributeDefs don't carry this field. The runtime should
+    // behave exactly as before.
+    const attrs = [makeAttr('Legacy', 'Description1', '/ORDP/(.*?)/REF')];
+    expect(extractAttributes(attrs, row)).toEqual({ Legacy: 'ACME CORP' });
+  });
+
+  it('skips pre-extraction transformations on a Constant attribute', () => {
+    // Constant mode bypasses the whole extraction pipeline (regex + pre + post).
+    // The pipeline runtime should emit the literal verbatim even if a pre-list
+    // is somehow present on the wire.
+    const attrs: TagAttribute[] = [{
+      AttributeTag: 'Source',
+      IsMandatory: true,
+      LOVTag: null,
+      ValidationRuleTag: '',
+      Constant: 'MT940',
+      AttributeRuleExpression: null,
+      PreExtractionTransformations: [{ Method: 'to_uppercase', Args: [] }],
+      Transformations: null,
+    }];
+    expect(extractAttributes(attrs, row)).toEqual({ Source: 'MT940' });
+  });
+
+  it('applies pre-extraction even when no extraction regex is set', () => {
+    // No regex = pass-through after the pre-pipeline. The pre transformations
+    // still apply to the stringified raw field.
+    const attrs: TagAttribute[] = [{
+      AttributeTag: 'WholeField',
+      IsMandatory: true,
+      LOVTag: null,
+      ValidationRuleTag: 'STRING',
+      AttributeRuleExpression: {
+        SourceField: 'Description1',
+        ExpressionPrompt: null,
+        ExpressionId: null,
+        Regex: '',
+        RegexDetails: [],
+      },
+      PreExtractionTransformations: [{ Method: 'to_uppercase', Args: [] }],
+    }];
+    expect(extractAttributes(attrs, row)).toEqual({ WholeField: '/ORDP/ACME CORP/REF/INV-001'.toUpperCase() });
+  });
 });

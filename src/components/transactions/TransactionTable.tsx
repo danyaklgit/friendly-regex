@@ -1502,6 +1502,29 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
   // Compare two attribute rules for semantic equality — source field,
   // normalized regex, and transformation pipeline. For constant-mode
   // attributes (no regex/source/transformations), compare the literal value.
+  // Local helper: compare two same-side transformation lists element-by-
+  // element. Pulled out so the pre and post lists go through the SAME
+  // shape check — adding only one of them would leave the diff blind to
+  // pre-extraction-only edits (and the "saved-vs-draft" tooltip would
+  // claim the attribute is unchanged when its runtime output now differs).
+  const transformationsEqual = (
+    ta: TagAttribute['Transformations'],
+    tb: TagAttribute['Transformations'],
+  ): boolean => {
+    const la = ta ?? [];
+    const lb = tb ?? [];
+    if (la.length !== lb.length) return false;
+    for (let i = 0; i < la.length; i++) {
+      if (la[i].Method !== lb[i].Method) return false;
+      const aa = la[i].Args ?? [];
+      const bb = lb[i].Args ?? [];
+      if (aa.length !== bb.length) return false;
+      for (let j = 0; j < aa.length; j++) {
+        if (aa[j].Key !== bb[j].Key || aa[j].Value !== bb[j].Value) return false;
+      }
+    }
+    return true;
+  };
   const attrRulesEqual = (a: TagAttribute, b: TagAttribute): boolean => {
     const aIsConstant = a.Constant != null;
     const bIsConstant = b.Constant != null;
@@ -1513,18 +1536,8 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     if (!aExpr || !bExpr) return aExpr === bExpr;
     if (aExpr.SourceField !== bExpr.SourceField) return false;
     if (normalizeRegex(aExpr.Regex) !== normalizeRegex(bExpr.Regex)) return false;
-    const ta = a.Transformations ?? [];
-    const tb = b.Transformations ?? [];
-    if (ta.length !== tb.length) return false;
-    for (let i = 0; i < ta.length; i++) {
-      if (ta[i].Method !== tb[i].Method) return false;
-      const aa = ta[i].Args ?? [];
-      const bb = tb[i].Args ?? [];
-      if (aa.length !== bb.length) return false;
-      for (let j = 0; j < aa.length; j++) {
-        if (aa[j].Key !== bb[j].Key || aa[j].Value !== bb[j].Value) return false;
-      }
-    }
+    if (!transformationsEqual(a.PreExtractionTransformations, b.PreExtractionTransformations)) return false;
+    if (!transformationsEqual(a.Transformations, b.Transformations)) return false;
     return true;
   };
 

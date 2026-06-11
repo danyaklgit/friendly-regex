@@ -105,6 +105,13 @@ export interface AttributeFormValue {
   isConstant?: boolean;
   /** Literal value emitted when `isConstant` is true. */
   constantValue?: string;
+  /**
+   * Pre-extraction transformation pipeline. Applied to the raw SourceField
+   * value before the extraction regex runs. Same shape as the post-extraction
+   * `transformations` list — they share the runtime, the completeness gate,
+   * and the method catalog; only the position in the pipeline differs.
+   */
+  preExtractionTransformations?: TransformationFormValue[];
   transformations?: TransformationFormValue[];
   /** Original regex from backend — used for preview when round-tripping isn't lossless */
   _originalRegex?: string;

@@ -29,8 +29,10 @@ export function cloneAttributeFromBackend(
   lovExtractions: ExtractionMethodDef[] = [],
 ): AttributeFormValue {
   // Constant-mode attribute: backend sends `Constant: "<value>"` with
-  // `AttributeRuleExpression` / `Transformations` set to null. Short-circuit
-  // the regex decompose entirely and surface as `isConstant` in form state.
+  // `AttributeRuleExpression` / `Transformations` / `PreExtractionTransformations`
+  // all bypassed at runtime. Short-circuit the regex decompose entirely and
+  // surface as `isConstant` in form state, with both transformation lists
+  // empty — toggling Constant off later starts the operator from a clean slate.
   if (attr.Constant != null) {
     return {
       id: crypto.randomUUID(),
@@ -43,6 +45,7 @@ export function cloneAttributeFromBackend(
       constantValue: attr.Constant,
       isLovBased: false,
       lovTag: null,
+      preExtractionTransformations: [],
       transformations: [],
     };
   }
@@ -60,6 +63,11 @@ export function cloneAttributeFromBackend(
       extractionOperation: 'extract_full_field' as ExtractionOperation,
       lovTag: attr.LOVTag ?? null,
       isLovBased: !!attr.LOVTag,
+      preExtractionTransformations: (attr.PreExtractionTransformations ?? []).map((t) => ({
+        id: crypto.randomUUID(),
+        method: t.Method,
+        args: Object.fromEntries(t.Args.map((a) => [a.Key, a.Value])),
+      })),
       transformations: (attr.Transformations ?? []).map((t) => ({
         id: crypto.randomUUID(),
         method: t.Method,
@@ -102,6 +110,11 @@ export function cloneAttributeFromBackend(
     verifyValue: expr.VerifyValue,
     lovTag: attr.LOVTag ?? null,
     isLovBased: !!attr.LOVTag,
+    preExtractionTransformations: (attr.PreExtractionTransformations ?? []).map((t) => ({
+      id: crypto.randomUUID(),
+      method: t.Method,
+      args: Object.fromEntries(t.Args.map((a) => [a.Key, a.Value])),
+    })),
     transformations: (attr.Transformations ?? []).map((t) => ({
       id: crypto.randomUUID(),
       method: t.Method,

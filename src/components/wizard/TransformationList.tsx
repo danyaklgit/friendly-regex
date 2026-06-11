@@ -26,6 +26,14 @@ interface TransformationListProps {
   sampleValue?: string;
   onChange: (transformations: TransformationFormValue[]) => void;
   readOnly?: boolean;
+  /**
+   * Which side of the extraction pipeline this list represents. Drives the
+   * header label ("Pre-extraction Transformations" vs the existing
+   * "Post-extraction Transformations") and the preview's first row
+   * ("Raw" vs "Extracted"). The default is `'post'` so every existing
+   * caller continues to render the same string it does today.
+   */
+  variant?: 'pre' | 'post';
 }
 
 export function TransformationList({
@@ -34,6 +42,7 @@ export function TransformationList({
   sampleValue,
   onChange,
   readOnly,
+  variant = 'post',
 }: TransformationListProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -114,7 +123,7 @@ export function TransformationList({
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <p className="text-xs font-semibold text-primary uppercase tracking-wide">
-          Post-extraction Transformations
+          {variant === 'pre' ? 'Pre-extraction Transformations' : 'Post-extraction Transformations'}
         </p>
         {!readOnly && (
           <div className="flex items-center gap-2">
@@ -170,6 +179,7 @@ export function TransformationList({
       <TransformationPreview
         transformations={transformations.filter((t) => t.method)}
         sampleValue={sampleValue}
+        variant={variant}
       />
     </div>
   );

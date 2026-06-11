@@ -175,3 +175,78 @@ describe('useWizardForm — Validity round-trip via the hook', () => {
     expect(definition.Validity.StartDate).toBe('2024-01-01T08:30:00Z');
   });
 });
+
+describe('toTagSpecDefinition — PreExtractionTransformations round-trip', () => {
+  it('emits PreExtractionTransformations when the form-state pre list is non-empty', () => {
+    const { result } = renderHook(() => useWizardForm(undefined, undefined, undefined, mkLib()));
+    act(() => {
+      result.current.addAttribute();
+    });
+    const attrId = result.current.formState.attributes[0].id;
+    act(() => {
+      result.current.updateAttribute(attrId, {
+        attributeTag: 'PARTY',
+        sourceField: 'Description1',
+        extractionOperation: 'extract_full_field' as never,
+        preExtractionTransformations: [
+          { id: 'p1', method: 'trim', args: {} },
+          { id: 'p2', method: 'to_uppercase', args: {} },
+        ],
+      });
+    });
+    const { definition } = result.current.toTagSpecDefinition('lib-1');
+    expect(definition.Attributes[0].PreExtractionTransformations).toEqual([
+      { Method: 'trim', Args: [] },
+      { Method: 'to_uppercase', Args: [] },
+    ]);
+  });
+
+  it('omits the PreExtractionTransformations key entirely when the form-state pre list is empty', () => {
+    // Conditional-spread contract: legacy attributes don't grow an empty
+    // array on the wire. Matches the existing Transformations behavior.
+    const { result } = renderHook(() => useWizardForm(undefined, undefined, undefined, mkLib()));
+    act(() => {
+      result.current.addAttribute();
+    });
+    const attrId = result.current.formState.attributes[0].id;
+    act(() => {
+      result.current.updateAttribute(attrId, {
+        attributeTag: 'LEGACY',
+        sourceField: 'Description1',
+        extractionOperation: 'extract_full_field' as never,
+        preExtractionTransformations: [],
+      });
+    });
+    const { definition } = result.current.toTagSpecDefinition('lib-1');
+    expect('PreExtractionTransformations' in definition.Attributes[0]).toBe(false);
+  });
+
+  it('serializes transformation args as ordered Key/Value entries', () => {
+    const { result } = renderHook(() => useWizardForm(undefined, undefined, undefined, mkLib()));
+    act(() => {
+      result.current.addAttribute();
+    });
+    const attrId = result.current.formState.attributes[0].id;
+    act(() => {
+      result.current.updateAttribute(attrId, {
+        attributeTag: 'X',
+        sourceField: 'Description1',
+        extractionOperation: 'extract_full_field' as never,
+        preExtractionTransformations: [
+          {
+            id: 'p1',
+            method: 'replace',
+            args: { find: 'FOO', replaceWith: 'BAR' },
+          },
+        ],
+      });
+    });
+    const { definition } = result.current.toTagSpecDefinition('lib-1');
+    const pre = definition.Attributes[0].PreExtractionTransformations!;
+    expect(pre[0].Method).toBe('replace');
+    expect(pre[0].Args).toEqual([
+      { Key: 'find', Value: 'FOO' },
+      { Key: 'replaceWith', Value: 'BAR' },
+    ]);
+  });
+});

@@ -108,10 +108,26 @@ export function extractAttributes(
 
     let extracted: string | null;
     const regexStr = attr.AttributeRuleExpression.Regex;
-    const fieldString = stringifyFieldValue(sourceField, fieldValue);
+    const rawFieldString = stringifyFieldValue(sourceField, fieldValue);
+
+    // Pre-extraction transformation pipeline. Applied to the stringified
+    // raw SourceField value BEFORE the extraction regex runs, so the
+    // operator can normalize the input (trim, casing, prefix strip, etc.)
+    // without bloating the regex. Identical runtime to the post-extraction
+    // pipeline below — only the position in the chain differs. Missing
+    // / empty pre-list falls through to the raw stringified value, which
+    // matches the no-op behavior backwards-compatibility requires for
+    // older saved attributes.
+    let fieldString = rawFieldString;
+    if (attr.PreExtractionTransformations && attr.PreExtractionTransformations.length > 0) {
+      for (const t of attr.PreExtractionTransformations) {
+        const argsRecord = Object.fromEntries(t.Args.map((a) => [a.Key, a.Value]));
+        fieldString = applyTransformation(t.Method, argsRecord, fieldString);
+      }
+    }
 
     if (!regexStr) {
-      // No extraction method — use the raw source field value
+      // No extraction method — use the (pre-transformed) source field value
       extracted = fieldString;
     } else {
       try {

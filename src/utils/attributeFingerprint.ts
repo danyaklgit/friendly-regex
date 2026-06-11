@@ -105,6 +105,14 @@ export function isCompleteAttribute(a: AttributeFormValue): boolean {
     // or the "till end of input" toggle. The skip count defaults to 0.
     if (op.key === 'extract_skip_take' && !a.tillEndOfInput && !(a.numChars && a.numChars > 0)) return false;
   }
+  // Each pre-extraction transformation row must have its required args
+  // filled in. Same gate as the post-extraction loop below — an
+  // incomplete row would either silently save an empty arg (acting as a
+  // no-op at runtime) or, worse, produce a misleading live preview
+  // result that no longer matches what the saved rule will compute.
+  for (const t of a.preExtractionTransformations ?? []) {
+    if (!isCompleteTransformation(t)) return false;
+  }
   // Each post-extraction transformation row must have its required args
   // filled in. Without this gate, a Split & Pick with a missing index
   // would save with a default-0 pick (the live preview was producing a

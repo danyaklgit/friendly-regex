@@ -81,6 +81,15 @@ export interface TagAttribute {
    */
   Constant?: string | null;
   AttributeRuleExpression: AttributeRuleExpression | null;
+  /**
+   * Pre-extraction transformation pipeline. Applied to the raw SourceField
+   * value (post-`stringifyFieldValue`) BEFORE the extraction regex runs.
+   * Optional: older saved documents that don't carry this field behave as
+   * a no-op pipeline. Same shape and runtime as the post-extraction
+   * `Transformations` list — pre vs. post is purely a position-in-pipeline
+   * distinction.
+   */
+  PreExtractionTransformations?: TransformationRule[] | null;
   Transformations?: TransformationRule[] | null;
 }
 

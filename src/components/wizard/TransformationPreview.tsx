@@ -20,9 +20,16 @@ function displaySample(raw: string): string {
 interface TransformationPreviewProps {
   transformations: TransformationFormValue[];
   sampleValue?: string;
+  /**
+   * Which pipeline side the preview is rendering for. Pre-extraction shows
+   * a `Raw` first row (the value entering the pipeline); post-extraction
+   * keeps the historical `Extracted` label (the regex output). Default is
+   * `post` so existing callers render unchanged.
+   */
+  variant?: 'pre' | 'post';
 }
 
-export function TransformationPreview({ transformations, sampleValue }: TransformationPreviewProps) {
+export function TransformationPreview({ transformations, sampleValue, variant = 'post' }: TransformationPreviewProps) {
   const sample = sampleValue || DEFAULT_SAMPLE;
 
   const steps = useMemo(
@@ -40,7 +47,9 @@ export function TransformationPreview({ transformations, sampleValue }: Transfor
 
       <div className="flex items-start gap-2 text-xs">
         <span className="shrink-0 w-5 text-right text-faint font-mono">&bull;</span>
-        <span className="text-faint text-[10px] shrink-0 w-20">Extracted</span>
+        <span className="text-faint text-[10px] shrink-0 w-20">
+          {variant === 'pre' ? 'Raw' : 'Extracted'}
+        </span>
         <code className="font-mono text-primary break-all">"{displaySample(sample)}"</code>
       </div>
 

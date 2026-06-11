@@ -236,6 +236,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
       (attribute.toStart ?? false) !== (snapshot.toStart ?? false) ||
       (attribute.prefixOccurrence ?? 0) !== (snapshot.prefixOccurrence ?? 0) ||
       (attribute.suffixOccurrence ?? 0) !== (snapshot.suffixOccurrence ?? 0) ||
+      JSON.stringify(attribute.preExtractionTransformations ?? []) !== JSON.stringify(snapshot.preExtractionTransformations ?? []) ||
       JSON.stringify(attribute.transformations ?? []) !== JSON.stringify(snapshot.transformations ?? [])
     );
   }, [attribute, snapshot]);
@@ -274,6 +275,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
       constantValue: snapshot.constantValue,
       isLovBased: snapshot.isLovBased ?? false,
       lovTag: snapshot.lovTag ?? null,
+      preExtractionTransformations: snapshot.preExtractionTransformations ?? [],
       transformations: snapshot.transformations ?? [],
       _originalRegex: snapshot._originalRegex,
     };
@@ -403,11 +405,49 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
     return generateExtractionPrompt(attribute.extractionOperation, shortParams);
   }, [attribute.isConstant, attribute.constantValue, attribute.extractionOperation, extractionParams, extractionMethods]);
 
+  // Pre-extraction pipeline applied to the stringified raw source field
+  // value. Mirrors the runtime in `extractAttributes.ts`: empty pipeline =
+  // pass-through. Used by every downstream memo that needs to feed the
+  // extraction regex (rawDistinctValues, extractionPreview, the four-stage
+  // preview chain), so they stay consistent with what the saved rule will
+  // compute at tagging time.
+  const applyPreExtraction = useCallback(
+    (raw: string): string => {
+      const pre = attribute.preExtractionTransformations ?? [];
+      if (pre.length === 0) return raw;
+      let v = raw;
+      for (const t of pre) {
+        v = applyTransformation(t.method, t.args, v);
+      }
+      return v;
+    },
+    [attribute.preExtractionTransformations],
+  );
+
+  // Sample value fed into the PRE-extraction TransformationList preview.
+  // The first row in the loaded transactions sample whose source field has
+  // a non-empty value, stringified the same way extractAttributes does.
+  // Picked once and shared across renders so the operator's preview is
+  // stable while they edit the pipeline.
+  const rawSourceSample = useMemo<string>(() => {
+    if (!transactions || !attribute.sourceField) return '';
+    for (const row of transactions) {
+      const v = row[attribute.sourceField];
+      if (v === undefined || v === null) continue;
+      const s = stringifyFieldValue(attribute.sourceField, v);
+      if (s) return s;
+    }
+    return '';
+  }, [transactions, attribute.sourceField]);
+
   // Raw extracted values, BEFORE the post-extraction transformation pipeline.
   // The transformation preview's "Extracted" line and the transformation
   // sample feed off this — they must show what the regex captured, not what
   // the pipeline produced (otherwise "Extracted" and "To Lowercase" both show
   // the same string, hiding the diff the preview is meant to surface).
+  // Pre-extraction transformations are applied to each row's stringified
+  // value BEFORE the regex runs, so distinct values reflect what the saved
+  // rule will produce at tagging time.
   const rawDistinctValues = useMemo(() => {
     if (!transactions || !attribute.sourceField) return [];
     try {
@@ -437,8 +477,11 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
         const fieldValue = row[attribute.sourceField];
         // Use the shared stringifier so Amount picks up its `.toFixed(2)`
         // form (preserves the decimal precision the table displays).
-        const str = fieldValue !== undefined && fieldValue !== null
+        // Then run the pre-extraction pipeline before the regex sees the
+        // value — exactly mirrors the runtime in extractAttributes.ts.
+        const rawStr = fieldValue !== undefined && fieldValue !== null
           ? stringifyFieldValue(attribute.sourceField, fieldValue) : '';
+        const str = rawStr ? applyPreExtraction(rawStr) : '';
         let captured: string | undefined;
         if (regex && str) {
           const match = str.match(regex);
@@ -468,7 +511,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
     } catch {
       return [];
     }
-  }, [transactions, attribute.sourceField, attribute.attributeTag, attribute.extractionOperation, attribute.prefix, attribute.suffix, attribute.pattern, attribute.verifyValue, attribute._originalRegex, extractionParams]);
+  }, [transactions, attribute.sourceField, attribute.attributeTag, attribute.extractionOperation, attribute.prefix, attribute.suffix, attribute.pattern, attribute.verifyValue, attribute._originalRegex, extractionParams, applyPreExtraction]);
 
   // Distinct values WITH the transformation pipeline applied. Used by the
   // "See all distinct values" popup so it matches what the table renders.
@@ -491,8 +534,13 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
       for (const row of transactions) {
         const fieldValue = row[attribute.sourceField];
         if (fieldValue === undefined || fieldValue === null) continue;
-        const str = stringifyFieldValue(attribute.sourceField, fieldValue);
-        if (!str) continue;
+        const rawStr = stringifyFieldValue(attribute.sourceField, fieldValue);
+        if (!rawStr) continue;
+        // Apply the pre-extraction pipeline before the regex sees the
+        // value so the "Extracted" preview matches what the saved rule
+        // will compute. `source` carries the post-pre value so the
+        // preview row reads honest end-to-end.
+        const str = applyPreExtraction(rawStr);
         const match = str.match(regex);
         // Mirror rawDistinctValues: fall back to match[0] when the pattern
         // has no explicit capture group (lookahead-style extractions).
@@ -512,6 +560,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
     attribute.isConstant,
     attribute._originalRegex,
     extractionParams,
+    applyPreExtraction,
   ]);
 
   // Deduped after transformation so two raw values that map to the same
@@ -1019,42 +1068,73 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
           {/* ── Extraction ── */}
           <div className="border-t border-border-subtle pt-3 space-y-2">
             <p className="text-xs font-semibold text-primary uppercase tracking-wide">Extraction</p>
-            <div className="grid grid-cols-2 gap-2" id="attribute_edit_1">
-            <SearchableSelect
-              label="Source Field"
-              placeholder="Select source field"
-              value={attribute.sourceField}
-              onChange={(val) => onUpdate({ sourceField: val })}
-              options={fieldMeta.sourceFields.filter((f) => ALLOWED_SOURCE_FIELDS.has(f)).map((f) => ({ value: f, label: humanizeFieldName(f) })).sort((a, b) => a.label.localeCompare(b.label))}
-              disabled={readOnly}
-              required={!readOnly}
-              error={!readOnly && (!attribute.sourceField || attribute.sourceField.trim().length === 0)}
-            />
-            <SearchableSelect
-              label="Extraction Method"
-              placeholder="Select extraction method"
-              value={attribute.extractionOperation}
-              onChange={(val) => onUpdate({
-                extractionOperation: val as AttributeFormValue['extractionOperation'],
-                numChars: undefined,
-                toStr: undefined,
-                occurrence: undefined,
-                startingPosition: undefined,
-                fromPosition: undefined,
-                prefixOccurrence: undefined,
-                suffixOccurrence: undefined,
-                suffixOrEndOfInput: undefined,
-                tillEndOfInput: undefined,
-              })}
-              options={[
-                ...FILTERED_EXTRACTION_OPERATIONS.map((op) => ({ value: op.key, label: op.label })),
-                ...extractionMethods.map((m) => ({ value: m.key, label: m.label, sublabel: m.description })),
-              ]}
-              disabled={readOnly}
-              required={!readOnly}
-              error={!readOnly && (!attribute.extractionOperation || attribute.extractionOperation.trim().length === 0)}
-            />
-          </div>
+            {/* Layout note: Source Field, Pre-extraction Transformations, and
+                Extraction Method used to live in a single `grid-cols-2` row
+                with Source Field + Method side by side. The pre-section
+                wedges in BETWEEN them now so the editor reads top-to-bottom
+                in pipeline order (raw → pre → extract → post). Each input
+                is in its own row so the pre-section can intervene cleanly. */}
+            <div id="attribute_edit_1">
+              <SearchableSelect
+                label="Source Field"
+                placeholder="Select source field"
+                value={attribute.sourceField}
+                onChange={(val) => onUpdate({ sourceField: val })}
+                options={fieldMeta.sourceFields.filter((f) => ALLOWED_SOURCE_FIELDS.has(f)).map((f) => ({ value: f, label: humanizeFieldName(f) })).sort((a, b) => a.label.localeCompare(b.label))}
+                disabled={readOnly}
+                required={!readOnly}
+                error={!readOnly && (!attribute.sourceField || attribute.sourceField.trim().length === 0)}
+              />
+            </div>
+
+            {/* ── Pre-extraction Transformations ──
+                Renders only after the operator has picked a source field
+                (mirrors the post-section's gating) AND skipped in
+                read-only views where the operator hasn't configured any
+                pre-steps. The `sampleValue` is the raw stringified source
+                field value, so the preview shows
+                  Raw → step 1 → step 2 → …
+                which the operator then sees feeding into the extraction
+                regex below via the standard extraction preview. */}
+            {!!attribute.sourceField && !(readOnly && (attribute.preExtractionTransformations ?? []).length === 0) && (
+              <div className="pt-1">
+                <TransformationList
+                  transformations={attribute.preExtractionTransformations ?? []}
+                  methods={transformationMethods}
+                  sampleValue={rawSourceSample}
+                  onChange={(preExtractionTransformations) => onUpdate({ preExtractionTransformations })}
+                  readOnly={readOnly}
+                  variant="pre"
+                />
+              </div>
+            )}
+
+            <div>
+              <SearchableSelect
+                label="Extraction Method"
+                placeholder="Select extraction method"
+                value={attribute.extractionOperation}
+                onChange={(val) => onUpdate({
+                  extractionOperation: val as AttributeFormValue['extractionOperation'],
+                  numChars: undefined,
+                  toStr: undefined,
+                  occurrence: undefined,
+                  startingPosition: undefined,
+                  fromPosition: undefined,
+                  prefixOccurrence: undefined,
+                  suffixOccurrence: undefined,
+                  suffixOrEndOfInput: undefined,
+                  tillEndOfInput: undefined,
+                })}
+                options={[
+                  ...FILTERED_EXTRACTION_OPERATIONS.map((op) => ({ value: op.key, label: op.label })),
+                  ...extractionMethods.map((m) => ({ value: m.key, label: m.label, sublabel: m.description })),
+                ]}
+                disabled={readOnly}
+                required={!readOnly}
+                error={!readOnly && (!attribute.extractionOperation || attribute.extractionOperation.trim().length === 0)}
+              />
+            </div>
 
           {attribute.extractionOperation === 'extract_substring' && (
             <div className="grid grid-cols-2 gap-2">

@@ -206,6 +206,32 @@ describe('isCompleteAttribute', () => {
   it('passes the canonical fully-filled extract_after attribute', () => {
     expect(isCompleteAttribute(completeAttr())).toBe(true);
   });
+
+  it('returns false when any pre-extraction transformation has missing required args', () => {
+    // Replace requires `find` to be non-empty (`replaceWith` is `allowEmpty`).
+    // The completeness gate must catch incomplete pre-extraction rows just
+    // like it does for post-extraction; without this gate operators would
+    // save a half-filled pre-pipeline that's effectively a no-op at runtime
+    // but produces a misleading live preview.
+    const incompletePre: TransformationFormValue = {
+      id: 'pre1',
+      method: 'replace',
+      args: { find: '', replaceWith: 'x' },
+    };
+    expect(isCompleteAttribute(completeAttr({
+      preExtractionTransformations: [incompletePre],
+    }))).toBe(false);
+  });
+
+  it('passes when pre-extraction transformations are all complete', () => {
+    const completePre: TransformationFormValue[] = [
+      { id: 'pre1', method: 'trim', args: {} },
+      { id: 'pre2', method: 'to_uppercase', args: {} },
+    ];
+    expect(isCompleteAttribute(completeAttr({
+      preExtractionTransformations: completePre,
+    }))).toBe(true);
+  });
 });
 
 describe('hasIncompleteAttribute', () => {

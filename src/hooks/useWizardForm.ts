@@ -206,6 +206,7 @@ export function useWizardForm(
       suffix: '',
       lovTag: null,
       isLovBased: false,
+      preExtractionTransformations: [],
       transformations: [],
     };
   }
@@ -533,6 +534,7 @@ export function useWizardForm(
             ValidationRuleTag: '',
             Constant: attr.constantValue ?? '',
             AttributeRuleExpression: null,
+            PreExtractionTransformations: null,
             Transformations: null,
           };
         }
@@ -570,6 +572,20 @@ export function useWizardForm(
             RegexDetails: [{ LanguageCode: 'en', Description: prompt }],
             ...(attr.verifyValue ? { VerifyValue: attr.verifyValue } : {}),
           },
+          // Conditional spread: omit the key entirely when the list is
+          // empty so legacy attributes don't grow an empty array on the
+          // wire. Same pattern as the post-extraction Transformations
+          // below. The backend treats a missing field as "no pre-
+          // extraction pipeline" (the schema doc comment is explicit
+          // about backwards-compatibility on this).
+          ...((attr.preExtractionTransformations && attr.preExtractionTransformations.length > 0)
+            ? {
+                PreExtractionTransformations: attr.preExtractionTransformations.map((t) => ({
+                  Method: t.method,
+                  Args: Object.entries(t.args).map(([k, v]) => ({ Key: k, Value: v })),
+                })),
+              }
+            : {}),
           ...((attr.transformations && attr.transformations.length > 0)
             ? {
                 Transformations: attr.transformations.map((t) => ({

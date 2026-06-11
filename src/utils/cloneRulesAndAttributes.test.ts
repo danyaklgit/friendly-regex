@@ -180,6 +180,76 @@ describe('cloneRulesAndAttributesFrom', () => {
     expect(a.isLovBased).toBe(false);
     expect(a.lovTag).toBeNull();
     expect(a.transformations).toEqual([]);
+    // Constant attributes start with empty pre AND post pipelines —
+    // toggling Constant off later should give the operator a clean slate.
+    expect(a.preExtractionTransformations).toEqual([]);
+  });
+
+  it('clones PreExtractionTransformations with regenerated ids alongside post-extraction', () => {
+    const def = makeDefinition({
+      Attributes: [
+        {
+          AttributeTag: 'PARTY',
+          IsMandatory: true,
+          LOVTag: null,
+          ValidationRuleTag: 'STRING',
+          AttributeRuleExpression: {
+            SourceField: 'NarrativeText',
+            ExpressionPrompt: null,
+            ExpressionId: null,
+            Regex: regexifyExtraction('extract_between', { prefix: 'P:', suffix: ';' }),
+            RegexDetails: [],
+          },
+          PreExtractionTransformations: [
+            { Method: 'trim', Args: [] },
+            { Method: 'to_uppercase', Args: [] },
+          ],
+          Transformations: [
+            { Method: 'collapse_whitespace', Args: [] },
+          ],
+        },
+      ],
+    });
+
+    const result = cloneRulesAndAttributesFrom(def);
+    const a = result.attributes[0];
+    expect(a.preExtractionTransformations).toHaveLength(2);
+    expect(a.preExtractionTransformations?.[0].method).toBe('trim');
+    expect(a.preExtractionTransformations?.[1].method).toBe('to_uppercase');
+    // Ids regenerated and distinct from any post-extraction ids — the
+    // form state must own its own identity so editing one row can't
+    // accidentally mutate the other.
+    const preIds = a.preExtractionTransformations!.map((t) => t.id);
+    const postIds = a.transformations!.map((t) => t.id);
+    expect(new Set(preIds).size).toBe(preIds.length);
+    expect(new Set([...preIds, ...postIds]).size).toBe(preIds.length + postIds.length);
+  });
+
+  it('defaults preExtractionTransformations to [] when the backend field is missing', () => {
+    // Older saved attributes ship without `PreExtractionTransformations`. The
+    // backwards-compat contract is that they round-trip into form state as an
+    // empty array (rather than `undefined`) so the form-state shape is
+    // uniform across legacy and new attributes.
+    const def = makeDefinition({
+      Attributes: [
+        {
+          AttributeTag: 'LEGACY',
+          IsMandatory: true,
+          LOVTag: null,
+          ValidationRuleTag: 'STRING',
+          AttributeRuleExpression: {
+            SourceField: 'NarrativeText',
+            ExpressionPrompt: null,
+            ExpressionId: null,
+            Regex: regexifyExtraction('extract_full_field', {}),
+            RegexDetails: [],
+          },
+        },
+      ],
+    });
+
+    const result = cloneRulesAndAttributesFrom(def);
+    expect(result.attributes[0].preExtractionTransformations).toEqual([]);
   });
 
   it('sets extract_between_and_verify when VerifyValue is present', () => {
