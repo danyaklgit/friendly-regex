@@ -162,6 +162,7 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
             ValidationRuleTag: '',
             Constant: attr.constantValue ?? '',
             AttributeRuleExpression: null,
+            PreExtractionTransformations: null,
             Transformations: null,
           };
         }
@@ -202,6 +203,23 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
             Regex: regex,
             RegexDetails: [{ LanguageCode: 'en', Description: prompt }],
           },
+          // Pre-extraction pipeline mirrors what `toTagSpecDefinition`
+          // emits at save time, so the live preview the operator sees
+          // while authoring matches the extraction the saved rule will
+          // compute. Without this branch the table's SADAD column (and
+          // every other attribute) showed empty / mis-extracted values
+          // even though the in-builder Extraction Preview correctly
+          // applied the pre-pipeline — the table runtime took a
+          // different path that read attr.PreExtractionTransformations
+          // and got `undefined`.
+          ...((attr.preExtractionTransformations && attr.preExtractionTransformations.length > 0)
+            ? {
+                PreExtractionTransformations: attr.preExtractionTransformations.map((t) => ({
+                  Method: t.method,
+                  Args: Object.entries(t.args).map(([k, v]) => ({ Key: k, Value: v })),
+                })),
+              }
+            : {}),
           ...((attr.transformations && attr.transformations.length > 0)
             ? {
                 Transformations: attr.transformations.map((t) => ({

@@ -119,8 +119,17 @@ export function TransformationList({
   // Disable adding / reordering when any existing transformation has no method selected
   const hasUnselected = transformations.some((t) => !t.method);
 
+  // Visually distinguish the two pipeline blocks. The extraction step
+  // sits between them in the editor, so a tinted left rail (amber for
+  // pre, sky for post) plus a faint matching surface color gives the
+  // operator a quick read on which side of the extraction they're
+  // editing without forcing them to read the section header.
+  const variantClass = variant === 'pre'
+    ? 'border-l-2 border-amber-400/60 bg-amber-50/40 dark:bg-amber-900/10'
+    : 'border-l-2 border-sky-400/60 bg-sky-50/40 dark:bg-sky-900/10';
+
   return (
-    <div className="space-y-2">
+    <div className={`space-y-2 rounded-md px-3 py-2 ${variantClass}`}>
       <div className="flex items-center justify-between">
         <p className="text-xs font-semibold text-primary uppercase tracking-wide">
           {variant === 'pre' ? 'Pre-extraction Transformations' : 'Post-extraction Transformations'}
