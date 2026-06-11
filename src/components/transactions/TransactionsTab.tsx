@@ -517,24 +517,22 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const tagClickShowingAll = tagClickState?.showingAll ?? false;
   const tagClickRulesetFilters = tagClickState?.rulesetFilters;
   const activeExtraFilters: FilterProperty[] = useMemo(() => {
-    // Hidden-tag-specs server-side exclusion. The hide list lives in
-    // `hiddenDefIds` (localStorage-backed, per bank/side); pushing it
-    // here as `NI` (Not In) makes the backend drop matching rows from
-    // the response, so the +N pagination overfetch loop doesn't have
-    // to issue several round trips to accumulate enough visible rows.
-    // Multi-value goes as a pipe-joined Value to mirror the existing
-    // `IN` shape used by the count call (CLAUDE.md gotcha #15). The
-    // count call itself stays on IN — it COUNTS hidden rows, so the
-    // inverse predicate of the filter here is exactly what it wants.
-    const hiddenFilter: FilterProperty | null = hiddenDefIds.size > 0
-      ? {
-          ColumnName: 'OpsTagSpecDefinitionId|OpsMultiTags.TagSpecDefinitionId',
-          Value: [...hiddenDefIds].join('|'),
-          Operand: 'NI',
-        }
-      : null;
-    const withHidden = (filters: FilterProperty[]): FilterProperty[] =>
-      hiddenFilter ? [...filters, hiddenFilter] : filters;
+    // Hidden tag specs are intentionally NOT pushed as a server-side `NI`
+    // filter anymore. The previous behavior wrapped the hide set in a
+    // `NI` predicate against `OpsTagSpecDefinitionId|OpsMultiTags.
+    // TagSpecDefinitionId` to save round trips on the +N overfetch
+    // loop — but SQL `NOT IN (X)` returns NULL/false for NULL column
+    // values, which silently dropped every UNTAGGED row from the
+    // response (their tag-spec id is NULL). Operators with "Show:
+    // Untagged" active would see their visible count collapse from
+    // e.g. 22k to 6k the instant they hid a tag spec. The
+    // client-side `filteredData` hide pass at line ~1737 is the
+    // truth — it ignores untagged rows correctly and only drops rows
+    // whose matched defs are in the hide set. The +N overfetch loop
+    // already accounts for the loaded-but-hidden case via
+    // `hiddenLoadedCount`, so giving up the NI optimization is the
+    // smaller trade-off here.
+    const withHidden = (filters: FilterProperty[]): FilterProperty[] => filters;
 
     if (tagClickDefinitionId != null) {
       // After "Apply Rules": use REGEX-based filters (Call 3)
@@ -605,7 +603,12 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     const manualRegex = buildRegexFilterFromRuleGroups(matchingRulesFilter);
     if (manualRegex) extra.push(manualRegex);
     return withHidden(extra);
-  }, [tagClickDefinitionId, tagClickRulesetApplied, tagClickShowingAll, tagClickRulesetFilters, builderOpen, builder.formState, currentTagFilterIds, activePillFilters, hiddenDefIds, matchingRulesFilter]);
+    // NOTE: hiddenDefIds is intentionally NOT in the dep list — see the
+    // comment at the top of this memo for why the server-side hidden
+    // filter was removed. Hiding a tag spec is a pure client-side
+    // re-filter via `filteredData`; nothing in this memo's body reads
+    // hiddenDefIds anymore.
+  }, [tagClickDefinitionId, tagClickRulesetApplied, tagClickShowingAll, tagClickRulesetFilters, builderOpen, builder.formState, currentTagFilterIds, activePillFilters, matchingRulesFilter]);
 
   // Forward the UI filter state as-is. Earlier this hook stripped bank/side
   // when a TagSpecDefinitionId scope was active, on the theory that the
@@ -1783,11 +1786,20 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     return n;
   }, [hiddenDefIds, analyzedData]);
 
-  // True count of rows in the current filter scope that match a hidden
-  // definition — fetched from the backend, not bounded by what's loaded.
-  // Drives the header's "· N hidden" suffix so it doesn't drift with
-  // pagination state. `hiddenLoadedCount` is still the right number for the
-  // visible-row math and +N overfetch — see filteredData / fetchPage callers.
+  // True count of rows in the FULL bank/side scope that match a hidden
+  // definition — fetched from the backend with ONLY the checkout's
+  // bank/side filter applied (not the operator's active filters / pills
+  // / search). Drives the header's "· N hidden" suffix so the operator
+  // sees the whole-library hide tally rather than a number that shrinks
+  // as they narrow the filter. Mirrors the operator's expectation
+  // "I hid these tag specs; how many rows in this library are hidden?"
+  // — independent of which slice of the library they're currently
+  // browsing.
+  //
+  // `hiddenLoadedCount` (computed above against the current loaded
+  // analyzedData) is still the right number for the visible-row math
+  // and the +N overfetch loop — those care about the loaded slice, not
+  // the library-wide hide count. Don't conflate the two.
   const [hiddenTotalCount, setHiddenTotalCount] = useState<number>(0);
   useEffect(() => {
     if (!isLiveMode) {
@@ -1812,12 +1824,16 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       },
     ];
     let cancelled = false;
-    fetchCount(filters, hiddenFilter).then((count) => {
+    // Pass `baseFilters` (just bank/side) instead of the operator's full
+    // `filters` dict — see the comment above for why this matters. Falls
+    // back to an empty object if a checkout isn't active yet (in which
+    // case `hiddenDefIds.size === 0` already short-circuited above).
+    fetchCount(baseFilters ?? {}, hiddenFilter).then((count) => {
       if (cancelled) return;
       setHiddenTotalCount(count ?? 0);
     });
     return () => { cancelled = true; };
-  }, [isLiveMode, filters, hiddenDefIds, fetchCount, hiddenLoadedCount]);
+  }, [isLiveMode, baseFilters, hiddenDefIds, fetchCount, hiddenLoadedCount]);
 
   // Matching Tag Specs: fire GetAllTransactionTags eagerly when the operator
   // enters Transactions with an active checkout. The result is the unique set
@@ -1974,10 +1990,23 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // Displayed loaded / total / hidden counts shared between the header label
   // and the pagination footer. Client filter (matchedDefinitions) is
   // authoritative for what the operator sees, so loadedNow drives the
-  // invariant. The backend's hiddenTotalCount can over-count when persisted
-  // tag IDs reference hidden defs that re-evaluate to non-hidden ones via
-  // analyzeRow — clamp the displayed hidden so `loadedNow + hidden = total`
-  // and `loadedNow <= totalNow` always hold.
+  // invariant.
+  //
+  // Two distinct hidden numbers live in this object:
+  //   - `hiddenForMath`: clamped to `totalRaw - loadedNow` so the
+  //     visible-row math inside the CURRENT FILTER SCOPE stays
+  //     consistent (`loadedNow + hiddenForMath = totalRaw`,
+  //     `loadedNow <= totalNow`). Used by `totalNow` and the
+  //     pagination footer. Also clamped by `hiddenTotalCount` to
+  //     guard against backend over-count when persisted tag IDs
+  //     reference hidden defs that re-evaluate to non-hidden ones
+  //     via analyzeRow.
+  //   - `hiddenDisplay`: the FULL bank/side hidden tally, equal to
+  //     `hiddenTotalCount` directly (uncapped by the active filter
+  //     scope). This is what the operator wants to see in the
+  //     header suffix — "how many rows in this library are hidden
+  //     right now" — independent of whichever filter slice they're
+  //     currently browsing.
   //
   // When the rule builder has a Validity bound set we collapse both raw
   // counts to `filteredLen`. The validity filter is enforced client-side
@@ -2001,9 +2030,12 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         ? (totalTransactionsCount ?? transactions.length)
         : filteredLen;
     const loadedNow = Math.max(0, loadedRaw - hiddenLoadedCount);
-    const hiddenDisplay = Math.min(hiddenTotalCount, Math.max(0, totalRaw - loadedNow));
-    const totalNow = Math.max(loadedNow, totalRaw - hiddenDisplay);
-    return { loadedRaw, totalRaw, loadedNow, totalNow, hiddenDisplay };
+    const hiddenForMath = Math.min(hiddenTotalCount, Math.max(0, totalRaw - loadedNow));
+    const totalNow = Math.max(loadedNow, totalRaw - hiddenForMath);
+    // Header surfaces the full bank/side scope hidden count, NOT the
+    // in-filter-scope clamped one — see the comment block above.
+    const hiddenDisplay = hiddenTotalCount;
+    return { loadedRaw, totalRaw, loadedNow, totalNow, hiddenForMath, hiddenDisplay };
   }, [isLiveMode, transactions.length, visibleCount, totalTransactionsCount, filteredLen, hiddenLoadedCount, hiddenTotalCount, validityFilterActive]);
 
   useEffect(() => {
@@ -2430,14 +2462,15 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
             const hiddenSuffix = (() => {
               if (builderOpen) return '';
               if (displayCounts.hiddenDisplay <= 0) return '';
-              // "all hidden" must compare against the RAW scope total
-              // (`displayCounts.totalRaw`), not the post-hidden `displayed`
-              // value above — otherwise as soon as hidden > visible the
-              // condition fires even though visible rows remain (e.g.
-              // raw=543, hidden=379, visible=164 → hidden >= visible
-              // would incorrectly read "all hidden" while 164 rows are
-              // still on screen).
-              if (displayCounts.totalRaw > 0 && displayCounts.hiddenDisplay >= displayCounts.totalRaw) {
+              // "all hidden" fires when the current filter scope has zero
+              // visible rows left (totalNow === 0 AND there's something to
+              // hide). The hidden count itself is now the FULL bank/side
+              // tally (decoupled from the filter scope), so we can't use
+              // "hiddenDisplay >= totalRaw" anymore — the full-scope hide
+              // count routinely exceeds the active filter's totalRaw and
+              // would misfire "all hidden" the moment the operator
+              // narrows the filter.
+              if (displayCounts.totalNow === 0) {
                 return ' · all hidden';
               }
               return ` · ${displayCounts.hiddenDisplay.toLocaleString()} hidden`;
