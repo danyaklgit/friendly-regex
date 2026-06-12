@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import type { WizardFormState } from '../../types';
 import { useTagSpecs } from '../../hooks/useTagSpecs';
+import { useTransactionData } from '../../hooks/useTransactionData';
 import { TagTreePicker } from '../shared/TagTreePicker';
 import { Select } from '../shared/Select';
-import { CERTAINTY_OPTIONS, SIDE_OPTIONS, TXN_TYPE_OPTIONS, BANK_SWIFT_CODE_OPTIONS } from '../../constants/fields';
+import { TransactionTypePicker } from '../shared/TransactionTypePicker';
+import { CERTAINTY_OPTIONS, SIDE_OPTIONS, BANK_SWIFT_CODE_OPTIONS } from '../../constants/fields';
 import { WizardCommentIconButton } from './WizardCommentIconButton';
 import { WIZARD_DEFINITION_FORM_KEY } from '../../context/WizardCommentDraftsContext';
 import { ValidityEditor } from './ValidityEditor';
@@ -31,6 +33,11 @@ export function StepBasicInfo({
   definitionIdForComments,
 }: StepBasicInfoProps) {
   const { tagsHierarchy, tagsHierarchyLoading } = useTagSpecs();
+  // Backend-provided transaction type catalog (code + friendly label +
+  // description) — the same source the Rule Builder's type picker uses, so
+  // both surfaces show an identical list. Falls back to the static
+  // TXN_TYPE_OPTIONS codes inside the picker when not yet loaded.
+  const { filterDefinitions } = useTransactionData();
   const [touched, setTouched] = useState<Set<string>>(new Set());
   const markTouched = (field: string) => setTouched((prev) => new Set(prev).add(field));
 
@@ -90,16 +97,20 @@ export function StepBasicInfo({
             options={BANK_SWIFT_CODE_OPTIONS.map((s) => ({ value: s, label: s }))}
             disabled={fromCheckoutContext}
           />
-          <div data-tour="wizard-transaction-type">
-            <Select
-              label="Transaction Type"
+          <div data-tour="wizard-transaction-type" className="flex flex-col gap-1">
+            {/* Label markup mirrors Select's so the field reads identically
+                to its Side / Bank Swift Code siblings in the grid. */}
+            <div className="flex items-center gap-1 pl-1">
+              <label className="text-xs font-medium text-body">
+                Transaction Type<span className="text-red-500 dark:text-rose-300 ml-0.5">*</span>
+              </label>
+            </div>
+            <TransactionTypePicker
               value={formState.transactionTypeCode}
-              onChange={(e) => { onUpdate({ transactionTypeCode: e.target.value }); markTouched('transactionTypeCode'); }}
-              onBlur={() => markTouched('transactionTypeCode')}
-              options={TXN_TYPE_OPTIONS.map((s) => ({ value: s, label: s }))}
-              placeholder="Select transaction type"
+              onChange={(val) => { onUpdate({ transactionTypeCode: val }); markTouched('transactionTypeCode'); }}
+              filterDefinitions={filterDefinitions}
               disabled={fromCheckoutContext}
-              required
+              triggerClassName="w-full"
             />
           </div>
         </div>
