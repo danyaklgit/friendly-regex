@@ -20,6 +20,16 @@ interface TagRuleCardProps {
 export function TagRuleCard({ definition, parentLib, onEdit, onDelete, onExport, onViewTransactions, readOnly }: TagRuleCardProps) {
   const [expanded, setExpanded] = useState(false);
 
+  // A definition with no conditions matches by context alone: every
+  // transaction of the context's type gets the tag. Groups can exist but
+  // be empty (wizard "+Add" leftovers), so check for at least one
+  // non-empty group rather than just array length.
+  const hasRules = definition.TagRuleExpressions.some((g) => g.length > 0);
+  const transactionType =
+    definition.Context.find((e) => e.Key === 'TransactionTypeCode')?.Value ??
+    parentLib?.Context.find((e) => e.Key === 'TransactionTypeCode')?.Value ??
+    null;
+
   return (
     <div className="border border-border rounded-lg bg-surface overflow-hidden" data-tagspec-id={definition.Id}>
       <button
@@ -66,11 +76,24 @@ export function TagRuleCard({ definition, parentLib, onEdit, onDelete, onExport,
             {/* Tag Rules */}
             <div>
               <h4 className="text-sm font-medium text-body mb-2">Matching Rules</h4>
-              <RuleExpressionView
-                expressions={definition.TagRuleExpressions}
-                libraryId={parentLib?.Id ?? undefined}
-                definitionId={definition.Id}
-              />
+              {hasRules ? (
+                <RuleExpressionView
+                  expressions={definition.TagRuleExpressions}
+                  libraryId={parentLib?.Id ?? undefined}
+                  definitionId={definition.Id}
+                />
+              ) : (
+                <p className="text-sm text-faint italic">
+                  No conditions defined — all transactions
+                  {transactionType ? (
+                    <> of type <span className="font-medium not-italic text-body">{transactionType}</span></>
+                  ) : (
+                    ' in this context'
+                  )}{' '}
+                  automatically receive the{' '}
+                  <span className="font-medium not-italic text-body">{definition.Tag}</span> tag.
+                </p>
+              )}
             </div>
 
             {/* Attributes */}
