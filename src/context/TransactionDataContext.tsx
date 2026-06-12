@@ -5,12 +5,13 @@ import { translateFilters } from '../utils/translateFilters';
 import { getTransactions, getFilters, getUserFilters, markTransactionsAsDeadEnd, unmarkDeadEndTransactions, setTransactionsComment, DEFAULT_SORTING, type TepHeaders, type FilterDefinition, type FilterProperty, type SetTransactionsCommentEntry, type SortProperty } from '../api/transactions';
 import { useAuth } from './AuthContext';
 import { useTepConfig } from './TepConfigContext';
+import { mergeSortedRows } from '../utils/visibleRows';
 import sampleTransactionData from '../data/sampleData.json';
 
 // Default page size for the initial Transactions load + every
-// filter-change refetch + classic pagination's Next/Previous. Stays at
-// 50 so the first paint is light — operators landing on the tab see
-// 50 rows immediately rather than waiting for 200 to transfer + render.
+// filter-change refetch. Stays at 50 so the first paint is light —
+// operators landing on the tab see 50 rows immediately rather than
+// waiting for 200 to transfer + render.
 //
 // +N pagination buttons (Show all included) bypass this default and
 // pass an explicit `pageSize` to `replaceFromBeginning` — the backend
@@ -19,10 +20,10 @@ import sampleTransactionData from '../data/sampleData.json';
 // (`+200` = 200 rows in one request, Show all = totalCount rows in one
 // request). PAGE_SIZE only governs the implicit "first batch" cost.
 //
-// Classic pagination (Next / Previous) shares BATCH_SIZE = 50 with the
-// client-side slice math in TransactionsTab, so keeping the two
-// constants aligned at 50 also keeps the offset arithmetic consistent
-// (PageIndex × PageSize === slice(currentPage × BATCH_SIZE, ...)).
+// Both pagination modes render windows over the same loaded prefix
+// buffer (see useVisibleRowsEngine): classic mode slices visible rows
+// at PAGE_SIZE boundaries client-side, so this constant is also the
+// classic page length.
 export const PAGE_SIZE = 50;
 
 export interface TransactionDataContextValue {
@@ -53,7 +54,15 @@ export interface TransactionDataContextValue {
    *  and `Show all` now that backend `PageSize` is uncapped — one round
    *  trip per click instead of `ceil(N / PAGE_SIZE)` aligned pages. */
   replaceFromBeginning: (filters: Record<string, Set<string>>, pageSize: number, extraFilters?: FilterProperty[], sortingProperties?: SortProperty[]) => Promise<TransactionRow[]>;
-  fetchCount: (filters: Record<string, Set<string>>, extraFilters?: FilterProperty[], sortingProperties?: SortProperty[]) => Promise<number | null>;
+  /** Hidden-tag aware variant: fires TWO parallel queries — tagged rows
+   *  with an `NI` exclusion on the hidden definition ids, plus untagged
+   *  rows (`OpsIsUntagged = True`, which the NI predicate would silently
+   *  drop because their tag columns are NULL — the bd1267f bug) — and
+   *  merges them client-side in SortingProperties order. Returns the
+   *  merged first `pageSize` rows plus the EXACT visible total
+   *  (sum of both counts), or null on abort/error. */
+  replaceFromBeginningExcluding: (filters: Record<string, Set<string>>, pageSize: number, hiddenDefIds: string[], extraFilters?: FilterProperty[], sortingProperties?: SortProperty[]) => Promise<{ rows: TransactionRow[]; visibleTotal: number | null } | null>;
+  fetchCount: (filters: Record<string, Set<string>>, extraFilters?: FilterProperty[], sortingProperties?: SortProperty[], signal?: AbortSignal) => Promise<number | null>;
   trimLoadedTransactions: (count: number) => void;
   filterDefinitions: FilterDefinition[];
   filterDefinitionsLoading: boolean;
@@ -613,7 +622,125 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
     }
   }, [isLiveMode, getAuthHeaders, refreshIfNeeded, userId, tepConfig]);
 
-  const fetchCount = useCallback(async (filters: Record<string, Set<string>>, extraFilters?: FilterProperty[], sortingProperties?: SortProperty[]): Promise<number | null> => {
+  /**
+   * Hidden-tag aware replace: the visible set = (tagged rows NOT hidden by
+   * primary or any multi-tag) UNION (untagged rows). The backend can't
+   * express that union in one query, so we fetch the two DISJOINT halves in
+   * parallel and merge them in sort order:
+   *
+   *   A. tagged-visible — active filters + TWO `NI` filter properties:
+   *        { ColumnName: 'OpsTagSpecDefinitionId',           Operand: 'NI', Value: ids }
+   *        { ColumnName: 'OpsMultiTags.TagSpecDefinitionId', Operand: 'NI', Value: ids }
+   *      This is the payload the backend honors for multi-tags (the earlier
+   *      single COMPOSITE column ignored the array and leaked multi-tagged
+   *      hidden rows, 230/250). But `NI` is false for NULL columns, so it
+   *      ALSO drops untagged rows — hence half B.
+   *   B. untagged — active filters + { OpsIsUntagged EQ True }. These are
+   *      exactly the NULL-tag rows that half A drops; the two halves never
+   *      overlap.
+   *
+   * Both come back in SortingProperties order; `mergeSortedRows` reproduces
+   * the union's global order, sliced to `pageSize`. The two TransactionsCount
+   * values sum to the EXACT visible total. Same atomic-replace + single-
+   * flight contract as replaceFromBeginning; deliberately does NOT touch
+   * totalTransactionsCount (that stays the UNFILTERED scope total — the
+   * visible total travels back to the caller).
+   */
+  const replaceFromBeginningExcluding = useCallback(async (
+    filters: Record<string, Set<string>>,
+    pageSize: number,
+    hiddenDefIds: string[],
+    extraFilters?: FilterProperty[],
+    sortingProperties?: SortProperty[],
+  ): Promise<{ rows: TransactionRow[]; visibleTotal: number | null } | null> => {
+    if (!isLiveMode) return null;
+    if (pageSize <= 0 || hiddenDefIds.length === 0) return null;
+
+    await refreshIfNeeded();
+    const authHeaders = getAuthHeaders();
+    const token = authHeaders.Authorization?.replace('Bearer ', '') ?? '';
+    if (!token) return null;
+    const tepHeaders: TepHeaders = {
+      apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
+      userId: userId ?? '',
+      tenantCode: tepConfig.ttpTenantCode,
+      languageCode: tepConfig.languageCode,
+      timeZone: tepConfig.timeZone,
+      requestId: tepConfig.ttpRequestId,
+    };
+    const hiddenValue = hiddenDefIds.join('|');
+    const baseFiltering = [...translateFilters(filters, filterDefinitionsRef.current), ...(extraFilters ?? [])];
+    const sorting = sortingProperties ?? DEFAULT_SORTING;
+
+    setLoading(true);
+    // Single-flight with every other data fetch: both halves share one
+    // controller, so a newer fetch aborts the whole pair.
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    try {
+      const [tagged, untagged] = await Promise.all([
+        getTransactions(
+          {
+            FilteringProperties: [
+              ...baseFiltering,
+              { ColumnName: 'OpsTagSpecDefinitionId', Value: hiddenValue, Operand: 'NI' },
+              { ColumnName: 'OpsMultiTags.TagSpecDefinitionId', Value: hiddenValue, Operand: 'NI' },
+            ],
+            SortingProperties: sorting,
+            Pagination: { PageIndex: 0, PageSize: pageSize },
+          },
+          token,
+          tepHeaders,
+          controller.signal,
+        ),
+        getTransactions(
+          {
+            FilteringProperties: [...baseFiltering, { ColumnName: 'OpsIsUntagged', Value: 'True', Operand: 'EQ' }],
+            SortingProperties: sorting,
+            Pagination: { PageIndex: 0, PageSize: pageSize },
+          },
+          token,
+          tepHeaders,
+          controller.signal,
+        ),
+      ]);
+
+      // Same OpsIsDeadEnd / IsDeadEnd mirror as the other ingest paths.
+      const mirror = (raw: TransactionRow[]): TransactionRow[] => raw.map((row) => {
+        if (row['IsDeadEnd'] != null) return row;
+        const ops = row['OpsIsDeadEnd'];
+        if (ops == null) return row;
+        const isDead = typeof ops === 'string' ? ops.toLowerCase() === 'true' : ops === true;
+        return { ...row, IsDeadEnd: isDead };
+      });
+      const taggedRows = mirror(tagged.Transactions ?? []);
+      const untaggedRows = mirror(untagged.Transactions ?? []);
+      const rows = mergeSortedRows(taggedRows, untaggedRows, sorting).slice(0, pageSize);
+      const visibleTotal = tagged.TransactionsCount != null && untagged.TransactionsCount != null
+        ? tagged.TransactionsCount + untagged.TransactionsCount
+        : null;
+
+      currentPageRef.current = 0;
+      setHasMore(visibleTotal != null ? rows.length < visibleTotal : rows.length >= pageSize);
+      // Deliberately do NOT touch totalTransactionsCount: that field is
+      // the UNFILTERED scope total; the visible total travels back to the
+      // caller (the visible-rows engine) instead.
+      setTransactions(rows);
+      loadedCountRef.current = rows.length;
+      return { rows, visibleTotal };
+    } catch (err) {
+      if ((err as Error).name === 'AbortError') return null;
+      console.error('Failed to fetch transactions (hidden-excluded):', err);
+      return null;
+    } finally {
+      if (abortRef.current === controller) {
+        setLoading(false);
+      }
+    }
+  }, [isLiveMode, getAuthHeaders, refreshIfNeeded, userId, tepConfig]);
+
+  const fetchCount = useCallback(async (filters: Record<string, Set<string>>, extraFilters?: FilterProperty[], sortingProperties?: SortProperty[], signal?: AbortSignal): Promise<number | null> => {
     if (!isLiveMode) return null;
     await refreshIfNeeded();
     const authHeaders = getAuthHeaders();
@@ -636,6 +763,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
         },
         token,
         tepHeaders,
+        signal,
       );
       return data.TransactionsCount ?? null;
     } catch {
@@ -670,7 +798,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
     <TransactionDataContext.Provider value={{
       transactions, fieldMeta, loadTransactions, resetToSample, isCustomData, flagDeadEnd,
       setComments, flagDeadEndWithComment,
-      isLiveMode, loading, hasMore, totalTransactionsCount, fetchPage, appendBatch, replaceFromBeginning, fetchCount,
+      isLiveMode, loading, hasMore, totalTransactionsCount, fetchPage, appendBatch, replaceFromBeginning, replaceFromBeginningExcluding, fetchCount,
       trimLoadedTransactions,
       filterDefinitions, filterDefinitionsLoading, fetchFilterDefinitions,
       userFilterDefinitions, userFilterDefinitionsLoading, fetchUserFilterDefinitions,

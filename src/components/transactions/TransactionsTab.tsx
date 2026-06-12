@@ -49,6 +49,8 @@ import { Tooltip } from '../shared/Tooltip';
 import { DynamicFilters } from './DynamicFilters';
 import { Toggle } from '../shared/Toggle';
 import { useLocalChanges } from '../../hooks/useLocalChanges';
+import { useVisibleRowsEngine } from '../../hooks/useVisibleRowsEngine';
+import { clampPageIndex } from '../../utils/visibleRows';
 import { EmptyState } from '../shared/EmptyState';
 import { TransactionTypePicker } from '../shared/TransactionTypePicker';
 import { tagSpecLibrarySave } from '../../api/tagSpecSave';
@@ -317,7 +319,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const {
     transactions, fieldMeta, loadTransactions, resetToSample, isCustomData, flagDeadEnd,
     setComments, flagDeadEndWithComment,
-    isLiveMode, loading, hasMore: liveHasMore, totalTransactionsCount, fetchPage, replaceFromBeginning, fetchCount,
+    isLiveMode, loading, totalTransactionsCount, replaceFromBeginning, replaceFromBeginningExcluding, fetchCount,
     filterDefinitions, filterDefinitionsLoading, fetchFilterDefinitions,
     decimalMaxValues,
   } = useTransactionData();
@@ -1142,36 +1144,10 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     if (hiddenDefIds.size === 0) setHiddenTagsPanelOpen(false);
   }, [hiddenDefIds]);
 
-  // Live mode: fetch from API when filters or extraFilters change.
-  // While a Backlog "edit" navigation is pending, skip auto-fetch — handleTagClick
-  // will set tagClickState and this effect will re-fire with the scoped extra filter,
-  // avoiding a broad fetch that would just be aborted.
-  // Also wait for filterDefinitions to load before firing: while empty, baseFilters
-  // uses sample-mode column-name keys that translateFilters drops, which would send
-  // a request with no bank/side scope — pure waste, since the effect re-fires with
-  // correct tag-name keys once definitions resolve.
-  useEffect(() => {
-    if (!isLiveMode) return;
-    if (filterDefinitions.length === 0) return;
-    if (activeCheckout?.pendingDefinitionId) return;
-    const timer = setTimeout(() => {
-      // Honor the operator's last +N / Show all choice on incremental
-      // refetches. Without this, Refresh / tag toggle / hidden-tag
-      // change all reset the table back to PAGE_SIZE=50 even though
-      // the operator just loaded 44k rows via Show all. Classic
-      // pagination (incrementalPagination=false) sticks to PAGE_SIZE
-      // since each page click is its own navigation, not an extension.
-      const extras = activeExtraFilters.length > 0 ? activeExtraFilters : undefined;
-      const desired = desiredLoadedCountRef.current;
-      if (incrementalPagination && desired && desired > 0) {
-        replaceFromBeginning(outgoingFilters, desired, extras, effectiveSorting);
-      } else {
-        fetchPage(outgoingFilters, false, incrementalPagination ? undefined : 0, undefined, extras, effectiveSorting);
-        if (!incrementalPagination) { setCurrentPage(0); setPageInputValue('1'); }
-      }
-    }, 50);
-    return () => clearTimeout(timer);
-  }, [isLiveMode, filterDefinitions.length, outgoingFilters, fetchPage, replaceFromBeginning, incrementalPagination, activeExtraFilters, activeCheckout?.pendingDefinitionId, effectiveSorting]);
+  // Live mode: the filter-change refetch effect lives further down, after
+  // the visible-rows engine is instantiated (it routes through
+  // `engine.refetch()`, which honors the operator's last +N / Show all
+  // choice in VISIBLE space).
 
   // Capture Call 2 total count (definition-based) before Call 3 can overwrite it
   useEffect(() => {
@@ -1594,77 +1570,60 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     return out;
   }, [hiddenDefIds, analyzedData, allDefinitions]);
 
-  // Add the picked tag spec IDs to the hidden set. The filter pass below
-  // does the actual row dropping by walking each row's matched definitions
-  // and checking against this set.
-  const hideTagDefs = useCallback((defIds: string[]) => {
-    if (defIds.length === 0) return;
-    const newDefIds = defIds.filter((d) => !hiddenDefIds.has(d));
-    if (newDefIds.length === 0) return;
-    const primaryName = (() => {
-      const target = newDefIds[0];
-      for (const item of analyzedData) {
-        const idx = item.analysis.matchedDefinitions.findIndex((d) => d?.Id === target);
-        if (idx >= 0) return item.analysis.tags[idx] ?? item.analysis.matchedDefinitions[idx]?.Tag ?? null;
-      }
-      return allDefinitions.find((d) => d.Id === target)?.Tag ?? null;
-    })();
-    setHideBusy(true);
-    setToast({
-      message: newDefIds.length === 1 && primaryName
-        ? `Hiding tag spec '${primaryName}'…`
-        : `Hiding ${newDefIds.length} tag specs…`,
-      type: 'success',
+  // The hide / unhide handlers live further down, after the visible-rows
+  // engine — they notify it so a hide refills the table back to the
+  // operator's previous visible row count (1 count + 1 data call).
+
+  // Strip hidden tag specs from each row's DISPLAY analysis. Live mode
+  // excludes FULLY-hidden rows server-side (the two-NI filter), but rows
+  // that are multi-tagged with a MIX of hidden and visible definitions are
+  // correctly KEPT by the server — they still have a visible tag. Those
+  // kept rows must not render their hidden-tag badges/attributes, so we
+  // drop hidden defs from the per-row analysis here (tags + matched
+  // definitions are parallel arrays; attributes are keyed by def id). Rows
+  // with nothing hidden return their original object so referential
+  // stability for the memoized table rows holds (gotcha #23). The raw
+  // `analyzedData` stays intact for the Hidden Tags panel lookup.
+  const displayAnalyzedData = useMemo(() => {
+    if (!isLiveMode || hiddenDefIds.size === 0) return analyzedData;
+    return analyzedData.map((item) => {
+      const md = item.analysis.matchedDefinitions;
+      if (!md.some((d) => d && hiddenDefIds.has(d.Id))) return item;
+      const tags: string[] = [];
+      const matchedDefinitions: typeof md = [];
+      md.forEach((d, i) => {
+        if (d && hiddenDefIds.has(d.Id)) return;
+        tags.push(item.analysis.tags[i]);
+        matchedDefinitions.push(d);
+      });
+      // Build the stripped analysis WITHOUT spreading `item.analysis` (the
+      // spread would invoke its lazy `attributes` getter, forcing eager
+      // extraction). Attributes stay lazy here too: only computed if a
+      // consumer reads them, and filtered to the kept (non-hidden) defs.
+      let attrCache: typeof item.analysis.attributes | undefined;
+      return {
+        ...item,
+        analysis: {
+          tags,
+          matchedDefinitions,
+          get attributes() {
+            if (attrCache === undefined) {
+              const full = item.analysis.attributes;
+              attrCache = {};
+              for (const d of matchedDefinitions) {
+                if (d && full[d.Id]) attrCache[d.Id] = full[d.Id];
+              }
+            }
+            return attrCache;
+          },
+        },
+      };
     });
-    window.setTimeout(() => {
-      setHiddenDefIds((prev) => {
-        const next = new Set(prev);
-        for (const d of newDefIds) next.add(d);
-        return next;
-      });
-      setToast({
-        message: newDefIds.length === 1 && primaryName
-          ? `Tag spec '${primaryName}' hidden`
-          : `${newDefIds.length} tag specs hidden`,
-        type: 'success',
-      });
-      // Defer the busy clear into a separate task so the overlay
-      // survives the heavy re-render triggered by setHiddenDefIds.
-      // Bundling setHideBusy(false) in the same React batch would
-      // hide the overlay BEFORE the new dataset is committed, leaving
-      // the operator staring at an unresponsive screen mid-reflow.
-      window.setTimeout(() => setHideBusy(false), 0);
-    }, 250);
-  }, [hiddenDefIds, analyzedData, allDefinitions]);
-
-  const unhideTagDef = useCallback((defId: string, name: string) => {
-    setHideBusy(true);
-    setToast({ message: `Unhiding tag spec '${name}'…`, type: 'success' });
-    window.setTimeout(() => {
-      setHiddenDefIds((prev) => {
-        if (!prev.has(defId)) return prev;
-        const next = new Set(prev);
-        next.delete(defId);
-        return next;
-      });
-      setToast({ message: `Tag spec '${name}' restored`, type: 'success' });
-      window.setTimeout(() => setHideBusy(false), 0);
-    }, 250);
-  }, []);
-
-  const unhideAllTags = useCallback(() => {
-    setHideBusy(true);
-    setToast({ message: 'Unhiding all tag specs…', type: 'success' });
-    window.setTimeout(() => {
-      setHiddenDefIds(new Set());
-      setToast({ message: 'All hidden tag specs restored', type: 'success' });
-      window.setTimeout(() => setHideBusy(false), 0);
-    }, 250);
-  }, []);
+  }, [analyzedData, hiddenDefIds, isLiveMode]);
 
   // Apply all filters
   const filteredData = useMemo(() => {
-    let result = analyzedData;
+    let result = displayAnalyzedData;
 
     if (showOnlyUntagged) {
       result = result.filter((item) => item.analysis.tags.length === 0);
@@ -1752,10 +1711,15 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       );
     }
 
-    // Drop rows whose matched definitions include any hidden tag spec. Hide
-    // Tag Spec is a pure view-layer filter — server payload is unchanged so
-    // the operator can restore the spec from the side panel.
-    if (hiddenDefIds.size > 0) {
+    // Hidden-tag exclusion. LIVE mode excludes hidden rows SERVER-SIDE via
+    // the dual query (replaceFromBeginningExcluding), so the buffer already
+    // contains only visible rows — re-applying the client pass here would
+    // double-filter with a DIFFERENT rule (isRowHidden hides on ANY matched
+    // def incl. multi-tags, which the backend's composite NI need not
+    // replicate) and silently drop server-vetted rows, shrinking the page.
+    // So the client pass runs in SAMPLE mode only, where there is no server
+    // to exclude.
+    if (!isLiveMode && hiddenDefIds.size > 0) {
       result = result.filter(
         (item) => !isRowHidden(item.analysis.matchedDefinitions, hiddenDefIds),
       );
@@ -1787,71 +1751,175 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     }
 
     return result;
-  }, [analyzedData, showOnlyUntagged, showOnlyMultiTagged, showOnlyDeadEnd, filters, isLiveMode, builderOpen, builder.formState.transactionTypeCode, builder.formState.ruleGroups, tempDefinition, tagClickState?.rulesetApplied, hiddenDefIds, sortOverride, validityStartDate, validityEndDate]);
+  }, [displayAnalyzedData, showOnlyUntagged, showOnlyMultiTagged, showOnlyDeadEnd, filters, isLiveMode, builderOpen, builder.formState.transactionTypeCode, builder.formState.ruleGroups, tempDefinition, tagClickState?.rulesetApplied, hiddenDefIds, sortOverride, validityStartDate, validityEndDate]);
 
-  // Count of loaded rows that match any hidden tag spec. Drives the "live
-  // total minus hidden" adjustment in the Transactions header AND the
-  // pagination footer counts; also used to overfetch +N batches so the
-  // requested increment is met in terms of VISIBLE rows. Mirrors the
-  // backend's OpsTagSpecDefinitionId IN filter logic (used by
-  // hiddenTotalCount) so loadedNow and totalNow stay on the same scope.
+  // Count of loaded rows that match any hidden tag spec. SAMPLE mode only:
+  // live mode excludes hidden rows server-side, so the loaded buffer holds
+  // zero hidden rows by construction and this is 0 (a non-zero value here
+  // would wrongly shrink loadedNow against a buffer the server already
+  // vetted). Sample mode has no server exclusion, so the client tally is
+  // the real one.
   const hiddenLoadedCount = useMemo(() => {
-    if (hiddenDefIds.size === 0) return 0;
+    if (isLiveMode || hiddenDefIds.size === 0) return 0;
     let n = 0;
     for (const item of analyzedData) {
       if (isRowHidden(item.analysis.matchedDefinitions, hiddenDefIds)) n++;
     }
     return n;
-  }, [hiddenDefIds, analyzedData]);
+  }, [isLiveMode, hiddenDefIds, analyzedData]);
 
-  // True count of rows in the FULL bank/side scope that match a hidden
-  // definition — fetched from the backend with ONLY the checkout's
-  // bank/side filter applied (not the operator's active filters / pills
-  // / search). Drives the header's "· N hidden" suffix so the operator
-  // sees the whole-library hide tally rather than a number that shrinks
-  // as they narrow the filter. Mirrors the operator's expectation
-  // "I hid these tag specs; how many rows in this library are hidden?"
-  // — independent of which slice of the library they're currently
-  // browsing.
-  //
-  // `hiddenLoadedCount` (computed above against the current loaded
-  // analyzedData) is still the right number for the visible-row math
-  // and the +N overfetch loop — those care about the loaded slice, not
-  // the library-wide hide count. Don't conflate the two.
-  const [hiddenTotalCount, setHiddenTotalCount] = useState<number>(0);
+  // Visible-rows engine: owns the visible-row target (50 default, raised
+  // by +N / Show all / page nav, persisted per checkout), the scoped
+  // hidden-row count, and the refill planning. Hiding tag specs is purely
+  // client-side (the server NI filter dropped untagged rows — see the
+  // activeExtraFilters comment), so `ensureVisible` overfetches by the
+  // scoped hidden count (capped) and fires at most one exact-bound
+  // follow-up. `totalShowing` / `totalHidden` are the single source of
+  // truth for the header + footer counts — both totals share the active
+  // filter scope, so the subtraction is exact (no clamped drift math).
+  const engine = useVisibleRowsEngine({
+    isLiveMode,
+    transactions,
+    totalTransactionsCount,
+    fetchCount,
+    replaceFromBeginning,
+    replaceFromBeginningExcluding,
+    outgoingFilters,
+    activeExtraFilters,
+    effectiveSorting,
+    hiddenDefIds,
+    hiddenLoadedCount,
+    setSampleVisibleCount: setVisibleCount,
+    checkoutBank: activeCheckout?.bank ?? null,
+    checkoutSide: activeCheckout?.side ?? null,
+  });
+  const { ensureVisible, refetch: engineRefetch, notifyHiddenSetChanged } = engine;
+
+  // Live mode: fetch from API when filters or extraFilters change.
+  // While a Backlog "edit" navigation is pending, skip auto-fetch — handleTagClick
+  // will set tagClickState and this effect will re-fire with the scoped extra filter,
+  // avoiding a broad fetch that would just be aborted.
+  // Also wait for filterDefinitions to load before firing: while empty, baseFilters
+  // uses sample-mode column-name keys that translateFilters drops, which would send
+  // a request with no bank/side scope — pure waste, since the effect re-fires with
+  // correct tag-name keys once definitions resolve.
+  // `engineRefetch` re-ensures the persisted visible target (so Refresh /
+  // tag toggle keep a Show-all window loaded) and reads the CURRENT
+  // filters at call time; its identity is stable, so this effect fires
+  // only on genuine scope changes (gotcha #16).
   useEffect(() => {
-    if (!isLiveMode) {
-      // Sample mode loads everything client-side, so hiddenLoadedCount IS
-      // the true hidden count — no backend call required.
-      setHiddenTotalCount(hiddenLoadedCount);
-      return;
-    }
-    if (hiddenDefIds.size === 0) {
-      setHiddenTotalCount(0);
-      return;
-    }
-    // Multi-value `IN` uses pipe-joined Value, matching the codebase
-    // convention in translateFilters (LIST/IN branch joins selected values
-    // with '|'). Comma here would be interpreted as a literal substring
-    // and silently return 0.
-    const hiddenFilter: FilterProperty[] = [
-      {
-        ColumnName: 'OpsTagSpecDefinitionId|OpsMultiTags.TagSpecDefinitionId',
-        Value: [...hiddenDefIds].join('|'),
-        Operand: 'IN',
-      },
-    ];
-    let cancelled = false;
-    // Pass `baseFilters` (just bank/side) instead of the operator's full
-    // `filters` dict — see the comment above for why this matters. Falls
-    // back to an empty object if a checkout isn't active yet (in which
-    // case `hiddenDefIds.size === 0` already short-circuited above).
-    fetchCount(baseFilters ?? {}, hiddenFilter).then((count) => {
-      if (cancelled) return;
-      setHiddenTotalCount(count ?? 0);
+    if (!isLiveMode) return;
+    if (filterDefinitions.length === 0) return;
+    if (activeCheckout?.pendingDefinitionId) return;
+    const timer = setTimeout(() => { void engineRefetch(); }, 50);
+    return () => clearTimeout(timer);
+  }, [isLiveMode, filterDefinitions.length, outgoingFilters, activeExtraFilters, activeCheckout?.pendingDefinitionId, effectiveSorting, engineRefetch]);
+
+  // Classic mode: a genuine scope change restarts at page 0 (the refetch
+  // above replaces the buffer from the beginning).
+  useEffect(() => {
+    if (!isLiveMode || incrementalPagination) return;
+    setCurrentPage(0);
+    setPageInputValue('1');
+  }, [isLiveMode, incrementalPagination, outgoingFilters, activeExtraFilters, effectiveSorting]);
+
+  // Add the picked tag spec IDs to the hidden set, then hand the new set
+  // to the engine so it refills the table back to the row count the
+  // operator was just looking at (nothing happens when the buffer still
+  // satisfies it). The engine receives the set directly — the state prop
+  // hasn't propagated yet inside this tick.
+  const hideTagDefs = useCallback((defIds: string[]) => {
+    if (defIds.length === 0) return;
+    const newDefIds = defIds.filter((d) => !hiddenDefIds.has(d));
+    if (newDefIds.length === 0) return;
+    const primaryName = (() => {
+      const target = newDefIds[0];
+      for (const item of analyzedData) {
+        const idx = item.analysis.matchedDefinitions.findIndex((d) => d?.Id === target);
+        if (idx >= 0) return item.analysis.tags[idx] ?? item.analysis.matchedDefinitions[idx]?.Tag ?? null;
+      }
+      return allDefinitions.find((d) => d.Id === target)?.Tag ?? null;
+    })();
+    // What the operator is looking at right now: the displayed window in
+    // incremental mode (buffer may over-satisfy the target; the table
+    // only shows targetVisible rows), or the window covering the current
+    // page in classic mode. This becomes the refill target.
+    const previousVisibleShown = incrementalPagination
+      ? Math.min(engine.targetVisible, filteredData.length)
+      : (currentPage + 1) * BATCH_SIZE;
+    setHideBusy(true);
+    setToast({
+      message: newDefIds.length === 1 && primaryName
+        ? `Hiding tag spec '${primaryName}'…`
+        : `Hiding ${newDefIds.length} tag specs…`,
+      type: 'success',
     });
-    return () => { cancelled = true; };
-  }, [isLiveMode, baseFilters, hiddenDefIds, fetchCount, hiddenLoadedCount]);
+    window.setTimeout(() => {
+      const next = new Set(hiddenDefIds);
+      for (const d of newDefIds) next.add(d);
+      setHiddenDefIds(next);
+      notifyHiddenSetChanged(next, 'hide', previousVisibleShown);
+      setToast({
+        message: newDefIds.length === 1 && primaryName
+          ? `Tag spec '${primaryName}' hidden`
+          : `${newDefIds.length} tag specs hidden`,
+        type: 'success',
+      });
+      // hideBusy stays true until the engine's refill fetch settles (see
+      // the refilling-settle effect below) so the table skeleton covers
+      // the whole operation, not just this 250ms beat.
+    }, 250);
+  }, [hiddenDefIds, analyzedData, allDefinitions, incrementalPagination, filteredData, currentPage, engine.targetVisible, notifyHiddenSetChanged]);
+
+  // Unhiding returns the operator to a clean starting view: the engine
+  // resets its visible target to the initial PAGE_SIZE (50) and refetches
+  // (the restored rows were excluded server-side, so they're not in the
+  // buffer). Reset the classic page index + sample slice here to match, so
+  // both paginators land on the first 50 even if more had been loaded.
+  const resetToInitialWindow = useCallback(() => {
+    setCurrentPage(0);
+    setPageInputValue('1');
+    setVisibleCount(BATCH_SIZE);
+  }, []);
+
+  const unhideTagDef = useCallback((defId: string, name: string) => {
+    setHideBusy(true);
+    setToast({ message: `Unhiding tag spec '${name}'…`, type: 'success' });
+    window.setTimeout(() => {
+      const next = new Set(hiddenDefIds);
+      next.delete(defId);
+      setHiddenDefIds(next);
+      resetToInitialWindow();
+      notifyHiddenSetChanged(next, 'unhide', 0);
+      setToast({ message: `Tag spec '${name}' restored`, type: 'success' });
+    }, 250);
+  }, [hiddenDefIds, notifyHiddenSetChanged, resetToInitialWindow]);
+
+  const unhideAllTags = useCallback(() => {
+    setHideBusy(true);
+    setToast({ message: 'Unhiding all tag specs…', type: 'success' });
+    window.setTimeout(() => {
+      setHiddenDefIds(new Set());
+      resetToInitialWindow();
+      notifyHiddenSetChanged(new Set(), 'unhideAll', 0);
+      setToast({ message: 'All hidden tag specs restored', type: 'success' });
+    }, 250);
+  }, [notifyHiddenSetChanged, resetToInitialWindow]);
+
+  // Keep `hideBusy` true for the WHOLE hide/unhide operation: from the
+  // click through the engine's refill fetch, so the table skeleton (and
+  // the panel spinner) cover the entire loading state instead of just the
+  // 250ms beat before the fetch starts. Clear it once `engine.refilling`
+  // has gone true (fetch started) and back to false (finished). A safety
+  // timer prevents a stuck skeleton if a refill never starts.
+  const hideRefillArmedRef = useRef(false);
+  useEffect(() => {
+    if (!hideBusy) { hideRefillArmedRef.current = false; return; }
+    if (engine.refilling) { hideRefillArmedRef.current = true; return; }
+    if (hideRefillArmedRef.current) { hideRefillArmedRef.current = false; setHideBusy(false); return; }
+    const t = window.setTimeout(() => setHideBusy(false), 6000);
+    return () => window.clearTimeout(t);
+  }, [hideBusy, engine.refilling]);
 
   // Matching Tag Specs: fire GetAllTransactionTags eagerly when the operator
   // enters Transactions with an active checkout. The result is the unique set
@@ -1940,121 +2008,82 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     return entries;
   }, [matchingTagDefIds, allLibraries, definitionVersions]);
 
-  // Operator's "desired loaded count" — set when they explicitly ask
-  // for more rows via +N / Show all. Null means "no explicit choice
-  // yet", so the standard filter-change refetch uses the default
-  // PAGE_SIZE (50). After a Show all click on 44k rows the operator
-  // expects subsequent filter changes (notably the Refresh button,
-  // which clears tag selections and thereby reruns the fetch effect)
-  // to keep all 44k loaded; this ref carries the intent forward.
-  // Resets to null on bank/side scope change so a new session starts
-  // fresh.
-  const desiredLoadedCountRef = useRef<number | null>(null);
-  useEffect(() => {
-    // Bank/side scope change = new session, drop the previous +N /
-    // Show all intent. Subsequent fetches go back to PAGE_SIZE=50
-    // until the operator explicitly extends again.
-    desiredLoadedCountRef.current = null;
-  }, [activeCheckout?.bank, activeCheckout?.side]);
-
-  // Deliver +N visible rows in a SINGLE HTTP request.
-  //
-  // Backend confirmed `PageSize` is uncapped, so the cleanest path is:
-  // ask for `loadedCount + N` rows from PageIndex=0 and replace the
-  // buffer atomically. One round trip per click regardless of N, no
-  // alignment math, no parallel batching.
-  //
-  // The bandwidth tax for incremental clicks (we re-fetch the rows we
-  // already had) is the cost. The wins:
-  //   - `+50` / `+200` / `+500` and `Show all`: 1 request each.
-  //   - No overfetch loop, no per-row analyzeRow check (hidden-tag
-  //     pre-filter from 1.2 already excludes those server-side).
-  //   - No flicker mid-fetch — replaceFromBeginning keeps the old
-  //     rows on screen until the new buffer commits atomically.
+  // Deliver +N VISIBLE rows. The engine plans the fetch in visible space:
+  // it asks for `currentShown + N` visible rows and overfetches by the
+  // scoped hidden-row count (capped on both calls), so a +50 click adds
+  // 50 rows the operator can actually see even when hidden tag specs are
+  // interleaved. One atomic replace per click — old rows stay on screen
+  // until the new buffer commits. When the buffer already over-satisfies
+  // the new target (e.g. right after an unhide), the rows appear
+  // instantly with no fetch. The target persists per checkout, so
+  // Refresh / tag toggles keep a Show-all window loaded.
   const loadNVisible = useCallback(async (size: number) => {
+    if (size <= 0) return;
     if (!isLiveMode) {
       setVisibleCount((c) => c + size);
       return;
     }
-    if (size <= 0) return;
-    const totalBackend = totalTransactionsCount ?? transactions.length;
-    const remainingBackend = Math.max(0, totalBackend - transactions.length);
-    if (remainingBackend <= 0) return;
-    const effectiveSize = Math.min(size, remainingBackend);
-    // Target buffer length after the fetch: existing rows + the new
-    // delta the operator just asked for. Clamped to the backend total
-    // so we never ask for more rows than exist (would round-trip a
-    // larger response than needed).
-    const targetTotal = Math.min(totalBackend, transactions.length + effectiveSize);
-    // Remember the desired window so a later filter-change refetch
-    // (Refresh button, hidden-tag toggle, etc.) restores the same
-    // size instead of falling back to PAGE_SIZE=50.
-    desiredLoadedCountRef.current = targetTotal;
-    const extras = activeExtraFilters.length > 0 ? activeExtraFilters : undefined;
-    await replaceFromBeginning(outgoingFilters, targetTotal, extras, effectiveSorting);
-  }, [isLiveMode, activeExtraFilters, replaceFromBeginning, outgoingFilters, transactions.length, totalTransactionsCount, effectiveSorting]);
+    const shown = Math.min(engine.targetVisible, filteredData.length);
+    await ensureVisible(shown + size);
+  }, [isLiveMode, ensureVisible, engine.targetVisible, filteredData]);
 
-  // Auto-refill effect for partial visible pages after a hide action used
-  // to live here. It's no longer needed: hidden tag specs are excluded
-  // server-side via the `NI` filter in activeExtraFilters, so a fresh
-  // page is naturally full and the refetch fires through the standard
-  // filter-change effect (activeExtraFilters reference changes when
-  // `hiddenDefIds` does, which retriggers fetchPage at page 0).
+  // Classic-mode navigation: make sure the prefix buffer holds enough
+  // VISIBLE rows to cover the requested page, then let `visibleData`
+  // slice it. No per-page server fetch — pages are windows over the same
+  // buffer both modes share, so hidden rows can't desync the page math.
+  const goToPage = useCallback((newPage: number) => {
+    setCurrentPage(newPage);
+    setPageInputValue(String(newPage + 1));
+    if (isLiveMode) void ensureVisible((newPage + 1) * BATCH_SIZE);
+  }, [isLiveMode, ensureVisible]);
 
   // Reset visible count / page when filtered data length changes
   // In live + classic pagination mode, data replaces on every page nav — don't reset page from here
   const filteredLen = filteredData.length;
 
-  // Displayed loaded / total / hidden counts shared between the header label
-  // and the pagination footer. Client filter (matchedDefinitions) is
-  // authoritative for what the operator sees, so loadedNow drives the
-  // invariant.
+  // Displayed loaded / total counts shared between the header label and
+  // the pagination footer. Everything runs in VISIBLE space: loadedNow is
+  // the loaded rows the operator can actually see (client analyzeRow
+  // hiding is authoritative for display), totalNow is the engine's
+  // `totalShowing` — serverTotal minus the SAME-filter-scope hidden count,
+  // clamped so loadedNow can never exceed it. The old cross-scope
+  // `hiddenForMath` compensation math is gone.
   //
-  // Two distinct hidden numbers live in this object:
-  //   - `hiddenForMath`: clamped to `totalRaw - loadedNow` so the
-  //     visible-row math inside the CURRENT FILTER SCOPE stays
-  //     consistent (`loadedNow + hiddenForMath = totalRaw`,
-  //     `loadedNow <= totalNow`). Used by `totalNow` and the
-  //     pagination footer. Also clamped by `hiddenTotalCount` to
-  //     guard against backend over-count when persisted tag IDs
-  //     reference hidden defs that re-evaluate to non-hidden ones
-  //     via analyzeRow.
-  //   - `hiddenDisplay`: the FULL bank/side hidden tally, equal to
-  //     `hiddenTotalCount` directly (uncapped by the active filter
-  //     scope). This is what the operator wants to see in the
-  //     header suffix — "how many rows in this library are hidden
-  //     right now" — independent of whichever filter slice they're
-  //     currently browsing.
-  //
-  // When the rule builder has a Validity bound set we collapse both raw
+  // When the rule builder has a Validity bound set we collapse both
   // counts to `filteredLen`. The validity filter is enforced client-side
   // (see filteredData), so the visible row count is the only honest
   // number to expose — the backend buffer's `transactions.length` and
   // `totalTransactionsCount` reflect the unfiltered fetch and would read
-  // as "27 loaded · 27 total" while the table actually shows 3 rows. The
-  // backend-side StatementDate filter in activeExtraFilters also nudges
-  // those numbers down on future fetches; this just keeps the displayed
-  // counts consistent regardless of what the backend returned.
+  // as "27 loaded · 27 total" while the table actually shows 3 rows.
   const validityFilterActive = builderOpen && (!!validityStartDate || !!validityEndDate);
+  // Client-side row filters that depend on the analyzeRow pass: when any is
+  // active the displayed count must come from `filteredLen`, not the raw
+  // buffer length.
+  const clientRowFilterActive = showOnlyUntagged || showOnlyMultiTagged || showOnlyDeadEnd || (builderOpen && builderHasContent);
   const displayCounts = useMemo(() => {
-    const loadedRaw = validityFilterActive
-      ? filteredLen
-      : isLiveMode
-        ? transactions.length
-        : visibleCount;
-    const totalRaw = validityFilterActive
-      ? filteredLen
-      : isLiveMode
-        ? (totalTransactionsCount ?? transactions.length)
-        : filteredLen;
-    const loadedNow = Math.max(0, loadedRaw - hiddenLoadedCount);
-    const hiddenForMath = Math.min(hiddenTotalCount, Math.max(0, totalRaw - loadedNow));
-    const totalNow = Math.max(loadedNow, totalRaw - hiddenForMath);
-    // Header surfaces the full bank/side scope hidden count, NOT the
-    // in-filter-scope clamped one — see the comment block above.
-    const hiddenDisplay = hiddenTotalCount;
-    return { loadedRaw, totalRaw, loadedNow, totalNow, hiddenForMath, hiddenDisplay };
-  }, [isLiveMode, transactions.length, visibleCount, totalTransactionsCount, filteredLen, hiddenLoadedCount, hiddenTotalCount, validityFilterActive]);
+    if (validityFilterActive) {
+      return { loadedNow: filteredLen, totalNow: filteredLen };
+    }
+    if (!isLiveMode) {
+      // Sample mode: filteredLen already excludes hidden rows; the slice
+      // cap (visibleCount) bounds what's on screen.
+      return { loadedNow: Math.min(visibleCount, filteredLen), totalNow: filteredLen };
+    }
+    // "loaded" = visible rows in the buffer. With server-side exclusion the
+    // buffer holds only visible rows, so the BUFFER LENGTH is the right
+    // count — NOT `filteredLen`, which is derived from the async analyzeRow
+    // pass that commits in 500-row chunks and would make Show all / +N
+    // appear to load "in increments of 500" while the rows are merely being
+    // analyzed (the single fetch already landed). When a client-side row
+    // filter (showOnly / builder preview) narrows the view, those filters
+    // depend on analysis, so fall back to filteredLen there.
+    const loadedBase = clientRowFilterActive ? filteredLen : transactions.length;
+    const loadedNow = incrementalPagination
+      ? Math.min(engine.targetVisible, loadedBase)
+      : loadedBase;
+    const totalNow = Math.max(loadedNow, engine.totalShowing ?? 0);
+    return { loadedNow, totalNow };
+  }, [isLiveMode, visibleCount, filteredLen, incrementalPagination, engine.targetVisible, engine.totalShowing, validityFilterActive, clientRowFilterActive, transactions.length]);
 
   useEffect(() => {
     if (isLiveMode && !incrementalPagination) return; // page managed by nav controls + filter effect
@@ -2063,17 +2092,39 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     setPageInputValue('1');
   }, [filteredLen, isLiveMode, incrementalPagination]);
 
-  const classicTotalPages = Math.max(1, Math.ceil((isLiveMode ? (totalTransactionsCount ?? filteredLen) : filteredLen) / BATCH_SIZE));
+  // Classic page count runs in VISIBLE space (hidden rows excluded), so
+  // the pager and the footer counts always agree.
+  const classicTotalPages = Math.max(1, Math.ceil(displayCounts.totalNow / BATCH_SIZE));
+
+  // When a hide shrinks the visible total below the current classic page,
+  // snap back to the last page that still exists. The prefix buffer
+  // already contains the clamped page's rows.
+  useEffect(() => {
+    if (!isLiveMode || incrementalPagination) return;
+    const clamped = clampPageIndex(currentPage, displayCounts.totalNow, BATCH_SIZE);
+    if (clamped !== currentPage) {
+      setCurrentPage(clamped);
+      setPageInputValue(String(clamped + 1));
+    }
+  }, [isLiveMode, incrementalPagination, currentPage, displayCounts.totalNow]);
 
   const visibleData = useMemo(() => {
     if (builderOpen) return filteredData;
-    if (isLiveMode) return filteredData;
-    if (incrementalPagination) return filteredData.slice(0, visibleCount);
+    if (incrementalPagination) {
+      // Incremental mode shows the intended window, not the raw buffer:
+      // a hide-triggered refill overfetches (the buffer may briefly hold
+      // thousands of rows), but the operator asked to see targetVisible
+      // rows — slicing keeps "hide on 50 -> see 50 again" literal.
+      return isLiveMode
+        ? filteredData.slice(0, engine.targetVisible)
+        : filteredData.slice(0, visibleCount);
+    }
+    // Classic mode (both live and sample): a PAGE_SIZE window over the
+    // visible rows of the prefix buffer. goToPage ensures the buffer
+    // covers the requested page before this slice runs.
     const start = currentPage * BATCH_SIZE;
     return filteredData.slice(start, start + BATCH_SIZE);
-  }, [filteredData, visibleCount, isLiveMode, incrementalPagination, currentPage, builderOpen]);
-
-  const hasMore = isLiveMode ? liveHasMore : incrementalPagination ? visibleCount < filteredLen : false;
+  }, [filteredData, visibleCount, isLiveMode, incrementalPagination, currentPage, builderOpen, engine.targetVisible]);
 
   // Flatten temp definition's rule expressions for highlighting
   const highlightExpressions: RuleExpression[] | undefined = useMemo(() => {
@@ -2302,9 +2353,11 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     } else if (isLiveMode) {
       // No filter change to piggyback on — explicitly refetch so the freshly
       // saved rule's tags appear on the transactions list immediately.
-      fetchPage(outgoingFilters, false, incrementalPagination ? undefined : 0, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined, effectiveSorting);
+      // engineRefetch replaces the buffer atomically at the current visible
+      // target (no blanking, window preserved).
+      void engineRefetch();
     }
-  }, [dispatch, builder, editingDef, tagClickState, baseFilters, activeCheckout, libraries, refreshIfNeeded, getAuthHeaders, userId, tepConfig, saveBaseline, isLiveMode, outgoingFilters, fetchPage, incrementalPagination, activeExtraFilters, fetchFilterDefinitions, wizardCommentDrafts, effectiveSorting]);
+  }, [dispatch, builder, editingDef, tagClickState, baseFilters, activeCheckout, libraries, refreshIfNeeded, getAuthHeaders, userId, tepConfig, saveBaseline, isLiveMode, engineRefetch, fetchFilterDefinitions, wizardCommentDrafts]);
 
   const handleWizardClose = useCallback(() => {
     setWizardOpen(false);
@@ -2461,17 +2514,12 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         <div className='flex flex-col md:flex-row items-start justify-end md:items-center gap-2'>
           <h2 className="text-base font-semibold text-heading">Transactions</h2>
           {(() => {
-            // Header count is the operator-relevant total: raw backend total
-            // for the current filter scope MINUS hidden-tag rows (mirrors
-            // the pagination footer, see `displayCounts.totalNow`). Reading
-            // `totalTransactionsCount` directly here drifted the header
-            // away from the footer once the operator hid any tags (e.g.
-            // header showed "543" while the footer + table both showed
-            // 164 = 543 − 379 hidden). The "· N hidden" suffix is the
-            // BACKEND-aware hidden count in the same filter scope, so
-            // header now reads "164 · 379 hidden" in that scenario.
-            // "all hidden" surfaces when hidden covers the entire filter
-            // scope.
+            // Header shows TOTAL SHOWING for the current filter scope plus
+            // a "N hidden" suffix. Both numbers come from the engine's
+            // same-scope subtraction (totalShowing = serverTotal -
+            // hiddenTotal), so the header, footer, and table can never
+            // disagree. The hidden tally is filter-scoped: narrow the
+            // filters and it reflects the hidden rows inside that slice.
             const displayed = builderOpen && builderHasContent
               ? filteredData.length
               : isLiveMode && totalTransactionsCount != null
@@ -2479,22 +2527,14 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                 : filteredData.length;
             const hiddenSuffix = (() => {
               if (builderOpen) return '';
-              if (displayCounts.hiddenDisplay <= 0) return '';
-              // "all hidden" fires when the current filter scope has zero
-              // visible rows left (totalNow === 0 AND there's something to
-              // hide). The hidden count itself is now the FULL bank/side
-              // tally (decoupled from the filter scope), so we can't use
-              // "hiddenDisplay >= totalRaw" anymore — the full-scope hide
-              // count routinely exceeds the active filter's totalRaw and
-              // would misfire "all hidden" the moment the operator
-              // narrows the filter.
+              if (engine.totalHidden <= 0) return '';
               if (displayCounts.totalNow === 0) {
                 return ' · all hidden';
               }
-              return ` · ${displayCounts.hiddenDisplay.toLocaleString()} hidden`;
+              return ` · ${engine.totalHidden.toLocaleString()} hidden`;
             })();
             return (
-              <span className='text-sm mr-5 min-w-10 text-primary-dark whitespace-nowrap'>
+              <span className={`text-sm mr-5 shrink-0 text-primary-dark whitespace-nowrap${engine.hiddenCountLoading ? ' animate-pulse' : ''}`}>
                 ({displayed.toLocaleString()}{hiddenSuffix})
               </span>
             );
@@ -2502,11 +2542,12 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
           <div className="flex items-center gap-4">
             <Toggle label="Compact mode" checked={relaxedMode} onChange={setRelaxedMode} />
             <Toggle label="Incremental pagination" checked={incrementalPagination} onChange={(v) => {
+              // Both modes render windows over the same prefix buffer, so
+              // switching needs no fetch — just reset the window position.
               setIncrementalPagination(v);
               setCurrentPage(0);
               setPageInputValue('1');
               setVisibleCount(BATCH_SIZE);
-              if (!v && isLiveMode) fetchPage(outgoingFilters, false, 0, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined, effectiveSorting);
             }} />
             <span data-tour="show-attributes-toggle"><Toggle label="Show attributes" checked={showAttributes} onChange={setShowAttributes} /></span>
           </div>
@@ -2703,10 +2744,10 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                   //     emptied `filters` / `activeExtraFilters`
                   //     dependencies and fires the data refetch
                   //     (page 0, default PAGE_SIZE) — no manual
-                  //     fetchPage call needed here, which avoids the
+                  //     fetch call needed here, which avoids the
                   //     double-fetch we'd otherwise get from setFilters
-                  //     queuing the effect AND a direct fetchPage call.
-                  desiredLoadedCountRef.current = null;
+                  //     queuing the effect AND a direct fetch call.
+                  engine.resetTargetVisible();
                   setFilters({});
                   setCurrentTagFilterIds(new Set());
                   setActivePillFilters([]);
@@ -3347,6 +3388,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         onVisibleColumnsReady={setVisibleTableColumns}
         builderHeight={builderHeight}
         loading={loading}
+        forceSkeleton={hideBusy}
         accentHue={190}
 //   190 — cyan (default)
 // 220 — blue
@@ -3415,12 +3457,10 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         // maintenance liability. Refresh and the page-scope filters
         // already cover "show me less" use cases. The +N forward batch
         // buttons stay.
-        // "Remaining" drives the forward +N batch buttons. Use visible
-        // scope (totalNow / loadedNow) so the offered increments match
-        // what the operator can actually surface — asking for +25 when
-        // only 13 more visible rows exist would either undershoot the
-        // request or burn overfetch attempts hitting the cap. The
-        // overfetch loop still consumes raw rows under the hood.
+        // "Remaining" drives the forward +N batch buttons. Visible scope
+        // (totalNow / loadedNow), so the offered increments match what the
+        // operator can actually surface; the engine handles the raw-row
+        // overfetch under the hood.
         const remaining = Math.max(0, totalNow - loadedNow);
         const fwdBatches = (() => {
           const b = [25, 50, 200, 500].filter((x) => x <= remaining);
@@ -3445,11 +3485,14 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                 <span className="font-medium text-heading">{totalNow.toLocaleString()}</span>
                 {' total'}
               </span>
-              {hasMore && fwdBatches.length > 0 && (
+              {engine.refilling && (
+                <span className="text-xs text-muted animate-pulse">refilling…</span>
+              )}
+              {fwdBatches.length > 0 && (
                 <>
                   <span className="text-border">|</span>
                   {fwdBatches.map((size) => (
-                    <Button key={size} variant="outline" size="xs" onClick={() => loadNVisible(size)}>
+                    <Button key={size} variant="outline" size="xs" disabled={engine.refilling} onClick={() => loadNVisible(size)}>
                       +{size.toLocaleString()}
                     </Button>
                   ))}
@@ -3465,6 +3508,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                     <Button
                       variant="outline"
                       size="xs"
+                      disabled={engine.refilling}
                       title={`Load all ${remaining.toLocaleString()} remaining transactions`}
                       onClick={() => {
                         if (remaining > SHOW_ALL_CONFIRM_THRESHOLD) {
@@ -3482,12 +3526,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
             </>
           ) : (
             <>
-              <Button variant="ghost" size="xs" disabled={currentPage === 0} onClick={() => {
-                const newPage = currentPage - 1;
-                setCurrentPage(newPage);
-                setPageInputValue(String(newPage + 1));
-                if (isLiveMode) fetchPage(outgoingFilters, false, newPage, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined, effectiveSorting);
-              }}>
+              <Button variant="ghost" size="xs" disabled={currentPage === 0 || engine.refilling} onClick={() => goToPage(currentPage - 1)}>
                 &larr; Previous
               </Button>
               <span className="text-xs text-muted flex items-center gap-1">
@@ -3501,18 +3540,16 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                   onBlur={() => {
                     const num = parseInt(pageInputValue, 10);
                     if (!isNaN(num) && num >= 1 && num <= classicTotalPages) {
-                      setCurrentPage(num - 1);
-                      if (isLiveMode) fetchPage(outgoingFilters, false, num - 1, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined, effectiveSorting);
+                      goToPage(num - 1);
+                    } else {
+                      setPageInputValue(String(currentPage + 1));
                     }
-                    setPageInputValue(String(currentPage + 1));
                   }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       const num = parseInt(pageInputValue, 10);
                       if (!isNaN(num) && num >= 1 && num <= classicTotalPages) {
-                        setCurrentPage(num - 1);
-                        setPageInputValue(String(num));
-                        if (isLiveMode) fetchPage(outgoingFilters, false, num - 1, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined, effectiveSorting);
+                        goToPage(num - 1);
                       } else {
                         setPageInputValue(String(currentPage + 1));
                       }
@@ -3521,12 +3558,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                 />
                 of {classicTotalPages.toLocaleString()}
               </span>
-              <Button variant="ghost" size="xs" disabled={currentPage >= classicTotalPages - 1} onClick={() => {
-                const newPage = currentPage + 1;
-                setCurrentPage(newPage);
-                setPageInputValue(String(newPage + 1));
-                if (isLiveMode) fetchPage(outgoingFilters, false, newPage, undefined, activeExtraFilters.length > 0 ? activeExtraFilters : undefined, effectiveSorting);
-              }}>
+              <Button variant="ghost" size="xs" disabled={currentPage >= classicTotalPages - 1 || engine.refilling} onClick={() => goToPage(currentPage + 1)}>
                 Next &rarr;
               </Button>
               <span className="text-border">|</span>
@@ -3714,32 +3746,11 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
           onClose={() => setSearchPanelOpen(false)}
         />
       )}
-      {/* Full-screen busy overlay for hide / unhide tag spec operations.
-          Unhiding many tag specs at once forces a heavy re-render
-          (every previously-hidden row comes back, gets re-analyzed,
-          re-laid out) that visibly freezes the browser. The overlay
-          gives the operator a clear "working…" signal so they don't
-          assume the app crashed. It paints before the heavy re-render
-          starts (busy is set true, the work is deferred via setTimeout)
-          and stays up through the commit (the clear is also deferred
-          into a separate task so the overlay outlives the reflow). */}
-      {hideBusy && (
-        <div
-          role="status"
-          aria-live="polite"
-          aria-label="Updating hidden tag specs"
-          className="fixed inset-0 z-100 flex items-center justify-center bg-slate-950/40 backdrop-blur-[2px] pointer-events-auto"
-        >
-          <div className="flex flex-col items-center gap-3 rounded-xl bg-surface-elevated border border-border shadow-lg px-6 py-5">
-            <svg className="w-8 h-8 animate-spin text-primary" viewBox="0 0 24 24" fill="none" aria-hidden>
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-            <p className="text-sm font-medium text-body">Updating tag spec visibility…</p>
-            <p className="text-xs text-muted">This can take a moment when restoring many tag specs.</p>
-          </div>
-        </div>
-      )}
+      {/* Hide / unhide tag spec operations show their loading state via the
+          TABLE skeleton (forceSkeleton={hideBusy}) plus the footer skeleton,
+          matching the pagination loading look — lighter and more localized
+          than the old full-screen blur overlay. `hideBusy` stays true through
+          the engine's refill fetch (see the refilling-settle effect). */}
     </div>
     </WizardCommentDraftsProvider>
   );

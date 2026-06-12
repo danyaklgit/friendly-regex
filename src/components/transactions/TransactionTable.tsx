@@ -48,6 +48,10 @@ interface TransactionTableProps {
   onVisibleColumnsReady?: (columns: ColumnDef[]) => void;
   builderHeight?: number;
   loading?: boolean;
+  /** Force the skeleton rows even when the buffer is non-empty — used
+   *  during a hide/unhide refill so the table shows a loading state
+   *  instead of the stale (pre-refill) rows. */
+  forceSkeleton?: boolean;
   accentHue?: number;
   onRowContextMenu?: (row: TransactionRow, x: number, y: number) => void;
   /** Fired on double-click of a 'data:*' cell. Caller decides which fields
@@ -1537,7 +1541,7 @@ const TableRow = memo(function TableRow({
   );
 });
 
-export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, definitionSourceMap, definitionVersions, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, onFlagDeadEndWithComment, onSetComments, onHideTagDefs, showAttributes = true, relaxedMode = false, hiddenColumns = EMPTY_HIDDEN_COLUMNS, columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, accentHue = 190, onRowContextMenu, onCellDoubleClick, interactiveCellFields, interactiveCellHint, originalEditingDef, activeDefinitionId, sortOverride = null, onSortChange, columnWidths, onColumnWidthChange }: TransactionTableProps) {
+export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, definitionSourceMap, definitionVersions, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, onFlagDeadEndWithComment, onSetComments, onHideTagDefs, showAttributes = true, relaxedMode = false, hiddenColumns = EMPTY_HIDDEN_COLUMNS, columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, forceSkeleton = false, accentHue = 190, onRowContextMenu, onCellDoubleClick, interactiveCellFields, interactiveCellHint, originalEditingDef, activeDefinitionId, sortOverride = null, onSortChange, columnWidths, onColumnWidthChange }: TransactionTableProps) {
   // Resolve the effective width for a column: explicit override wins,
   // otherwise the catalog default, otherwise undefined (browser
   // auto-layout). Width overrides are intentionally scoped to non-compact
@@ -1637,6 +1641,38 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     }
   }, [data, allRowsSelected, getRowId]);
 
+  // id -> row lookup, rebuilt only when `data` changes (NOT on selection).
+  // Selection logic below previously did `data.find(...)` once per selected
+  // id — O(n²) — which froze the UI for seconds after Show all + Select all
+  // on tens of thousands of rows (and on every render via the action bar).
+  // With this map every lookup is O(1).
+  const rowById = useMemo(() => {
+    const m = new Map<string, (typeof data)[number]>();
+    for (const item of data) {
+      const id = getRowId(item.row);
+      if (!m.has(id)) m.set(id, item);
+    }
+    return m;
+  }, [data, getRowId]);
+
+  // Aggregate flags over the current selection, computed in ONE O(selected)
+  // pass (O(1) lookups) and memoized — so the selection action bar can read
+  // them without re-deriving on every render. Mirrors the previous inline
+  // semantics: a selected id absent from the current data counts as
+  // "not dead end" (so it can't make allDeadEnd true) and as "not tagged".
+  const selectionSummary = useMemo(() => {
+    let anyDeadEnd = false;
+    let anyNotDeadEnd = false;
+    let anyTagged = false;
+    for (const id of selectedIds) {
+      const item = rowById.get(id);
+      if (!item) { anyNotDeadEnd = true; continue; }
+      if (item.row['IsDeadEnd'] === true) anyDeadEnd = true; else anyNotDeadEnd = true;
+      if (item.analysis.tags.length > 0) anyTagged = true;
+    }
+    return { allDeadEnd: !anyNotDeadEnd, noneDeadEnd: !anyDeadEnd, anySelectedTagged: anyTagged };
+  }, [selectedIds, rowById]);
+
   const [flagLoading, setFlagLoading] = useState(false);
   const handleFlagDeadEnd = useCallback(async (value: boolean) => {
     if (!onFlagDeadEnd || selectedIds.size === 0) return;
@@ -1670,11 +1706,11 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     if (!commentDialogState) return [];
     const rows: TransactionRow[] = [];
     for (const id of selectedIds) {
-      const item = data.find((d) => getRowId(d.row) === id);
+      const item = rowById.get(id);
       if (item) rows.push(item.row);
     }
     return rows;
-  }, [commentDialogState, selectedIds, data, getRowId]);
+  }, [commentDialogState, selectedIds, rowById]);
 
   const handleCommentDialogConfirm = useCallback(async (result: CommentDialogResult) => {
     if (!commentDialogState) return;
@@ -1702,21 +1738,37 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     }
   }, [commentDialogState, selectedIds, onFlagDeadEndWithComment, onFlagDeadEnd, onSetComments]);
 
-  // Clear the selection whenever the row count changes (pagination, filter,
-  // refresh, etc.). Operator decision: paginating should not carry selection
-  // forward — selection only applies to what's currently in view.
+  // Clear the selection when the dataset is REPLACED (filter change, page
+  // nav, hide refill — the first row id changes or the set shrinks), but
+  // NOT when the same dataset merely GROWS. Show all / +N append rows, and
+  // `analyzeRow` commits them to `data` (visibleData) in 500-row chunks, so
+  // the length climbs over many renders after a single click — keying the
+  // reset on raw length change wiped an in-progress selection every chunk
+  // (the "select-all selects then deselects, count jumps by ~1500" bug).
+  // Growth keeps the prefix (data[0]) stable; a replace changes it.
   //
-  // The reset runs during render (not in an effect) so that React discards
-  // the in-flight render and re-renders with an empty selection before
-  // committing to the DOM. Otherwise there is a one-frame gap where the
-  // action-bar count walks the new data with the stale selection set and
-  // briefly shows the wrong number ("150 selected") before the effect
-  // clears it.
-  const prevDataLenRef = useRef<number>(data.length);
-  if (data.length !== prevDataLenRef.current) {
-    prevDataLenRef.current = data.length;
-    if (selectedIds.size > 0) setSelectedIds(new Set());
-    if (selectAllActive) setSelectAllActive(false);
+  // The reset runs during render (not in an effect) so React discards the
+  // in-flight render and re-renders with an empty selection before
+  // committing — avoiding a one-frame gap where the action-bar count walks
+  // the new data with the stale selection and briefly shows a wrong number.
+  const currFirstRowId = data.length > 0 ? getRowId(data[0].row) : null;
+  const prevDataSigRef = useRef<{ firstId: string | null; len: number }>({ firstId: currFirstRowId, len: data.length });
+  if (currFirstRowId !== prevDataSigRef.current.firstId || data.length !== prevDataSigRef.current.len) {
+    const prev = prevDataSigRef.current;
+    const replaced = currFirstRowId !== prev.firstId || data.length < prev.len;
+    const grew = !replaced && data.length > prev.len;
+    prevDataSigRef.current = { firstId: currFirstRowId, len: data.length };
+    if (replaced) {
+      if (selectedIds.size > 0) setSelectedIds(new Set());
+      if (selectAllActive) setSelectAllActive(false);
+    } else if (grew && selectAllActive) {
+      // "Select all" is active and the SAME dataset grew (Show all / +N
+      // rows arriving, or analyzeRow committing chunks). Extend the
+      // selection to the new rows so select-all stays comprehensive as the
+      // table finishes loading, instead of freezing at the row count that
+      // happened to be analyzed when the operator clicked.
+      setSelectedIds(new Set(data.map((item) => getRowId(item.row))));
+    }
   }
 
   // Hide Tag action state. Keyed by OpsTagSpecDefinitionId so two definitions
@@ -1735,7 +1787,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     if (selectedIds.size === 0) return [] as HideTagDef[];
     const map = new Map<string, HideTagDef>();
     for (const id of selectedIds) {
-      const item = data.find((d) => getRowId(d.row) === id);
+      const item = rowById.get(id);
       if (!item) continue;
       item.analysis.matchedDefinitions.forEach((def, ti) => {
         if (!def || map.has(def.Id)) return;
@@ -1754,7 +1806,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
       const byName = a.name.localeCompare(b.name);
       return byName !== 0 ? byName : (a.version ?? 0) - (b.version ?? 0);
     });
-  }, [selectedIds, data, getRowId, definitionVersions]);
+  }, [selectedIds, rowById, definitionVersions]);
 
   const openHideTagDialog = useCallback(() => {
     if (selectedTagDefs.length === 0) return;
@@ -2492,6 +2544,37 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
   });
   const virtualRows = rowVirtualizer.getVirtualItems();
 
+  // Re-sync the virtualizer whenever the underlying row set changes. The
+  // rows arrive AFTER mount (the live dual-query refill lands async, and
+  // analyzeRow commits in idle-callback chunks), so the buffer the
+  // virtualizer first measured is replaced a beat later. tanstack-virtual
+  // only re-reads the scroll element + re-measures on a scroll/resize
+  // event, so without this kick it keeps a stale scroll offset and
+  // measurement cache and paints the rows at the wrong vertical offset —
+  // a large empty gap that only collapses once the operator scrolls. This
+  // effect keys off the row-set identity (length + first/last row id), so
+  // it does NOT fire while scrolling (the signature is stable then) and
+  // costs nothing on the hot path.
+  //
+  // A changed FIRST row id (or a transition out of empty) means the buffer
+  // was REPLACED (filter change, hide refill, remount, classic page nav),
+  // not appended to — snap the scroll back to the top so the fresh rows
+  // render from offset 0. A pure `+N` append keeps the same first row id
+  // and must keep the operator's scroll position, so it only re-measures.
+  const firstRowId = data.length > 0 ? getRowId(data[0].row) : null;
+  const lastRowId = data.length > 0 ? getRowId(data[data.length - 1].row) : null;
+  const prevFirstRowIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (data.length === 0) { prevFirstRowIdRef.current = null; return; }
+    if (firstRowId !== prevFirstRowIdRef.current) {
+      scrollContainerRef.current?.scrollTo({ top: 0 });
+      prevFirstRowIdRef.current = firstRowId;
+    }
+    rowVirtualizer.measure();
+    // Keyed by the row-set signature; rowVirtualizer identity is stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.length, firstRowId, lastRowId]);
+
   // Mirror tanstack-virtual's `isScrolling` into the global scrolling
   // signal. Tooltip reads it at event time (no subscription): rows
   // sliding under a stationary cursor mid-scroll fire mouseenter with
@@ -2603,23 +2686,14 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
 
       {/* Selection action bar */}
       {hasSelection && onFlagDeadEnd && (() => {
-        const allDeadEnd = [...selectedIds].every((id) => {
-          const item = data.find((d) => getRowId(d.row) === id);
-          return item?.row['IsDeadEnd'] === true;
-        });
-        const noneDeadEnd = [...selectedIds].every((id) => {
-          const item = data.find((d) => getRowId(d.row) === id);
-          return item?.row['IsDeadEnd'] !== true;
-        });
         // Dead-end means "can't be tagged today" — flagging a row that
         // already has detected tag specs contradicts that, and unflagging
         // one is just as nonsensical (the operator should hide the tag,
         // not toggle dead-end state). Block both buttons whenever any
-        // selected row carries at least one tag.
-        const anySelectedTagged = [...selectedIds].some((id) => {
-          const item = data.find((d) => getRowId(d.row) === id);
-          return item ? item.analysis.tags.length > 0 : false;
-        });
+        // selected row carries at least one tag. These flags come from the
+        // memoized `selectionSummary` (one O(selected) pass) so the action
+        // bar stays O(1) per render even with tens of thousands selected.
+        const { allDeadEnd, noneDeadEnd, anySelectedTagged } = selectionSummary;
         const deadEndDisabledTip = 'Selection includes tagged transactions. Untag them first, or narrow the selection to untagged rows.';
         const flagHandler = onFlagDeadEndWithComment ? openFlagDialog : null;
         return (
@@ -2900,7 +2974,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
             )}
           </thead>
           <tbody className="bg-surface divide-y divide-divide">
-            {loading && data.length === 0 ? (
+            {forceSkeleton || (loading && data.length === 0) ? (
               Array.from({ length: 50 }, (_, rowIdx) => (
                 <tr key={`skel-${rowIdx}`} className="animate-pulse" style={{ height: '30.4px' }}>
                   <td colSpan={visibleColumns.length <= 1 ? 6 : visibleColumns.length} className="px-3" style={{ verticalAlign: 'middle' }}>

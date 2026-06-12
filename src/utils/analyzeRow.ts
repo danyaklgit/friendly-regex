@@ -60,7 +60,6 @@ export function analyzeRow(
   scratch?: AnalyzeRowScratch,
 ): RowAnalysisResult {
   const tags: string[] = [];
-  const attributes: Record<string, Record<string, string | null>> = {};
   const matchedDefinitions: TagSpecDefinition[] = [];
 
   // Today as YYYY-MM-DD for validity-window checks. Hoisted out of the
@@ -102,12 +101,6 @@ export function analyzeRow(
       if (matches) {
         tags.push(def.Tag);
         matchedDefinitions.push(def);
-        // Key by def.Id, NOT def.Tag — multiple matched defs can share a tag
-        // name (e.g. two "TransferInDom" definitions covering different sender
-        // patterns). Tag-keyed storage would have the last matched def silently
-        // overwrite the first, so the table couldn't display attributes scoped
-        // to the definition the user is currently filtering by.
-        attributes[def.Id] = extractAttributes(def.Attributes, row);
       }
     }
   }
@@ -153,10 +146,33 @@ export function analyzeRow(
         if (matchedDefinitions.some((d) => d.Id === def.Id)) continue;
         tags.push(def.Tag);
         matchedDefinitions.push(def);
-        attributes[def.Id] = extractAttributes(def.Attributes, row);
       }
     }
   }
 
-  return { tags, attributes, matchedDefinitions };
+  // Attributes are extracted LAZILY: the per-definition regex extraction is
+  // the dominant per-row cost, but the table only reads a row's attributes
+  // when it RENDERS that row (~one virtual window of rows at a time), never
+  // for the count / filter / select-all paths. Computing them eagerly for
+  // every loaded row made a Show all over tens of thousands of rows crawl
+  // (and "select all" wait on it). The getter computes once on first access
+  // and caches, keyed by def.Id — same values as before, just deferred.
+  // NOTE: object spread (`{ ...analysis }`) invokes this getter; build new
+  // analysis objects field-by-field instead (see displayAnalyzedData).
+  let attrCache: Record<string, Record<string, string | null>> | undefined;
+  return {
+    tags,
+    matchedDefinitions,
+    get attributes() {
+      if (attrCache === undefined) {
+        attrCache = {};
+        for (const def of matchedDefinitions) {
+          // Key by def.Id, NOT def.Tag — multiple matched defs can share a
+          // tag name; tag-keyed storage would clobber earlier matches.
+          attrCache[def.Id] = extractAttributes(def.Attributes, row);
+        }
+      }
+      return attrCache;
+    },
+  };
 }
