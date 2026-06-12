@@ -1,4 +1,4 @@
-import { useMemo, useLayoutEffect, useEffect, useRef, useState, useCallback, type ReactNode } from 'react';
+import { memo, useMemo, useLayoutEffect, useEffect, useRef, useState, useCallback, type ReactNode } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { AnalyzedTransaction, TagSpecDefinition, TagAttribute, RuleExpression, TransactionRow } from '../../types';
 import { useTransactionData } from '../../hooks/useTransactionData';
@@ -664,7 +664,880 @@ function SortChevron({ activeOrder }: { activeOrder: 'ASC' | 'DESC' | null }) {
   );
 }
 
-export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, definitionSourceMap, definitionVersions, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, onFlagDeadEndWithComment, onSetComments, onHideTagDefs, showAttributes = true, relaxedMode = false, hiddenColumns = new Set(), columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, accentHue = 190, onRowContextMenu, onCellDoubleClick, interactiveCellFields, interactiveCellHint, originalEditingDef, activeDefinitionId, sortOverride = null, onSortChange, columnWidths, onColumnWidthChange }: TransactionTableProps) {
+// ─── Row-render helpers (module scope) ────────────────────────────────────
+// Everything below was previously defined as closures inside TransactionTable
+// and recreated on every render, which made it impossible to memoize the row
+// component (every prop changed identity each render). They are hoisted here
+// and parameterized on exactly what they read from the parent so the
+// memoized TableRow can call them with values from its stable `ctx` prop.
+
+type AttrValidation = { regex: RegExp; sourceField: string; verifyValue?: string; validateExtracted?: boolean };
+type RowHighlight = { rowIdx: number; field: string; attrKey: string };
+
+// Stable default for the `hiddenColumns` prop. An inline `new Set()` default
+// would mint a fresh Set on every render for callers that omit the prop,
+// invalidating the `visibleColumns` memo (and with it the row ctx) each time.
+const EMPTY_HIDDEN_COLUMNS = new Set<string>();
+
+function getCellStyleFor(
+  colIdx: number,
+  isHeader: boolean,
+  stickyLefts: Map<number, number>,
+  stickyRights: Map<number, number>,
+): React.CSSProperties {
+  const isStickyLeft = stickyLefts.has(colIdx);
+  const isStickyRight = stickyRights.has(colIdx);
+  const isStickyCol = isStickyLeft || isStickyRight;
+  if (!isStickyCol && !isHeader) return {};
+
+  const style: React.CSSProperties = { position: 'sticky' };
+
+  if (isHeader) {
+    style.top = 0;
+    style.zIndex = isStickyCol ? 30 : 10;
+  }
+
+  if (isStickyLeft) {
+    style.left = stickyLefts.get(colIdx)!;
+    if (!isHeader) style.zIndex = 20;
+  } else if (isStickyRight) {
+    style.right = stickyRights.get(colIdx)!;
+    if (!isHeader) style.zIndex = 20;
+  }
+
+  return style;
+}
+
+function stickyEdgeShadowFor(colIdx: number, lastLeftIdx: number, firstRightIdx: number): ReactNode {
+  if (colIdx === lastLeftIdx) {
+    return (
+      <div
+        style={{
+          position: 'absolute', top: 0, bottom: 0, left: '100%', width: 6,
+          background: 'linear-gradient(to right, rgba(0,0,0,0.08), transparent)',
+          pointerEvents: 'none',
+        }}
+      />
+    );
+  }
+  if (colIdx === firstRightIdx) {
+    return (
+      <div
+        style={{
+          position: 'absolute', top: 0, bottom: 0, right: '100%', width: 6,
+          background: 'linear-gradient(to left, rgba(0,0,0,0.08), transparent)',
+          pointerEvents: 'none',
+        }}
+      />
+    );
+  }
+  return null;
+}
+
+function renderCellContentFor(
+  field: string,
+  value: string | number | boolean | null,
+  highlightMap: Map<string, RegExp[]> | null,
+  searchHighlightMap: Map<string, RegExp[]> | null,
+): ReactNode {
+  if (value == null) return <span className="text-faint">-</span>;
+  // Dates come back as ISO strings — strip the time portion for display.
+  const raw = String(value);
+  const text = DATE_FIELDS.has(field) ? raw.split('T')[0] : raw;
+  const regexes = [
+    ...(highlightMap?.get(field) ?? []),
+    ...(searchHighlightMap?.get(field) ?? []),
+  ];
+  if (regexes.length > 0) return highlightText(text, regexes);
+  return text;
+}
+
+function getCertaintyFor(tagDefinitions: TagSpecDefinition[], tagName: string) {
+  const def = tagDefinitions.find((d) => d.Tag === tagName);
+  return def?.CertaintyLevelTag ?? 'HIGH';
+}
+
+// Build a human description of an attribute's extraction rule. Prefers the
+// RegexDetails[].Description saved on the attribute (which includes optional
+// modifiers like occurrence/numChars/toStr), falling back to a reverse-parse
+// of the regex when that's absent.
+function ruleDescription(attr: TagAttribute): string {
+  // Constant-mode attribute: there's no extraction expression to describe.
+  if (attr.Constant != null) {
+    return `= "${attr.Constant}" (constant)`;
+  }
+  const expr = attr.AttributeRuleExpression;
+  if (!expr) return '';
+  const stored = expr.RegexDetails?.find((d) => d.LanguageCode === 'en')?.Description;
+  if (stored) return stored;
+  const decomposed = decomposeExtractionRegex(expr.Regex);
+  switch (decomposed.operation) {
+    case 'extract_between':
+      return `Extract between '${decomposed.prefix ?? ''}' and '${decomposed.suffix ?? ''}'`;
+    case 'extract_after':
+      return `Extract after '${decomposed.prefix ?? ''}'`;
+    case 'extract_before':
+      return `Extract before '${decomposed.suffix ?? ''}'`;
+    case 'extract_skip_take': {
+      const n = decomposed.fromPosition ?? 0;
+      const take = decomposed.tillEndOfInput || !decomposed.numChars
+        ? 'everything till end of input'
+        : `${decomposed.numChars} character${decomposed.numChars === 1 ? '' : 's'}`;
+      return `Skip ${n} character${n === 1 ? '' : 's'}, then take ${take}`;
+    }
+    case 'extract_matching':
+    default:
+      return `Extract matching '${decomposed.pattern || expr.Regex}'`;
+  }
+}
+
+// Normalize a regex string to the form the wizard's form round-trip
+// produces. The form loads a saved regex via decomposeExtractionRegex (which
+// keeps only operation + prefix/suffix/pattern) and re-emits it via
+// regexifyExtraction. That round-trip isn't byte-identical — e.g. a raw
+// leading `^` in the saved regex gets escaped to `\^`. To decide whether
+// the user actually edited an attribute, compare both sides through this
+// same pipeline so cosmetic round-trip differences don't register as edits.
+function normalizeRegex(regex: string): string {
+  const decomposed = decomposeExtractionRegex(regex);
+  return regexifyExtraction(decomposed.operation, decomposed);
+}
+
+// Compare two same-side transformation lists element-by-element. Both the
+// pre and post lists go through the SAME shape check — adding only one of
+// them would leave the diff blind to pre-extraction-only edits (and the
+// "saved-vs-draft" tooltip would claim the attribute is unchanged when its
+// runtime output now differs).
+function transformationsEqual(
+  ta: TagAttribute['Transformations'],
+  tb: TagAttribute['Transformations'],
+): boolean {
+  const la = ta ?? [];
+  const lb = tb ?? [];
+  if (la.length !== lb.length) return false;
+  for (let i = 0; i < la.length; i++) {
+    if (la[i].Method !== lb[i].Method) return false;
+    const aa = la[i].Args ?? [];
+    const bb = lb[i].Args ?? [];
+    if (aa.length !== bb.length) return false;
+    for (let j = 0; j < aa.length; j++) {
+      if (aa[j].Key !== bb[j].Key || aa[j].Value !== bb[j].Value) return false;
+    }
+  }
+  return true;
+}
+
+// Compare two attribute rules for semantic equality — source field,
+// normalized regex, and transformation pipeline. For constant-mode
+// attributes (no regex/source/transformations), compare the literal value.
+function attrRulesEqual(a: TagAttribute, b: TagAttribute): boolean {
+  const aIsConstant = a.Constant != null;
+  const bIsConstant = b.Constant != null;
+  if (aIsConstant !== bIsConstant) return false; // mode change
+  if (aIsConstant && bIsConstant) return a.Constant === b.Constant;
+  // Both extraction-mode beyond here.
+  const aExpr = a.AttributeRuleExpression;
+  const bExpr = b.AttributeRuleExpression;
+  if (!aExpr || !bExpr) return aExpr === bExpr;
+  if (aExpr.SourceField !== bExpr.SourceField) return false;
+  if (normalizeRegex(aExpr.Regex) !== normalizeRegex(bExpr.Regex)) return false;
+  if (!transformationsEqual(a.PreExtractionTransformations, b.PreExtractionTransformations)) return false;
+  if (!transformationsEqual(a.Transformations, b.Transformations)) return false;
+  return true;
+}
+
+// Returns true when this attribute's rule is currently being edited in the
+// rule builder AND the draft rule differs from the saved one. Used to
+// suppress the server-side fallback in getAttributeValueFor — otherwise a
+// non-matching draft would show the old (saved) value, giving a false
+// impression that the draft still works.
+function isAttributeBeingEditedFor(
+  item: AnalyzedTransaction,
+  attrName: string,
+  originalEditingDef: TagSpecDefinition | undefined,
+): boolean {
+  if (!originalEditingDef) return false;
+  for (const def of item.analysis.matchedDefinitions) {
+    if (def.Id !== originalEditingDef.Id) continue;
+    const currentAttr = def.Attributes.find((a) => a.AttributeTag === attrName);
+    const originalAttr = originalEditingDef.Attributes.find((a) => a.AttributeTag === attrName);
+    if (currentAttr && originalAttr && !attrRulesEqual(originalAttr, currentAttr)) return true;
+  }
+  return false;
+}
+
+function getAttributeValueFor(
+  item: AnalyzedTransaction,
+  attrName: string,
+  activeDefinitionId: string | undefined,
+  tagDefinitions: TagSpecDefinition[],
+  originalEditingDef: TagSpecDefinition | undefined,
+): string | null {
+  const row = item.row as unknown as Record<string, unknown>;
+  const scan = (list: unknown): string | null => {
+    if (!Array.isArray(list)) return null;
+    for (const entry of list) {
+      if (entry && typeof entry === 'object') {
+        const e = entry as { Key?: unknown; Value?: unknown };
+        if (e.Key === attrName && e.Value != null && e.Value !== '') {
+          return String(e.Value);
+        }
+      }
+    }
+    return null;
+  };
+
+  // ─── Scoped lookup ─────────────────────────────────────────────────────
+  // When the table is scoped to a specific definition (tag-click drill-down
+  // or active edit), only that definition's data is relevant. Falling
+  // through to other matched defs would surface another tag's extracted
+  // values for multi-tagged rows, which is wrong.
+  if (activeDefinitionId) {
+    // 1) Client-computed value — but only if it actually extracted
+    // something. A null here just means the client regex didn't match this
+    // row's source field; the server may still have the value in
+    // OpsAttributes / OpsMultiTags, so fall through rather than returning.
+    const tagAttrs = item.analysis.attributes[activeDefinitionId];
+    if (tagAttrs && attrName in tagAttrs && tagAttrs[attrName] !== null) {
+      return tagAttrs[attrName];
+    }
+    if (isAttributeBeingEditedFor(item, attrName, originalEditingDef)) return null;
+    // 2) Server-provided fallback — only the active def's entry counts.
+    const multi = row.OpsMultiTags;
+    if (Array.isArray(multi)) {
+      for (const mt of multi) {
+        if (mt && typeof mt === 'object') {
+          const m = mt as { TagSpecDefinitionId?: unknown; Attributes?: unknown };
+          if (m.TagSpecDefinitionId === activeDefinitionId) {
+            const v = scan(m.Attributes);
+            if (v !== null) return v;
+            break;
+          }
+        }
+      }
+    }
+    // OpsAttributes belongs to row.OpsTagSpecDefinitionId — only use it if
+    // the row's primary tag is the active def.
+    if (row.OpsTagSpecDefinitionId === activeDefinitionId) {
+      return scan(row.OpsAttributes);
+    }
+    return null;
+  }
+
+  // ─── Unscoped lookup (whole table view) ───────────────────────────────
+  // 1) Client-computed value (reflects live rule-builder drafts/edits).
+  // Iterate in tagDefinitions order (which puts the rule-builder draft / temp
+  // definition FIRST) so a draft attribute with a post-extraction
+  // transformation overrides the same attribute name in other matched saved
+  // defs that don't carry that transformation.
+  for (const def of tagDefinitions) {
+    const tagAttrs = item.analysis.attributes[def.Id];
+    if (tagAttrs && attrName in tagAttrs && tagAttrs[attrName] !== null) {
+      return tagAttrs[attrName];
+    }
+  }
+  // Fallback for any matched defs not present in tagDefinitions (defensive).
+  for (const tagAttrs of Object.values(item.analysis.attributes)) {
+    if (attrName in tagAttrs && tagAttrs[attrName] !== null) {
+      return tagAttrs[attrName];
+    }
+  }
+  if (isAttributeBeingEditedFor(item, attrName, originalEditingDef)) return null;
+  // 2) Server-provided fallback — the API response carries pre-computed values
+  // in OpsAttributes (single-tag rows) or OpsMultiTags[*].Attributes (multi-tag
+  // rows). Use them when the client couldn't extract (e.g. regex has no capture
+  // group, or the source field on this row is empty).
+  const primary = scan(row.OpsAttributes);
+  if (primary !== null) return primary;
+  const multi = row.OpsMultiTags;
+  if (Array.isArray(multi)) {
+    for (const mt of multi) {
+      if (mt && typeof mt === 'object') {
+        const v = scan((mt as { Attributes?: unknown }).Attributes);
+        if (v !== null) return v;
+      }
+    }
+  }
+  return null;
+}
+
+// Pulls the server-computed `IsValid` flag for an attribute out of the
+// GetMT940Transactions response (OpsAttributes for single-tag rows,
+// OpsMultiTags[*].Attributes for multi-tag rows). Returns `null` when the
+// server didn't include the attribute on this row — the caller falls back
+// to client-side ValidationClass regex testing in that case (wizard
+// preview, sample mode, etc.). Scoping rules mirror getAttributeValueFor so
+// a drill-down view doesn't pick up the wrong tag's validation flag.
+function getAttributeIsValidFor(
+  item: AnalyzedTransaction,
+  attrName: string,
+  activeDefinitionId: string | undefined,
+): boolean | null {
+  const row = item.row as unknown as Record<string, unknown>;
+  const scan = (list: unknown): boolean | null => {
+    if (!Array.isArray(list)) return null;
+    for (const entry of list) {
+      if (entry && typeof entry === 'object') {
+        const e = entry as { Key?: unknown; IsValid?: unknown };
+        if (e.Key === attrName && typeof e.IsValid === 'boolean') {
+          return e.IsValid;
+        }
+      }
+    }
+    return null;
+  };
+
+  if (activeDefinitionId) {
+    const multi = row.OpsMultiTags;
+    if (Array.isArray(multi)) {
+      for (const mt of multi) {
+        if (mt && typeof mt === 'object') {
+          const m = mt as { TagSpecDefinitionId?: unknown; Attributes?: unknown };
+          if (m.TagSpecDefinitionId === activeDefinitionId) {
+            const v = scan(m.Attributes);
+            if (v !== null) return v;
+            break;
+          }
+        }
+      }
+    }
+    if (row.OpsTagSpecDefinitionId === activeDefinitionId) {
+      return scan(row.OpsAttributes);
+    }
+    return null;
+  }
+
+  const primary = scan(row.OpsAttributes);
+  if (primary !== null) return primary;
+  const multi = row.OpsMultiTags;
+  if (Array.isArray(multi)) {
+    for (const mt of multi) {
+      if (mt && typeof mt === 'object') {
+        const v = scan((mt as { Attributes?: unknown }).Attributes);
+        if (v !== null) return v;
+      }
+    }
+  }
+  return null;
+}
+
+// Render a string with the differing slice wrapped in <mark>, using the
+// shared highlight style from highlightText above.
+function renderDiffed(value: string, otherValue: string, side: 'old' | 'new'): ReactNode {
+  const diff = diffStrings(side === 'old' ? value : otherValue, side === 'old' ? otherValue : value);
+  const middle = side === 'old' ? diff.oldMiddle : diff.newMiddle;
+  if (!middle && diff.head === value) return value;
+  return (
+    <>
+      {diff.head}
+      {middle && (
+        <mark className="bg-primary/20 dark:bg-primary/40 rounded-sm text-heading dark:text-primary-light font-medium px-0.5 ring-1 ring-primary/40 dark:ring-primary/70">
+          {middle}
+        </mark>
+      )}
+      {diff.tail}
+    </>
+  );
+}
+
+// Get tooltip for an attribute cell. Returns a ReactNode so we can render
+// the Before/After diff when the rule builder is editing an existing def
+// and this attribute's rule has actually changed. Called lazily (only when
+// the tooltip opens) — the diff path runs extractAttributes twice per call,
+// which is far too expensive to compute eagerly for every mounted cell.
+function getAttributeTooltipFor(
+  item: AnalyzedTransaction,
+  attrName: string,
+  originalEditingDef: TagSpecDefinition | undefined,
+): ReactNode | null {
+  for (const def of item.analysis.matchedDefinitions) {
+    const currentAttr = def.Attributes.find((a) => a.AttributeTag === attrName);
+    if (!currentAttr) continue;
+
+    // Constant mode has no source field — show a flat "Constant = …" line.
+    // The before/after diff path below is meaningless for a literal value,
+    // so short-circuit even when we're editing the source definition.
+    if (currentAttr.Constant != null) {
+      return `Constant = "${currentAttr.Constant}"`;
+    }
+    if (!currentAttr.AttributeRuleExpression) continue;
+    const currentSource = humanizeFieldName(currentAttr.AttributeRuleExpression.SourceField);
+    const currentRule = ruleDescription(currentAttr);
+
+    const isEditingThisDef = originalEditingDef && def.Id === originalEditingDef.Id;
+    const originalAttr = isEditingThisDef
+      ? originalEditingDef.Attributes.find((a) => a.AttributeTag === attrName)
+      : undefined;
+    const shouldDiff = originalAttr && !attrRulesEqual(originalAttr, currentAttr);
+
+    if (!shouldDiff) {
+      return `Extracted from ${currentSource} — ${currentRule}`;
+    }
+
+    const oldValueRaw = extractAttributes([originalAttr], item.row)[originalAttr.AttributeTag];
+    const newValueRaw = extractAttributes([currentAttr], item.row)[currentAttr.AttributeTag];
+    const oldValue = oldValueRaw ?? '';
+    const newValue = newValueRaw ?? '';
+
+    return (
+      <div className="text-xs leading-snug space-y-1.5 py-0.5">
+        <div>
+          <div className="text-[9px] uppercase tracking-wider text-faint font-semibold">Before</div>
+          <div className="font-mono text-primary-dark">
+            {oldValueRaw === null ? <span className="text-faint italic">no match</span> : <>"{renderDiffed(oldValue, newValue, 'old')}"</>}
+          </div>
+        </div>
+        <div>
+          <div className="text-[9px] uppercase tracking-wider text-primary font-semibold">After</div>
+          <div className="font-mono text-primary-dark">
+            {newValueRaw === null ? <span className="text-faint italic">no match</span> : <>"{renderDiffed(newValue, oldValue, 'new')}"</>}
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return null;
+}
+
+// Get the source field for an attribute cell based on the tag that produced
+// it for this row. Constants have no source field (the value is the value);
+// returning null keeps the row's source-field hover-highlight inert.
+function getAttributeSourceField(item: AnalyzedTransaction, attrName: string): string | null {
+  for (const def of item.analysis.matchedDefinitions) {
+    const attr = def.Attributes.find((a) => a.AttributeTag === attrName);
+    if (!attr) continue;
+    if (attr.Constant != null || !attr.AttributeRuleExpression) return null;
+    return attr.AttributeRuleExpression.SourceField;
+  }
+  return null;
+}
+
+// True when ANY matched definition produces this attribute as a constant for
+// this row. Used by the cell renderer to suppress the validation tick/cross
+// — constants have no regex and no source field, so the "valid against the
+// attrValidationMap regex" mental model doesn't apply even if another rule
+// on the page registers validation for the same attribute name.
+function isAttributeFromConstant(item: AnalyzedTransaction, attrName: string): boolean {
+  for (const def of item.analysis.matchedDefinitions) {
+    const attr = def.Attributes.find((a) => a.AttributeTag === attrName);
+    if (attr && attr.Constant != null) return true;
+  }
+  return false;
+}
+
+/**
+ * Everything a row needs from the parent that is NOT per-row. Bundled into
+ * one object (memoized in TransactionTable) so TableRow's shallow memo
+ * compare stays tiny and the dependency list is auditable in one place.
+ * During scroll none of these change, so every already-mounted row skips
+ * re-rendering entirely — the per-frame cost is just mounting the few rows
+ * that newly enter the overscan window.
+ */
+interface RowCtx {
+  visibleColumns: ColumnDef[];
+  stickyLefts: Map<number, number>;
+  stickyRights: Map<number, number>;
+  lastLeftIdx: number;
+  firstRightIdx: number;
+  relaxedMode: boolean;
+  loading: boolean;
+  selectable: boolean;
+  resolveColumnWidth: (key: string) => number | undefined;
+  highlightMap: Map<string, RegExp[]> | null;
+  searchHighlightMap: Map<string, RegExp[]> | null;
+  onCellDoubleClick?: TransactionTableProps['onCellDoubleClick'];
+  interactiveCellFields?: ReadonlySet<string>;
+  interactiveCellHint?: string;
+  attrValidationMap: Map<string, AttrValidation>;
+  attrLovTagMap: Map<string, string>;
+  lovLookup: Map<string, Map<string, string>>;
+  activeDefinitionId?: string;
+  tagDefinitions: TagSpecDefinition[];
+  originalEditingDef?: TagSpecDefinition;
+  originalDefinitionIds?: Set<string>;
+  definitionSourceMap?: Map<string, string>;
+  definitionVersions?: Map<string, DefinitionVersionInfo>;
+  onTagClick?: (tagName: string, definitionId?: string) => void;
+  onRowContextMenu?: TransactionTableProps['onRowContextMenu'];
+  toggleSelect: (id: string) => void;
+  setHighlightSource: React.Dispatch<React.SetStateAction<RowHighlight | null>>;
+  highlightTimerRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>;
+}
+
+/**
+ * One virtualized table row. Memoized so the parent's scroll-driven
+ * re-renders (tanstack-virtual re-renders TransactionTable every time the
+ * virtual window shifts) don't re-render rows that are already mounted —
+ * before this existed, every mounted row re-ran its full cell loop (regex
+ * validation, LOV lookups, attribute resolution) on every scroll frame,
+ * which is what made fast scrolling lag and blank out.
+ *
+ * Per-row props are primitives or row-scoped objects; everything shared
+ * comes through `ctx` (one memoized object, see RowCtx).
+ */
+const TableRow = memo(function TableRow({
+  item,
+  index,
+  rowId,
+  isSelected,
+  isDeadEnd,
+  rowHighlight,
+  measureRef,
+  ctx,
+}: {
+  item: AnalyzedTransaction;
+  index: number;
+  rowId: string;
+  isSelected: boolean;
+  isDeadEnd: boolean;
+  /** The parent's highlightSource when it targets THIS row, else null —
+   *  scoping the prop per-row keeps the memo hit rate high (only the row
+   *  being hovered re-renders when the highlight moves). */
+  rowHighlight: RowHighlight | null;
+  measureRef: (node: Element | null) => void;
+  ctx: RowCtx;
+}) {
+  const {
+    visibleColumns, stickyLefts, stickyRights, lastLeftIdx, firstRightIdx,
+    relaxedMode, loading, selectable, resolveColumnWidth, highlightMap,
+    searchHighlightMap, onCellDoubleClick, interactiveCellFields,
+    interactiveCellHint, attrValidationMap, attrLovTagMap, lovLookup,
+    activeDefinitionId, tagDefinitions, originalEditingDef,
+    originalDefinitionIds, definitionSourceMap, definitionVersions,
+    onTagClick, onRowContextMenu, toggleSelect, setHighlightSource,
+    highlightTimerRef,
+  } = ctx;
+
+  const cellPy = relaxedMode ? 'py-1' : 'py-2';
+  const getCellStyle = (colIdx: number) => getCellStyleFor(colIdx, false, stickyLefts, stickyRights);
+  const stickyEdgeShadow = (colIdx: number) => stickyEdgeShadowFor(colIdx, lastLeftIdx, firstRightIdx);
+  const renderCellContent = (field: string, value: string | number | boolean | null) =>
+    renderCellContentFor(field, value, highlightMap, searchHighlightMap);
+  const getAttributeValue = (attrName: string) =>
+    getAttributeValueFor(item, attrName, activeDefinitionId, tagDefinitions, originalEditingDef);
+
+  return (
+    <tr
+      data-index={index}
+      ref={measureRef}
+      className={`group transition-colors ${isDeadEnd ? 'bg-red-100/60 dark:bg-red-950/30 text-red-400 dark:text-red-500/70' : 'hover:bg-surface-hover'} ${isSelected ? 'bg-primary/10!' : ''}`}
+      onContextMenu={onRowContextMenu ? (e) => { e.preventDefault(); onRowContextMenu(item.row, e.clientX, e.clientY); } : undefined}
+    >
+      {visibleColumns.map((col, colIdx) => {
+        const isStickyCol = stickyLefts.has(colIdx) || stickyRights.has(colIdx);
+        const stickyBg = isStickyCol ? 'bg-surface group-hover:bg-surface-hover' : '';
+
+        switch (col.type) {
+          case 'data': {
+            const isHighlighted = rowHighlight?.field === col.field;
+            // Comments are free-form and frequently long — clamp the cell to one
+            // ellipsised line and surface the full text via tooltip on hover so
+            // the table layout never blows out horizontally.
+            if (col.field === 'Comment') {
+              const raw = item.row[col.field];
+              const full = raw == null ? '' : String(raw);
+              return (
+                <td
+                  key={col.key}
+                  className={`px-3 ${cellPy} text-xs text-body-secondary max-w-[28rem] ${stickyBg} ${isHighlighted ? 'ring-1 ring-primary/30 ring-inset bg-primary/5 dark:bg-primary/10' : ''}`}
+                  style={getCellStyle(colIdx)}
+                >
+                  {full ? (
+                    <Tooltip content={<div className="max-w-md break-words whitespace-pre-wrap">{full}</div>} placement="top">
+                      <div className="truncate">
+                        {renderCellContent(col.field, raw)}
+                      </div>
+                    </Tooltip>
+                  ) : (
+                    <span className="text-faint">-</span>
+                  )}
+                  {stickyEdgeShadow(colIdx)}
+                </td>
+              );
+            }
+            {
+              const isInteractive =
+                !!onCellDoubleClick && !!interactiveCellFields?.has(col.field);
+              const cellWidth = resolveColumnWidth(col.key);
+              const isNarrative = NARRATIVE_COLUMN_KEYS.has(col.key);
+              const rawValue = item.row[col.field];
+              // Always expose the raw value via title when the
+              // cell is at risk of clipping (narrative columns,
+              // or any column with an explicit width override).
+              // The interactive double-click hint takes priority
+              // when set so the operator still sees it.
+              const titleAttr = isInteractive
+                ? (interactiveCellHint ?? 'Double-click to use')
+                : (isNarrative || cellWidth != null) && rawValue != null
+                  ? String(rawValue)
+                  : undefined;
+              return (
+                <td
+                  key={col.key}
+                  className={`px-3 ${cellPy} text-xs text-body-secondary ${relaxedMode ? 'whitespace-nowrap' : 'align-top'} ${cellWidth != null ? 'overflow-hidden' : ''} ${stickyBg} ${isHighlighted ? 'ring-1 ring-primary/30 ring-inset bg-primary/5 dark:bg-primary/10' : ''} ${isInteractive ? 'cursor-pointer hover:ring-1 hover:ring-primary/50 hover:bg-primary/5 dark:hover:bg-primary/10 transition-shadow select-none' : ''}`}
+                  style={{ ...getCellStyle(colIdx), width: cellWidth, maxWidth: cellWidth }}
+                  title={titleAttr}
+                  onDoubleClick={
+                    onCellDoubleClick
+                      ? () => onCellDoubleClick(col.field, item.row[col.field], item.row)
+                      : undefined
+                  }
+                >
+                  <CellContentWrapper
+                    relaxedMode={relaxedMode}
+                    narrative={isNarrative}
+                    hasWidth={cellWidth != null}
+                  >
+                    {renderCellContent(col.field, rawValue)}
+                  </CellContentWrapper>
+                  {stickyEdgeShadow(colIdx)}
+                </td>
+              );
+            }
+          }
+          case 'dates': {
+            const cellWidth = resolveColumnWidth(col.key);
+            return (
+              <td
+                key={col.key}
+                className={`px-3 ${cellPy} text-xs text-body-secondary ${cellWidth != null ? 'overflow-hidden' : ''} ${stickyBg}`}
+                style={{ ...getCellStyle(colIdx), width: cellWidth, maxWidth: cellWidth }}
+              >
+                <div className={relaxedMode ? 'flex gap-2 whitespace-nowrap' : 'flex flex-col gap-0.5'}>
+                  {col.fields.map((f) => {
+                    const val = item.row[f.key];
+                    if (val == null || val === '') return null;
+                    return (
+                      <span key={f.key} className="whitespace-nowrap">
+                        <span className="text-faint">{f.label}:</span>{' '}
+                        {String(val).split('T')[0]}
+                      </span>
+                    );
+                  })}
+                </div>
+                {stickyEdgeShadow(colIdx)}
+              </td>
+            );
+          }
+          case 'debit': {
+            const side = String(item.row['Side'] ?? '');
+            const isDebit = side === 'DR' || side === 'RC';
+            const isReturn = side === 'RC';
+            const amt = isDebit ? item.row['Amount'] : null;
+            const cellWidth = resolveColumnWidth(col.key);
+            return (
+              <td
+                key={col.key}
+                className={`px-3 ${cellPy} text-xs text-right font-medium whitespace-nowrap ${cellWidth != null ? 'overflow-hidden' : ''} ${amt != null ? 'text-red-600 dark:text-rose-300' : 'text-faint'} ${stickyBg} `}
+                style={{ ...getCellStyle(colIdx), width: cellWidth, maxWidth: cellWidth }}
+              >
+                {amt != null ? (
+                  <div className="flex items-center justify-end gap-1">
+                    {isReturn && <Badge variant="amber" size="xs" className="border border-amber-200">RTN</Badge>}
+                    <span><span aria-hidden="true">&#x2212;</span><span className="icon-saudi_riyal">&#xea;</span> {(() => { const parts = Number(amt).toFixed(2).split('.'); return <>{Number(parts[0]).toLocaleString()}<sup className="text-[0.65em] relative -top-[0.55em]">.{parts[1]}</sup></>; })()}</span>
+                  </div>
+                ) : '-'}
+                {stickyEdgeShadow(colIdx)}
+              </td>
+            );
+          }
+          case 'credit': {
+            const side = String(item.row['Side'] ?? '');
+            const isCredit = side === 'CR' || side === 'RD';
+            const isReturn = side === 'RD';
+            const amt = isCredit ? item.row['Amount'] : null;
+            const cellWidth = resolveColumnWidth(col.key);
+            return (
+              <td
+                key={col.key}
+                className={`px-3 ${cellPy} text-xs text-right font-medium whitespace-nowrap ${cellWidth != null ? 'overflow-hidden' : ''} ${amt != null ? 'text-emerald-500 dark:text-emerald-300' : 'text-faint'} ${stickyBg}`}
+                style={{ ...getCellStyle(colIdx), width: cellWidth, maxWidth: cellWidth }}
+              >
+                {amt != null ? (
+                  <div className="flex items-center justify-end gap-1">
+                    {isReturn && <Badge variant="amber" size="xs" className="border border-amber-200">RTN</Badge>}
+                    <span><span className="icon-saudi_riyal">&#xea;</span> {(() => { const parts = Number(amt).toFixed(2).split('.'); return <>{Number(parts[0]).toLocaleString()}<sup className="text-[0.65em] relative -top-[0.55em]">.{parts[1]}</sup></>; })()}</span>
+                  </div>
+                ) : '-'}
+                {stickyEdgeShadow(colIdx)}
+              </td>
+            );
+          }
+          case 'attribute': {
+            const attrCellWidth = resolveColumnWidth(col.key);
+            // Untagged transactions should not display any attribute value
+            if (item.analysis.tags.length === 0) {
+              return (
+                <td
+                  key={col.key}
+                  className={`px-3 ${cellPy} text-xs text-left ${attrCellWidth != null ? 'overflow-hidden' : ''} ${isStickyCol ? 'bg-primary/10 group-hover:bg-primary/15' : 'bg-primary/5'}`}
+                  style={{ ...getCellStyle(colIdx), width: attrCellWidth, maxWidth: attrCellWidth }}
+                >
+                  <span className="text-faint">-</span>
+                  {stickyEdgeShadow(colIdx)}
+                </td>
+              );
+            }
+            const val = getAttributeValue(col.name);
+            const validation = attrValidationMap.get(col.name);
+            // Suppress validation chrome when this row's value is
+            // a constant: no regex, no source field, nothing to
+            // validate. Another rule with the same attribute name
+            // might still register a validator on the map, which
+            // is why this lives at the per-row level.
+            const isConstantValue = isAttributeFromConstant(item, col.name);
+            let validationIcon: ReactNode = null;
+            let validationPassed: boolean | null = null;
+            if (!isConstantValue) {
+              // Null / empty extracted values are treated as
+              // valid by contract — there is nothing to test, so
+              // no row should ever be marked invalid solely
+              // because the source field didn't yield a value.
+              // Otherwise the server's `IsValid` flag on the
+              // OpsAttributes / OpsMultiTags entry is the
+              // authoritative answer, and client-side regex
+              // testing is the fallback for surfaces that lack
+              // it (wizard preview, sample mode).
+              if (val == null || val === '') {
+                validationPassed = true;
+              } else {
+                const serverIsValid = getAttributeIsValidFor(item, col.name, activeDefinitionId);
+                if (serverIsValid !== null) {
+                  validationPassed = serverIsValid;
+                } else if (validation) {
+                  if (validation.verifyValue) {
+                    validationPassed = val === validation.verifyValue;
+                  } else if (validation.validateExtracted) {
+                    validationPassed = validation.regex.test(val);
+                  } else {
+                    const sourceVal = String(item.row[validation.sourceField] ?? '');
+                    validationPassed = validation.regex.test(sourceVal);
+                  }
+                }
+              }
+              if (validationPassed !== null) {
+                validationIcon = validationPassed
+                  ? <span className="text-emerald-500 dark:text-emerald-300 mr-1" title="Valid">&#10003;</span>
+                  : <span className="text-red-400 dark:text-rose-300 mr-1" title="Invalid">&#10007;</span>;
+              }
+            }
+            const rawDisplayVal = val;
+            const attrLovTag = attrLovTagMap.get(col.name);
+            const trimmedVal = rawDisplayVal?.trim();
+            const lovMap = attrLovTag ? (lovLookup.get(attrLovTag) ?? lovLookup.get(attrLovTag.replace(/[_ ]/g, '').toLowerCase())) : undefined;
+            const displayVal = lovMap && trimmedVal ? (lovMap.get(trimmedVal) ?? rawDisplayVal) : rawDisplayVal;
+            const srcField = getAttributeSourceField(item, col.name);
+            const isAttrHighlighted = rowHighlight?.attrKey === col.key;
+            return (
+              <td
+                key={col.key}
+                className={`px-3 ${cellPy} text-xs ${relaxedMode ? 'whitespace-nowrap' : ''} ${attrCellWidth != null ? 'overflow-hidden' : ''}
+                ${validationIcon ? 'text-center' : 'text-left'}
+                ${validationPassed === true ? 'text-emerald-500 dark:text-emerald-300' : validationPassed === false ? 'text-red-400 dark:text-rose-300' : 'text-primary-dark'}
+                ${isAttrHighlighted ? 'ring-2 ring-blue-400/60 ring-inset bg-blue-50 dark:bg-blue-900/30' : isStickyCol ? 'bg-primary/10 group-hover:bg-primary/15' : 'bg-primary/5'}`}
+                style={{ ...getCellStyle(colIdx), width: attrCellWidth, maxWidth: attrCellWidth }}
+                onMouseEnter={() => {
+                  if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+                  if (srcField) {
+                    highlightTimerRef.current = setTimeout(() => setHighlightSource({ rowIdx: index, field: srcField, attrKey: col.key }), 500);
+                  }
+                }}
+                onMouseLeave={() => {
+                  if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+                  highlightTimerRef.current = null;
+                  setHighlightSource(null);
+                }}
+              >
+                <Tooltip content={() => getAttributeTooltipFor(item, col.name, originalEditingDef) ?? col.name} offsetAmount={8} placement="bottom" delay={500}>
+                  <div className={`w-full h-full flex items-center ${attrCellWidth != null ? (relaxedMode ? 'truncate' : 'overflow-hidden') : ''}`}>
+                    {displayVal ? <span className={attrCellWidth != null && relaxedMode ? 'truncate' : ''}>{validationIcon}{displayVal}</span> : <span className="text-faint">-</span>}
+                  </div>
+                </Tooltip>
+                {stickyEdgeShadow(colIdx)}
+              </td>
+            );
+          }
+          case 'tags': {
+            const hints = getHints(item.row);
+            const hasHints = hints.length > 0;
+            const tagsCellWidth = resolveColumnWidth(col.key);
+            return (
+              <td
+                key={col.key}
+                className={`px-3 ${cellPy} ${tagsCellWidth != null ? 'overflow-hidden' : ''} ${stickyBg}`}
+                style={{ ...getCellStyle(colIdx), width: tagsCellWidth, maxWidth: tagsCellWidth }}
+              >
+                <div className="flex items-center gap-1.5">
+                  {selectable && (
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleSelect(rowId)}
+                      disabled={loading}
+                      aria-label={loading ? 'Loading transactions, selection disabled' : 'Select row'}
+                      className={`rounded border-border-strong shrink-0 ${loading ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''}`}
+                    />
+                  )}
+                  <div className="flex-1">
+                    {item.analysis.tags.length > 0 ? (
+                      <div className={`flex items-center gap-1 ${relaxedMode ? 'flex-nowrap' : 'flex-wrap'}`}>
+                        {isDeadEnd && (
+                          <Badge variant="none" size="sm" className="border border-red-200 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800 px-2.5 shrink-0">Dead End</Badge>
+                        )}
+                        {item.analysis.tags.map((tag, ti) => {
+                          const matchedDef = item.analysis.matchedDefinitions[ti];
+                          const defId = matchedDef?.Id;
+                          const isUserCreated = defId ? !(originalDefinitionIds?.has(defId)) : false;
+                          const source = isUserCreated ? 'Frontend' : (defId ? (definitionSourceMap?.get(defId) ?? null) : null);
+                          const versionInfo = defId ? definitionVersions?.get(defId) : undefined;
+                          const badge = (
+                            <TagBadge
+                              tag={tag}
+                              // Prefer the definition the row actually matched; only
+                              // fall back to name-lookup when no matched def is
+                              // available. Two definitions can share a Tag name with
+                              // different certainty, in which case name-lookup picks
+                              // the wrong one and the badge color drifts from the
+                              // tooltip's stated level.
+                              certainty={matchedDef?.CertaintyLevelTag ?? getCertaintyFor(tagDefinitions, tag)}
+                              isUserCreated={isUserCreated}
+                              version={versionInfo?.version}
+                              onClick={onTagClick ? () => onTagClick(tag, defId) : undefined}
+                            />
+                          );
+                          if (!source && !matchedDef) return <span key={tag}>{badge}</span>;
+                          return (
+                            <Tooltip key={tag} content={() => renderTagTooltip(source, matchedDef, !!onTagClick, versionInfo)} placement="top">
+                              <span>{badge}</span>
+                            </Tooltip>
+                          );
+                        })}
+                        {hasHints && <HintsInfoIcon hints={hints} />}
+                      </div>
+                    ) : isDeadEnd ? (
+                      <div className="flex items-center gap-1">
+                        <Badge variant="none" size="sm" className="border border-red-200 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800 px-2.5">Dead End</Badge>
+                        {hasHints && <HintsInfoIcon hints={hints} />}
+                      </div>
+                    ) : hasHints ? (
+                      <HintsInfoIcon hints={hints} />
+                    ) : (
+                      <span className="text-faint text-xs">-</span>
+                    )}
+
+                  </div>
+                </div>
+                {stickyEdgeShadow(colIdx)}
+              </td>
+            );
+          }
+        }
+      })}
+    </tr>
+  );
+});
+
+export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, definitionSourceMap, definitionVersions, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, onFlagDeadEndWithComment, onSetComments, onHideTagDefs, showAttributes = true, relaxedMode = false, hiddenColumns = EMPTY_HIDDEN_COLUMNS, columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, accentHue = 190, onRowContextMenu, onCellDoubleClick, interactiveCellFields, interactiveCellHint, originalEditingDef, activeDefinitionId, sortOverride = null, onSortChange, columnWidths, onColumnWidthChange }: TransactionTableProps) {
   // Resolve the effective width for a column: explicit override wins,
   // otherwise the catalog default, otherwise undefined (browser
   // auto-layout). Width overrides are intentionally scoped to non-compact
@@ -916,11 +1789,6 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
   const [stickyRights, setStickyRights] = useState<Map<number, number>>(new Map());
   const [colWidths, setColWidths] = useState<number[]>([]);
   const [hasOverflow, setHasOverflow] = useState(false);
-
-  const getCertainty = (tagName: string) => {
-    const def = tagDefinitions.find((d) => d.Tag === tagName);
-    return def?.CertaintyLevelTag ?? 'HIGH';
-  };
 
   const highlightMap = useMemo(() => {
     if (!highlightExpressions || highlightExpressions.length === 0) return null;
@@ -1453,419 +2321,60 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
 
   // --- end minimap ---
 
-  // Build a human description of an attribute's extraction rule. Prefers the
-  // RegexDetails[].Description saved on the attribute (which includes optional
-  // modifiers like occurrence/numChars/toStr), falling back to a reverse-parse
-  // of the regex when that's absent.
-  const ruleDescription = (attr: TagAttribute): string => {
-    // Constant-mode attribute: there's no extraction expression to describe.
-    if (attr.Constant != null) {
-      return `= "${attr.Constant}" (constant)`;
-    }
-    const expr = attr.AttributeRuleExpression;
-    if (!expr) return '';
-    const stored = expr.RegexDetails?.find((d) => d.LanguageCode === 'en')?.Description;
-    if (stored) return stored;
-    const decomposed = decomposeExtractionRegex(expr.Regex);
-    switch (decomposed.operation) {
-      case 'extract_between':
-        return `Extract between '${decomposed.prefix ?? ''}' and '${decomposed.suffix ?? ''}'`;
-      case 'extract_after':
-        return `Extract after '${decomposed.prefix ?? ''}'`;
-      case 'extract_before':
-        return `Extract before '${decomposed.suffix ?? ''}'`;
-      case 'extract_skip_take': {
-        const n = decomposed.fromPosition ?? 0;
-        const take = decomposed.tillEndOfInput || !decomposed.numChars
-          ? 'everything till end of input'
-          : `${decomposed.numChars} character${decomposed.numChars === 1 ? '' : 's'}`;
-        return `Skip ${n} character${n === 1 ? '' : 's'}, then take ${take}`;
-      }
-      case 'extract_matching':
-      default:
-        return `Extract matching '${decomposed.pattern || expr.Regex}'`;
-    }
-  };
-
-  // Normalize a regex string to the form the wizard's form round-trip
-  // produces. The form loads a saved regex via decomposeExtractionRegex (which
-  // keeps only operation + prefix/suffix/pattern) and re-emits it via
-  // regexifyExtraction. That round-trip isn't byte-identical — e.g. a raw
-  // leading `^` in the saved regex gets escaped to `\^`. To decide whether
-  // the user actually edited an attribute, compare both sides through this
-  // same pipeline so cosmetic round-trip differences don't register as edits.
-  const normalizeRegex = (regex: string): string => {
-    const decomposed = decomposeExtractionRegex(regex);
-    return regexifyExtraction(decomposed.operation, decomposed);
-  };
-
-  // Compare two attribute rules for semantic equality — source field,
-  // normalized regex, and transformation pipeline. For constant-mode
-  // attributes (no regex/source/transformations), compare the literal value.
-  // Local helper: compare two same-side transformation lists element-by-
-  // element. Pulled out so the pre and post lists go through the SAME
-  // shape check — adding only one of them would leave the diff blind to
-  // pre-extraction-only edits (and the "saved-vs-draft" tooltip would
-  // claim the attribute is unchanged when its runtime output now differs).
-  const transformationsEqual = (
-    ta: TagAttribute['Transformations'],
-    tb: TagAttribute['Transformations'],
-  ): boolean => {
-    const la = ta ?? [];
-    const lb = tb ?? [];
-    if (la.length !== lb.length) return false;
-    for (let i = 0; i < la.length; i++) {
-      if (la[i].Method !== lb[i].Method) return false;
-      const aa = la[i].Args ?? [];
-      const bb = lb[i].Args ?? [];
-      if (aa.length !== bb.length) return false;
-      for (let j = 0; j < aa.length; j++) {
-        if (aa[j].Key !== bb[j].Key || aa[j].Value !== bb[j].Value) return false;
-      }
-    }
-    return true;
-  };
-  const attrRulesEqual = (a: TagAttribute, b: TagAttribute): boolean => {
-    const aIsConstant = a.Constant != null;
-    const bIsConstant = b.Constant != null;
-    if (aIsConstant !== bIsConstant) return false; // mode change
-    if (aIsConstant && bIsConstant) return a.Constant === b.Constant;
-    // Both extraction-mode beyond here.
-    const aExpr = a.AttributeRuleExpression;
-    const bExpr = b.AttributeRuleExpression;
-    if (!aExpr || !bExpr) return aExpr === bExpr;
-    if (aExpr.SourceField !== bExpr.SourceField) return false;
-    if (normalizeRegex(aExpr.Regex) !== normalizeRegex(bExpr.Regex)) return false;
-    if (!transformationsEqual(a.PreExtractionTransformations, b.PreExtractionTransformations)) return false;
-    if (!transformationsEqual(a.Transformations, b.Transformations)) return false;
-    return true;
-  };
-
-  // Returns true when this attribute's rule is currently being edited in the
-  // rule builder AND the draft rule differs from the saved one. Used to
-  // suppress the server-side fallback in getAttributeValue — otherwise a
-  // non-matching draft would show the old (saved) value, giving a false
-  // impression that the draft still works.
-  const isAttributeBeingEdited = (item: AnalyzedTransaction, attrName: string): boolean => {
-    if (!originalEditingDef) return false;
-    for (const def of item.analysis.matchedDefinitions) {
-      if (def.Id !== originalEditingDef.Id) continue;
-      const currentAttr = def.Attributes.find((a) => a.AttributeTag === attrName);
-      const originalAttr = originalEditingDef.Attributes.find((a) => a.AttributeTag === attrName);
-      if (currentAttr && originalAttr && !attrRulesEqual(originalAttr, currentAttr)) return true;
-    }
-    return false;
-  };
-
-  const getAttributeValue = (item: AnalyzedTransaction, attrName: string): string | null => {
-    const row = item.row as unknown as Record<string, unknown>;
-    const scan = (list: unknown): string | null => {
-      if (!Array.isArray(list)) return null;
-      for (const entry of list) {
-        if (entry && typeof entry === 'object') {
-          const e = entry as { Key?: unknown; Value?: unknown };
-          if (e.Key === attrName && e.Value != null && e.Value !== '') {
-            return String(e.Value);
-          }
-        }
-      }
-      return null;
-    };
-
-    // ─── Scoped lookup ─────────────────────────────────────────────────────
-    // When the table is scoped to a specific definition (tag-click drill-down
-    // or active edit), only that definition's data is relevant. Falling
-    // through to other matched defs would surface another tag's extracted
-    // values for multi-tagged rows, which is wrong.
-    if (activeDefinitionId) {
-      // 1) Client-computed value — but only if it actually extracted
-      // something. A null here just means the client regex didn't match this
-      // row's source field; the server may still have the value in
-      // OpsAttributes / OpsMultiTags, so fall through rather than returning.
-      const tagAttrs = item.analysis.attributes[activeDefinitionId];
-      if (tagAttrs && attrName in tagAttrs && tagAttrs[attrName] !== null) {
-        return tagAttrs[attrName];
-      }
-      if (isAttributeBeingEdited(item, attrName)) return null;
-      // 2) Server-provided fallback — only the active def's entry counts.
-      const multi = row.OpsMultiTags;
-      if (Array.isArray(multi)) {
-        for (const mt of multi) {
-          if (mt && typeof mt === 'object') {
-            const m = mt as { TagSpecDefinitionId?: unknown; Attributes?: unknown };
-            if (m.TagSpecDefinitionId === activeDefinitionId) {
-              const v = scan(m.Attributes);
-              if (v !== null) return v;
-              break;
-            }
-          }
-        }
-      }
-      // OpsAttributes belongs to row.OpsTagSpecDefinitionId — only use it if
-      // the row's primary tag is the active def.
-      if (row.OpsTagSpecDefinitionId === activeDefinitionId) {
-        return scan(row.OpsAttributes);
-      }
-      return null;
-    }
-
-    // ─── Unscoped lookup (whole table view) ───────────────────────────────
-    // 1) Client-computed value (reflects live rule-builder drafts/edits).
-    // Iterate in tagDefinitions order (which puts the rule-builder draft / temp
-    // definition FIRST) so a draft attribute with a post-extraction
-    // transformation overrides the same attribute name in other matched saved
-    // defs that don't carry that transformation.
-    for (const def of tagDefinitions) {
-      const tagAttrs = item.analysis.attributes[def.Id];
-      if (tagAttrs && attrName in tagAttrs && tagAttrs[attrName] !== null) {
-        return tagAttrs[attrName];
-      }
-    }
-    // Fallback for any matched defs not present in tagDefinitions (defensive).
-    for (const tagAttrs of Object.values(item.analysis.attributes)) {
-      if (attrName in tagAttrs && tagAttrs[attrName] !== null) {
-        return tagAttrs[attrName];
-      }
-    }
-    if (isAttributeBeingEdited(item, attrName)) return null;
-    // 2) Server-provided fallback — the API response carries pre-computed values
-    // in OpsAttributes (single-tag rows) or OpsMultiTags[*].Attributes (multi-tag
-    // rows). Use them when the client couldn't extract (e.g. regex has no capture
-    // group, or the source field on this row is empty).
-    const primary = scan(row.OpsAttributes);
-    if (primary !== null) return primary;
-    const multi = row.OpsMultiTags;
-    if (Array.isArray(multi)) {
-      for (const mt of multi) {
-        if (mt && typeof mt === 'object') {
-          const v = scan((mt as { Attributes?: unknown }).Attributes);
-          if (v !== null) return v;
-        }
-      }
-    }
-    return null;
-  };
-
-  // Pulls the server-computed `IsValid` flag for an attribute out of the
-  // GetMT940Transactions response (OpsAttributes for single-tag rows,
-  // OpsMultiTags[*].Attributes for multi-tag rows). Returns `null` when the
-  // server didn't include the attribute on this row — the caller falls back
-  // to client-side ValidationClass regex testing in that case (wizard
-  // preview, sample mode, etc.). Scoping rules mirror getAttributeValue so
-  // a drill-down view doesn't pick up the wrong tag's validation flag.
-  const getAttributeIsValid = (item: AnalyzedTransaction, attrName: string): boolean | null => {
-    const row = item.row as unknown as Record<string, unknown>;
-    const scan = (list: unknown): boolean | null => {
-      if (!Array.isArray(list)) return null;
-      for (const entry of list) {
-        if (entry && typeof entry === 'object') {
-          const e = entry as { Key?: unknown; IsValid?: unknown };
-          if (e.Key === attrName && typeof e.IsValid === 'boolean') {
-            return e.IsValid;
-          }
-        }
-      }
-      return null;
-    };
-
-    if (activeDefinitionId) {
-      const multi = row.OpsMultiTags;
-      if (Array.isArray(multi)) {
-        for (const mt of multi) {
-          if (mt && typeof mt === 'object') {
-            const m = mt as { TagSpecDefinitionId?: unknown; Attributes?: unknown };
-            if (m.TagSpecDefinitionId === activeDefinitionId) {
-              const v = scan(m.Attributes);
-              if (v !== null) return v;
-              break;
-            }
-          }
-        }
-      }
-      if (row.OpsTagSpecDefinitionId === activeDefinitionId) {
-        return scan(row.OpsAttributes);
-      }
-      return null;
-    }
-
-    const primary = scan(row.OpsAttributes);
-    if (primary !== null) return primary;
-    const multi = row.OpsMultiTags;
-    if (Array.isArray(multi)) {
-      for (const mt of multi) {
-        if (mt && typeof mt === 'object') {
-          const v = scan((mt as { Attributes?: unknown }).Attributes);
-          if (v !== null) return v;
-        }
-      }
-    }
-    return null;
-  };
-
-  // Render a string with the differing slice wrapped in <mark>, using the
-  // shared highlight style from highlightText above.
-  const renderDiffed = (value: string, otherValue: string, side: 'old' | 'new'): ReactNode => {
-    const diff = diffStrings(side === 'old' ? value : otherValue, side === 'old' ? otherValue : value);
-    const middle = side === 'old' ? diff.oldMiddle : diff.newMiddle;
-    if (!middle && diff.head === value) return value;
-    return (
-      <>
-        {diff.head}
-        {middle && (
-          <mark className="bg-primary/20 dark:bg-primary/40 rounded-sm text-heading dark:text-primary-light font-medium px-0.5 ring-1 ring-primary/40 dark:ring-primary/70">
-            {middle}
-          </mark>
-        )}
-        {diff.tail}
-      </>
-    );
-  };
-
-  // Get tooltip for an attribute cell. Returns a ReactNode so we can render
-  // the Before/After diff when the rule builder is editing an existing def
-  // and this attribute's rule has actually changed.
-  const getAttributeTooltip = (item: AnalyzedTransaction, attrName: string): ReactNode | null => {
-    for (const def of item.analysis.matchedDefinitions) {
-      const currentAttr = def.Attributes.find((a) => a.AttributeTag === attrName);
-      if (!currentAttr) continue;
-
-      // Constant mode has no source field — show a flat "Constant = …" line.
-      // The before/after diff path below is meaningless for a literal value,
-      // so short-circuit even when we're editing the source definition.
-      if (currentAttr.Constant != null) {
-        return `Constant = "${currentAttr.Constant}"`;
-      }
-      if (!currentAttr.AttributeRuleExpression) continue;
-      const currentSource = humanizeFieldName(currentAttr.AttributeRuleExpression.SourceField);
-      const currentRule = ruleDescription(currentAttr);
-
-      const isEditingThisDef = originalEditingDef && def.Id === originalEditingDef.Id;
-      const originalAttr = isEditingThisDef
-        ? originalEditingDef.Attributes.find((a) => a.AttributeTag === attrName)
-        : undefined;
-      const shouldDiff = originalAttr && !attrRulesEqual(originalAttr, currentAttr);
-
-      if (!shouldDiff) {
-        return `Extracted from ${currentSource} — ${currentRule}`;
-      }
-
-      const oldValueRaw = extractAttributes([originalAttr], item.row)[originalAttr.AttributeTag];
-      const newValueRaw = extractAttributes([currentAttr], item.row)[currentAttr.AttributeTag];
-      const oldValue = oldValueRaw ?? '';
-      const newValue = newValueRaw ?? '';
-
-      return (
-        <div className="text-xs leading-snug space-y-1.5 py-0.5">
-          <div>
-            <div className="text-[9px] uppercase tracking-wider text-faint font-semibold">Before</div>
-            <div className="font-mono text-primary-dark">
-              {oldValueRaw === null ? <span className="text-faint italic">no match</span> : <>"{renderDiffed(oldValue, newValue, 'old')}"</>}
-            </div>
-          </div>
-          <div>
-            <div className="text-[9px] uppercase tracking-wider text-primary font-semibold">After</div>
-            <div className="font-mono text-primary-dark">
-              {newValueRaw === null ? <span className="text-faint italic">no match</span> : <>"{renderDiffed(newValue, oldValue, 'new')}"</>}
-            </div>
-          </div>
-        </div>
-      );
-    }
-    return null;
-  };
-
-  // Get the source field for an attribute cell based on the tag that produced
-  // it for this row. Constants have no source field (the value is the value);
-  // returning null keeps the row's source-field hover-highlight inert.
-  const getAttributeSourceField = (item: AnalyzedTransaction, attrName: string): string | null => {
-    for (const def of item.analysis.matchedDefinitions) {
-      const attr = def.Attributes.find((a) => a.AttributeTag === attrName);
-      if (!attr) continue;
-      if (attr.Constant != null || !attr.AttributeRuleExpression) return null;
-      return attr.AttributeRuleExpression.SourceField;
-    }
-    return null;
-  };
-
-  // True when ANY matched definition produces this attribute as a constant for
-  // this row. Used by the cell renderer to suppress the validation tick/cross
-  // — constants have no regex and no source field, so the "valid against the
-  // attrValidationMap regex" mental model doesn't apply even if another rule
-  // on the page registers validation for the same attribute name.
-  const isAttributeFromConstant = (item: AnalyzedTransaction, attrName: string): boolean => {
-    for (const def of item.analysis.matchedDefinitions) {
-      const attr = def.Attributes.find((a) => a.AttributeTag === attrName);
-      if (attr && attr.Constant != null) return true;
-    }
-    return false;
-  };
-
   // Track which source field cell to highlight: { rowIndex, fieldName }
   const [highlightSource, setHighlightSource] = useState<{ rowIdx: number; field: string; attrKey: string } | null>(null);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const renderCellContent = (field: string, value: string | number | boolean | null) => {
-    if (value == null) return <span className="text-faint">-</span>;
-    // Dates come back as ISO strings — strip the time portion for display.
-    const raw = String(value);
-    const text = DATE_FIELDS.has(field) ? raw.split('T')[0] : raw;
-    const regexes = [
-      ...(highlightMap?.get(field) ?? []),
-      ...(searchHighlightMap?.get(field) ?? []),
-    ];
-    if (regexes.length > 0) return highlightText(text, regexes);
-    return text;
-  };
+  // Header-only style helpers — rows use the module-scope versions via ctx.
+  const getCellStyle = (colIdx: number, isHeader: boolean): React.CSSProperties =>
+    getCellStyleFor(colIdx, isHeader, stickyLefts, stickyRights);
 
-  const getCellStyle = (colIdx: number, isHeader: boolean): React.CSSProperties => {
-    const isStickyLeft = stickyLefts.has(colIdx);
-    const isStickyRight = stickyRights.has(colIdx);
-    const isStickyCol = isStickyLeft || isStickyRight;
-    if (!isStickyCol && !isHeader) return {};
+  const stickyEdgeShadow = (colIdx: number): ReactNode =>
+    stickyEdgeShadowFor(colIdx, lastLeftIdx, firstRightIdx);
 
-    const style: React.CSSProperties = { position: 'sticky' };
-
-    if (isHeader) {
-      style.top = 0;
-      style.zIndex = isStickyCol ? 30 : 10;
-    }
-
-    if (isStickyLeft) {
-      style.left = stickyLefts.get(colIdx)!;
-      if (!isHeader) style.zIndex = 20;
-    } else if (isStickyRight) {
-      style.right = stickyRights.get(colIdx)!;
-      if (!isHeader) style.zIndex = 20;
-    }
-
-    return style;
-  };
-
-  const stickyEdgeShadow = (colIdx: number): ReactNode => {
-    if (colIdx === lastLeftIdx) {
-      return (
-        <div
-          style={{
-            position: 'absolute', top: 0, bottom: 0, left: '100%', width: 6,
-            background: 'linear-gradient(to right, rgba(0,0,0,0.08), transparent)',
-            pointerEvents: 'none',
-          }}
-        />
-      );
-    }
-    if (colIdx === firstRightIdx) {
-      return (
-        <div
-          style={{
-            position: 'absolute', top: 0, bottom: 0, right: '100%', width: 6,
-            background: 'linear-gradient(to left, rgba(0,0,0,0.08), transparent)',
-            pointerEvents: 'none',
-          }}
-        />
-      );
-    }
-    return null;
-  };
+  // Shared row context. One memoized object so TableRow's shallow compare
+  // sees a single stable prop across scroll-driven parent re-renders —
+  // every dependency that can actually change row output is listed here;
+  // anything else leaves mounted rows untouched (the whole point of the
+  // row memoization, see TableRow's doc comment).
+  const rowCtx: RowCtx = useMemo(() => ({
+    visibleColumns,
+    stickyLefts,
+    stickyRights,
+    lastLeftIdx,
+    firstRightIdx,
+    relaxedMode,
+    loading,
+    selectable: !!onFlagDeadEnd,
+    resolveColumnWidth,
+    highlightMap,
+    searchHighlightMap,
+    onCellDoubleClick,
+    interactiveCellFields,
+    interactiveCellHint,
+    attrValidationMap,
+    attrLovTagMap,
+    lovLookup,
+    activeDefinitionId,
+    tagDefinitions,
+    originalEditingDef,
+    originalDefinitionIds,
+    definitionSourceMap,
+    definitionVersions,
+    onTagClick,
+    onRowContextMenu,
+    toggleSelect,
+    setHighlightSource,
+    highlightTimerRef,
+  }), [
+    visibleColumns, stickyLefts, stickyRights, lastLeftIdx, firstRightIdx,
+    relaxedMode, loading, onFlagDeadEnd, resolveColumnWidth, highlightMap,
+    searchHighlightMap, onCellDoubleClick, interactiveCellFields,
+    interactiveCellHint, attrValidationMap, attrLovTagMap, lovLookup,
+    activeDefinitionId, tagDefinitions, originalEditingDef,
+    originalDefinitionIds, definitionSourceMap, definitionVersions,
+    onTagClick, onRowContextMenu, toggleSelect,
+  ]);
 
   const cellPy = relaxedMode ? 'py-1' : 'py-2';
 
@@ -1957,16 +2466,16 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
   // virtual window stays accurate even when individual rows are
   // taller than the estimate.
   //
-  // `overscan` stays modest (12 rows on each side). Trial showed that
-  // bumping it higher (40) actually makes scroll feel laggier even
-  // though more rows are buffered: per-re-render mount cost scales
-  // with how many rows are mounted, and each row mounts ~14 Tooltips
-  // (CLAUDE.md gotcha #14) plus other heavy cell content. The real
-  // fix to "blank viewport during fast scroll" is making per-row
-  // mount cheaper or memoizing the row component so unchanged rows
-  // skip re-rendering on scroll-triggered updates — see the
-  // architectural debt entries in docs/code-review.md. This modest
-  // bump from the previous 8 just gives a little more headroom.
+  // `overscan` is 24 rows on each side. The old ceiling (12) existed
+  // because every scroll-triggered parent re-render re-rendered every
+  // mounted row at full cost (regex validation, LOV lookups, ~14
+  // floating-ui Tooltip mounts per row), so buffering more rows made
+  // scrolling *worse*. Both costs are gone now: rows are memoized
+  // (`TableRow` skips unchanged rows on scroll re-renders because
+  // `rowCtx` is referentially stable while scrolling) and Tooltips
+  // arm lazily on first hover (zero floating-ui hooks at row mount).
+  // With mounted-row cost out of the scroll path, a deeper overscan
+  // buffer is pure headroom against blanking during fast flicks.
   //
   // The horizontal scroll lives on the SAME container; tanstack-
   // virtual only manages vertical, so sticky headers / sticky
@@ -1975,7 +2484,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     count: data.length,
     getScrollElement: () => scrollContainerRef.current,
     estimateSize: () => 30.4,
-    overscan: 12,
+    overscan: 24,
     // Stable per-row key so React can match measured heights across
     // re-renders when the underlying data shifts (filter change,
     // hide / unhide, +N append, etc.).
@@ -1984,8 +2493,10 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
   const virtualRows = rowVirtualizer.getVirtualItems();
 
   // Mirror tanstack-virtual's `isScrolling` into the global scrolling
-  // signal so Tooltip (and any future subscribers) can short-circuit
-  // their heavy hook initialization while the table is in motion.
+  // signal. Tooltip reads it at event time (no subscription): rows
+  // sliding under a stationary cursor mid-scroll fire mouseenter with
+  // no user intent, and the signal is how Tooltip distinguishes those
+  // from a real hover before arming its floating-ui machinery.
   // tanstack-virtual already debounces this flag — true on scroll
   // start, back to false ~150ms after the last scroll event — so the
   // signal flips at most twice per scroll gesture.
@@ -2426,327 +2937,18 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                   const i = virtualRow.index;
                   const item = data[i];
                   const rowId = getRowId(item.row);
-                  const isSelected = selectedIds.has(rowId);
-                  const isDeadEnd = item.row['IsDeadEnd'] === true;
                   return (
-                  <tr
-                    key={virtualRow.key}
-                    data-index={virtualRow.index}
-                    ref={rowVirtualizer.measureElement}
-                    className={`group transition-colors ${isDeadEnd ? 'bg-red-100/60 dark:bg-red-950/30 text-red-400 dark:text-red-500/70' : 'hover:bg-surface-hover'} ${isSelected ? 'bg-primary/10!' : ''}`}
-                    onContextMenu={onRowContextMenu ? (e) => { e.preventDefault(); onRowContextMenu(item.row, e.clientX, e.clientY); } : undefined}
-                  >
-                    {visibleColumns.map((col, colIdx) => {
-                      const isStickyCol = stickyLefts.has(colIdx) || stickyRights.has(colIdx);
-                      const stickyBg = isStickyCol ? 'bg-surface group-hover:bg-surface-hover' : '';
-
-                      switch (col.type) {
-                        case 'data': {
-                          const isHighlighted = highlightSource?.rowIdx === i && highlightSource.field === col.field;
-                          // Comments are free-form and frequently long — clamp the cell to one
-                          // ellipsised line and surface the full text via tooltip on hover so
-                          // the table layout never blows out horizontally.
-                          if (col.field === 'Comment') {
-                            const raw = item.row[col.field];
-                            const full = raw == null ? '' : String(raw);
-                            return (
-                              <td
-                                key={col.key}
-                                className={`px-3 ${cellPy} text-xs text-body-secondary max-w-[28rem] ${stickyBg} ${isHighlighted ? 'ring-1 ring-primary/30 ring-inset bg-primary/5 dark:bg-primary/10' : ''}`}
-                                style={getCellStyle(colIdx, false)}
-                              >
-                                {full ? (
-                                  <Tooltip content={<div className="max-w-md break-words whitespace-pre-wrap">{full}</div>} placement="top">
-                                    <div className="truncate">
-                                      {renderCellContent(col.field, raw)}
-                                    </div>
-                                  </Tooltip>
-                                ) : (
-                                  <span className="text-faint">-</span>
-                                )}
-                                {stickyEdgeShadow(colIdx)}
-                              </td>
-                            );
-                          }
-                          {
-                            const isInteractive =
-                              !!onCellDoubleClick && !!interactiveCellFields?.has(col.field);
-                            const cellWidth = resolveColumnWidth(col.key);
-                            const isNarrative = NARRATIVE_COLUMN_KEYS.has(col.key);
-                            const rawValue = item.row[col.field];
-                            // Always expose the raw value via title when the
-                            // cell is at risk of clipping (narrative columns,
-                            // or any column with an explicit width override).
-                            // The interactive double-click hint takes priority
-                            // when set so the operator still sees it.
-                            const titleAttr = isInteractive
-                              ? (interactiveCellHint ?? 'Double-click to use')
-                              : (isNarrative || cellWidth != null) && rawValue != null
-                                ? String(rawValue)
-                                : undefined;
-                            return (
-                              <td
-                                key={col.key}
-                                className={`px-3 ${cellPy} text-xs text-body-secondary ${relaxedMode ? 'whitespace-nowrap' : 'align-top'} ${cellWidth != null ? 'overflow-hidden' : ''} ${stickyBg} ${isHighlighted ? 'ring-1 ring-primary/30 ring-inset bg-primary/5 dark:bg-primary/10' : ''} ${isInteractive ? 'cursor-pointer hover:ring-1 hover:ring-primary/50 hover:bg-primary/5 dark:hover:bg-primary/10 transition-shadow select-none' : ''}`}
-                                style={{ ...getCellStyle(colIdx, false), width: cellWidth, maxWidth: cellWidth }}
-                                title={titleAttr}
-                                onDoubleClick={
-                                  onCellDoubleClick
-                                    ? () => onCellDoubleClick(col.field, item.row[col.field], item.row)
-                                    : undefined
-                                }
-                              >
-                                <CellContentWrapper
-                                  relaxedMode={relaxedMode}
-                                  narrative={isNarrative}
-                                  hasWidth={cellWidth != null}
-                                >
-                                  {renderCellContent(col.field, rawValue)}
-                                </CellContentWrapper>
-                                {stickyEdgeShadow(colIdx)}
-                              </td>
-                            );
-                          }
-                        }
-                        case 'dates': {
-                          const cellWidth = resolveColumnWidth(col.key);
-                          return (
-                            <td
-                              key={col.key}
-                              className={`px-3 ${cellPy} text-xs text-body-secondary ${cellWidth != null ? 'overflow-hidden' : ''} ${stickyBg}`}
-                              style={{ ...getCellStyle(colIdx, false), width: cellWidth, maxWidth: cellWidth }}
-                            >
-                              <div className={relaxedMode ? 'flex gap-2 whitespace-nowrap' : 'flex flex-col gap-0.5'}>
-                                {col.fields.map((f) => {
-                                  const val = item.row[f.key];
-                                  if (val == null || val === '') return null;
-                                  return (
-                                    <span key={f.key} className="whitespace-nowrap">
-                                      <span className="text-faint">{f.label}:</span>{' '}
-                                      {String(val).split('T')[0]}
-                                    </span>
-                                  );
-                                })}
-                              </div>
-                              {stickyEdgeShadow(colIdx)}
-                            </td>
-                          );
-                        }
-                        case 'debit': {
-                          const side = String(item.row['Side'] ?? '');
-                          const isDebit = side === 'DR' || side === 'RC';
-                          const isReturn = side === 'RC';
-                          const amt = isDebit ? item.row['Amount'] : null;
-                          const cellWidth = resolveColumnWidth(col.key);
-                          return (
-                            <td
-                              key={col.key}
-                              className={`px-3 ${cellPy} text-xs text-right font-medium whitespace-nowrap ${cellWidth != null ? 'overflow-hidden' : ''} ${amt != null ? 'text-red-600 dark:text-rose-300' : 'text-faint'} ${stickyBg} `}
-                              style={{ ...getCellStyle(colIdx, false), width: cellWidth, maxWidth: cellWidth }}
-                            >
-                              {amt != null ? (
-                                <div className="flex items-center justify-end gap-1">
-                                  {isReturn && <Badge variant="amber" size="xs" className="border border-amber-200">RTN</Badge>}
-                                  <span><span aria-hidden="true">&#x2212;</span><span className="icon-saudi_riyal">&#xea;</span> {(() => { const parts = Number(amt).toFixed(2).split('.'); return <>{Number(parts[0]).toLocaleString()}<sup className="text-[0.65em] relative -top-[0.55em]">.{parts[1]}</sup></>; })()}</span>
-                                </div>
-                              ) : '-'}
-                              {stickyEdgeShadow(colIdx)}
-                            </td>
-                          );
-                        }
-                        case 'credit': {
-                          const side = String(item.row['Side'] ?? '');
-                          const isCredit = side === 'CR' || side === 'RD';
-                          const isReturn = side === 'RD';
-                          const amt = isCredit ? item.row['Amount'] : null;
-                          const cellWidth = resolveColumnWidth(col.key);
-                          return (
-                            <td
-                              key={col.key}
-                              className={`px-3 ${cellPy} text-xs text-right font-medium whitespace-nowrap ${cellWidth != null ? 'overflow-hidden' : ''} ${amt != null ? 'text-emerald-500 dark:text-emerald-300' : 'text-faint'} ${stickyBg}`}
-                              style={{ ...getCellStyle(colIdx, false), width: cellWidth, maxWidth: cellWidth }}
-                            >
-                              {amt != null ? (
-                                <div className="flex items-center justify-end gap-1">
-                                  {isReturn && <Badge variant="amber" size="xs" className="border border-amber-200">RTN</Badge>}
-                                  <span><span className="icon-saudi_riyal">&#xea;</span> {(() => { const parts = Number(amt).toFixed(2).split('.'); return <>{Number(parts[0]).toLocaleString()}<sup className="text-[0.65em] relative -top-[0.55em]">.{parts[1]}</sup></>; })()}</span>
-                                </div>
-                              ) : '-'}
-                              {stickyEdgeShadow(colIdx)}
-                            </td>
-                          );
-                        }
-                        case 'attribute': {
-                          const attrCellWidth = resolveColumnWidth(col.key);
-                          // Untagged transactions should not display any attribute value
-                          if (item.analysis.tags.length === 0) {
-                            return (
-                              <td
-                                key={col.key}
-                                className={`px-3 ${cellPy} text-xs text-left ${attrCellWidth != null ? 'overflow-hidden' : ''} ${isStickyCol ? 'bg-primary/10 group-hover:bg-primary/15' : 'bg-primary/5'}`}
-                                style={{ ...getCellStyle(colIdx, false), width: attrCellWidth, maxWidth: attrCellWidth }}
-                              >
-                                <span className="text-faint">-</span>
-                                {stickyEdgeShadow(colIdx)}
-                              </td>
-                            );
-                          }
-                          const val = getAttributeValue(item, col.name);
-                          const validation = attrValidationMap.get(col.name);
-                          // Suppress validation chrome when this row's value is
-                          // a constant: no regex, no source field, nothing to
-                          // validate. Another rule with the same attribute name
-                          // might still register a validator on the map, which
-                          // is why this lives at the per-row level.
-                          const isConstantValue = isAttributeFromConstant(item, col.name);
-                          let validationIcon: ReactNode = null;
-                          let validationPassed: boolean | null = null;
-                          if (!isConstantValue) {
-                            // Null / empty extracted values are treated as
-                            // valid by contract — there is nothing to test, so
-                            // no row should ever be marked invalid solely
-                            // because the source field didn't yield a value.
-                            // Otherwise the server's `IsValid` flag on the
-                            // OpsAttributes / OpsMultiTags entry is the
-                            // authoritative answer, and client-side regex
-                            // testing is the fallback for surfaces that lack
-                            // it (wizard preview, sample mode).
-                            if (val == null || val === '') {
-                              validationPassed = true;
-                            } else {
-                              const serverIsValid = getAttributeIsValid(item, col.name);
-                              if (serverIsValid !== null) {
-                                validationPassed = serverIsValid;
-                              } else if (validation) {
-                                if (validation.verifyValue) {
-                                  validationPassed = val === validation.verifyValue;
-                                } else if (validation.validateExtracted) {
-                                  validationPassed = validation.regex.test(val);
-                                } else {
-                                  const sourceVal = String(item.row[validation.sourceField] ?? '');
-                                  validationPassed = validation.regex.test(sourceVal);
-                                }
-                              }
-                            }
-                            if (validationPassed !== null) {
-                              validationIcon = validationPassed
-                                ? <span className="text-emerald-500 dark:text-emerald-300 mr-1" title="Valid">&#10003;</span>
-                                : <span className="text-red-400 dark:text-rose-300 mr-1" title="Invalid">&#10007;</span>;
-                            }
-                          }
-                          const rawDisplayVal = val;
-                          const attrLovTag = attrLovTagMap.get(col.name);
-                          const trimmedVal = rawDisplayVal?.trim();
-                          const lovMap = attrLovTag ? (lovLookup.get(attrLovTag) ?? lovLookup.get(attrLovTag.replace(/[_ ]/g, '').toLowerCase())) : undefined;
-                          const displayVal = lovMap && trimmedVal ? (lovMap.get(trimmedVal) ?? rawDisplayVal) : rawDisplayVal;
-                          const srcField = getAttributeSourceField(item, col.name);
-                          const isAttrHighlighted = highlightSource?.rowIdx === i && highlightSource.attrKey === col.key;
-                          return (
-                            <td
-                              key={col.key}
-                              className={`px-3 ${cellPy} text-xs ${relaxedMode ? 'whitespace-nowrap' : ''} ${attrCellWidth != null ? 'overflow-hidden' : ''}
-                              ${validationIcon ? 'text-center' : 'text-left'}
-                              ${validationPassed === true ? 'text-emerald-500 dark:text-emerald-300' : validationPassed === false ? 'text-red-400 dark:text-rose-300' : 'text-primary-dark'}
-                              ${isAttrHighlighted ? 'ring-2 ring-blue-400/60 ring-inset bg-blue-50 dark:bg-blue-900/30' : isStickyCol ? 'bg-primary/10 group-hover:bg-primary/15' : 'bg-primary/5'}`}
-                              style={{ ...getCellStyle(colIdx, false), width: attrCellWidth, maxWidth: attrCellWidth }}
-                              onMouseEnter={() => {
-                                if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
-                                if (srcField) {
-                                  highlightTimerRef.current = setTimeout(() => setHighlightSource({ rowIdx: i, field: srcField, attrKey: col.key }), 500);
-                                }
-                              }}
-                              onMouseLeave={() => {
-                                if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
-                                highlightTimerRef.current = null;
-                                setHighlightSource(null);
-                              }}
-                            >
-                              <Tooltip content={getAttributeTooltip(item, col.name) ?? col.name} offsetAmount={8} placement="bottom" delay={500}>
-                                <div className={`w-full h-full flex items-center ${attrCellWidth != null ? (relaxedMode ? 'truncate' : 'overflow-hidden') : ''}`}>
-                                  {displayVal ? <span className={attrCellWidth != null && relaxedMode ? 'truncate' : ''}>{validationIcon}{displayVal}</span> : <span className="text-faint">-</span>}
-                                </div>
-                              </Tooltip>
-                              {stickyEdgeShadow(colIdx)}
-                            </td>
-                          );
-                        }
-                        case 'tags': {
-                          const hints = getHints(item.row);
-                          const hasHints = hints.length > 0;
-                          const tagsCellWidth = resolveColumnWidth(col.key);
-                          return (
-                            <td
-                              key={col.key}
-                              className={`px-3 ${cellPy} ${tagsCellWidth != null ? 'overflow-hidden' : ''} ${stickyBg}`}
-                              style={{ ...getCellStyle(colIdx, false), width: tagsCellWidth, maxWidth: tagsCellWidth }}
-                            >
-                              <div className="flex items-center gap-1.5">
-                                {onFlagDeadEnd && (
-                                  <input
-                                    type="checkbox"
-                                    checked={isSelected}
-                                    onChange={() => toggleSelect(rowId)}
-                                    disabled={loading}
-                                    aria-label={loading ? 'Loading transactions, selection disabled' : 'Select row'}
-                                    className={`rounded border-border-strong shrink-0 ${loading ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''}`}
-                                  />
-                                )}
-                                <div className="flex-1">
-                                  {item.analysis.tags.length > 0 ? (
-                                    <div className={`flex items-center gap-1 ${relaxedMode ? 'flex-nowrap' : 'flex-wrap'}`}>
-                                      {isDeadEnd && (
-                                        <Badge variant="none" size="sm" className="border border-red-200 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800 px-2.5 shrink-0">Dead End</Badge>
-                                      )}
-                                      {item.analysis.tags.map((tag, ti) => {
-                                        const matchedDef = item.analysis.matchedDefinitions[ti];
-                                        const defId = matchedDef?.Id;
-                                        const isUserCreated = defId ? !(originalDefinitionIds?.has(defId)) : false;
-                                        const source = isUserCreated ? 'Frontend' : (defId ? (definitionSourceMap?.get(defId) ?? null) : null);
-                                        const versionInfo = defId ? definitionVersions?.get(defId) : undefined;
-                                        const badge = (
-                                          <TagBadge
-                                            tag={tag}
-                                            // Prefer the definition the row actually matched; only
-                                            // fall back to name-lookup when no matched def is
-                                            // available. Two definitions can share a Tag name with
-                                            // different certainty, in which case name-lookup picks
-                                            // the wrong one and the badge color drifts from the
-                                            // tooltip's stated level.
-                                            certainty={matchedDef?.CertaintyLevelTag ?? getCertainty(tag)}
-                                            isUserCreated={isUserCreated}
-                                            version={versionInfo?.version}
-                                            onClick={onTagClick ? () => onTagClick(tag, defId) : undefined}
-                                          />
-                                        );
-                                        if (!source && !matchedDef) return <span key={tag}>{badge}</span>;
-                                        return (
-                                          <Tooltip key={tag} content={renderTagTooltip(source, matchedDef, !!onTagClick, versionInfo)} placement="top">
-                                            <span>{badge}</span>
-                                          </Tooltip>
-                                        );
-                                      })}
-                                      {hasHints && <HintsInfoIcon hints={hints} />}
-                                    </div>
-                                  ) : isDeadEnd ? (
-                                    <div className="flex items-center gap-1">
-                                      <Badge variant="none" size="sm" className="border border-red-200 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800 px-2.5">Dead End</Badge>
-                                      {hasHints && <HintsInfoIcon hints={hints} />}
-                                    </div>
-                                  ) : hasHints ? (
-                                    <HintsInfoIcon hints={hints} />
-                                  ) : (
-                                    <span className="text-faint text-xs">-</span>
-                                  )}
-
-                                </div>
-                              </div>
-                              {stickyEdgeShadow(colIdx)}
-                            </td>
-                          );
-                        }
-                      }
-                    })}
-                  </tr>
+                    <TableRow
+                      key={virtualRow.key}
+                      item={item}
+                      index={i}
+                      rowId={rowId}
+                      isSelected={selectedIds.has(rowId)}
+                      isDeadEnd={item.row['IsDeadEnd'] === true}
+                      rowHighlight={highlightSource?.rowIdx === i ? highlightSource : null}
+                      measureRef={rowVirtualizer.measureElement}
+                      ctx={rowCtx}
+                    />
                   );
                 })}
                 {/* Trailing spacer occupies the height of every row

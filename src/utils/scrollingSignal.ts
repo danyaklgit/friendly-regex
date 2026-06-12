@@ -1,27 +1,27 @@
 /**
  * Module-level "is the transactions table currently scrolling" signal.
  *
- * Purpose: surface a single boolean that any component can subscribe to
- * via `useSyncExternalStore` so it can render a cheaper variant while
- * the heavy virtualized table is in motion. Specifically, `Tooltip`
- * subscribes and short-circuits to a plain child clone during scroll —
- * a Show All on 44k rows mounts ~14 Tooltips per row, and the
- * cumulative floating-ui hook initialization cost on every newly-
- * mounted row is what produces the "blank viewport until scroll
- * stops" symptom.
+ * Purpose: let `Tooltip` distinguish a real hover from rows sliding
+ * under a stationary cursor mid-scroll. Tooltips arm their floating-ui
+ * machinery lazily on first mouseenter/focus; arming on scroll-induced
+ * mouseenter events would mount floating-ui for every cell that passes
+ * under the pointer during a fast scroll, which is exactly the mass
+ * mount cost the lazy design removes. `Tooltip` reads the snapshot at
+ * event time (`getScrollingSnapshot`) — it does NOT subscribe, so the
+ * signal flipping never re-renders anything. `subscribeScrolling` is
+ * kept for any future subscriber that wants `useSyncExternalStore`
+ * semantics.
  *
  * Why module-level (no Provider): the flag is genuinely global —
  * exactly one virtualized table is scrolling at any moment, and every
  * Tooltip everywhere benefits from the same signal. Threading a
  * context Provider through the app would add prop drilling for zero
- * additional capability. The cost is one Set of subscriber callbacks
- * and a tiny notify loop; `useSyncExternalStore` handles tearing.
+ * additional capability.
  *
  * Update cadence: tanstack-virtual's `isScrolling` debounces by
  * `scrollEndTimeout` (defaults to ~150ms after the last scroll event),
  * so the flip happens at most twice per scroll gesture — once when
- * the gesture starts, once when it settles. Subscribers re-render at
- * those two moments, never on every scroll frame.
+ * the gesture starts, once when it settles.
  */
 
 const listeners = new Set<() => void>();
