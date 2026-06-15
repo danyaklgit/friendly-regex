@@ -416,7 +416,10 @@ export function ViewContextModal({ open, onClose, transaction, authToken, tepHea
                     }`}
                   >
                     {contextColumns.flatMap((col, colIdx) => {
-                      const cellCls = 'px-3 py-1.5 whitespace-nowrap';
+                      // `whitespace-pre` (not `nowrap`) so runs of consecutive
+                      // spaces in narrative fields are preserved on screen and
+                      // match the underlying data for exact string-splitting.
+                      const cellCls = 'px-3 py-1.5 whitespace-pre';
                       const tagCell = colIdx === 0 ? (
                         <td key="__ctx_tags" className={`${cellCls}`}>
                           <div className="flex gap-1 flex-wrap">
@@ -475,7 +478,7 @@ export function ViewContextModal({ open, onClose, transaction, authToken, tepHea
                       return (
                         <td
                           key={col.key}
-                          className={`px-3 py-1.5 text-xs whitespace-nowrap bg-primary/5 ${hasTags && val ? 'text-primary-dark' : ''}`}
+                          className={`px-3 py-1.5 text-xs whitespace-pre bg-primary/5 ${hasTags && val ? 'text-primary-dark' : ''}`}
                         >
                           {hasTags && val ? val : <span className="text-faint">-</span>}
                         </td>

@@ -50,7 +50,7 @@ export function TransformationPreview({ transformations, sampleValue, variant = 
         <span className="text-faint text-[10px] shrink-0 w-20">
           {variant === 'pre' ? 'Raw' : 'Extracted'}
         </span>
-        <code className="font-mono text-primary break-all">"{displaySample(sample)}"</code>
+        <code className="font-mono text-primary break-all whitespace-pre-wrap">"{displaySample(sample)}"</code>
       </div>
 
       {steps.map((step) => {
@@ -62,7 +62,7 @@ export function TransformationPreview({ transformations, sampleValue, variant = 
               {def?.label ?? step.method}
             </span>
             <span className="text-faint">&rarr;</span>
-            <code className="font-mono text-primary break-all">"{step.result}"</code>
+            <code className="font-mono text-primary break-all whitespace-pre-wrap">"{step.result}"</code>
           </div>
         );
       })}

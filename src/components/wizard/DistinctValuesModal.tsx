@@ -35,10 +35,10 @@ interface DistinctValuesModalProps {
    *  ACTIVE / released uses 'active'). Defaults to 'ops' to preserve
    *  existing call-site behavior. */
   tagSpecKind?: 'ops' | 'active';
-  /** Optional LOV resolution map (raw value -> friendly name) so the modal
-   *  can preserve the existing "<name> (raw)" display for LOV-based
-   *  attributes. */
-  lovMap?: Map<string, string>;
+  /** Optional LOV resolution map (raw value -> English Description) so the
+   *  modal can show the "<English details> (raw)" display for LOV-based
+   *  attributes, falling back to the raw value when no Description exists. */
+  descriptionMap?: Map<string, string>;
   /** Override the modal stacking. Defaults to `z-[60]` so the backend
    *  popup overlays the in-memory distinct-values modal it's launched from. */
   zClass?: string;
@@ -115,7 +115,7 @@ export function DistinctValuesModal({
   sourceField,
   definitionId,
   tagSpecKind = 'ops',
-  lovMap,
+  descriptionMap,
   zClass = 'z-[60]',
 }: DistinctValuesModalProps) {
   const auth = useAuth();
@@ -307,7 +307,7 @@ export function DistinctValuesModal({
         <div className="space-y-1">
           {data.Items.map((item, i) => {
             const raw = item.FieldValue;
-            const resolved = lovMap?.get(raw);
+            const resolved = descriptionMap?.get(raw);
             return (
               <div
                 key={`${raw}-${i}`}

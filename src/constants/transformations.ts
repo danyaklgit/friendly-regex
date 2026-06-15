@@ -41,6 +41,13 @@ export const TRANSFORMATION_METHODS: TransformationMethodDef[] = [
   { key: 'trim_left', label: 'Trim Left', category: 'Trimming', args: [] },
   { key: 'trim_right', label: 'Trim Right', category: 'Trimming', args: [] },
   { key: 'collapse_whitespace', label: 'Remove Extra Blanks', category: 'Trimming', args: [] },
+  {
+    key: 'collapse_spaces',
+    label: 'Collapse Spaces',
+    description: 'No args. Example: "A:    5.00" -> "A: 5.00"',
+    category: 'Trimming',
+    args: [],
+  },
 
   // Removal
   { key: 'remove_alpha', label: 'Remove Alphabetic', category: 'Removal', args: [] },

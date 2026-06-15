@@ -41,6 +41,20 @@ describe('applyTransformation', () => {
     expect(applyTransformation('collapse_whitespace', {}, '  hello   world  ')).toBe('hello world');
   });
 
+  it('collapse_spaces collapses interior runs of 2+ spaces to one', () => {
+    expect(applyTransformation('collapse_spaces', {}, 'Charges:     5.00 REM ID:1010')).toBe(
+      'Charges: 5.00 REM ID:1010',
+    );
+  });
+
+  it('collapse_spaces leaves single spaces, tabs, and newlines untouched and does not trim', () => {
+    expect(applyTransformation('collapse_spaces', {}, '  a b\tc\n d  ')).toBe(' a b\tc\n d ');
+  });
+
+  it('collapse_spaces is a no-op on empty input', () => {
+    expect(applyTransformation('collapse_spaces', {}, '')).toBe('');
+  });
+
   // --- Removal ---
   it('remove_alpha strips alphabetic characters', () => {
     expect(applyTransformation('remove_alpha', {}, 'ABC123def')).toBe('123');

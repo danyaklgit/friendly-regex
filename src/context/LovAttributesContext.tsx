@@ -35,6 +35,10 @@ interface LovAttributesContextValue {
 
   // Derived
   lovLookup: Map<string, Map<string, string>>;
+  // Parallel to lovLookup but maps Value -> English Description (only for LOV
+  // items that define one). Used by the distinct-values display to show the
+  // item's English details rather than its Name.
+  lovDescriptionLookup: Map<string, Map<string, string>>;
   lovOptions: { value: string; label: string }[];
   activeAttributes: BackendAttribute[];
   activeExtractions: BackendExtraction[];
@@ -269,6 +273,34 @@ export function LovAttributesProvider({ tepHeaders, children }: LovAttributesPro
     return map;
   }, [lovLists]);
 
+  // Derived: LOV description lookup — LOVTag → (Value → English Description).
+  // Keyed the same way as lovLookup, but only populated from items that define
+  // a Description. Feeds the distinct-values modal's "English details" label.
+  const lovDescriptionLookup = useMemo(() => {
+    const map = new Map<string, Map<string, string>>();
+    const normalize = (s: string) => s.replace(/[_ ]/g, '').toLowerCase();
+    for (const list of lovLists) {
+      const inner = new Map<string, string>();
+      for (const item of list.Items) {
+        const desc = item.Description?.trim();
+        if (!desc) continue;
+        const primary = item.Value.trim();
+        inner.set(primary, desc);
+        if (Array.isArray(item.Tags)) {
+          for (const tag of item.Tags) {
+            const t = String(tag).trim();
+            if (t && !inner.has(t)) inner.set(t, desc);
+          }
+        }
+      }
+      map.set(list.Tag, inner);
+      if (!map.has(list.Name)) map.set(list.Name, inner);
+      const norm = normalize(list.Tag);
+      if (!map.has(norm)) map.set(norm, inner);
+    }
+    return map;
+  }, [lovLists]);
+
   // Derived: LOV options for dropdown.
   // Exclude internal LOV tags that aren't meant to surface as attribute value sources:
   //   - ATTRIBUTES: the list of available attribute names (used elsewhere).
@@ -367,6 +399,7 @@ export function LovAttributesProvider({ tepHeaders, children }: LovAttributesPro
     validationLoading,
     extractionsLoading,
     lovLookup,
+    lovDescriptionLookup,
     lovOptions,
     activeAttributes,
     activeExtractions,
@@ -386,7 +419,7 @@ export function LovAttributesProvider({ tepHeaders, children }: LovAttributesPro
   }), [
     lovLists, validationClasses, backendAttributes, backendExtractions,
     lovLoading, attributesLoading, validationLoading, extractionsLoading,
-    lovLookup, lovOptions, activeAttributes, activeExtractions, validationOptions, transformationMethods, extractionMethods,
+    lovLookup, lovDescriptionLookup, lovOptions, activeAttributes, activeExtractions, validationOptions, transformationMethods, extractionMethods,
     refetchAll, refetchAttributes, refetchExtractions,
     createNewAttribute, updateExistingAttribute, toggleAttributeStatus, deleteExistingAttribute,
     createNewExtraction, updateExistingExtraction, deleteExistingExtraction,

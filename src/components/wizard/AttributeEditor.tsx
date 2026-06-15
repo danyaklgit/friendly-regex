@@ -139,7 +139,7 @@ function BoundaryHintIcon({
 
 export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transactions, startCollapsed, readOnly, isDuplicateName, suggestedAttributeNames, suggestedTagName, libraryId, definitionId, tagSpecKind, onEditingChange, configSuggestions }: AttributeEditorProps) {
   const { fieldMeta } = useTransactionData();
-  const { activeAttributes, validationClasses, validationOptions, lovOptions, lovLookup, createNewAttribute, transformationMethods, extractionMethods } = useLovAttributes();
+  const { activeAttributes, validationClasses, validationOptions, lovOptions, lovDescriptionLookup, createNewAttribute, transformationMethods, extractionMethods } = useLovAttributes();
   const [showDistinct, setShowDistinct] = useState(false);
   // Separate state for the backend-sourced "all distinct values" popup that
   // opens from inside the in-memory modal. Keeping it independent means
@@ -1425,7 +1425,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
               <div className="flex items-start gap-2 text-xs">
                 <span className="shrink-0 w-5 text-right text-faint font-mono">&bull;</span>
                 <span className="text-faint text-[10px] shrink-0 w-20">Source</span>
-                <code className="font-mono text-body-secondary break-all">
+                <code className="font-mono text-body-secondary break-all whitespace-pre-wrap">
                   "{extractionPreview.source.length > 240
                     ? `${extractionPreview.source.slice(0, 240)}…`
                     : extractionPreview.source}"
@@ -1434,7 +1434,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
               <div className="flex items-start gap-2 text-xs">
                 <span className="shrink-0 w-5 text-right text-faint font-mono">&rarr;</span>
                 <span className="text-orange-500 dark:text-orange-300 text-[10px] shrink-0 w-20">Extracted</span>
-                <code className="font-mono text-primary break-all">"{extractionPreview.extracted}"</code>
+                <code className="font-mono text-primary break-all whitespace-pre-wrap">"{extractionPreview.extracted}"</code>
               </div>
             </div>
           )}
@@ -1660,7 +1660,9 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
       )}
 
       {showDistinct && (() => {
-        const lovMap = attribute.isLovBased && attribute.lovTag ? lovLookup.get(attribute.lovTag) : undefined;
+        // English details (LOV item Description) by value; primary label, with
+        // fallback to the raw extracted value when no Description is defined.
+        const lovMap = attribute.isLovBased && attribute.lovTag ? lovDescriptionLookup.get(attribute.lovTag) : undefined;
         return (
           <Modal open onClose={() => setShowDistinct(false)} title={`Distinct values for "${attribute.attributeTag || 'Attribute'}"`}>
             <div className="mb-3 flex items-center justify-between gap-3">
@@ -1719,7 +1721,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
           sourceField={attribute.sourceField}
           definitionId={definitionId}
           tagSpecKind={tagSpecKind}
-          lovMap={attribute.isLovBased && attribute.lovTag ? lovLookup.get(attribute.lovTag) : undefined}
+          descriptionMap={attribute.isLovBased && attribute.lovTag ? lovDescriptionLookup.get(attribute.lovTag) : undefined}
         />
       )}
 

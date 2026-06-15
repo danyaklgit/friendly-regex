@@ -30,6 +30,11 @@ export function applyTransformation(
       return value.trimEnd();
     case 'collapse_whitespace':
       return value.replace(/\s+/g, ' ').trim();
+    // Collapse runs of 2+ literal spaces into a single space. Unlike
+    // `collapse_whitespace`, it leaves tabs/newlines untouched and does NOT
+    // trim the ends — it only normalizes interior space padding.
+    case 'collapse_spaces':
+      return value.replace(/ {2,}/g, ' ');
 
     // Removal
     case 'remove_alpha':
