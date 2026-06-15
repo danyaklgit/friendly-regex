@@ -3,7 +3,12 @@ import type { AndGroupFormValue, ConditionFormValue } from '../../types';
 import { Modal } from '../shared/Modal';
 import { Button } from '../shared/Button';
 import { RuleGroupEditor } from '../wizard/RuleGroupEditor';
-import { computeDuplicateGroupIndexes, isFilledCondition } from '../../utils/ruleFingerprint';
+import {
+  computeDuplicateGroupIndexes,
+  hasEmptyRuleGroup,
+  hasIncompleteCondition,
+  isFilledCondition,
+} from '../../utils/ruleFingerprint';
 
 interface MatchingRulesFilterButtonProps {
   /** Currently-applied rule groups. Empty array means the filter is off. */
@@ -48,6 +53,18 @@ export function MatchingRulesFilterButton({ value, onChange }: MatchingRulesFilt
   const isActive = appliedCount > 0;
 
   const draftDuplicateIndexes = useMemo(() => computeDuplicateGroupIndexes(draft), [draft]);
+
+  // Gate Apply the same way the Rule Builder gates Next/Save: block when any
+  // condition is partially filled / a placeholder (missing Source Field,
+  // Operation, or Value), when a rule set is empty, or when two rule sets
+  // duplicate each other. Clearing the filter goes through "Clear filter".
+  const hasBlockingIssue = useMemo(
+    () =>
+      hasIncompleteCondition(draft)
+      || hasEmptyRuleGroup(draft)
+      || draftDuplicateIndexes.some((i) => i !== null),
+    [draft, draftDuplicateIndexes],
+  );
 
   // --- Draft mutators (mirror useWizardForm's shape so the editor
   // component sees the same callback API it does inside the full rule
@@ -170,7 +187,12 @@ export function MatchingRulesFilterButton({ value, onChange }: MatchingRulesFilt
               <Button variant="secondary" onClick={handleClear} disabled={!isActive && draft.every((g) => !g.conditions.some(isFilledCondition))}>
                 Clear filter
               </Button>
-              <Button variant="primary" onClick={handleApply}>
+              <Button
+                variant="primary"
+                onClick={handleApply}
+                disabled={hasBlockingIssue}
+                title={hasBlockingIssue ? 'Complete every condition (Source Field, Operation, Value) and resolve duplicate rule sets before applying' : undefined}
+              >
                 Apply
               </Button>
             </>
