@@ -562,6 +562,17 @@ function CellContentWrapper({
   children: React.ReactNode;
 }) {
   if (relaxedMode) {
+    // Narrative columns carry space-padding that rules split on, so preserve
+    // consecutive spaces even in compact mode. `whitespace-pre` keeps the
+    // value on one line (compact intent) without collapsing the runs; the
+    // td's own `whitespace-nowrap` is overridden by this child.
+    if (narrative) {
+      return (
+        <div className={hasWidth ? 'overflow-hidden text-ellipsis whitespace-pre' : 'whitespace-pre'}>
+          {children}
+        </div>
+      );
+    }
     if (!hasWidth) return <>{children}</>;
     return <div className="truncate">{children}</div>;
   }
