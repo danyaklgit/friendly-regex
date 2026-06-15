@@ -1228,10 +1228,21 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       //      return the whole checkout (e.g. 5000+ rows) even though the
       //      operator only sees 27 rows on screen because of the draft's
       //      conditions.
-      const filtersPayload = [
+      const filtersPayload: FilterProperty[] = [
         ...translateFilters(outgoingFilters, filterDefinitions),
         ...activeExtraFilters,
       ];
+      //   3. Hidden tag specs — exclude them server-side with the SAME two
+      //      `NI` filters the live view uses (`replaceFromBeginningExcluding`).
+      //      The backend keeps untagged rows under `NI`, so this matches the
+      //      visible row set exactly without dropping untagged rows.
+      if (hiddenDefIds.size > 0) {
+        const hiddenValue = [...hiddenDefIds].join('|');
+        filtersPayload.push(
+          { ColumnName: 'OpsTagSpecDefinitionId', Value: hiddenValue, Operand: 'NI' },
+          { ColumnName: 'OpsMultiTags.TagSpecDefinitionId', Value: hiddenValue, Operand: 'NI' },
+        );
+      }
       await downloadCenter.triggerExport(filtersPayload, effectiveSorting);
       setToast({
         message: 'Export queued — check the Download Center when ready.',
@@ -1247,7 +1258,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       // the same breath. The button label says "Queueing…" during the lockout.
       setTimeout(() => setExporting(false), 1500);
     }
-  }, [downloadCenter, outgoingFilters, filterDefinitions, activeExtraFilters, effectiveSorting]);
+  }, [downloadCenter, outgoingFilters, filterDefinitions, activeExtraFilters, effectiveSorting, hiddenDefIds]);
 
   // Drafts queued from inside the wizard. Held here so the save handler can
   // flush after `tagSpecLibrarySave` resolves; the same value is passed down
