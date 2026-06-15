@@ -2,8 +2,21 @@ import { useMemo } from 'react';
 import type { TransformationFormValue } from '../../types';
 import { applyTransformationPipeline } from '../../utils/transformations';
 import { TRANSFORMATION_METHOD_MAP } from '../../constants/transformations';
+import { containsRtl } from '../../utils/bidi';
+import { CharacterBreakdown } from '../shared/CharacterBreakdown';
 
 const DEFAULT_SAMPLE = '  JOHN DOE / 12345 / PAYMENT  ';
+
+// Position-based transformation methods whose offsets are hard to judge on
+// mixed Arabic/English text — when one of these is in the pipeline and the
+// sample has RTL characters, show the logical-order character breakdown.
+const POSITION_METHODS = new Set([
+  'substring',
+  'take_first_n_chars',
+  'take_last_n_chars',
+  'remove_first_n_chars',
+  'remove_last_n_chars',
+]);
 
 // Strip the ISO datetime time portion from a date-shaped sample for the
 // "Extracted" preview line so operators reformatting a backend datetime
@@ -39,6 +52,9 @@ export function TransformationPreview({ transformations, sampleValue, variant = 
 
   if (transformations.length === 0) return null;
 
+  const showBreakdown =
+    containsRtl(sample) && transformations.some((t) => POSITION_METHODS.has(t.method));
+
   return (
     <div className="mt-2 rounded-lg border border-border bg-surface-secondary p-2.5 space-y-1">
       <p className="text-xs font-semibold text-primary uppercase tracking-wide mb-1.5">
@@ -50,7 +66,7 @@ export function TransformationPreview({ transformations, sampleValue, variant = 
         <span className="text-faint text-[10px] shrink-0 w-20">
           {variant === 'pre' ? 'Raw' : 'Extracted'}
         </span>
-        <code className="font-mono text-primary break-all whitespace-pre-wrap">"{displaySample(sample)}"</code>
+        <code dir="auto" className="font-mono text-primary break-all whitespace-pre-wrap">"{displaySample(sample)}"</code>
       </div>
 
       {steps.map((step) => {
@@ -62,10 +78,12 @@ export function TransformationPreview({ transformations, sampleValue, variant = 
               {def?.label ?? step.method}
             </span>
             <span className="text-faint">&rarr;</span>
-            <code className="font-mono text-primary break-all whitespace-pre-wrap">"{step.result}"</code>
+            <code dir="auto" className="font-mono text-primary break-all whitespace-pre-wrap">"{step.result}"</code>
           </div>
         );
       })}
+
+      {showBreakdown && <CharacterBreakdown text={sample} className="mt-1.5" />}
     </div>
   );
 }

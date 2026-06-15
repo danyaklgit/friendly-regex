@@ -17,7 +17,7 @@ export function AttributeDisplay({ attributes }: AttributeDisplayProps) {
             {entries.map(([key, value]) => (
               <div key={key} className="flex items-baseline gap-1 text-xs">
                 <span className="text-muted font-medium">{key}:</span>
-                <span className="text-heading whitespace-pre-wrap">{value}</span>
+                <span dir="auto" className="text-heading whitespace-pre-wrap">{value}</span>
               </div>
             ))}
           </div>

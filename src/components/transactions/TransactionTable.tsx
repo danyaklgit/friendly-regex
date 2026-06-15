@@ -9,6 +9,8 @@ import { HintsInfoIcon } from './HintsInfoIcon';
 import { Badge } from '../shared/Badge';
 import { Tooltip } from '../shared/Tooltip';
 import { getHints } from '../../utils/getHints';
+import { containsRtl } from '../../utils/bidi';
+import { SegmentedRtlText } from '../shared/CharacterBreakdown';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
 import { decomposeExtractionRegex, engregxify } from '../../utils/engregxify';
 import { getRegexDescription } from '../../types/tagSpec';
@@ -42,6 +44,10 @@ interface TransactionTableProps {
   onHideTagDefs?: (defIds: string[]) => void;
   showAttributes?: boolean;
   relaxedMode?: boolean;
+  /** Narrative field names (e.g. `AdditionalInformation`) whose RTL-containing
+   *  cells render as a logical-order character breakdown instead of plain
+   *  text — the "Character view" toggle. Empty = off. */
+  charViewColumns?: ReadonlySet<string>;
   hiddenColumns?: Set<string>;
   columnOrder?: string[];
   onColumnsReady?: (columns: ColumnDef[]) => void;
@@ -567,8 +573,11 @@ function CellContentWrapper({
     // value on one line (compact intent) without collapsing the runs; the
     // td's own `whitespace-nowrap` is overridden by this child.
     if (narrative) {
+      // dir="auto" picks each value's base direction (Arabic vs English) so
+      // mixed narratives render correctly per row instead of inheriting the
+      // table's LTR base.
       return (
-        <div className={hasWidth ? 'overflow-hidden text-ellipsis whitespace-pre' : 'whitespace-pre'}>
+        <div dir="auto" className={hasWidth ? 'overflow-hidden text-ellipsis whitespace-pre' : 'whitespace-pre'}>
           {children}
         </div>
       );
@@ -577,7 +586,7 @@ function CellContentWrapper({
     return <div className="truncate">{children}</div>;
   }
   if (narrative) {
-    return <div className="line-clamp-3 whitespace-pre-wrap break-words">{children}</div>;
+    return <div dir="auto" className="line-clamp-3 whitespace-pre-wrap break-words">{children}</div>;
   }
   if (hasWidth) {
     return <div className="break-words">{children}</div>;
@@ -693,6 +702,10 @@ type RowHighlight = { rowIdx: number; field: string; attrKey: string };
 // would mint a fresh Set on every render for callers that omit the prop,
 // invalidating the `visibleColumns` memo (and with it the row ctx) each time.
 const EMPTY_HIDDEN_COLUMNS = new Set<string>();
+// Stable default for the `charViewColumns` prop (same inline-`new Set()`
+// caveat as EMPTY_HIDDEN_COLUMNS — a fresh set every render would bust the
+// rowCtx memo and re-render every row on each parent commit).
+const EMPTY_CHAR_VIEW_COLUMNS = new Set<string>();
 
 function getCellStyleFor(
   colIdx: number,
@@ -1155,6 +1168,7 @@ interface RowCtx {
   lastLeftIdx: number;
   firstRightIdx: number;
   relaxedMode: boolean;
+  charViewColumns: ReadonlySet<string>;
   loading: boolean;
   selectable: boolean;
   resolveColumnWidth: (key: string) => number | undefined;
@@ -1214,7 +1228,7 @@ const TableRow = memo(function TableRow({
 }) {
   const {
     visibleColumns, stickyLefts, stickyRights, lastLeftIdx, firstRightIdx,
-    relaxedMode, loading, selectable, resolveColumnWidth, highlightMap,
+    relaxedMode, charViewColumns, loading, selectable, resolveColumnWidth, highlightMap,
     searchHighlightMap, onCellDoubleClick, interactiveCellFields,
     interactiveCellHint, attrValidationMap, attrLovTagMap, lovLookup,
     activeDefinitionId, tagDefinitions, originalEditingDef,
@@ -1276,6 +1290,11 @@ const TableRow = memo(function TableRow({
               const cellWidth = resolveColumnWidth(col.key);
               const isNarrative = NARRATIVE_COLUMN_KEYS.has(col.key);
               const rawValue = item.row[col.field];
+              // Character-view toggle: only RTL-containing cells in the
+              // operator-selected columns switch to the logical-order
+              // breakdown so bidi reordering can't hide where a split lands.
+              const showCharView =
+                charViewColumns.has(col.field) && rawValue != null && containsRtl(String(rawValue));
               // Always expose the raw value via title when the
               // cell is at risk of clipping (narrative columns,
               // or any column with an explicit width override).
@@ -1298,13 +1317,17 @@ const TableRow = memo(function TableRow({
                       : undefined
                   }
                 >
-                  <CellContentWrapper
-                    relaxedMode={relaxedMode}
-                    narrative={isNarrative}
-                    hasWidth={cellWidth != null}
-                  >
-                    {renderCellContent(col.field, rawValue)}
-                  </CellContentWrapper>
+                  {showCharView ? (
+                    <SegmentedRtlText text={String(rawValue)} />
+                  ) : (
+                    <CellContentWrapper
+                      relaxedMode={relaxedMode}
+                      narrative={isNarrative}
+                      hasWidth={cellWidth != null}
+                    >
+                      {renderCellContent(col.field, rawValue)}
+                    </CellContentWrapper>
+                  )}
                   {stickyEdgeShadow(colIdx)}
                 </td>
               );
@@ -1552,7 +1575,7 @@ const TableRow = memo(function TableRow({
   );
 });
 
-export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, definitionSourceMap, definitionVersions, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, onFlagDeadEndWithComment, onSetComments, onHideTagDefs, showAttributes = true, relaxedMode = false, hiddenColumns = EMPTY_HIDDEN_COLUMNS, columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, forceSkeleton = false, accentHue = 190, onRowContextMenu, onCellDoubleClick, interactiveCellFields, interactiveCellHint, originalEditingDef, activeDefinitionId, sortOverride = null, onSortChange, columnWidths, onColumnWidthChange }: TransactionTableProps) {
+export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, definitionSourceMap, definitionVersions, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, onFlagDeadEndWithComment, onSetComments, onHideTagDefs, showAttributes = true, relaxedMode = false, charViewColumns = EMPTY_CHAR_VIEW_COLUMNS, hiddenColumns = EMPTY_HIDDEN_COLUMNS, columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, forceSkeleton = false, accentHue = 190, onRowContextMenu, onCellDoubleClick, interactiveCellFields, interactiveCellHint, originalEditingDef, activeDefinitionId, sortOverride = null, onSortChange, columnWidths, onColumnWidthChange }: TransactionTableProps) {
   // Resolve the effective width for a column: explicit override wins,
   // otherwise the catalog default, otherwise undefined (browser
   // auto-layout). Width overrides are intentionally scoped to non-compact
@@ -2407,6 +2430,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     lastLeftIdx,
     firstRightIdx,
     relaxedMode,
+    charViewColumns,
     loading,
     selectable: !!onFlagDeadEnd,
     resolveColumnWidth,
@@ -2431,7 +2455,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     highlightTimerRef,
   }), [
     visibleColumns, stickyLefts, stickyRights, lastLeftIdx, firstRightIdx,
-    relaxedMode, loading, onFlagDeadEnd, resolveColumnWidth, highlightMap,
+    relaxedMode, charViewColumns, loading, onFlagDeadEnd, resolveColumnWidth, highlightMap,
     searchHighlightMap, onCellDoubleClick, interactiveCellFields,
     interactiveCellHint, attrValidationMap, attrLovTagMap, lovLookup,
     activeDefinitionId, tagDefinitions, originalEditingDef,

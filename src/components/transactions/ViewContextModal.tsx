@@ -464,7 +464,7 @@ export function ViewContextModal({ open, onClose, transaction, authToken, tepHea
                           break;
                         case 'data':
                           dataCell = (
-                            <td key={col.key} className={`${cellCls} text-body-secondary ${isHighlighted ? 'font-medium' : ''}`}>
+                            <td key={col.key} dir="auto" className={`${cellCls} text-body-secondary ${isHighlighted ? 'font-medium' : ''}`}>
                               {getCellValue(item.row, col.field)}
                             </td>
                           );
@@ -478,6 +478,7 @@ export function ViewContextModal({ open, onClose, transaction, authToken, tepHea
                       return (
                         <td
                           key={col.key}
+                          dir="auto"
                           className={`px-3 py-1.5 text-xs whitespace-pre bg-primary/5 ${hasTags && val ? 'text-primary-dark' : ''}`}
                         >
                           {hasTags && val ? val : <span className="text-faint">-</span>}

@@ -15,6 +15,8 @@ import { humanizeFieldName } from '../../utils/humanizeFieldName';
 import { describeLiteralBoundary } from '../../utils/engregxify';
 import { applyTransformation } from '../../utils/transformations';
 import { stringifyFieldValue } from '../../utils/extractAttributes';
+import { containsRtl } from '../../utils/bidi';
+import { CharacterBreakdown, HighlightedText } from '../shared/CharacterBreakdown';
 import { Modal } from '../shared/Modal';
 import { AttributeFormModal } from '../attributes/AttributeFormModal';
 import { TransformationList } from './TransformationList';
@@ -141,6 +143,10 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
   const { fieldMeta } = useTransactionData();
   const { activeAttributes, validationClasses, validationOptions, lovOptions, lovDescriptionLookup, createNewAttribute, transformationMethods, extractionMethods } = useLovAttributes();
   const [showDistinct, setShowDistinct] = useState(false);
+  // Character-breakdown override for the extraction preview. null = auto
+  // (shown when the source contains RTL text); true/false = operator forced
+  // it open/closed via the toggle.
+  const [charsOverride, setCharsOverride] = useState<boolean | null>(null);
   // Separate state for the backend-sourced "all distinct values" popup that
   // opens from inside the in-memory modal. Keeping it independent means
   // closing the inner popup doesn't dismiss the outer one.
@@ -522,7 +528,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
   // setting up any post-extraction transformations. Null when there's no
   // source field, no extraction method, no transactions, or no row in
   // the loaded sample where the regex matches.
-  const extractionPreview = useMemo<{ source: string; extracted: string } | null>(() => {
+  const extractionPreview = useMemo<{ source: string; extracted: string; captureStart: number; captureEnd: number } | null>(() => {
     if (attribute.isConstant) return null;
     if (!transactions || transactions.length === 0) return null;
     if (!attribute.sourceField || !attribute.extractionOperation) return null;
@@ -545,8 +551,16 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
         // Mirror rawDistinctValues: fall back to match[0] when the pattern
         // has no explicit capture group (lookahead-style extractions).
         const captured = match ? (match[1] ?? match[0]) : undefined;
-        if (captured) {
-          return { source: str, extracted: captured };
+        if (match && captured) {
+          // Locate the captured span within the source so the preview can
+          // highlight it. The captured group is a contiguous substring of the
+          // match; offset = match start + the group's position inside match[0]
+          // (0 when there's no explicit group). Avoids the `d`-flag indices
+          // API so it stays within the ES2020 lib types.
+          const matchIndex = match.index ?? 0;
+          const within = match[1] != null ? match[0].indexOf(match[1]) : 0;
+          const captureStart = matchIndex + (within >= 0 ? within : 0);
+          return { source: str, extracted: captured, captureStart, captureEnd: captureStart + captured.length };
         }
       }
       return null;
@@ -1417,27 +1431,48 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
               extraction method yet doesn't show an empty box. No top
               border / padding — the preview is part of the Extraction
               block visually, not a separate section. */}
-          {extractionPreview && (
-            <div className="rounded-lg border border-border bg-surface-secondary p-2.5 space-y-1 mt-2">
-              <p className="text-xs font-semibold text-primary uppercase tracking-wide mb-1.5">
-                Extraction Preview
-              </p>
-              <div className="flex items-start gap-2 text-xs">
-                <span className="shrink-0 w-5 text-right text-faint font-mono">&bull;</span>
-                <span className="text-faint text-[10px] shrink-0 w-20">Source</span>
-                <code className="font-mono text-body-secondary break-all whitespace-pre-wrap">
-                  "{extractionPreview.source.length > 240
-                    ? `${extractionPreview.source.slice(0, 240)}…`
-                    : extractionPreview.source}"
-                </code>
+          {extractionPreview && (() => {
+            const sourceHasRtl = containsRtl(extractionPreview.source);
+            const showBreakdown = charsOverride ?? sourceHasRtl;
+            const captureRange = { start: extractionPreview.captureStart, end: extractionPreview.captureEnd };
+            return (
+              <div className="rounded-lg border border-border bg-surface-secondary p-2.5 space-y-1 mt-2">
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-xs font-semibold text-primary uppercase tracking-wide">
+                    Extraction Preview
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setCharsOverride(!showBreakdown)}
+                    className="text-[10px] text-primary hover:underline"
+                  >
+                    {showBreakdown ? 'Hide characters' : 'Show characters'}
+                  </button>
+                </div>
+                <div className="flex items-start gap-2 text-xs">
+                  <span className="shrink-0 w-5 text-right text-faint font-mono">&bull;</span>
+                  <span className="text-faint text-[10px] shrink-0 w-20">Source</span>
+                  <HighlightedText
+                    text={extractionPreview.source}
+                    highlight={captureRange}
+                    className="font-mono text-body-secondary break-all whitespace-pre-wrap"
+                  />
+                </div>
+                <div className="flex items-start gap-2 text-xs">
+                  <span className="shrink-0 w-5 text-right text-faint font-mono">&rarr;</span>
+                  <span className="text-orange-500 dark:text-orange-300 text-[10px] shrink-0 w-20">Extracted</span>
+                  <code dir="auto" className="font-mono text-primary break-all whitespace-pre-wrap">"{extractionPreview.extracted}"</code>
+                </div>
+                {showBreakdown && (
+                  <CharacterBreakdown
+                    text={extractionPreview.source}
+                    highlight={captureRange}
+                    className="mt-1.5"
+                  />
+                )}
               </div>
-              <div className="flex items-start gap-2 text-xs">
-                <span className="shrink-0 w-5 text-right text-faint font-mono">&rarr;</span>
-                <span className="text-orange-500 dark:text-orange-300 text-[10px] shrink-0 w-20">Extracted</span>
-                <code className="font-mono text-primary break-all whitespace-pre-wrap">"{extractionPreview.extracted}"</code>
-              </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* ── Post-extraction Transformations ── */}
           {!!attribute.sourceField && !(readOnly && (attribute.transformations ?? []).length === 0) && (
@@ -1701,7 +1736,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
                         </span>
                       </Tooltip>
                     )}
-                    <span className="flex-1 min-w-0 truncate">
+                    <span dir="auto" className="flex-1 min-w-0 truncate">
                       {resolved ? <>{resolved} <span className="text-faint text-xs">({val})</span></> : val}
                     </span>
                   </div>

@@ -48,6 +48,7 @@ import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { Tooltip } from '../shared/Tooltip';
 import { DynamicFilters } from './DynamicFilters';
 import { Toggle } from '../shared/Toggle';
+import { DropdownBackdrop } from '../shared/DropdownBackdrop';
 import { useLocalChanges } from '../../hooks/useLocalChanges';
 import { useVisibleRowsEngine } from '../../hooks/useVisibleRowsEngine';
 import { clampPageIndex } from '../../utils/visibleRows';
@@ -236,6 +237,16 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
 }
 
 const BATCH_SIZE = 50;
+// Stable empty set for the disabled "Character view" state (a fresh new Set()
+// each render would bust TransactionTable's rowCtx memo).
+const EMPTY_CHAR_VIEW_COLS: ReadonlySet<string> = new Set<string>();
+// Narrative columns eligible for the character-view breakdown.
+const CHAR_VIEW_COLUMNS: { field: string; label: string }[] = [
+  { field: 'AdditionalInformation', label: 'Additional Information' },
+  { field: 'Description1', label: 'Description 1' },
+  { field: 'Description2', label: 'Description 2' },
+  { field: 'TransactionDetails', label: 'Transaction Details' },
+];
 // Stable set identity for the Rule Builder's double-click affordance —
 // re-creating the Set on every render would re-trigger memoization
 // downstream. Frozen so accidental mutation doesn't bypass the singleton.
@@ -379,6 +390,20 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const [relaxedMode, setRelaxedMode] = useState(() => {
     try { const v = localStorage.getItem('tep:relaxedMode'); return v === null ? true : v === 'true'; } catch { return true; }
   });
+  // "Character view": render RTL narrative cells as a logical-order character
+  // breakdown so splitting positions are unambiguous. Off by default; the set
+  // of target columns defaults to Additional Information and the operator can
+  // add other narrative columns. Both persist per device.
+  const [charViewEnabled, setCharViewEnabled] = useState(() => {
+    try { return localStorage.getItem('tep:charView') === 'true'; } catch { return false; }
+  });
+  const [charViewCols, setCharViewCols] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem('tep:charViewCols');
+      return stored ? new Set(JSON.parse(stored) as string[]) : new Set(['AdditionalInformation']);
+    } catch { return new Set(['AdditionalInformation']); }
+  });
+  const [charViewMenuOpen, setCharViewMenuOpen] = useState(false);
   const [hiddenColumns, setHiddenColumns] = useState<Set<string> | null>(() => {
     try {
       const stored = localStorage.getItem('tep:hiddenColumns');
@@ -643,6 +668,15 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   useEffect(() => { try { localStorage.setItem('tep:showAttributes', String(showAttributes)); } catch { /* ignore */ } }, [showAttributes]);
   useEffect(() => { try { localStorage.setItem('tep:incrementalPagination', String(incrementalPagination)); } catch { /* ignore */ } }, [incrementalPagination]);
   useEffect(() => { try { localStorage.setItem('tep:relaxedMode', String(relaxedMode)); } catch { /* ignore */ } }, [relaxedMode]);
+  useEffect(() => { try { localStorage.setItem('tep:charView', String(charViewEnabled)); } catch { /* ignore */ } }, [charViewEnabled]);
+  useEffect(() => { try { localStorage.setItem('tep:charViewCols', JSON.stringify([...charViewCols])); } catch { /* ignore */ } }, [charViewCols]);
+  // Effective char-view columns passed to the table: empty (stable identity)
+  // when the toggle is off so it never alters rendering, otherwise the picked
+  // set. Memoized so it doesn't bust the table's rowCtx every render.
+  const effectiveCharViewCols = useMemo(
+    () => (charViewEnabled ? charViewCols : EMPTY_CHAR_VIEW_COLS),
+    [charViewEnabled, charViewCols],
+  );
   useEffect(() => { if (hiddenColumns !== null) { try { localStorage.setItem('tep:hiddenColumns', JSON.stringify([...hiddenColumns])); } catch { /* ignore */ } } }, [hiddenColumns]);
   useEffect(() => { try { localStorage.setItem('tep:columnOrder', JSON.stringify(columnOrder)); } catch { /* ignore */ } }, [columnOrder]);
   useEffect(() => {
@@ -2787,6 +2821,67 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
             {isLiveMode && inProgressLib?.Id && (
               <CommentSearchTrigger onClick={() => setSearchPanelOpen(true)} title="Search comments" size="sm" />
             )}
+            {/* Character view: compact button next to Columns (a sibling
+                column-display control). Its on/off switch + per-column picker
+                live in the popover so the filter row stays tidy. Renders
+                Arabic narrative cells in logical character order; gotcha #30. */}
+            {tableColumns.length > 0 && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setCharViewMenuOpen((o) => !o)}
+                  title="Show Arabic narrative cells in logical character order"
+                  aria-pressed={charViewEnabled}
+                  className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-colors whitespace-nowrap ${
+                    charViewEnabled
+                      ? 'bg-primary/10 border-primary/30 text-primary-dark dark:text-primary shadow-sm'
+                      : 'bg-surface border-border-strong text-body hover:bg-surface-hover'
+                  }`}
+                >
+                  <span className="font-mono text-[11px] leading-none tracking-tight" aria-hidden>حA</span>
+                  <span className="hidden lg:inline">Character view</span>
+                  {charViewEnabled && (
+                    <span className="px-1.5 py-0.5 rounded-full bg-primary/20 text-[10px] font-semibold leading-none">
+                      {charViewCols.size}
+                    </span>
+                  )}
+                </button>
+                {charViewMenuOpen && (
+                  <>
+                    <DropdownBackdrop onClick={() => setCharViewMenuOpen(false)} />
+                    <div className="absolute top-full right-0 mt-1 z-50 w-64 rounded-lg border border-border bg-surface shadow-lg p-3 space-y-2">
+                      <Toggle label="Character view" checked={charViewEnabled} onChange={setCharViewEnabled} />
+                      <p className="text-[10px] text-muted leading-snug">
+                        Renders Arabic (right-to-left) text in narrative cells one character at a time, in logical order, so split positions are clear. English text is left as-is.
+                      </p>
+                      <div className={charViewEnabled ? '' : 'opacity-50 pointer-events-none'}>
+                        <p className="text-[10px] uppercase tracking-wide text-faint mb-1">Columns</p>
+                        {CHAR_VIEW_COLUMNS.map((c) => (
+                          <label
+                            key={c.field}
+                            className="flex items-center gap-2 px-1 py-1 text-xs text-body cursor-pointer hover:bg-surface-hover rounded"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={charViewCols.has(c.field)}
+                              onChange={() =>
+                                setCharViewCols((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(c.field)) next.delete(c.field);
+                                  else next.add(c.field);
+                                  return next;
+                                })
+                              }
+                            />
+                            {c.label}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
             {tableColumns.length > 0 && (
               <ColumnPicker columns={tableColumns} hiddenColumns={effectiveHiddenColumns} onChange={setHiddenColumns} columnOrder={columnOrder} onColumnOrderChange={setColumnOrder} defaultHiddenColumns={defaultHiddenColumns} onReset={handleColumnReset} lockedVisibleKeys={forcedSideColumnKeys} />
             )}
@@ -3393,6 +3488,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         onHideTagDefs={!isReadOnly && !tagClickState?.showingAll && !tagClickState?.rulesetApplied ? hideTagDefs : undefined}
         showAttributes={showAttributes}
         relaxedMode={relaxedMode}
+        charViewColumns={effectiveCharViewCols}
         hiddenColumns={tableHiddenColumns}
         columnOrder={columnOrder}
         onColumnsReady={setTableColumns}

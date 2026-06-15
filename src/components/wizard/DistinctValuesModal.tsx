@@ -314,7 +314,7 @@ export function DistinctValuesModal({
                 className="px-3 py-1.5 text-sm bg-surface-secondary rounded border border-border dark:text-primary-light flex items-center gap-2"
               >
                 <ValidIcon isValid={item.IsValid} />
-                <span className="font-mono flex-1 truncate">
+                <span dir="auto" className="font-mono flex-1 truncate">
                   {resolved ? (
                     <>
                       {resolved} <span className="text-faint text-xs">({raw})</span>
