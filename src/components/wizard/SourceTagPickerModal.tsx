@@ -108,6 +108,13 @@ export function SourceTagPickerModal({ open, libraries, onClose, onSelect }: Sou
         result.push({ def, txnType, bank, side });
       }
     }
+    // Sort alphabetically by tag name (case-insensitive), with the def Id as a
+    // stable tiebreaker so duplicate tag names (e.g. two "A2AIn" versions)
+    // keep a deterministic order across renders.
+    result.sort((a, b) => {
+      const byTag = a.def.Tag.localeCompare(b.def.Tag, undefined, { sensitivity: 'base' });
+      return byTag !== 0 ? byTag : a.def.Id.localeCompare(b.def.Id);
+    });
     return result;
   }, [libraries]);
 
