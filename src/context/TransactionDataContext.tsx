@@ -5,7 +5,6 @@ import { translateFilters } from '../utils/translateFilters';
 import { getTransactions, getFilters, getUserFilters, markTransactionsAsDeadEnd, unmarkDeadEndTransactions, setTransactionsComment, DEFAULT_SORTING, type TepHeaders, type FilterDefinition, type FilterProperty, type SetTransactionsCommentEntry, type SortProperty } from '../api/transactions';
 import { useAuth } from './AuthContext';
 import { useTepConfig } from './TepConfigContext';
-import { mergeSortedRows } from '../utils/visibleRows';
 import sampleTransactionData from '../data/sampleData.json';
 
 // Default page size for the initial Transactions load + every
@@ -54,13 +53,12 @@ export interface TransactionDataContextValue {
    *  and `Show all` now that backend `PageSize` is uncapped — one round
    *  trip per click instead of `ceil(N / PAGE_SIZE)` aligned pages. */
   replaceFromBeginning: (filters: Record<string, Set<string>>, pageSize: number, extraFilters?: FilterProperty[], sortingProperties?: SortProperty[]) => Promise<TransactionRow[]>;
-  /** Hidden-tag aware variant: fires TWO parallel queries — tagged rows
-   *  with an `NI` exclusion on the hidden definition ids, plus untagged
-   *  rows (`OpsIsUntagged = True`, which the NI predicate would silently
-   *  drop because their tag columns are NULL — the bd1267f bug) — and
-   *  merges them client-side in SortingProperties order. Returns the
-   *  merged first `pageSize` rows plus the EXACT visible total
-   *  (sum of both counts), or null on abort/error. */
+  /** Hidden-tag aware variant: ONE query with two `NI` exclusions on the
+   *  hidden definition ids (primary + multi-tag columns) — the backend keeps
+   *  untagged rows under `NI`, so this alone is the visible set — plus a
+   *  PageSize-1 no-exclusion count for the scope total (written to
+   *  `totalTransactionsCount`). Returns the first `pageSize` visible rows and
+   *  the EXACT visible total (the NI query's count), or null on abort/error. */
   replaceFromBeginningExcluding: (filters: Record<string, Set<string>>, pageSize: number, hiddenDefIds: string[], extraFilters?: FilterProperty[], sortingProperties?: SortProperty[]) => Promise<{ rows: TransactionRow[]; visibleTotal: number | null } | null>;
   fetchCount: (filters: Record<string, Set<string>>, extraFilters?: FilterProperty[], sortingProperties?: SortProperty[], signal?: AbortSignal) => Promise<number | null>;
   trimLoadedTransactions: (count: number) => void;
@@ -623,28 +621,31 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
   }, [isLiveMode, getAuthHeaders, refreshIfNeeded, userId, tepConfig]);
 
   /**
-   * Hidden-tag aware replace: the visible set = (tagged rows NOT hidden by
-   * primary or any multi-tag) UNION (untagged rows). The backend can't
-   * express that union in one query, so we fetch the two DISJOINT halves in
-   * parallel and merge them in sort order:
+   * Hidden-tag aware replace. Excludes hidden tag specs SERVER-SIDE with TWO
+   * `NI` filter properties:
+   *     { ColumnName: 'OpsTagSpecDefinitionId',           Operand: 'NI', Value: ids }
+   *     { ColumnName: 'OpsMultiTags.TagSpecDefinitionId', Operand: 'NI', Value: ids }
+   * (pipe-joined ids). Two SEPARATE columns, not the single COMPOSITE
+   * `OpsTagSpecDefinitionId|OpsMultiTags.TagSpecDefinitionId` — the composite
+   * ignored the multi-tag array and leaked multi-tag-hidden rows (230/250),
+   * do NOT revert to it. The backend KEEPS untagged (NULL-tag) rows under
+   * `NI`, so this single query returns exactly the visible set and its
+   * `TransactionsCount` IS the exact visible total.
    *
-   *   A. tagged-visible — active filters + TWO `NI` filter properties:
-   *        { ColumnName: 'OpsTagSpecDefinitionId',           Operand: 'NI', Value: ids }
-   *        { ColumnName: 'OpsMultiTags.TagSpecDefinitionId', Operand: 'NI', Value: ids }
-   *      This is the payload the backend honors for multi-tags (the earlier
-   *      single COMPOSITE column ignored the array and leaked multi-tagged
-   *      hidden rows, 230/250). But `NI` is false for NULL columns, so it
-   *      ALSO drops untagged rows — hence half B.
-   *   B. untagged — active filters + { OpsIsUntagged EQ True }. These are
-   *      exactly the NULL-tag rows that half A drops; the two halves never
-   *      overlap.
+   * (An earlier design added a second `OpsIsUntagged = True` query on the
+   * belief that `NI` dropped NULL rows — the "bd1267f trap". It does NOT on
+   * this backend: verified live, the NI query alone returned total-minus-
+   * hidden INCLUDING untagged rows, so the extra half double-counted untagged
+   * rows in both the total (5836 + 166 = 6002 vs a true 5836) and the merged
+   * buffer. That half + `mergeSortedRows` were removed.)
    *
-   * Both come back in SortingProperties order; `mergeSortedRows` reproduces
-   * the union's global order, sliced to `pageSize`. The two TransactionsCount
-   * values sum to the EXACT visible total. Same atomic-replace + single-
-   * flight contract as replaceFromBeginning; deliberately does NOT touch
-   * totalTransactionsCount (that stays the UNFILTERED scope total — the
-   * visible total travels back to the caller).
+   * A SECOND parallel count (active filters only, PageSize 1, NO exclusion)
+   * gives the no-exclusion scope total — the same number a plain "main" load
+   * produces — and is written into `totalTransactionsCount` so the hidden
+   * tally is simply `totalTransactionsCount - visibleTotal` and stays correct
+   * even when filters change while tags are hidden (the plain load doesn't run
+   * then). Same atomic-replace + single-flight contract as
+   * replaceFromBeginning.
    */
   const replaceFromBeginningExcluding = useCallback(async (
     filters: Record<string, Set<string>>,
@@ -679,7 +680,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
     const controller = new AbortController();
     abortRef.current = controller;
     try {
-      const [tagged, untagged] = await Promise.all([
+      const [visible, scope] = await Promise.all([
         getTransactions(
           {
             FilteringProperties: [
@@ -694,11 +695,13 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
           tepHeaders,
           controller.signal,
         ),
+        // No-exclusion scope total (the "main load" total for this filter
+        // scope). PageSize 1 — we only need its TransactionsCount.
         getTransactions(
           {
-            FilteringProperties: [...baseFiltering, { ColumnName: 'OpsIsUntagged', Value: 'True', Operand: 'EQ' }],
+            FilteringProperties: baseFiltering,
             SortingProperties: sorting,
-            Pagination: { PageIndex: 0, PageSize: pageSize },
+            Pagination: { PageIndex: 0, PageSize: 1 },
           },
           token,
           tepHeaders,
@@ -714,18 +717,20 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
         const isDead = typeof ops === 'string' ? ops.toLowerCase() === 'true' : ops === true;
         return { ...row, IsDeadEnd: isDead };
       });
-      const taggedRows = mirror(tagged.Transactions ?? []);
-      const untaggedRows = mirror(untagged.Transactions ?? []);
-      const rows = mergeSortedRows(taggedRows, untaggedRows, sorting).slice(0, pageSize);
-      const visibleTotal = tagged.TransactionsCount != null && untagged.TransactionsCount != null
-        ? tagged.TransactionsCount + untagged.TransactionsCount
-        : null;
+      // The NI query already returns the visible set in SortingProperties
+      // order (untagged rows kept), so its rows ARE the buffer and its
+      // TransactionsCount IS the exact visible total — no merge, no sum.
+      const rows = mirror(visible.Transactions ?? []).slice(0, pageSize);
+      const visibleTotal = visible.TransactionsCount ?? null;
 
       currentPageRef.current = 0;
       setHasMore(visibleTotal != null ? rows.length < visibleTotal : rows.length >= pageSize);
-      // Deliberately do NOT touch totalTransactionsCount: that field is
-      // the UNFILTERED scope total; the visible total travels back to the
-      // caller (the visible-rows engine) instead.
+      // Keep totalTransactionsCount = the no-exclusion scope total (the
+      // "main load" total) so the hidden tally is totalTransactionsCount -
+      // visibleTotal and stays correct even when filters change while tags
+      // are hidden. The visible total travels back to the caller separately.
+      const scopeTotal = scope.TransactionsCount ?? null;
+      if (scopeTotal != null) setTotalTransactionsCount(scopeTotal);
       setTransactions(rows);
       loadedCountRef.current = rows.length;
       return { rows, visibleTotal };

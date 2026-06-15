@@ -19,8 +19,10 @@ import { PAGE_SIZE } from '../context/TransactionDataContext';
  * keeps untagged rows, so the buffer contains exactly the visible rows
  * (PageSize = target) and `TransactionsCount` is the EXACT visible total.
  * The earlier single COMPOSITE column leaked multi-tagged hidden rows
- * (verified 230/250). Typical hide = one data call + a background
- * unfiltered-count call (header tally = unfiltered - visible). NOTE: rows
+ * (verified 230/250). Typical hide = the NI data call + a parallel
+ * PageSize-1 no-exclusion scope count (which refreshes
+ * `totalTransactionsCount`); the header tally is then
+ * `totalTransactionsCount - visibleTotal`. NOTE: rows
  * that are multi-tagged with a MIX of hidden and visible defs are kept by
  * the server (they have a visible tag); TransactionsTab strips the hidden
  * defs from those rows' DISPLAY (badges/attributes) via
@@ -109,14 +111,6 @@ export function useVisibleRowsEngine(args: VisibleRowsEngineArgs): VisibleRowsEn
   const [targetVisible, setTargetVisible] = useState<number>(PAGE_SIZE);
   const targetVisibleRef = useRef(targetVisible);
 
-  // Scoped hidden-row count for the CURRENT filter scope. Null = unknown
-  // (not yet fetched for this scope). Kept at its last value while a
-  // refresh is in flight so the header doesn't flash 0.
-  const [hiddenTotal, setHiddenTotal] = useState<number | null>(
-    args.hiddenDefIds.size === 0 ? 0 : null,
-  );
-  const hiddenTotalRef = useRef<number | null>(hiddenTotal);
-  const [hiddenCountLoading, setHiddenCountLoading] = useState(false);
   const [refilling, setRefilling] = useState(false);
 
   // EXACT visible total from the last dual-query fetch (sum of the two
@@ -139,11 +133,9 @@ export function useVisibleRowsEngine(args: VisibleRowsEngineArgs): VisibleRowsEn
   // replaceFromBeginning's abortRef.
   const runRef = useRef(0);
 
-  // Count-call cache: key = filters epoch + sorted hidden ids. The epoch
-  // bumps whenever the filter scope identity changes (render-time check —
-  // a double render just costs one redundant count call).
-  const countCacheKeyRef = useRef('');
-  const countAbortRef = useRef<AbortController | null>(null);
+  // Filters epoch: bumps whenever the filter scope identity changes
+  // (render-time check). Used to key the EXACT visible total so a stale
+  // measurement from a previous scope is never trusted.
   const filtersEpochRef = useRef(0);
   const lastFilterIdsRef = useRef<{ f: unknown; e: unknown; s: unknown }>({ f: null, e: null, s: null });
   if (
@@ -154,42 +146,6 @@ export function useVisibleRowsEngine(args: VisibleRowsEngineArgs): VisibleRowsEn
     lastFilterIdsRef.current = { f: args.outgoingFilters, e: args.activeExtraFilters, s: args.effectiveSorting };
     filtersEpochRef.current++;
   }
-
-  /** Resolves the UNFILTERED scope total (active filters, NO hidden
-   *  exclusion) so the header "N hidden" chip = unfilteredTotal -
-   *  visibleTotal. Server-side exclusion makes the visible total exact;
-   *  the hidden tally is just the complement. Cached per filter epoch
-   *  (it doesn't depend on which tags are hidden). Stored in the
-   *  `hiddenTotal` slot, which the derived `totalHidden` subtracts from.
-   *  Returns null when a newer run took over mid-flight. */
-  const resolveUnfilteredTotal = useCallback(async (token: number): Promise<number | null> => {
-    const key = `epoch:${filtersEpochRef.current}`;
-    if (key === countCacheKeyRef.current && hiddenTotalRef.current != null) {
-      return hiddenTotalRef.current;
-    }
-    countAbortRef.current?.abort();
-    const controller = new AbortController();
-    countAbortRef.current = controller;
-    setHiddenCountLoading(true);
-    let count: number | null = null;
-    try {
-      const a = argsRef.current;
-      count = await a.fetchCount(
-        a.outgoingFilters,
-        a.activeExtraFilters.length > 0 ? a.activeExtraFilters : undefined,
-        a.effectiveSorting,
-        controller.signal,
-      );
-    } finally {
-      if (countAbortRef.current === controller) setHiddenCountLoading(false);
-    }
-    if (token !== runRef.current) return null;
-    if (count == null) return hiddenTotalRef.current ?? null;
-    hiddenTotalRef.current = count;
-    setHiddenTotal(count);
-    countCacheKeyRef.current = key;
-    return count;
-  }, []);
 
   const ensureVisibleWithIds = useCallback(async (
     target: number,
@@ -212,10 +168,10 @@ export function useVisibleRowsEngine(args: VisibleRowsEngineArgs): VisibleRowsEn
 
     // ---- DUAL-QUERY PATH (hidden tags active): server-side exclusion ----
     if (ids.size > 0) {
-      // Header tally (unfiltered total) refreshes in the background; the
-      // data path doesn't need it (the NI fetch returns the exact visible
-      // total itself).
-      void resolveUnfilteredTotal(token);
+      // The dual fetch returns the EXACT visible total AND refreshes
+      // totalTransactionsCount with the no-exclusion scope total, so the
+      // hidden tally (totalTransactionsCount - visibleTotal) needs no
+      // separate count call.
       const a = argsRef.current;
       // Buffer already satisfies the target? Only trust a buffer fetched
       // under the SAME scope + hidden set — its rows are all visible, so
@@ -255,9 +211,7 @@ export function useVisibleRowsEngine(args: VisibleRowsEngineArgs): VisibleRowsEn
 
     // ---- PLAIN PATH (no hidden tags): single exact-size fetch ----
     // No hidden rows to exclude, so fetching `clamped` rows yields exactly
-    // `clamped` visible rows. Reset the hidden tally to 0.
-    hiddenTotalRef.current = 0;
-    setHiddenTotal(0);
+    // `clamped` visible rows.
     const a = argsRef.current;
     const serverTotal = a.totalTransactionsCount;
     const extras = a.activeExtraFilters.length > 0 ? a.activeExtraFilters : undefined;
@@ -278,7 +232,7 @@ export function useVisibleRowsEngine(args: VisibleRowsEngineArgs): VisibleRowsEn
       bufferKeyRef.current = key;
       setRefilling(false);
     }
-  }, [resolveUnfilteredTotal]);
+  }, []);
 
   const ensureVisible = useCallback(
     (target: number, opts?: { forceFetch?: boolean }) =>
@@ -304,17 +258,12 @@ export function useVisibleRowsEngine(args: VisibleRowsEngineArgs): VisibleRowsEn
     kind: 'hide' | 'unhide' | 'unhideAll',
     previousVisibleShown: number,
   ) => {
-    countCacheKeyRef.current = '';
     if (!argsRef.current.isLiveMode) return; // sample counts derive client-side
     if (kind === 'unhideAll' || next.size === 0) {
       // Hidden rows were excluded SERVER-SIDE, so the buffer doesn't
       // contain them — refetch to bring them back. Unhiding resets the
       // window to the initial PAGE_SIZE (50): the operator is returning to
       // a clean view, so any prior +N / Show all window is discarded.
-      countAbortRef.current?.abort();
-      hiddenTotalRef.current = 0;
-      setHiddenTotal(0);
-      setHiddenCountLoading(false);
       visibleTotalRef.current = null;
       setVisibleTotalState(null);
       setRefilling(true);
@@ -363,39 +312,24 @@ export function useVisibleRowsEngine(args: VisibleRowsEngineArgs): VisibleRowsEn
     if (prev.bank === args.checkoutBank && prev.side === args.checkoutSide) return;
     lastCheckoutRef.current = { bank: args.checkoutBank, side: args.checkoutSide };
     runRef.current++;
-    countAbortRef.current?.abort();
-    countCacheKeyRef.current = '';
     targetVisibleRef.current = PAGE_SIZE;
     setTargetVisible(PAGE_SIZE);
-    hiddenTotalRef.current = 0;
-    setHiddenTotal(0);
-    setHiddenCountLoading(false);
     visibleTotalRef.current = null;
     setVisibleTotalState(null);
     bufferKeyRef.current = '';
     setRefilling(false);
   }, [args.checkoutBank, args.checkoutSide]);
 
-  // Abort the pending count call on unmount (data calls are owned and
-  // aborted by TransactionDataContext).
-  useEffect(() => () => { countAbortRef.current?.abort(); }, []);
-
   const { isLiveMode, totalTransactionsCount, hiddenDefIds, hiddenLoadedCount } = args;
 
-  // Visible-space total. With hidden tags active, the EXACT number from
-  // the last dual-query fetch wins (sum of the two response counts) as
-  // long as it was measured for the current scope + hidden set; until a
-  // dual fetch lands for this key, fall back to the same-scope
-  // subtraction estimate. Floored at 0, never on the loaded-buffer
-  // visible count — that number shifts while the async analyzeRow pass
-  // walks a fresh buffer (displayCounts clamps totalNow >= loadedNow at
-  // the display layer instead).
-  // Server-side exclusion makes the visible total EXACT: with no hidden
-  // tags it's the plain scope total (`totalTransactionsCount`); with
-  // hidden tags it's `visibleTotalState` (the NI fetch's TransactionsCount
-  // for the current scope+hidden key). `hiddenTotal` now holds the
-  // UNFILTERED scope total (see resolveUnfilteredTotal), so the hidden
-  // tally is just the complement: unfiltered - visible.
+  // Visible-space total. Server-side exclusion makes the visible total
+  // EXACT: with no hidden tags it's the plain scope total
+  // (`totalTransactionsCount`); with hidden tags it's `visibleTotalState`
+  // (the dual fetch's tagged + untagged TransactionsCount sum) as long as
+  // it was measured for the current scope + hidden set. Until a dual fetch
+  // lands for this key it reads null (the display layer clamps
+  // totalNow >= loadedNow). Never derived from the loaded-buffer length —
+  // that shifts while the async analyzeRow pass walks a fresh buffer.
   const totalShowing = useMemo(() => {
     if (!isLiveMode) return null;
     if (hiddenDefIds.size === 0) return totalTransactionsCount;
@@ -404,20 +338,28 @@ export function useVisibleRowsEngine(args: VisibleRowsEngineArgs): VisibleRowsEn
     return null; // visible total not measured yet for this scope/hidden set
   }, [isLiveMode, totalTransactionsCount, hiddenDefIds, visibleTotalState]);
 
+  // Hidden tally = main-load total minus the hide response's visible total.
+  // `totalTransactionsCount` is the no-exclusion scope total (the plain
+  // load sets it; the dual fetch refreshes it from its third count so it
+  // stays correct even after a filter change while tags are hidden), and
+  // `totalShowing` is the dual fetch's visible total — so the difference of
+  // the two fetch responses is exactly the hidden count.
   const totalHidden = useMemo(() => {
     if (!isLiveMode) return hiddenLoadedCount;
     if (hiddenDefIds.size === 0) return 0;
-    const unfiltered = hiddenTotal;
+    const fullTotal = totalTransactionsCount;
     const visible = totalShowing;
-    if (unfiltered == null || visible == null) return 0;
-    return Math.max(0, unfiltered - visible);
-  }, [isLiveMode, hiddenDefIds, hiddenTotal, totalShowing, hiddenLoadedCount]);
+    if (fullTotal == null || visible == null) return 0;
+    return Math.max(0, fullTotal - visible);
+  }, [isLiveMode, hiddenDefIds, totalTransactionsCount, totalShowing, hiddenLoadedCount]);
 
   return {
     targetVisible,
     totalShowing,
     totalHidden,
-    hiddenCountLoading,
+    // Pulse the header tally while a hide-scoped refill is resolving the
+    // visible total; no separate count call backs it anymore.
+    hiddenCountLoading: refilling && hiddenDefIds.size > 0,
     refilling,
     ensureVisible,
     refetch,
