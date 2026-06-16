@@ -152,16 +152,35 @@ export function CharacterBreakdown({ text, highlight, maxChars = 240, compact = 
   );
 }
 
-/** Split text into maximal runs of RTL vs non-RTL characters (logical order). */
-function segmentByRtl(text: string): { rtl: boolean; text: string }[] {
-  const segments: { rtl: boolean; text: string }[] = [];
-  for (const ch of text) {
+/** Split text into maximal runs of RTL vs non-RTL characters, tracking each
+ *  run's UTF-16 start index so highlight ranges (from regex `match.index`)
+ *  line up. Indexed by UTF-16 unit; narratives are BMP so unit == char. */
+function segmentByRtl(text: string): { rtl: boolean; text: string; start: number }[] {
+  const segments: { rtl: boolean; text: string; start: number }[] = [];
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
     const rtl = containsRtl(ch);
     const last = segments[segments.length - 1];
     if (last && last.rtl === rtl) last.text += ch;
-    else segments.push({ rtl, text: ch });
+    else segments.push({ rtl, text: ch, start: i });
   }
   return segments;
+}
+
+const MARK_CLASS =
+  'bg-primary/20 dark:bg-primary/40 rounded-sm text-heading dark:text-primary-light font-medium ring-1 ring-primary/40 dark:ring-primary/70';
+
+/** Group a segment's chars into consecutive highlighted / non-highlighted runs. */
+function splitByHighlight(segText: string, segStart: number, ranges: ReadonlyArray<readonly [number, number]>) {
+  const runs: { hi: boolean; text: string }[] = [];
+  for (let k = 0; k < segText.length; k++) {
+    const idx = segStart + k;
+    const hi = ranges.some(([s, e]) => idx >= s && idx < e);
+    const last = runs[runs.length - 1];
+    if (last && last.hi === hi) last.text += segText[k];
+    else runs.push({ hi, text: segText[k] });
+  }
+  return runs;
 }
 
 /**
@@ -170,27 +189,57 @@ function segmentByRtl(text: string): { rtl: boolean; text: string }[] {
  * direction-isolated cells laid out in logical L→R order. This keeps the cell
  * compact (the English dominates and stays plain) while still showing the
  * Arabic in unambiguous logical order so splitting positions are clear.
+ *
+ * `highlightRanges` (UTF-16 [start, end) spans from the rule/search match) are
+ * tinted the same way plain cells highlight: matched LTR text wrapped in
+ * `<mark>`, matched Arabic char-cells filled with the primary tint.
  */
-export function SegmentedRtlText({ text, className = '' }: { text: string; className?: string }) {
+export function SegmentedRtlText({
+  text,
+  highlightRanges = [],
+  className = '',
+}: {
+  text: string;
+  highlightRanges?: ReadonlyArray<readonly [number, number]>;
+  className?: string;
+}) {
   const segments = segmentByRtl(text);
+  const hiAt = (i: number) => highlightRanges.some(([s, e]) => i >= s && i < e);
   return (
     <div dir="auto" className={`whitespace-pre-wrap break-words leading-6 ${className}`}>
       {segments.map((seg, si) =>
         seg.rtl ? (
           <span key={si} className="inline-flex flex-wrap gap-0.5 align-middle mx-0.5">
-            {[...seg.text].map((ch, i) => (
-              <span
-                key={i}
-                dir="ltr"
-                style={{ unicodeBidi: 'isolate' }}
-                className="flex items-center justify-center min-w-[1.1rem] h-5 px-0.5 rounded font-mono text-xs leading-none border bg-surface border-border text-body-secondary"
-              >
-                {ch}
-              </span>
-            ))}
+            {[...seg.text].map((ch, i) => {
+              const hi = hiAt(seg.start + i);
+              return (
+                <span
+                  key={i}
+                  dir="ltr"
+                  style={{ unicodeBidi: 'isolate' }}
+                  className={`flex items-center justify-center min-w-[1.1rem] h-5 px-0.5 rounded font-mono text-xs leading-none border ${
+                    hi
+                      ? 'bg-primary/20 dark:bg-primary/40 border-primary/40 text-heading dark:text-primary-light'
+                      : 'bg-surface border-border text-body-secondary'
+                  }`}
+                >
+                  {ch}
+                </span>
+              );
+            })}
           </span>
         ) : (
-          <span key={si}>{seg.text}</span>
+          <span key={si}>
+            {splitByHighlight(seg.text, seg.start, highlightRanges).map((run, ri) =>
+              run.hi ? (
+                <mark key={ri} className={MARK_CLASS}>
+                  {run.text}
+                </mark>
+              ) : (
+                <span key={ri}>{run.text}</span>
+              ),
+            )}
+          </span>
         ),
       )}
     </div>

@@ -1,8 +1,9 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import type { AndGroupFormValue, ConditionFormValue } from '../../types';
 import { RuleGroupEditor } from './RuleGroupEditor';
 import { Button } from '../shared/Button';
 import { computeDuplicateGroupIndexes } from '../../utils/ruleFingerprint';
+import { useScrollNewItemIntoView } from '../../hooks/useScrollNewItemIntoView';
 
 interface StepRuleExpressionsProps {
   ruleGroups: AndGroupFormValue[];
@@ -44,6 +45,10 @@ export function StepRuleExpressions({
   // the user happens to be editing.
   const duplicateOfIndex = useMemo(() => computeDuplicateGroupIndexes(ruleGroups), [ruleGroups]);
 
+  // Scroll a freshly added rule set into view (Add Rule Set).
+  const groupsRef = useRef<HTMLDivElement>(null);
+  useScrollNewItemIntoView(ruleGroups.length, groupsRef);
+
   return (
     <div className="space-y-0 flex flex-col">
       <p data-tour="ruleset-logic-info" className="text-xs text-muted mb-2">
@@ -52,7 +57,8 @@ export function StepRuleExpressions({
       </p>
 
       {ruleGroups.length > 0 ? (
-        ruleGroups.map((group, i) => (
+        <div ref={groupsRef} className="flex flex-col">
+        {ruleGroups.map((group, i) => (
           <div key={group.id}>
             {i > 0 && (
               <div className="flex items-center justify-center my-1">
@@ -81,7 +87,8 @@ export function StepRuleExpressions({
               onConditionEditingChange={onConditionEditingChange}
             />
           </div>
-        ))
+        ))}
+        </div>
       ) : (
         <div className="text-center py-4 bg-surface-secondary rounded-lg border border-dashed border-border-strong">
           <p className="text-sm text-muted my-2">No rule sets defined yet</p>

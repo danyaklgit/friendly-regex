@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -21,6 +21,7 @@ import { Button } from '../shared/Button';
 import { computeDuplicateAttributeIndexes } from '../../utils/attributeFingerprint';
 import { getAttributeConfigSuggestions, type AttributeConfigSuggestion } from '../../utils/attributeConfigSuggestions';
 import { useLovAttributes } from '../../context/LovAttributesContext';
+import { useScrollNewItemIntoView } from '../../hooks/useScrollNewItemIntoView';
 
 interface StepAttributesProps {
   attributes: AttributeFormValue[];
@@ -59,6 +60,10 @@ export function StepAttributes({ attributes, onAdd, onRemove, onClone, onUpdate,
   // case-insensitive) name, or null when it's unique. Only the later
   // duplicate carries the flag so the original stays clean.
   const duplicateOfIndex = useMemo(() => computeDuplicateAttributeIndexes(attributes), [attributes]);
+
+  // Scroll a freshly added attribute into view (Add Attribute).
+  const listRef = useRef<HTMLDivElement>(null);
+  useScrollNewItemIntoView(attributes.length, listRef);
 
   // Per-attribute-name extraction config suggestions sourced from same-bank
   // sibling definitions. Computed once per (libraries, bank, lov, current
@@ -136,7 +141,7 @@ export function StepAttributes({ attributes, onAdd, onRemove, onClone, onUpdate,
             items={attributes.map((a) => a.id)}
             strategy={verticalListSortingStrategy}
           >
-            <div className="space-y-1">
+            <div ref={listRef} className="space-y-1">
               {attributes.map((attr, i) => (
                 <SortableAttributeRow
                   key={attr.id}

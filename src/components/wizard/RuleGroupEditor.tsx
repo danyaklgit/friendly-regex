@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { AndGroupFormValue, ConditionFormValue } from '../../types';
 import { ConditionEditor } from './ConditionEditor';
 import { Button } from '../shared/Button';
 import { generateExpressionPrompt } from '../../utils/regexify';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
 import { isSameCondition, isCompleteCondition, isFilledCondition } from '../../utils/ruleFingerprint';
+import { useScrollNewItemIntoView } from '../../hooks/useScrollNewItemIntoView';
 
 interface RuleGroupEditorProps {
   group: AndGroupFormValue;
@@ -60,6 +61,10 @@ export function RuleGroupEditor({
     if (!startCollapsed) return true;
     return !group.conditions.some(isFilledCondition);
   });
+
+  // Scroll a freshly added condition into view (+ Add condition).
+  const conditionsRef = useRef<HTMLDivElement>(null);
+  useScrollNewItemIntoView(group.conditions.length, conditionsRef);
 
   // Clone is only meaningful once every condition is complete (no half-filled
   // placeholder rows). We deliberately allow cloning even when this set is a
@@ -146,7 +151,7 @@ export function RuleGroupEditor({
       {isExpanded && (
         <>
           <div className='flex items-center justify-between mt-3 w-full'>
-            <div className="space-y-0">
+            <div ref={conditionsRef} className="space-y-0">
               {group.conditions.map((condition, i) => {
                 // Within-group duplicate flags ONLY the later copy of an
                 // identical condition — the first occurrence is the original

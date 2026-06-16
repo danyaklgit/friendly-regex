@@ -255,9 +255,11 @@ function getColumnAccentColor(index: number, total: number, baseHue = 190): stri
   return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
 }
 
-function highlightText(text: string, regexes: RegExp[]): ReactNode {
-  if (regexes.length === 0) return text;
-
+// Merged, sorted [start, end) match ranges for a string against a set of
+// regexes. Shared by `highlightText` (plain cells) and the char-view path
+// (SegmentedRtlText) so a rule/search match highlights the same span in both.
+function computeHighlightRanges(text: string, regexes: RegExp[]): [number, number][] {
+  if (regexes.length === 0) return [];
   const ranges: [number, number][] = [];
   for (const regex of regexes) {
     const flags = 'g' + (regex.flags.includes('i') ? 'i' : '');
@@ -268,19 +270,20 @@ function highlightText(text: string, regexes: RegExp[]): ReactNode {
       ranges.push([match.index, match.index + match[0].length]);
     }
   }
-
-  if (ranges.length === 0) return text;
-
+  if (ranges.length === 0) return [];
   ranges.sort((a, b) => a[0] - b[0]);
   const merged: [number, number][] = [ranges[0]];
   for (let i = 1; i < ranges.length; i++) {
     const last = merged[merged.length - 1];
-    if (ranges[i][0] <= last[1]) {
-      last[1] = Math.max(last[1], ranges[i][1]);
-    } else {
-      merged.push(ranges[i]);
-    }
+    if (ranges[i][0] <= last[1]) last[1] = Math.max(last[1], ranges[i][1]);
+    else merged.push(ranges[i]);
   }
+  return merged;
+}
+
+function highlightText(text: string, regexes: RegExp[]): ReactNode {
+  const merged = computeHighlightRanges(text, regexes);
+  if (merged.length === 0) return text;
 
   const parts: ReactNode[] = [];
   let pos = 0;
@@ -1295,6 +1298,14 @@ const TableRow = memo(function TableRow({
               // breakdown so bidi reordering can't hide where a split lands.
               const showCharView =
                 charViewColumns.has(col.field) && rawValue != null && containsRtl(String(rawValue));
+              // Same match ranges plain cells highlight with, so a rule/search
+              // hit (e.g. the "/ORDP" prefix) is tinted in char-view too.
+              const charViewHighlights = showCharView
+                ? computeHighlightRanges(String(rawValue), [
+                    ...(highlightMap?.get(col.field) ?? []),
+                    ...(searchHighlightMap?.get(col.field) ?? []),
+                  ])
+                : [];
               // Always expose the raw value via title when the
               // cell is at risk of clipping (narrative columns,
               // or any column with an explicit width override).
@@ -1318,7 +1329,7 @@ const TableRow = memo(function TableRow({
                   }
                 >
                   {showCharView ? (
-                    <SegmentedRtlText text={String(rawValue)} />
+                    <SegmentedRtlText text={String(rawValue)} highlightRanges={charViewHighlights} />
                   ) : (
                     <CellContentWrapper
                       relaxedMode={relaxedMode}

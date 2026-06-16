@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AndGroupFormValue, ConditionFormValue } from '../../types';
 import { Modal } from '../shared/Modal';
 import { Button } from '../shared/Button';
 import { RuleGroupEditor } from '../wizard/RuleGroupEditor';
+import { useScrollNewItemIntoView } from '../../hooks/useScrollNewItemIntoView';
 import {
   computeDuplicateGroupIndexes,
   hasEmptyRuleGroup,
@@ -53,6 +54,10 @@ export function MatchingRulesFilterButton({ value, onChange }: MatchingRulesFilt
   const isActive = appliedCount > 0;
 
   const draftDuplicateIndexes = useMemo(() => computeDuplicateGroupIndexes(draft), [draft]);
+
+  // Scroll a freshly added rule set into view (+ Add Rule Set).
+  const groupsRef = useRef<HTMLDivElement>(null);
+  useScrollNewItemIntoView(draft.length, groupsRef);
 
   // Gate Apply the same way the Rule Builder gates Next/Save: block when any
   // condition is partially filled / a placeholder (missing Source Field,
@@ -204,7 +209,7 @@ export function MatchingRulesFilterButton({ value, onChange }: MatchingRulesFilt
               The active filter pipes into GetMT940Transactions as a REGEX FilterProperty so the table reflects the rules
               at the server level.
             </p>
-            <div className="space-y-2">
+            <div ref={groupsRef} className="space-y-2">
               {draft.map((group, gi) => (
                 <RuleGroupEditor
                   key={group.id}
