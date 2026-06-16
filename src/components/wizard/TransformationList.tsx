@@ -34,6 +34,9 @@ interface TransformationListProps {
    * caller continues to render the same string it does today.
    */
   variant?: 'pre' | 'post';
+  /** Global "Character view" toggle — forwarded to the preview so its
+   *  logical-order character breakdown only shows when the toggle is on. */
+  characterView?: boolean;
 }
 
 export function TransformationList({
@@ -43,6 +46,7 @@ export function TransformationList({
   onChange,
   readOnly,
   variant = 'post',
+  characterView = false,
 }: TransformationListProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -189,6 +193,7 @@ export function TransformationList({
         transformations={transformations.filter((t) => t.method)}
         sampleValue={sampleValue}
         variant={variant}
+        characterView={characterView}
       />
     </div>
   );

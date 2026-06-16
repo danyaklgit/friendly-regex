@@ -53,9 +53,13 @@ interface StepAttributesProps {
    *  the editing definition's parent library). Suggestions are sourced from
    *  this bank only — across CR / DR / RC / RD sides. */
   bankSwiftCode?: string | null;
+  /** Global "Character view" toggle, forwarded to each AttributeEditor so the
+   *  extraction / transformation previews show the character breakdown only
+   *  when it's on. */
+  characterView?: boolean;
 }
 
-export function StepAttributes({ attributes, onAdd, onRemove, onClone, onUpdate, onReorder, transactions, startCollapsed, readOnly, suggestedAttributeNames, suggestedTagName, libraryId, definitionId, tagSpecKind, onAttributeEditingChange, libraries, bankSwiftCode }: StepAttributesProps) {
+export function StepAttributes({ attributes, onAdd, onRemove, onClone, onUpdate, onReorder, transactions, startCollapsed, readOnly, suggestedAttributeNames, suggestedTagName, libraryId, definitionId, tagSpecKind, onAttributeEditingChange, libraries, bankSwiftCode, characterView = false }: StepAttributesProps) {
   // For each attribute, the index of the earlier row sharing its (trimmed,
   // case-insensitive) name, or null when it's unique. Only the later
   // duplicate carries the flag so the original stays clean.
@@ -168,6 +172,7 @@ export function StepAttributes({ attributes, onAdd, onRemove, onClone, onUpdate,
                     tagSpecKind={tagSpecKind}
                     onEditingChange={onAttributeEditingChange}
                     configSuggestions={suggestionsByName.get(attr.attributeTag.trim().toLowerCase())}
+                    characterView={characterView}
                   />
                 </SortableAttributeRow>
               ))}

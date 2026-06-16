@@ -51,6 +51,12 @@ export function TagWizardModal({ existingDef, parentLib, initialFormState, initi
   const tepConfig = useTepConfig();
   const wizard = useWizardForm(existingDef, initialFormState, fieldMeta.sourceFields[0], parentLib, initialStep, extractionMethods);
   const [searchPanelOpen, setSearchPanelOpen] = useState(false);
+  // Mirror the table's "Character view" preference (read once on open — the
+  // wizard has no toggle of its own) so the extraction/transformation previews
+  // show the character breakdown only when the operator has it enabled.
+  const [characterView] = useState(() => {
+    try { return localStorage.getItem('tep:charView') === 'true'; } catch { return false; }
+  });
 
   const authHeader = auth.getAuthHeaders().Authorization ?? '';
   const commentsAuthToken = authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : null;
@@ -207,6 +213,7 @@ export function TagWizardModal({ existingDef, parentLib, initialFormState, initi
           libraryId={commentsLibraryId ?? undefined}
           definitionId={existingDef?.Id}
           tagSpecKind={parentLib?.StatusTag === 'INPROGRESS' ? 'ops' : 'active'}
+          characterView={characterView}
         />
       )}
 

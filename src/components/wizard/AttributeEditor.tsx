@@ -99,6 +99,11 @@ interface AttributeEditorProps {
    *  the operator picks a card to overwrite source field / extraction /
    *  transformations / validation in this row. */
   configSuggestions?: AttributeConfigSuggestion[];
+  /** Global "Character view" toggle. When on, the extraction / transformation
+   *  previews show the logical-order character breakdown for RTL samples; when
+   *  off, the previews stay normal (no breakdown). Tied to the same toggle that
+   *  controls the table so turning it off reverts the rule builder too. */
+  characterView?: boolean;
 }
 
 /**
@@ -139,14 +144,10 @@ function BoundaryHintIcon({
   );
 }
 
-export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transactions, startCollapsed, readOnly, isDuplicateName, suggestedAttributeNames, suggestedTagName, libraryId, definitionId, tagSpecKind, onEditingChange, configSuggestions }: AttributeEditorProps) {
+export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transactions, startCollapsed, readOnly, isDuplicateName, suggestedAttributeNames, suggestedTagName, libraryId, definitionId, tagSpecKind, onEditingChange, configSuggestions, characterView = false }: AttributeEditorProps) {
   const { fieldMeta } = useTransactionData();
   const { activeAttributes, validationClasses, validationOptions, lovOptions, lovDescriptionLookup, createNewAttribute, transformationMethods, extractionMethods } = useLovAttributes();
   const [showDistinct, setShowDistinct] = useState(false);
-  // Character-breakdown override for the extraction preview. null = auto
-  // (shown when the source contains RTL text); true/false = operator forced
-  // it open/closed via the toggle.
-  const [charsOverride, setCharsOverride] = useState<boolean | null>(null);
   // Separate state for the backend-sourced "all distinct values" popup that
   // opens from inside the in-memory modal. Keeping it independent means
   // closing the inner popup doesn't dismiss the outer one.
@@ -1119,6 +1120,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
                   onChange={(preExtractionTransformations) => onUpdate({ preExtractionTransformations })}
                   readOnly={readOnly}
                   variant="pre"
+                  characterView={characterView}
                 />
               </div>
             )}
@@ -1432,23 +1434,16 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
               border / padding — the preview is part of the Extraction
               block visually, not a separate section. */}
           {extractionPreview && (() => {
-            const sourceHasRtl = containsRtl(extractionPreview.source);
-            const showBreakdown = charsOverride ?? sourceHasRtl;
+            // The per-character breakdown follows the global "Character view"
+            // toggle (same one that drives the table): on + RTL sample → show
+            // it; off → normal preview only.
+            const showBreakdown = characterView && containsRtl(extractionPreview.source);
             const captureRange = { start: extractionPreview.captureStart, end: extractionPreview.captureEnd };
             return (
               <div className="rounded-lg border border-border bg-surface-secondary p-2.5 space-y-1 mt-2">
-                <div className="flex items-center justify-between mb-1.5">
-                  <p className="text-xs font-semibold text-primary uppercase tracking-wide">
-                    Extraction Preview
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setCharsOverride(!showBreakdown)}
-                    className="text-[10px] text-primary hover:underline"
-                  >
-                    {showBreakdown ? 'Hide characters' : 'Show characters'}
-                  </button>
-                </div>
+                <p className="text-xs font-semibold text-primary uppercase tracking-wide mb-1.5">
+                  Extraction Preview
+                </p>
                 <div className="flex items-start gap-2 text-xs">
                   <span className="shrink-0 w-5 text-right text-faint font-mono">&bull;</span>
                   <span className="text-faint text-[10px] shrink-0 w-20">Source</span>
@@ -1483,6 +1478,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
                 sampleValue={transformationSample}
                 onChange={(transformations) => onUpdate({ transformations })}
                 readOnly={readOnly}
+                characterView={characterView}
               />
             </div>
           )}

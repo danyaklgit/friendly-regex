@@ -40,9 +40,12 @@ interface TransformationPreviewProps {
    * `post` so existing callers render unchanged.
    */
   variant?: 'pre' | 'post';
+  /** Global "Character view" toggle — the character breakdown only shows
+   *  when this is on (so turning it off reverts the rule builder too). */
+  characterView?: boolean;
 }
 
-export function TransformationPreview({ transformations, sampleValue, variant = 'post' }: TransformationPreviewProps) {
+export function TransformationPreview({ transformations, sampleValue, variant = 'post', characterView = false }: TransformationPreviewProps) {
   const sample = sampleValue || DEFAULT_SAMPLE;
 
   const steps = useMemo(
@@ -53,7 +56,7 @@ export function TransformationPreview({ transformations, sampleValue, variant = 
   if (transformations.length === 0) return null;
 
   const showBreakdown =
-    containsRtl(sample) && transformations.some((t) => POSITION_METHODS.has(t.method));
+    characterView && containsRtl(sample) && transformations.some((t) => POSITION_METHODS.has(t.method));
 
   return (
     <div className="mt-2 rounded-lg border border-border bg-surface-secondary p-2.5 space-y-1">

@@ -3261,6 +3261,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                     ? getContextValue(editingParentLib.Context, 'BankSwiftCode') ?? null
                     : activeCheckout?.bank ?? null
                 }
+                characterView={charViewEnabled}
               />
             </div>
           </div>
