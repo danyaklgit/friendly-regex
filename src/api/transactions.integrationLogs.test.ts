@@ -7,7 +7,6 @@ import {
 } from './transactions';
 
 const tepHeaders: TepHeaders = {
-  apiKey: 'test-api-key',
   userId: 'user-1',
   tenantCode: 'TENANT',
   languageCode: 'en',
@@ -64,7 +63,6 @@ describe('integration log API helpers', () => {
       const headers = init.headers as Record<string, string>;
       expect(headers.Authorization).toBe(`Bearer ${TOKEN}`);
       expect(headers.ActivityTag).toBe('GetIntegrationLogs');
-      expect(headers['x-apikey']).toBe(tepHeaders.apiKey);
       expect(headers.LanguageCode).toBe(tepHeaders.languageCode);
       expect(headers.TTPUserId).toBe(tepHeaders.userId);
       expect(headers.TTPTenantCode).toBe(tepHeaders.tenantCode);

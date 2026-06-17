@@ -102,7 +102,6 @@ export function CommentSearchPanel({ open, target, onClose, onNavigateToBacklog 
   const tepHeaders = useMemo<TepHeaders | null>(() => {
     if (!auth.userId) return null;
     return {
-      apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
       userId: auth.userId,
       tenantCode: tepConfig.ttpTenantCode,
       languageCode: tepConfig.languageCode,

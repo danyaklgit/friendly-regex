@@ -92,7 +92,6 @@ export function DownloadCenterProvider({ children }: DownloadCenterProviderProps
   const tepHeaders = useMemo<TepHeaders | null>(() => {
     if (!userId) return null;
     return {
-      apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
       userId,
       tenantCode: tepConfig.ttpTenantCode,
       languageCode: tepConfig.languageCode,

@@ -12,7 +12,6 @@ export function buildHeaders(token: string, tepHeaders: TepHeaders, activityTag:
     'Content-Type': 'application/json',
     Accept: 'application/json',
     Authorization: `Bearer ${token}`,
-    'x-apikey': tepHeaders.apiKey,
     ActivityTag: activityTag,
     LanguageCode: tepHeaders.languageCode,
     TTPUserId: tepHeaders.userId,

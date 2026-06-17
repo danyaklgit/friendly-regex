@@ -170,10 +170,11 @@ When the user clicks "Back to login" after reaching the QR step, the old `totp_s
 #### `share.note` length not validated server-side
 `maxLength={500}` on the textarea is the only length check. URL-crafted shares can supply arbitrary lengths.
 
-#### `VITE_TEP_API_KEY` in client bundle
-Baked into the JavaScript bundle at build time and sent as `x-apikey` on every TEP API call. Visible to anyone who has network access.
-
-**Fix:** Confirm the TEP API enforces JWT as primary auth. If `x-apikey` is a secret, move TEP calls through a backend-for-frontend.
+#### `VITE_TEP_API_KEY` in client bundle — RESOLVED 2026-06-17
+Was baked into the JS bundle and sent as `x-apikey` on every TEP API call. Removed entirely: the key
+was meant for integration services, not the Portal, which authenticates via the per-user JWT
+(`Authorization: Bearer`) + `TTPUserId`/`TTPTenantCode` header bundle. The `apiKey` field, the
+`x-apikey` header, and the `VITE_TEP_API_KEY` env var are all gone.
 
 #### Defense-in-depth (server/proxy level)
 - `X-Frame-Options: DENY`

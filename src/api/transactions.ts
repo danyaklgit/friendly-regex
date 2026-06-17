@@ -42,7 +42,6 @@ export interface GetTransactionsRequest {
 // --- TEP header config ---
 
 export interface TepHeaders {
-  apiKey: string;
   userId: string;
   tenantCode: string;
   languageCode: string;
@@ -169,7 +168,6 @@ export async function getFilters(
       'Content-Type': 'application/json',
       Accept: 'application/json',
       Authorization: `Bearer ${authToken}`,
-      'x-apikey': tepHeaders.apiKey,
       ActivityTag: 'GetFilters',
       LanguageCode: tepHeaders.languageCode,
       TTPUserId: tepHeaders.userId,
@@ -206,7 +204,6 @@ export async function getUserFilters(
       'Content-Type': 'application/json',
       Accept: 'application/json',
       Authorization: `Bearer ${authToken}`,
-      'x-apikey': tepHeaders.apiKey,
       ActivityTag: 'GetUserFilters',
       LanguageCode: tepHeaders.languageCode,
       TTPUserId: tepHeaders.userId,
@@ -248,7 +245,6 @@ export async function getTransactions(
       // wire payload by ~10x on the heavy Show-all path.
       'Accept-Encoding': 'gzip',
       Authorization: `Bearer ${authToken}`,
-      'x-apikey': tepHeaders.apiKey,
       ActivityTag: 'GetMT940Transactions',
       LanguageCode: tepHeaders.languageCode,
       TTPUserId: tepHeaders.userId,
@@ -276,7 +272,6 @@ export async function getBacklogStats(
       'Content-Type': 'application/json',
       Accept: 'application/json',
       Authorization: `Bearer ${authToken}`,
-      'x-apikey': tepHeaders.apiKey,
       ActivityTag: 'GetBacklogStats',
       LanguageCode: tepHeaders.languageCode,
       TTPUserId: tepHeaders.userId,
@@ -318,7 +313,6 @@ export async function getAllTransactionTags(
       'Content-Type': 'application/json',
       Accept: 'application/json',
       Authorization: `Bearer ${authToken}`,
-      'x-apikey': tepHeaders.apiKey,
       ActivityTag: 'GetAllTransactionTags',
       LanguageCode: tepHeaders.languageCode,
       TTPUserId: tepHeaders.userId,
@@ -347,7 +341,6 @@ export async function markTransactionsAsDeadEnd(
       'Content-Type': 'application/json',
       Accept: 'application/json',
       Authorization: `Bearer ${authToken}`,
-      'x-apikey': tepHeaders.apiKey,
       ActivityTag: 'MarkTransactionsAsDeadEnd',
       LanguageCode: tepHeaders.languageCode,
       TTPUserId: tepHeaders.userId,
@@ -373,7 +366,6 @@ export async function unmarkDeadEndTransactions(
       'Content-Type': 'application/json',
       Accept: 'application/json',
       Authorization: `Bearer ${authToken}`,
-      'x-apikey': tepHeaders.apiKey,
       ActivityTag: 'UnmarkDeadEndTransactions',
       LanguageCode: tepHeaders.languageCode,
       TTPUserId: tepHeaders.userId,
@@ -404,7 +396,6 @@ export async function setTransactionsComment(
       'Content-Type': 'application/json',
       Accept: 'application/json',
       Authorization: `Bearer ${authToken}`,
-      'x-apikey': tepHeaders.apiKey,
       ActivityTag: 'SetTransactionsComment',
       LanguageCode: tepHeaders.languageCode,
       TTPUserId: tepHeaders.userId,
@@ -472,7 +463,6 @@ export async function getIntegrationLogs(
       'Content-Type': 'application/json',
       Accept: 'application/json',
       Authorization: `Bearer ${authToken}`,
-      'x-apikey': tepHeaders.apiKey,
       ActivityTag: 'GetIntegrationLogs',
       LanguageCode: tepHeaders.languageCode,
       TTPUserId: tepHeaders.userId,
@@ -500,7 +490,6 @@ export async function getIntegrationLogFile(
       'Content-Type': 'application/json',
       Accept: 'application/json',
       Authorization: `Bearer ${authToken}`,
-      'x-apikey': tepHeaders.apiKey,
       ActivityTag: 'GetIntegrationLogFile',
       LanguageCode: tepHeaders.languageCode,
       TTPUserId: tepHeaders.userId,
@@ -528,7 +517,6 @@ export async function rerunIntegrationRequest(
       'Content-Type': 'application/json',
       Accept: 'application/json',
       Authorization: `Bearer ${authToken}`,
-      'x-apikey': tepHeaders.apiKey,
       ActivityTag: 'RerunIntegrationRequest',
       LanguageCode: tepHeaders.languageCode,
       TTPUserId: tepHeaders.userId,

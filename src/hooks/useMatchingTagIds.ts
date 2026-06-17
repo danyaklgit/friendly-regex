@@ -89,7 +89,6 @@ export function useMatchingTagIds(
           return;
         }
         const tepHeaders: TepHeaders = {
-          apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
           userId: userId ?? '',
           tenantCode: tepConfig.ttpTenantCode,
           languageCode: tepConfig.languageCode,

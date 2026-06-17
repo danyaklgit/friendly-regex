@@ -28,7 +28,6 @@ export function useSyncTags() {
     if (!authToken || !userId) throw new Error('Not authenticated');
 
     const tepHeaders: TepHeaders = {
-      apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
       userId,
       tenantCode: tepConfig.ttpTenantCode,
       languageCode: tepConfig.languageCode,

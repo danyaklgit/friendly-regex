@@ -7,7 +7,6 @@ import {
 import type { TepHeaders } from './transactions';
 
 const tepHeaders: TepHeaders = {
-  apiKey: 'test-api-key',
   userId: 'user-1',
   tenantCode: 'TENANT',
   languageCode: 'en',

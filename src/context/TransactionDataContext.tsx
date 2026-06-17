@@ -141,9 +141,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
       await refreshIfNeeded();
       const authHeaders = getAuthHeaders();
       const token = authHeaders.Authorization?.replace('Bearer ', '') ?? '';
-      const tepHeaders: TepHeaders = {
-        apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
-        userId: userId ?? '',
+      const tepHeaders: TepHeaders = {        userId: userId ?? '',
         tenantCode: tepConfig.ttpTenantCode,
         languageCode: tepConfig.languageCode,
         timeZone: tepConfig.timeZone,
@@ -171,9 +169,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
       await refreshIfNeeded();
       const authHeaders = getAuthHeaders();
       const token = authHeaders.Authorization?.replace('Bearer ', '') ?? '';
-      const tepHeaders: TepHeaders = {
-        apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
-        userId: userId ?? '',
+      const tepHeaders: TepHeaders = {        userId: userId ?? '',
         tenantCode: tepConfig.ttpTenantCode,
         languageCode: tepConfig.languageCode,
         timeZone: tepConfig.timeZone,
@@ -214,9 +210,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
       const authHeaders = getAuthHeaders();
       const token = authHeaders.Authorization?.replace('Bearer ', '') ?? '';
       if (!token) return;
-      const tepHeaders: TepHeaders = {
-        apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
-        userId: userId ?? '',
+      const tepHeaders: TepHeaders = {        userId: userId ?? '',
         tenantCode: tepConfig.ttpTenantCode,
         languageCode: tepConfig.languageCode,
         timeZone: tepConfig.timeZone,
@@ -242,9 +236,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
       const authHeaders = getAuthHeaders();
       const token = authHeaders.Authorization?.replace('Bearer ', '') ?? '';
       if (!token) return;
-      const tepHeaders: TepHeaders = {
-        apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
-        userId: userId ?? '',
+      const tepHeaders: TepHeaders = {        userId: userId ?? '',
         tenantCode: tepConfig.ttpTenantCode,
         languageCode: tepConfig.languageCode,
         timeZone: tepConfig.timeZone,
@@ -269,9 +261,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
     const authHeaders = getAuthHeaders();
     const token = authHeaders.Authorization?.replace('Bearer ', '') ?? '';
     if (!token) return;
-    const tepHeaders: TepHeaders = {
-      apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
-      userId: userId ?? '',
+    const tepHeaders: TepHeaders = {      userId: userId ?? '',
       tenantCode: tepConfig.ttpTenantCode,
       languageCode: tepConfig.languageCode,
       timeZone: tepConfig.timeZone,
@@ -332,9 +322,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
     const token = authHeaders.Authorization?.replace('Bearer ', '') ?? '';
     if (!token) return [];
 
-    const tepHeaders: TepHeaders = {
-      apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
-      userId: userId ?? '',
+    const tepHeaders: TepHeaders = {      userId: userId ?? '',
       tenantCode: tepConfig.ttpTenantCode,
       languageCode: tepConfig.languageCode,
       timeZone: tepConfig.timeZone,
@@ -453,9 +441,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
     const authHeaders = getAuthHeaders();
     const token = authHeaders.Authorization?.replace('Bearer ', '') ?? '';
     if (!token) return [];
-    const tepHeaders: TepHeaders = {
-      apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
-      userId: userId ?? '',
+    const tepHeaders: TepHeaders = {      userId: userId ?? '',
       tenantCode: tepConfig.ttpTenantCode,
       languageCode: tepConfig.languageCode,
       timeZone: tepConfig.timeZone,
@@ -560,9 +546,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
     const authHeaders = getAuthHeaders();
     const token = authHeaders.Authorization?.replace('Bearer ', '') ?? '';
     if (!token) return [];
-    const tepHeaders: TepHeaders = {
-      apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
-      userId: userId ?? '',
+    const tepHeaders: TepHeaders = {      userId: userId ?? '',
       tenantCode: tepConfig.ttpTenantCode,
       languageCode: tepConfig.languageCode,
       timeZone: tepConfig.timeZone,
@@ -661,9 +645,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
     const authHeaders = getAuthHeaders();
     const token = authHeaders.Authorization?.replace('Bearer ', '') ?? '';
     if (!token) return null;
-    const tepHeaders: TepHeaders = {
-      apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
-      userId: userId ?? '',
+    const tepHeaders: TepHeaders = {      userId: userId ?? '',
       tenantCode: tepConfig.ttpTenantCode,
       languageCode: tepConfig.languageCode,
       timeZone: tepConfig.timeZone,
@@ -751,9 +733,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
     const authHeaders = getAuthHeaders();
     const token = authHeaders.Authorization?.replace('Bearer ', '') ?? '';
     if (!token) return null;
-    const tepHeaders: TepHeaders = {
-      apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
-      userId: userId ?? '',
+    const tepHeaders: TepHeaders = {      userId: userId ?? '',
       tenantCode: tepConfig.ttpTenantCode,
       languageCode: tepConfig.languageCode,
       timeZone: tepConfig.timeZone,

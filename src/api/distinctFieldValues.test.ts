@@ -3,7 +3,6 @@ import { getDistinctFieldValues } from './distinctFieldValues';
 import type { TepHeaders } from './transactions';
 
 const tepHeaders: TepHeaders = {
-  apiKey: 'test-api-key',
   userId: 'user-1',
   tenantCode: 'TENANT',
   languageCode: 'en',
@@ -66,7 +65,6 @@ describe('getDistinctFieldValues', () => {
     const headers = init.headers as Record<string, string>;
     expect(headers.Authorization).toBe(`Bearer ${TOKEN}`);
     expect(headers.ActivityTag).toBe('GetDistinctFieldValues');
-    expect(headers['x-apikey']).toBe('test-api-key');
 
     const body = JSON.parse(init.body as string);
     expect(body.FieldName).toBe('TransactionDetails');

@@ -20,7 +20,6 @@ export async function getTagSpecLibraries(
       'Content-Type': 'application/json',
       Accept: 'application/json',
       Authorization: `Bearer ${authToken}`,
-      'x-apikey': tepHeaders.apiKey,
       ActivityTag: 'GetTagSpecLibraries',
       LanguageCode: 'en',
       TTPUserId: tepHeaders.userId,

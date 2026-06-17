@@ -70,7 +70,6 @@ export function IntegrationLogFileModal({ log, onClose }: IntegrationLogFileModa
           return;
         }
         const tepHeaders: TepHeaders = {
-          apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
           userId: uid,
           tenantCode: cfg.ttpTenantCode,
           languageCode: cfg.languageCode,

@@ -1995,9 +1995,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         const authHeader = getAuthHeaders().Authorization ?? '';
         const token = authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : '';
         if (!token) return;
-        const tepHeaders: TepHeaders = {
-          apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
-          userId: userId ?? '',
+        const tepHeaders: TepHeaders = {          userId: userId ?? '',
           tenantCode: tepConfig.ttpTenantCode,
           languageCode: tepConfig.languageCode,
           timeZone: tepConfig.timeZone,
@@ -2300,9 +2298,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         const authHeaders = getAuthHeaders();
         const token = authHeaders.Authorization?.replace('Bearer ', '') ?? '';
         if (token) {
-          const tepHeaders: TepHeaders = {
-            apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
-            userId: userId ?? '',
+          const tepHeaders: TepHeaders = {            userId: userId ?? '',
             tenantCode: tepConfig.ttpTenantCode,
             languageCode: tepConfig.languageCode,
             timeZone: tepConfig.timeZone,
@@ -2919,9 +2915,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         const ruleBuilderAuthToken = ruleBuilderAuthHeader.startsWith('Bearer ')
           ? ruleBuilderAuthHeader.slice('Bearer '.length)
           : null;
-        const ruleBuilderTepHeaders: TepHeaders = {
-          apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
-          userId: userId ?? '',
+        const ruleBuilderTepHeaders: TepHeaders = {          userId: userId ?? '',
           tenantCode: tepConfig.ttpTenantCode,
           languageCode: tepConfig.languageCode,
           timeZone: tepConfig.timeZone,
@@ -3793,9 +3787,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       {contextModalRow && (() => {
         const authHeaders = getAuthHeaders();
         const token = authHeaders.Authorization?.replace('Bearer ', '') ?? '';
-        const tepHeaders: TepHeaders = {
-          apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
-          userId: userId ?? '',
+        const tepHeaders: TepHeaders = {          userId: userId ?? '',
           tenantCode: tepConfig.ttpTenantCode,
           languageCode: tepConfig.languageCode,
           timeZone: tepConfig.timeZone,
@@ -3819,9 +3811,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         && (() => {
         const authHeaders = getAuthHeaders();
         const token = authHeaders.Authorization?.replace('Bearer ', '') ?? '';
-        const tepHeaders: TepHeaders = {
-          apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
-          userId: userId ?? '',
+        const tepHeaders: TepHeaders = {          userId: userId ?? '',
           tenantCode: tepConfig.ttpTenantCode,
           languageCode: tepConfig.languageCode,
           timeZone: tepConfig.timeZone,

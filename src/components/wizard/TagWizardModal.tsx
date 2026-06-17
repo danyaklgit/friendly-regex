@@ -61,7 +61,6 @@ export function TagWizardModal({ existingDef, parentLib, initialFormState, initi
   const authHeader = auth.getAuthHeaders().Authorization ?? '';
   const commentsAuthToken = authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : null;
   const commentsTepHeaders: TepHeaders = {
-    apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
     userId: auth.userId ?? '',
     tenantCode: tepConfig.ttpTenantCode,
     languageCode: tepConfig.languageCode,

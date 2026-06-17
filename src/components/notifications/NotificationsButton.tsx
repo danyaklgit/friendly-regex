@@ -179,7 +179,6 @@ export function NotificationsButton({ onNavigateToBacklog }: NotificationsButton
     () =>
       userId
         ? {
-            apiKey: import.meta.env.VITE_TEP_API_KEY ?? '',
             userId,
             tenantCode: tepConfig.ttpTenantCode,
             languageCode: tepConfig.languageCode,

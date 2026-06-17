@@ -42,12 +42,10 @@ const EMPTY_FILTERS: FilterFormState = {
 };
 
 function buildTepHeaders(
-  apiKey: string,
   userId: string,
   tepConfig: ReturnType<typeof useTepConfig>,
 ): TepHeaders {
   return {
-    apiKey,
     userId,
     tenantCode: tepConfig.ttpTenantCode,
     languageCode: tepConfig.languageCode,
@@ -268,7 +266,6 @@ export function IntegrationLogsTab() {
       const token = headers.Authorization?.replace('Bearer ', '') ?? '';
       if (!token || !uid) return;
       const tepHeaders = buildTepHeaders(
-        import.meta.env.VITE_TEP_API_KEY ?? '',
         uid,
         cfg,
       );
@@ -358,7 +355,6 @@ export function IntegrationLogsTab() {
       const token = headers.Authorization?.replace('Bearer ', '') ?? '';
       if (!token || !userId) throw new Error('Not authenticated');
       const tepHeaders = buildTepHeaders(
-        import.meta.env.VITE_TEP_API_KEY ?? '',
         userId,
         tepConfig,
       );
