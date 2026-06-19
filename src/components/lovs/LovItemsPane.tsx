@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { LOVList } from '../../types/lov';
 import { humanizeLovTag } from '../../utils/humanizeLovTag';
+import { downloadCsv } from '../../utils/exportCsv';
 import { Button } from '../shared/Button';
 
 interface LovItemsPaneProps {
@@ -27,6 +28,18 @@ export function LovItemsPane({ list, onRefresh, refreshing }: LovItemsPaneProps)
     });
   }, [items, search]);
 
+  // Export the items currently in view (honors the search filter) to CSV.
+  const handleExport = () => {
+    if (!list) return;
+    const rows = filtered.map((item) => [
+      item.Value,
+      item.Name,
+      item.Description ?? '',
+      (item.Tags ?? []).join('; '),
+    ]);
+    downloadCsv(`lov_${list.Tag}_${new Date().toISOString().slice(0, 10)}.csv`, ['Value', 'Name', 'Description', 'Tags'], rows);
+  };
+
   if (!list) {
     return (
       <div className="flex-1 flex items-center justify-center text-sm text-body-secondary py-12">
@@ -44,14 +57,22 @@ export function LovItemsPane({ list, onRefresh, refreshing }: LovItemsPaneProps)
             {items.length} {items.length === 1 ? 'item' : 'items'}
           </p>
         </div>
-        <Button variant="outline" size="xs" onClick={onRefresh} loading={refreshing}>
-          {!refreshing && (
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        <div className="flex items-center gap-2 shrink-0">
+          <Button variant="outline" size="xs" onClick={handleExport} disabled={filtered.length === 0} title="Export the listed items to CSV">
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
             </svg>
-          )}
-          Refresh
-        </Button>
+            Export
+          </Button>
+          <Button variant="outline" size="xs" onClick={onRefresh} loading={refreshing}>
+            {!refreshing && (
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            )}
+            Refresh
+          </Button>
+        </div>
       </div>
 
       <div className="flex items-center gap-3 flex-wrap">

@@ -5,6 +5,7 @@ import { Button } from '../shared/Button';
 import { Toast } from '../shared/Toast';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { ExtractionFormModal } from './ExtractionFormModal';
+import { downloadCsv } from '../../utils/exportCsv';
 import type { BackendExtraction } from '../../types/lov';
 
 export function ExtractionsPage() {
@@ -81,6 +82,15 @@ export function ExtractionsPage() {
 
   const getEnDetail = (ext: BackendExtraction) => ext.Details.find((d) => d.LanguageCode === 'en');
 
+  // Export the rows currently in view (honors the search filter) to CSV.
+  const handleExport = useCallback(() => {
+    const rows = filtered.map((ext) => {
+      const en = ext.Details.find((d) => d.LanguageCode === 'en');
+      return [en?.Name ?? ext.Value, ext.Value, en?.ShortDescription ?? ''];
+    });
+    downloadCsv(`extractions_${new Date().toISOString().slice(0, 10)}.csv`, ['Name', 'Regex', 'Description'], rows);
+  }, [filtered]);
+
   return (
     <div className="flex flex-col min-h-0 flex-1" data-tour="extractions-page">
       <div className="flex items-center gap-3 mb-4 shrink-0">
@@ -101,6 +111,12 @@ export function ExtractionsPage() {
           />
         </div>
         <div className="flex items-center gap-2 ml-auto">
+          <Button variant="outline" size="sm" onClick={handleExport} disabled={filtered.length === 0} title="Export the listed extractions to CSV">
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+            </svg>
+            Export
+          </Button>
           {!isAudit && (
             <Button variant="primary" size="sm" onClick={handleCreate} data-tour="extractions-create-button">
               + Create Extraction
