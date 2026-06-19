@@ -150,8 +150,8 @@ export function RuleGroupEditor({
 
       {isExpanded && (
         <>
-          <div className='flex items-center justify-between mt-3 w-full'>
-            <div ref={conditionsRef} className="space-y-0">
+          <div className='flex items-center justify-between mt-3 w-full min-w-0'>
+            <div ref={conditionsRef} className="space-y-0 flex-1 min-w-0">
               {group.conditions.map((condition, i) => {
                 // Within-group duplicate flags ONLY the later copy of an
                 // identical condition — the first occurrence is the original
