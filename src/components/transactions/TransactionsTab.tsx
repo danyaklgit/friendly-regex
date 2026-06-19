@@ -376,6 +376,12 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const [searchPanelOpen, setSearchPanelOpen] = useState(false);
   const builderRef = useRef<HTMLDivElement>(null);
   const [builderHeight, setBuilderHeight] = useState(0);
+  // Natural (unclamped) height of the collapsible builder body. Drives the
+  // expand max-height so it fits the real content instead of a fixed cap — a
+  // hard 2000px cap clipped the footer (Collapse button) once several
+  // uncollapsed attributes/rules pushed the body taller. `null` until measured.
+  const builderBodyRef = useRef<HTMLDivElement>(null);
+  const [builderBodyHeight, setBuilderBodyHeight] = useState<number | null>(null);
   const [showOnlyUntagged, setShowOnlyUntagged] = useState(false);
   const [showOnlyMultiTagged, setShowOnlyMultiTagged] = useState(false);
   const [showOnlyDeadEnd, setShowOnlyDeadEnd] = useState(false);
@@ -697,6 +703,19 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     const el = builderRef.current;
     if (!builderOpen || !el) { setBuilderHeight(0); return; }
     const ro = new ResizeObserver(([entry]) => setBuilderHeight(entry.contentRect.height));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [builderOpen]);
+
+  // Track the builder body's natural content height so the expand max-height
+  // fits it exactly (never clips the footer/Collapse) while still animating.
+  // Observing the inner body — whose layout height is its true content even
+  // while the parent clamps + clips — also catches growth as the operator
+  // expands more attributes/rules.
+  useEffect(() => {
+    const el = builderBodyRef.current;
+    if (!builderOpen || !el) { setBuilderBodyHeight(null); return; }
+    const ro = new ResizeObserver(([entry]) => setBuilderBodyHeight(entry.contentRect.height));
     ro.observe(el);
     return () => ro.disconnect();
   }, [builderOpen]);
@@ -3152,11 +3171,15 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
           <div
             className="overflow-hidden transition-[max-height,opacity] duration-300 ease-out"
             style={{
-              maxHeight: builderCollapsed ? '0px' : '2000px',
+              // Expanded height tracks the measured body so tall builders
+              // (many uncollapsed attributes/rules) never clip the footer.
+              // `none` only until the first measurement lands.
+              maxHeight: builderCollapsed ? '0px' : (builderBodyHeight != null ? `${builderBodyHeight}px` : 'none'),
               opacity: builderCollapsed ? 0 : 1,
             }}
             aria-hidden={builderCollapsed}
           >
+          <div ref={builderBodyRef}>
           <div className="p-5 flex flex-col md:flex-row  flex-1 gap-5">
             {/* Matching rules section */}
             <div className='w-full md:w-1/2 space-y-4'>
@@ -3413,6 +3436,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                 </Button>
               )}
             </div>
+          </div>
           </div>
           </div>
         </div>
