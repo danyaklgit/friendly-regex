@@ -5,7 +5,7 @@ import { translateFilters } from '../utils/translateFilters';
 import { getTransactions, getFilters, getUserFilters, markTransactionsAsDeadEnd, unmarkDeadEndTransactions, setTransactionsComment, DEFAULT_SORTING, type TepHeaders, type FilterDefinition, type FilterProperty, type SetTransactionsCommentEntry, type SortProperty } from '../api/transactions';
 import { useAuth } from './AuthContext';
 import { useTepConfig } from './TepConfigContext';
-import sampleTransactionData from '../data/sampleData.json';
+import { loadSampleTransactions } from '../data/loadSampleData';
 
 // Default page size for the initial Transactions load + every
 // filter-change refetch. Stays at 50 so the first paint is light —
@@ -81,14 +81,12 @@ export interface TransactionDataContextValue {
 
 export const TransactionDataContext = createContext<TransactionDataContextValue | null>(null);
 
-const defaultTransactions = (sampleTransactionData as unknown as { Transactions: TransactionRow[] }).Transactions;
-
 export function TransactionDataProvider({ children }: { children: ReactNode }) {
   const { useDummyData, userId, getAuthHeaders, refreshIfNeeded } = useAuth();
   const tepConfig = useTepConfig();
   const isLiveMode = !useDummyData;
 
-  const [transactions, setTransactions] = useState<TransactionRow[]>(useDummyData ? defaultTransactions : []);
+  const [transactions, setTransactions] = useState<TransactionRow[]>([]);
   const [isCustomData, setIsCustomData] = useState(false);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(false);
@@ -132,9 +130,24 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const resetToSample = useCallback(() => {
-    setTransactions(defaultTransactions);
-    setIsCustomData(false);
+    loadSampleTransactions().then((rows) => {
+      setTransactions(rows);
+      setIsCustomData(false);
+    });
   }, []);
+
+  // Dummy-data mode: the sample transactions live in a dynamically-imported
+  // chunk (kept out of the production bundle). Load them once on mount and seed
+  // the table. The `prev.length === 0` guard avoids clobbering custom data the
+  // operator may have uploaded before the (cached) import resolves.
+  useEffect(() => {
+    if (!useDummyData) return;
+    let cancelled = false;
+    loadSampleTransactions().then((rows) => {
+      if (!cancelled) setTransactions((prev) => (prev.length === 0 ? rows : prev));
+    });
+    return () => { cancelled = true; };
+  }, [useDummyData]);
 
   const flagDeadEnd = useCallback(async (ids: string[], value: boolean) => {
     if (isLiveMode) {

@@ -6,8 +6,7 @@ import { getTagSpecLibraries } from '../api/tagSpecs';
 import { getRawTagsHierarchy, buildTagTree } from '../api/tagsHierarchy';
 import { getContextValue } from '../types/tagSpec';
 import { useAuth } from './AuthContext';
-import sampleTagData from '../data/sample.json';
-import sampleHierarchyData from '../data/sampleHiearchy.json';
+import { loadSampleTagData, loadSampleHierarchy } from '../data/loadSampleData';
 
 // --- Helpers ---
 
@@ -317,8 +316,7 @@ export function TagSpecProvider({ children, useDummyData, tepHeaders }: TagSpecP
   // which would otherwise re-fire the mount-fetch effect and surface a
   // page-wide loading skeleton. See AuthContext for the matching change.
   const { getAuthHeaders } = useAuth();
-  const initialData = useDummyData ? (sampleTagData as TagSpecLibrary[]) : [];
-  const [libraries, dispatch] = useReducer(tagSpecReducer, initialData);
+  const [libraries, dispatch] = useReducer(tagSpecReducer, [] as TagSpecLibrary[]);
   const tagDefinitions = useMemo(() => flattenDefinitions(libraries), [libraries]);
   const [loading, setLoading] = useState(!useDummyData);
   const [tagsHierarchyLoading, setTagsHierarchyLoading] = useState(!useDummyData);
@@ -327,33 +325,45 @@ export function TagSpecProvider({ children, useDummyData, tepHeaders }: TagSpecP
   // entries for libraries that leave the TaggingProgress map get pruned on the same pass.
   const firstSeenRef = useRef<Map<string, number>>(new Map());
 
-  // Raw hierarchy state
-  const initialRawNodes = useMemo(() => {
-    if (!useDummyData) return [];
-    return extractRawNodes(sampleHierarchyData as Record<string, unknown>);
-  }, [useDummyData]);
-
-  const [rawHierarchyNodes, hierarchyDispatch] = useReducer(hierarchyReducer, initialRawNodes);
-  const [originalRawNodes, setOriginalRawNodes] = useState<TagHierarchyRawNode[]>(initialRawNodes);
-  const [hierarchyWrapper, setHierarchyWrapper] = useState<TagsHierarchyWrapper | null>(() => {
-    if (!useDummyData) return null;
-    const outer = (sampleHierarchyData as Record<string, unknown>).TagsHierarchy as Record<string, unknown>;
-    return {
-      Id: (outer.Id as string) ?? '',
-      DataSetType: (outer.DataSetType as string) ?? 'MT940',
-      IsLatestVersion: (outer.IsLatestVersion as boolean) ?? true,
-      VersionDate: (outer.VersionDate as string) ?? new Date().toISOString(),
-      TagsHierarchy: [],  // filled from reducer state on save
-    };
-  });
+  // Raw hierarchy state. The sample fixtures load dynamically in dummy mode
+  // (see the mount effect below), so the reducers / state start empty and are
+  // seeded asynchronously, mirroring the previous synchronous initialization.
+  const [rawHierarchyNodes, hierarchyDispatch] = useReducer(hierarchyReducer, [] as TagHierarchyRawNode[]);
+  const [originalRawNodes, setOriginalRawNodes] = useState<TagHierarchyRawNode[]>([]);
+  const [hierarchyWrapper, setHierarchyWrapper] = useState<TagsHierarchyWrapper | null>(null);
 
   // Derive built tree from raw nodes for TagTreePicker
   const tagsHierarchy = useMemo(() => buildTagTree(rawHierarchyNodes), [rawHierarchyNodes]);
 
-  // Capture IDs from the initially loaded data (predefined); anything else is user-created
-  const originalDefinitionIds = useRef(
-    new Set(flattenDefinitions(initialData).map((d) => d.Id))
-  ).current;
+  // Capture IDs from the initially loaded data (predefined); anything else is
+  // user-created. Filled from the dynamically-loaded sample data in dummy mode.
+  const originalDefinitionIds = useRef(new Set<string>()).current;
+
+  // Dummy-data mode: sample libraries + hierarchy live in dynamically-imported
+  // chunks (kept out of the production bundle). Load them once on mount and
+  // seed the reducers / state exactly as the old synchronous init did.
+  useEffect(() => {
+    if (!useDummyData) return;
+    let cancelled = false;
+    Promise.all([loadSampleTagData(), loadSampleHierarchy()]).then(([libs, hierarchy]) => {
+      if (cancelled) return;
+      dispatch({ type: 'REPLACE_ALL', payload: libs });
+      flattenDefinitions(libs).forEach((d) => originalDefinitionIds.add(d.Id));
+      const rawNodes = extractRawNodes(hierarchy);
+      hierarchyDispatch({ type: 'REPLACE_ALL', payload: rawNodes });
+      setOriginalRawNodes(rawNodes);
+      const outer = hierarchy.TagsHierarchy as Record<string, unknown>;
+      setHierarchyWrapper({
+        Id: (outer.Id as string) ?? '',
+        DataSetType: (outer.DataSetType as string) ?? 'MT940',
+        IsLatestVersion: (outer.IsLatestVersion as boolean) ?? true,
+        VersionDate: (outer.VersionDate as string) ?? new Date().toISOString(),
+        TagsHierarchy: [],  // filled from reducer state on save
+      });
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [useDummyData]);
 
   const isFetchingRef = useRef(false);
   const isFetchingLibsRef = useRef(false);
@@ -525,8 +535,9 @@ export function TagSpecProvider({ children, useDummyData, tepHeaders }: TagSpecP
 
   const refetchHierarchy = useCallback(async () => {
     if (useDummyData) {
-      // In dummy mode, reset to sample data
-      const nodes = extractRawNodes(sampleHierarchyData as Record<string, unknown>);
+      // In dummy mode, reset to the (dynamically-loaded) sample data
+      const hierarchy = await loadSampleHierarchy();
+      const nodes = extractRawNodes(hierarchy);
       hierarchyDispatch({ type: 'REPLACE_ALL', payload: nodes });
       setOriginalRawNodes(nodes);
       return;
