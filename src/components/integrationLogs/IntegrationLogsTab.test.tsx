@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import type { IntegrationLog } from '../../api/transactions';
 
 vi.mock('../../api/transactions', async () => {
@@ -37,6 +38,15 @@ vi.mock('../../context/TepConfigContext', () => ({
 const mockUseTransactionData = vi.fn(() => ({ isLiveMode: true }));
 vi.mock('../../hooks/useTransactionData', () => ({
   useTransactionData: () => mockUseTransactionData(),
+}));
+
+// The bulk-rerun context owns its own polling + toast; here we stub it so the
+// tab's wiring (button gating, launching a job) can be asserted in isolation.
+const mockStartJob = vi.fn();
+const mockUseRerunJob = vi.fn();
+vi.mock('../../context/RerunJobContext', () => ({
+  useRerunJob: () => mockUseRerunJob(),
+  RerunJobProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
 
 // Avoid dragging the modal's data-fetching into these tests.
@@ -85,6 +95,17 @@ describe('IntegrationLogsTab', () => {
       isAudit: false,
     });
     mockUseTransactionData.mockReturnValue({ isLiveMode: true });
+    mockStartJob.mockReset();
+    mockUseRerunJob.mockReturnValue({
+      phase: 'idle',
+      progress: null,
+      resultDescription: '',
+      errorMessage: null,
+      isActive: false,
+      job: null,
+      startJob: mockStartJob,
+      dismiss: vi.fn(),
+    });
   });
 
   it('shows the live-mode-only message when not in live mode', () => {
@@ -190,6 +211,58 @@ describe('IntegrationLogsTab', () => {
     // Only one Rerun button — the PushProcessedStatement row.
     const rerunButtons = screen.queryAllByRole('button', { name: /rerun/i });
     expect(rerunButtons).toHaveLength(1);
+  });
+
+  it("offers 'Rerun all failed from here' inside a PushProcessedStatement rerun popup", async () => {
+    mockedGetLogs.mockResolvedValue({
+      Items: [makeLog({ Id: 'pps', Endpoint: 'PushProcessedStatement', StatementId: 'PPS-1', StatusType: 'ERROR' })],
+      Total: 1,
+      Page: 1,
+      PageSize: 20,
+    });
+    render(<IntegrationLogsTab />);
+    expect(await screen.findByText('PPS-1')).not.toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rerun' }));
+    expect(await screen.findByRole('button', { name: 'Re-run now' })).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'Rerun all failed from here' })).not.toBeNull();
+  });
+
+  it("does NOT offer the bulk button for a non-PushProcessedStatement rerun popup", async () => {
+    mockedGetLogs.mockResolvedValue({
+      Items: [makeLog({ Id: 'pt', Endpoint: 'PatchTransactions', StatementId: 'PT-1', StatusType: 'ERROR' })],
+      Total: 1,
+      Page: 1,
+      PageSize: 20,
+    });
+    render(<IntegrationLogsTab />);
+    expect(await screen.findByText('PT-1')).not.toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rerun' }));
+    expect(await screen.findByRole('button', { name: 'Re-run now' })).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'Rerun all failed from here' })).toBeNull();
+  });
+
+  it('launches the bulk rerun job from the row id after the second confirmation', async () => {
+    mockedGetLogs.mockResolvedValue({
+      Items: [makeLog({ Id: 'pps', Endpoint: 'PushProcessedStatement', StatementId: 'PPS-1', StatusType: 'ERROR' })],
+      Total: 1,
+      Page: 1,
+      PageSize: 20,
+    });
+    render(<IntegrationLogsTab />);
+    expect(await screen.findByText('PPS-1')).not.toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rerun' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Rerun all failed from here' }));
+
+    // Second (strong) confirmation, then launch.
+    const confirm = await screen.findByRole('button', { name: 'Yes, rerun all' });
+    await act(async () => {
+      fireEvent.click(confirm);
+    });
+
+    expect(mockStartJob).toHaveBeenCalledWith('pps', 'PPS-1');
   });
 
   it('opens the file modal when a row is viewed', async () => {

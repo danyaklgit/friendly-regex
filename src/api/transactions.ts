@@ -1,5 +1,5 @@
 import type { TransactionRow } from '../types';
-import { throwIfNotOk } from './apiError';
+import { ApiError, throwIfNotOk } from './apiError';
 
 // --- Request types ---
 
@@ -528,4 +528,104 @@ export async function rerunIntegrationRequest(
     signal,
   });
   await throwIfNotOk(res, 'Failed to re-run integration request');
+}
+
+// --- Bulk PushProcessedStatement rerun (async job) ----------------------------
+//
+// These two calls follow the RerunPushProcessedStatements contract. Unlike the
+// rest of this module they DO NOT use throwIfNotOk: the contract maps
+// SFM_GENERAL_ERROR onto HTTP 400/500, so the body must be read on any status
+// and the caller branches on SFM.Constant (and, for the poll, Progress.Status).
+// Only a genuinely unparseable body (transport failure) throws.
+
+export interface RerunFailedStatement {
+  Id: string;
+  ErrorMessage: string;
+}
+
+export type RerunJobStatus = 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
+
+export interface RerunJobProgress {
+  Id: string;
+  FromId: string;
+  TotalStatements: number;
+  ProcessedStatements: number;
+  FailedCount: number;
+  Status: RerunJobStatus;
+  StartedAt: string;
+  CompletedAt: string | null;
+  PhaseMessage: string;
+  ErrorMessage: string | null;
+  FailedStatements: RerunFailedStatement[];
+}
+
+export interface RerunPushProcessedStatementsResponse {
+  /** Null when there was nothing to rerun. */
+  JobId: string | null;
+  ResultDescription: string;
+  SFM: { Constant: string };
+}
+
+export interface GetRerunProgressResponse {
+  Progress: RerunJobProgress | null;
+  ResultDescription: string;
+  SFM: { Constant: string };
+}
+
+export async function rerunPushProcessedStatements(
+  fromId: string,
+  authToken: string,
+  tepHeaders: TepHeaders,
+  signal?: AbortSignal,
+): Promise<RerunPushProcessedStatementsResponse> {
+  const res = await fetch(`${BASE}/RerunPushProcessedStatements`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      Authorization: `Bearer ${authToken}`,
+      ActivityTag: 'RerunPushProcessedStatements',
+      LanguageCode: tepHeaders.languageCode,
+      TTPUserId: tepHeaders.userId,
+      TTPTenantCode: tepHeaders.tenantCode,
+      TTPRequestId: tepHeaders.requestId,
+      TimeZone: tepHeaders.timeZone,
+    },
+    body: JSON.stringify({ FromId: fromId }),
+    signal,
+  });
+  try {
+    return (await res.json()) as RerunPushProcessedStatementsResponse;
+  } catch {
+    throw new ApiError('Failed to start the bulk rerun job', res.status);
+  }
+}
+
+export async function getRerunPushProcessedStatementsProgress(
+  jobId: string,
+  authToken: string,
+  tepHeaders: TepHeaders,
+  signal?: AbortSignal,
+): Promise<GetRerunProgressResponse> {
+  const res = await fetch(`${BASE}/GetRerunPushProcessedStatementsProgress`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      Authorization: `Bearer ${authToken}`,
+      ActivityTag: 'GetRerunPushProcessedStatementsProgress',
+      LanguageCode: tepHeaders.languageCode,
+      TTPUserId: tepHeaders.userId,
+      TTPTenantCode: tepHeaders.tenantCode,
+      TTPRequestId: tepHeaders.requestId,
+      TimeZone: tepHeaders.timeZone,
+    },
+    body: JSON.stringify({ JobId: jobId }),
+    signal,
+  });
+  try {
+    return (await res.json()) as GetRerunProgressResponse;
+  } catch {
+    throw new ApiError('Failed to read the bulk rerun job progress', res.status);
+  }
 }

@@ -1,3 +1,4 @@
+import { type ReactNode } from 'react';
 import { Modal } from './Modal';
 import { Button } from './Button';
 
@@ -9,6 +10,10 @@ interface ConfirmDialogProps {
   message: string;
   confirmLabel?: string;
   variant?: 'danger' | 'danger_ghost' | 'primary';
+  /** Optional extra action rendered in the footer between Cancel and the
+   *  confirm button. Used to offer a secondary path (e.g. a bulk rerun) from
+   *  within the same confirmation dialog. */
+  extraAction?: ReactNode;
 }
 
 export function ConfirmDialog({
@@ -19,6 +24,7 @@ export function ConfirmDialog({
   message,
   confirmLabel = 'Confirm',
   variant = 'danger_ghost',
+  extraAction,
 }: ConfirmDialogProps) {
   return (
     <Modal
@@ -30,9 +36,10 @@ export function ConfirmDialog({
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
+          {extraAction}
           <Button
             variant={variant}
-            
+
             onClick={() => {
               onConfirm();
               onClose();

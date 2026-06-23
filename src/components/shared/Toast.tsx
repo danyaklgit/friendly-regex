@@ -5,23 +5,28 @@ interface ToastProps {
   type?: 'success' | 'error' | 'info';
   onClose: () => void;
   duration?: number;
+  /** When true, the toast never auto-dismisses (used for long-running progress
+   *  toasts that update their message in place). Note: passing duration={Infinity}
+   *  is unsafe because setTimeout coerces it to ~0, so use this flag instead. */
+  persistent?: boolean;
   /** Tailwind z-index class. Override when the toast needs to sit above a
    *  high-z modal (e.g. the full-screen View Context modal at z-[10000]). */
   zClass?: string;
 }
 
-export function Toast({ message, type = 'success', onClose, duration = 3000, zClass = 'z-50' }: ToastProps) {
+export function Toast({ message, type = 'success', onClose, duration = 3000, persistent = false, zClass = 'z-50' }: ToastProps) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     // Trigger enter animation on next frame
     requestAnimationFrame(() => setVisible(true));
+    if (persistent) return;
     const timer = setTimeout(() => {
       setVisible(false);
       setTimeout(onClose, 200);
     }, duration);
     return () => clearTimeout(timer);
-  }, [onClose, duration]);
+  }, [onClose, duration, persistent]);
 
   const bg =
     type === 'success'

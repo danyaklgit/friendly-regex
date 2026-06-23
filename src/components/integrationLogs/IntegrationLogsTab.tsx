@@ -16,6 +16,8 @@ import { Toast } from '../shared/Toast';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { DropdownBackdrop } from '../shared/DropdownBackdrop';
 import { IntegrationLogFileModal } from './IntegrationLogFileModal';
+import { BulkRerunDialog } from './BulkRerunDialog';
+import { useRerunJob } from '../../context/RerunJobContext';
 
 const INITIAL_PAGE_SIZE = 50;
 const LOAD_MORE_BATCHES = [25, 50, 200, 500] as const;
@@ -243,7 +245,9 @@ export function IntegrationLogsTab() {
 
   const [selectedLog, setSelectedLog] = useState<IntegrationLog | null>(null);
   const [confirmRerun, setConfirmRerun] = useState<IntegrationLog | null>(null);
+  const [bulkRerunTarget, setBulkRerunTarget] = useState<IntegrationLog | null>(null);
   const [rerunning, setRerunning] = useState(false);
+  const { phase: rerunJobPhase } = useRerunJob();
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(
     null,
   );
@@ -327,6 +331,19 @@ export function IntegrationLogsTab() {
       abortRef.current?.abort();
     };
   }, []);
+
+  // When a bulk rerun job settles (new log entries were written), refresh the
+  // current window so the table reflects the replays.
+  const prevRerunPhaseRef = useRef(rerunJobPhase);
+  useEffect(() => {
+    const prev = prevRerunPhaseRef.current;
+    prevRerunPhaseRef.current = rerunJobPhase;
+    if ((prev === 'polling' || prev === 'starting') && (rerunJobPhase === 'done' || rerunJobPhase === 'error')) {
+      fetchWindow(filters, pageSize);
+    }
+    // filters/pageSize are read fresh; fetchWindow is stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rerunJobPhase]);
 
   const loaded = items.length;
   const remaining = Math.max(0, total - loaded);
@@ -616,7 +633,24 @@ export function IntegrationLogsTab() {
         }
         confirmLabel="Re-run now"
         variant="primary"
+        extraAction={
+          confirmRerun?.Endpoint === 'PushProcessedStatement' ? (
+            <Button
+              variant="outline"
+              onClick={() => {
+                setBulkRerunTarget(confirmRerun);
+                setConfirmRerun(null);
+              }}
+            >
+              Rerun all failed from here
+            </Button>
+          ) : undefined
+        }
       />
+
+      {bulkRerunTarget && (
+        <BulkRerunDialog log={bulkRerunTarget} onClose={() => setBulkRerunTarget(null)} />
+      )}
 
       {toast && (
         <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />

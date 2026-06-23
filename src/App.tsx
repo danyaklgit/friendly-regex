@@ -8,6 +8,7 @@ import { TepConfigProvider, useTepConfig } from './context/TepConfigContext';
 import { DownloadCenterProvider } from './context/DownloadCenterContext';
 import { DownloadCenterModal } from './components/downloadCenter/DownloadCenterModal';
 import { UserModeProvider } from './context/UserModeContext';
+import { RerunJobProvider } from './context/RerunJobContext';
 import { UserPortal } from './components/userMode/UserPortal';
 import { useTagSpecs } from './hooks/useTagSpecs';
 import { useLocalChanges } from './hooks/useLocalChanges';
@@ -269,7 +270,7 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
   }, [isAudit, undoTarget, clearChanges, refetchLibraries]);
 
   return (
-    <>
+    <RerunJobProvider>
       <SessionWarningModal />
       <div className="min-h-screen bg-surface-secondary">
         <TabContainer
@@ -341,7 +342,7 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
       />
       {shareData && <SharedLinkBanner share={shareData} onDismiss={() => setShareData(null)} />}
       {toast && <Toast message={toast.message} type={toast.type} duration={toast.duration} onClose={() => setToast(null)} />}
-    </>
+    </RerunJobProvider>
   );
 }
 
