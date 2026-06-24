@@ -995,7 +995,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
               >
                 <Button
                   variant="secondary"
-                  size="xs"
+                  size="md"
                   onClick={() => setConfigSuggestionsOpen(true)}
                   className="shrink-0 whitespace-nowrap inline-flex items-center gap-1.5"
                   data-tour="attribute-config-suggestions"
