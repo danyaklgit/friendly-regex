@@ -1590,7 +1590,9 @@ const TableRow = memo(function TableRow({
                     ) : hasHints ? (
                       <HintsInfoIcon hints={hints} />
                     ) : (
-                      <span className="text-faint text-xs">-</span>
+                      // No tags, no dead-end flag, no hints: show an empty cell
+                      // rather than a "-" placeholder.
+                      null
                     )}
 
                   </div>
