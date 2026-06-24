@@ -21,6 +21,18 @@ const ALLOWED_SOURCE_FIELDS = new Set([
 // / Does not equal / Greater than / Less than. Anything not listed here
 // falls into the "text" bucket and gets the full operation list.
 const NUMERIC_SOURCE_FIELDS = new Set(['Amount']);
+// Standard banking fields that are ALWAYS text, even when a particular sample
+// happens to hold only digits (IBAN, Bank Reference, numeric-looking
+// Description / reference values). Classifying them explicitly stops the
+// value-scan heuristic below from relabeling them 'numeric' once prior
+// conditions narrow the live sample to an all-numeric, non-blank subset — the
+// order-dependent bug where e.g. Description 1 showed only numeric operations
+// after a few conditions were added. The heuristic stays as a fallback for any
+// field NOT explicitly typed here (e.g. custom upload-mode columns).
+const TEXT_SOURCE_FIELDS = new Set([
+  'AdditionalInformation', 'BankReference', 'CurrencyCode',
+  'Description1', 'Description2', 'IBAN', 'TransactionDetails',
+]);
 // The 4 operations valid for date and numeric fields.
 const ORDERED_NUMERIC_DATE_OPS = new Set<string>([
   'equals',
@@ -143,6 +155,8 @@ export function ConditionEditor({
     if (!f) return 'text';
     if (DATE_SOURCE_FIELDS.has(f)) return 'date';
     if (NUMERIC_SOURCE_FIELDS.has(f)) return 'numeric';
+    // Explicitly-typed text fields skip the value-scan heuristic entirely.
+    if (TEXT_SOURCE_FIELDS.has(f)) return 'text';
     if (transactions.length > 0) {
       let sawBlank = false;
       let allNumeric = true;
@@ -267,6 +281,9 @@ export function ConditionEditor({
                     newKind = 'date';
                   } else if (NUMERIC_SOURCE_FIELDS.has(newField)) {
                     newKind = 'numeric';
+                  } else if (TEXT_SOURCE_FIELDS.has(newField)) {
+                    // Explicitly-typed text field: skip the value-scan heuristic.
+                    newKind = 'text';
                   } else {
                     newKind = 'text';
                     if (transactions.length > 0) {
