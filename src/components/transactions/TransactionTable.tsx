@@ -6,6 +6,7 @@ import { useLovAttributes } from '../../context/LovAttributesContext';
 import { PREDEFINED_PATTERNS } from '../../constants/operations';
 import { TagBadge } from './TagBadge';
 import { HintsInfoIcon } from './HintsInfoIcon';
+import { MoreTagsPopover } from './MoreTagsPopover';
 import { Badge } from '../shared/Badge';
 import { Tooltip } from '../shared/Tooltip';
 import { getHints } from '../../utils/getHints';
@@ -709,6 +710,11 @@ const EMPTY_HIDDEN_COLUMNS = new Set<string>();
 // caveat as EMPTY_HIDDEN_COLUMNS — a fresh set every render would bust the
 // rowCtx memo and re-render every row on each parent commit).
 const EMPTY_CHAR_VIEW_COLUMNS = new Set<string>();
+
+// Cap how many tag badges render inline in the Tags cell. The overflow goes
+// into a "+N" popover so a row matching many tags can't stretch the sticky
+// Tags column wide enough to push the other columns off-screen.
+const MAX_VISIBLE_TAGS = 3;
 
 function getCellStyleFor(
   colIdx: number,
@@ -1529,11 +1535,8 @@ const TableRow = memo(function TableRow({
                   )}
                   <div className="flex-1">
                     {item.analysis.tags.length > 0 ? (
-                      <div className={`flex items-center gap-1 ${relaxedMode ? 'flex-nowrap' : 'flex-wrap'}`}>
-                        {isDeadEnd && (
-                          <Badge variant="none" size="sm" className="border border-red-200 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800 px-2.5 shrink-0">Dead End</Badge>
-                        )}
-                        {item.analysis.tags.map((tag, ti) => {
+                      (() => {
+                        const renderTagBadge = (tag: string, ti: number) => {
                           const matchedDef = item.analysis.matchedDefinitions[ti];
                           const defId = matchedDef?.Id;
                           const isUserCreated = defId ? !(originalDefinitionIds?.has(defId)) : false;
@@ -1554,15 +1557,31 @@ const TableRow = memo(function TableRow({
                               onClick={onTagClick ? () => onTagClick(tag, defId) : undefined}
                             />
                           );
-                          if (!source && !matchedDef) return <span key={tag}>{badge}</span>;
+                          if (!source && !matchedDef) return <span key={`${tag}-${ti}`}>{badge}</span>;
                           return (
-                            <Tooltip key={tag} content={() => renderTagTooltip(source, matchedDef, !!onTagClick, versionInfo)} placement="top">
+                            <Tooltip key={`${tag}-${ti}`} content={() => renderTagTooltip(source, matchedDef, !!onTagClick, versionInfo)} placement="top">
                               <span>{badge}</span>
                             </Tooltip>
                           );
-                        })}
-                        {hasHints && <HintsInfoIcon hints={hints} />}
-                      </div>
+                        };
+                        const tags = item.analysis.tags;
+                        const visible = tags.slice(0, MAX_VISIBLE_TAGS);
+                        const hiddenCount = tags.length - visible.length;
+                        return (
+                          <div className={`flex items-center gap-1 ${relaxedMode ? 'flex-nowrap' : 'flex-wrap'}`}>
+                            {isDeadEnd && (
+                              <Badge variant="none" size="sm" className="border border-red-200 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800 px-2.5 shrink-0">Dead End</Badge>
+                            )}
+                            {visible.map((tag, ti) => renderTagBadge(tag, ti))}
+                            {hiddenCount > 0 && (
+                              <MoreTagsPopover hiddenCount={hiddenCount}>
+                                {tags.slice(MAX_VISIBLE_TAGS).map((tag, i) => renderTagBadge(tag, MAX_VISIBLE_TAGS + i))}
+                              </MoreTagsPopover>
+                            )}
+                            {hasHints && <HintsInfoIcon hints={hints} />}
+                          </div>
+                        );
+                      })()
                     ) : isDeadEnd ? (
                       <div className="flex items-center gap-1">
                         <Badge variant="none" size="sm" className="border border-red-200 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800 px-2.5">Dead End</Badge>
