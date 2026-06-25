@@ -19,13 +19,19 @@
 import { useEffect, useRef, useState } from 'react';
 
 interface DateFieldProps {
-  label: string;
+  /** Optional field label rendered above the input. Omit when the caller
+   *  renders its own label (e.g. the compact filter popover). */
+  label?: string;
   value: string;
   onChange: (next: string) => void;
   onClear: () => void;
   disabled: boolean;
   min?: string;
+  max?: string;
   error?: boolean;
+  /** Compact sizing for dense surfaces (e.g. the Statement Date filter
+   *  popover): smaller padding, text, and icon buttons. */
+  compact?: boolean;
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -39,7 +45,9 @@ function isValidIso(s: string): boolean {
   return date.getFullYear() === y && date.getMonth() + 1 === m && date.getDate() === d;
 }
 
-export function DateField({ label, value, onChange, onClear, disabled, min, error }: DateFieldProps) {
+export function DateField({ label, value, onChange, onClear, disabled, min, max, error, compact }: DateFieldProps) {
+  const inputSize = compact ? 'px-2 py-1 text-xs' : 'px-3 py-2 text-sm';
+  const btnSize = compact ? 'w-6 h-6' : 'w-7 h-7';
   // Local buffer so partial / in-progress typing ("2024-08-1") stays in the
   // field without being pushed upstream until it parses as a full ISO date.
   const [text, setText] = useState(value);
@@ -83,7 +91,7 @@ export function DateField({ label, value, onChange, onClear, disabled, min, erro
 
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-body pl-1">{label}</label>
+      {label && <label className="text-xs font-medium text-body pl-1">{label}</label>}
       <div className={`relative flex items-center rounded-lg border ${borderClass} bg-input-bg transition-colors`}>
         <input
           type="text"
@@ -93,17 +101,17 @@ export function DateField({ label, value, onChange, onClear, disabled, min, erro
           onChange={(e) => handleText(e.target.value)}
           onBlur={handleBlur}
           disabled={disabled}
-          className="flex-1 min-w-0 bg-transparent px-3 py-2 text-sm text-heading outline-none disabled:cursor-not-allowed disabled:opacity-60"
+          className={`flex-1 min-w-0 bg-transparent ${inputSize} text-heading outline-none disabled:cursor-not-allowed disabled:opacity-60`}
         />
         {!disabled && (
           <button
             type="button"
             onClick={openPicker}
-            aria-label={`Open calendar for ${label}`}
+            aria-label={label ? `Open calendar for ${label}` : 'Open calendar'}
             title="Open calendar"
-            className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded text-faint hover:text-body hover:bg-surface-hover transition-colors"
+            className={`shrink-0 inline-flex items-center justify-center ${btnSize} rounded text-faint hover:text-body hover:bg-surface-hover transition-colors`}
           >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+            <svg className={compact ? 'w-3.5 h-3.5' : 'w-4 h-4'} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
               <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
           </button>
@@ -112,11 +120,11 @@ export function DateField({ label, value, onChange, onClear, disabled, min, erro
           <button
             type="button"
             onClick={onClear}
-            aria-label={`Clear ${label}`}
-            title={`Clear ${label}`}
-            className="shrink-0 inline-flex items-center justify-center w-7 h-7 mr-1 rounded text-faint hover:text-body hover:bg-surface-hover transition-colors"
+            aria-label={label ? `Clear ${label}` : 'Clear date'}
+            title={label ? `Clear ${label}` : 'Clear date'}
+            className={`shrink-0 inline-flex items-center justify-center ${btnSize} ${compact ? 'mr-0.5' : 'mr-1'} rounded text-faint hover:text-body hover:bg-surface-hover transition-colors`}
           >
-            <svg className="w-3.5 h-3.5" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+            <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l6 6M9 3l-6 6" />
             </svg>
           </button>
@@ -129,6 +137,7 @@ export function DateField({ label, value, onChange, onClear, disabled, min, erro
           type="date"
           value={value}
           min={min}
+          max={max}
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
           tabIndex={-1}

@@ -354,6 +354,21 @@ export function ConditionEditor({
                   placeholder="Value1, Value2, ..."
                   value={valuesInput}
                   disabled={readOnly}
+                  onFocus={(e) => {
+                    // Re-focusing this field (after clicking away) should land
+                    // the caret at the END so the operator can keep appending
+                    // values, not mid-string. Deferred to the next frame so the
+                    // browser's click caret placement doesn't override it.
+                    // Also scroll the field fully right so the caret at the end
+                    // is actually visible — setSelectionRange alone moves the
+                    // caret but leaves the input scrolled to the start.
+                    const el = e.currentTarget;
+                    requestAnimationFrame(() => {
+                      const len = el.value.length;
+                      el.setSelectionRange(len, len);
+                      el.scrollLeft = el.scrollWidth;
+                    });
+                  }}
                   onChange={(e) => {
                     const raw = e.target.value;
                     setValuesInput(raw);
