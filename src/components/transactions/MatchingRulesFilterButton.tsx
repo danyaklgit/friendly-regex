@@ -245,7 +245,10 @@ export function MatchingRulesFilterButton({ value, onChange }: MatchingRulesFilt
                   onUpdateCondition={(conditionId, updates) => updateCondition(group.id, conditionId, updates)}
                   onRemoveGroup={() => removeRuleGroup(group.id)}
                   onCloneGroup={() => cloneRuleGroup(group.id)}
-                  canRemoveGroup={draft.length > 1}
+                  // Always offer Remove Group (even for a lone rule set),
+                  // matching the Rule Builder. Removing the last set leaves an
+                  // empty draft with "+ Add Rule Set", as it does in the builder.
+                  canRemoveGroup
                   duplicateOfGroupIndex={draftDuplicateIndexes[gi]}
                   onConditionEditingChange={handleConditionEditingChange}
                 />
