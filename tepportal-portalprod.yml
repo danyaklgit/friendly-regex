@@ -1,7 +1,6 @@
 trigger: none
 variables:
   - group: SharedVariables
-  - group: ViteVariables
 pool:
    name: $(poolName-TEP-PROD)
    demands:
