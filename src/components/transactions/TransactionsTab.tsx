@@ -2188,14 +2188,14 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     return filteredData.slice(start, start + BATCH_SIZE);
   }, [filteredData, visibleCount, isLiveMode, incrementalPagination, currentPage, builderOpen, engine.targetVisible]);
 
-  // Block rule CREATION when the preview shows no transactions: a brand-new
-  // rule that matches nothing is almost always a mistake (wrong value / wrong
-  // type). In live mode the builder's conditions are applied server-side, so an
-  // empty result means the rule matches no transaction. Mirrors the exact
-  // condition that renders the "No transactions found" empty state below.
-  // Scoped to creation only — editing an existing rule must stay savable even
-  // if the current data happens to match nothing.
-  const builderHasNoVisibleTx = builderOpen && !editingDef && !loading && visibleData.length === 0;
+  // Block the builder's primary action (Create or Save changes) when the
+  // preview shows no transactions: a rule that matches nothing is almost always
+  // a mistake (wrong value / wrong type), whether it is being created OR an
+  // existing rule is being edited into a no-match state. In live mode the
+  // builder's conditions are applied server-side, so an empty result means the
+  // rule matches no transaction. Mirrors the exact condition that renders the
+  // "No transactions found" empty state below.
+  const builderHasNoVisibleTx = builderOpen && !loading && visibleData.length === 0;
 
   // Flatten temp definition's rule expressions for highlighting
   const highlightExpressions: RuleExpression[] | undefined = useMemo(() => {
@@ -3135,7 +3135,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                               ? 'Save or discard the open condition/attribute editor before creating the rule.'
                               : !canCreateFromBuilder
                                 ? 'Fix or remove the duplicate rule sets, conditions, or attributes flagged above before saving.'
-                                : 'No transactions match this rule. Adjust the conditions so at least one transaction matches before creating it.'
+                                : 'No transactions match this rule. Adjust the conditions so at least one transaction matches before saving.'
                     }
                     placement="bottom"
                   >
