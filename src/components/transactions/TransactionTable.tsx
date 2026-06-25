@@ -2673,7 +2673,17 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     <div
       className="rounded-lg border border-border flex flex-col relative"
       style={{
-        maxHeight: `calc(100vh - 17.3rem${builderHeight > 0 ? ` - ${builderHeight + 25}px` : ''}${actionBarOffset ? ` + ${actionBarOffset}px` : ''})`,
+        // Cap the table to the viewport space below the builder so the two
+        // fit without page scroll. When the builder is OPEN, FLOOR that cap
+        // (`max(...)`) so a tall builder on a short window can't squeeze the
+        // table down to a sliver that clips its rows (e.g. tall char-view
+        // Arabic rows). Below the floor the page scrolls to reveal the table
+        // instead. Without the floor, a squeezed calc drops below min-height,
+        // CSS lets min-height win, and the card froze at ~one or two row
+        // heights while the real rows overflowed and clipped.
+        maxHeight: builderHeight > 0
+          ? `max(32rem, calc(100vh - 17.3rem - ${builderHeight + 25}px${actionBarOffset ? ` + ${actionBarOffset}px` : ''}))`
+          : `calc(100vh - 17.3rem${actionBarOffset ? ` + ${actionBarOffset}px` : ''})`,
         // Scale the minimum with row count so a one-row result doesn't trail
         // empty whitespace, while many-row sets still get a tall floor that
         // the maxHeight above will then clamp. Empty-data case (loading

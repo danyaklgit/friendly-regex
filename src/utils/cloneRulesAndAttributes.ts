@@ -107,6 +107,9 @@ export function cloneAttributeFromBackend(
     numChars: lovMatch ? undefined : decomposed.numChars,
     fromPosition: lovMatch ? undefined : decomposed.fromPosition,
     tillEndOfInput: lovMatch ? undefined : decomposed.tillEndOfInput,
+    // extract_matching Starting Position / Occurrence (see decomposeMatchingMods).
+    startingPosition: lovMatch ? undefined : decomposed.startingPosition,
+    occurrence: lovMatch ? undefined : decomposed.occurrence,
     verifyValue: expr.VerifyValue,
     lovTag: attr.LOVTag ?? null,
     isLovBased: !!attr.LOVTag,

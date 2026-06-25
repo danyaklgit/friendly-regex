@@ -252,6 +252,62 @@ describe('cloneRulesAndAttributesFrom', () => {
     expect(result.attributes[0].preExtractionTransformations).toEqual([]);
   });
 
+  it('restores extract_matching Starting Position on reload (not folded into the pattern)', () => {
+    // Repro: an attribute saved with Extraction Method "Extract matching
+    // pattern", a lookbehind pattern, and Starting Position 3. The leading
+    // `.{3}` skip used to get dragged into the pattern and the Starting
+    // Position field came back empty.
+    const pattern = '(?<=BENF\\s+ID\\s*:C\\s)\\d+';
+    const def = makeDefinition({
+      Attributes: [
+        {
+          AttributeTag: 'BENF_ID',
+          IsMandatory: false,
+          LOVTag: null,
+          ValidationRuleTag: '',
+          AttributeRuleExpression: {
+            SourceField: 'AdditionalInformation',
+            ExpressionPrompt: null,
+            ExpressionId: null,
+            Regex: regexifyExtraction('extract_matching', { pattern, startingPosition: 3 }),
+            RegexDetails: [],
+          },
+        },
+      ],
+    });
+
+    const attr = cloneRulesAndAttributesFrom(def).attributes[0];
+    expect(attr.extractionOperation).toBe('extract_matching');
+    expect(attr.startingPosition).toBe(3);
+    expect(attr.pattern).toBe(pattern);
+  });
+
+  it('restores extract_matching Occurrence (>= 2) on reload', () => {
+    const pattern = 'ABC';
+    const def = makeDefinition({
+      Attributes: [
+        {
+          AttributeTag: 'OCC',
+          IsMandatory: false,
+          LOVTag: null,
+          ValidationRuleTag: '',
+          AttributeRuleExpression: {
+            SourceField: 'AdditionalInformation',
+            ExpressionPrompt: null,
+            ExpressionId: null,
+            Regex: regexifyExtraction('extract_matching', { pattern, occurrence: 2 }),
+            RegexDetails: [],
+          },
+        },
+      ],
+    });
+
+    const attr = cloneRulesAndAttributesFrom(def).attributes[0];
+    expect(attr.extractionOperation).toBe('extract_matching');
+    expect(attr.occurrence).toBe(2);
+    expect(attr.pattern).toBe(pattern);
+  });
+
   it('sets extract_between_and_verify when VerifyValue is present', () => {
     const def = makeDefinition({
       Attributes: [

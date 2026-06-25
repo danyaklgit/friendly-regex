@@ -36,14 +36,31 @@ interface MatchingRulesFilterButtonProps {
 export function MatchingRulesFilterButton({ value, onChange }: MatchingRulesFilterButtonProps) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<AndGroupFormValue[]>(value);
+  // Conditions still in their inline edit mode (Save not yet clicked). A
+  // filled-but-unsaved condition already carries complete values in `draft`,
+  // so the completeness/duplicate gates pass — but Apply must still wait for
+  // the operator to Save it, mirroring the Rule Builder's unsaved-row gate.
+  const [editingIds, setEditingIds] = useState<Set<string>>(new Set());
 
   // Re-seed the draft from the committed value whenever the modal opens
   // (or the parent updates the applied set out-of-band, e.g. via Clear
   // Filters / Refresh). Closing-then-reopening should always show the
   // operator the currently-applied rules, not yesterday's draft.
   useEffect(() => {
-    if (open) setDraft(value.length > 0 ? cloneGroups(value) : [createEmptyGroup()]);
+    if (open) {
+      setDraft(value.length > 0 ? cloneGroups(value) : [createEmptyGroup()]);
+      setEditingIds(new Set());
+    }
   }, [open, value]);
+
+  const handleConditionEditingChange = useCallback((conditionId: string, editing: boolean) => {
+    setEditingIds((prev) => {
+      const next = new Set(prev);
+      if (editing) next.add(conditionId);
+      else next.delete(conditionId);
+      return next;
+    });
+  }, []);
 
   const appliedCount = useMemo(() => {
     // Count rule sets that actually carry a filled condition — empty
@@ -70,6 +87,8 @@ export function MatchingRulesFilterButton({ value, onChange }: MatchingRulesFilt
       || draftDuplicateIndexes.some((i) => i !== null),
     [draft, draftDuplicateIndexes],
   );
+  // A condition is still open in its inline editor (Save not clicked).
+  const hasUnsavedCondition = editingIds.size > 0;
 
   // --- Draft mutators (mirror useWizardForm's shape so the editor
   // component sees the same callback API it does inside the full rule
@@ -195,8 +214,14 @@ export function MatchingRulesFilterButton({ value, onChange }: MatchingRulesFilt
               <Button
                 variant="primary"
                 onClick={handleApply}
-                disabled={hasBlockingIssue}
-                title={hasBlockingIssue ? 'Complete every condition (Source Field, Operation, Value) and resolve duplicate rule sets before applying' : undefined}
+                disabled={hasBlockingIssue || hasUnsavedCondition}
+                title={
+                  hasUnsavedCondition
+                    ? 'Save the open condition before applying'
+                    : hasBlockingIssue
+                      ? 'Complete every condition (Source Field, Operation, Value) and resolve duplicate rule sets before applying'
+                      : undefined
+                }
               >
                 Apply
               </Button>
@@ -222,6 +247,7 @@ export function MatchingRulesFilterButton({ value, onChange }: MatchingRulesFilt
                   onCloneGroup={() => cloneRuleGroup(group.id)}
                   canRemoveGroup={draft.length > 1}
                   duplicateOfGroupIndex={draftDuplicateIndexes[gi]}
+                  onConditionEditingChange={handleConditionEditingChange}
                 />
               ))}
             </div>

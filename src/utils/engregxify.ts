@@ -619,6 +619,59 @@ export function decomposeRegex(regex: string): {
 }
 
 /**
+ * Reverse of the `extract_matching` build in `regexifyExtraction`: peel the
+ * leading Starting Position skip (`.{N}`) and/or the Occurrence skip
+ * (`(?:.*?(?:PAT)){K}.*?`) off the front of an extraction regex so those two
+ * fields round-trip on reload instead of being folded into the pattern.
+ *
+ * Returns null when neither modifier is present so the normal classification
+ * in `decomposeExtractionRegex` runs unchanged. The Starting Position `.{N}`
+ * is matched as a LITERAL leading token (extract_skip_take's skip is
+ * `^`-anchored, so it never matches here). The Occurrence skip is only honored
+ * when its inner pattern matches the captured body's pattern, so an unrelated
+ * regex can't be mis-peeled.
+ *
+ * Note: occurrence == 1 (the default) emits no skip, so it is indistinguishable
+ * from "unset" and stays unset on reload — the extraction is identical either
+ * way (first match).
+ */
+function decomposeMatchingMods(regex: string): {
+  operation: ExtractionOperation;
+  pattern?: string;
+  startingPosition?: number;
+  occurrence?: number;
+} | null {
+  let rest = regex;
+  let startingPosition: number | undefined;
+  let occurrence: number | undefined;
+
+  const posM = /^\.\{(\d+)\}/.exec(rest);
+  if (posM) {
+    startingPosition = Number(posM[1]);
+    rest = rest.slice(posM[0].length);
+  }
+
+  // `(?:.*?(?:PAT)){K}.*?` then the captured body. Verify PAT equals the body's
+  // inner pattern so we only treat it as an occurrence skip when it really is.
+  const occM = /^\(\?:\.\*\?\(\?:([\s\S]+)\)\)\{(\d+)\}\.\*\?([\s\S]+)$/.exec(rest);
+  if (occM) {
+    const innerPat = occM[1];
+    const k = Number(occM[2]);
+    const body = occM[3];
+    const bodyInner = outerParensPair(body) ? body.slice(1, -1) : body;
+    if (k >= 1 && bodyInner === innerPat) {
+      occurrence = k + 1;
+      rest = body;
+    }
+  }
+
+  if (startingPosition === undefined && occurrence === undefined) return null;
+
+  const pattern = outerParensPair(rest) ? rest.slice(1, -1) : rest;
+  return { operation: 'extract_matching', pattern, startingPosition, occurrence };
+}
+
+/**
  * Decomposes an extraction regex into structured operation + params.
  *
  * Goal: structured fields (prefix, suffix) only ever hold LITERAL text. Any
@@ -634,7 +687,19 @@ export function decomposeExtractionRegex(regex: string): {
   numChars?: number;
   fromPosition?: number;
   tillEndOfInput?: boolean;
+  startingPosition?: number;
+  occurrence?: number;
 } {
+  // 0. Extract matching with leading Starting Position / Occurrence skips.
+  //    regexifyExtraction encodes startingPosition as a leading `.{N}` and
+  //    occurrence>1 as a `(?:.*?(?:PAT)){K}.*?` skip in front of the captured
+  //    body. Recover them here so those fields repopulate on reload instead of
+  //    being folded into the pattern (which also dragged the `.{N}` into the
+  //    pattern via the lookaround branch below). Must run before rule 1 so a
+  //    pattern containing a lookbehind still gives up its leading skip.
+  const withMods = decomposeMatchingMods(regex);
+  if (withMods) return withMods;
+
   // 1. Lookarounds anywhere → matching pattern. Lookbehinds and lookaheads
   //    can't be expressed as literal prefix/suffix, so the entire regex stays
   //    raw. Covers ~50 production rules (negative lookahead "does-not-contain"
