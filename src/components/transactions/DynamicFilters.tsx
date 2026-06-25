@@ -6,7 +6,7 @@ import type { FilterDefinition } from '../../api/transactions';
 import { Button } from '../shared/Button';
 import { Modal } from '../shared/Modal';
 import { DropdownBackdrop } from '../shared/DropdownBackdrop';
-import { toDateInputValue } from '../shared/DateField';
+import { DateField, toDateInputValue } from '../shared/DateField';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
 
 type FilterState = Record<string, Set<string>>;
@@ -1271,23 +1271,25 @@ function DateFilter({
             <div className="flex items-center gap-2">
               <div className="flex-1">
                 <label className="text-[10px] text-muted block mb-0.5">From</label>
-                <input
-                  type="date"
+                <DateField
+                  compact
                   value={currentFrom}
                   max={currentTo || undefined}
-                  onChange={(e) => handleChange(e.target.value, currentTo)}
-                  className="w-full text-xs px-2 py-1 rounded border border-border-strong bg-surface text-body outline-none"
+                  onChange={(v) => handleChange(v, currentTo)}
+                  onClear={() => handleChange('', currentTo)}
+                  disabled={false}
                 />
               </div>
               <span className="text-muted text-xs mt-3">&ndash;</span>
               <div className="flex-1">
                 <label className="text-[10px] text-muted block mb-0.5">To</label>
-                <input
-                  type="date"
+                <DateField
+                  compact
                   value={currentTo}
                   min={currentFrom || undefined}
-                  onChange={(e) => handleChange(currentFrom, e.target.value)}
-                  className="w-full text-xs px-2 py-1 rounded border border-border-strong bg-surface text-body outline-none"
+                  onChange={(v) => handleChange(currentFrom, v)}
+                  onClear={() => handleChange(currentFrom, '')}
+                  disabled={false}
                 />
               </div>
             </div>
