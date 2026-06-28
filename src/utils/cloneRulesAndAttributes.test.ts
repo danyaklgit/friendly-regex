@@ -308,6 +308,38 @@ describe('cloneRulesAndAttributesFrom', () => {
     expect(attr.pattern).toBe(pattern);
   });
 
+  it('restores extract_matching Occurrence when the pattern has its own capture group', () => {
+    // Repro: occurrence was silently dropped when the pattern already had a
+    // `(...)` group. regexifyExtraction emits `(?:.*?(?:(\d+))){1}.*?(\d+)`
+    // (no extra wrap), which the decoder rejected because it stripped parens
+    // off the trailing body but not the skip's inner pattern.
+    const pattern = '(\\d+)';
+    const def = makeDefinition({
+      Attributes: [
+        {
+          AttributeTag: 'OCC_GROUP',
+          IsMandatory: false,
+          LOVTag: null,
+          ValidationRuleTag: '',
+          AttributeRuleExpression: {
+            SourceField: 'AdditionalInformation',
+            ExpressionPrompt: null,
+            ExpressionId: null,
+            Regex: regexifyExtraction('extract_matching', { pattern, occurrence: 2 }),
+            RegexDetails: [],
+          },
+        },
+      ],
+    });
+
+    const attr = cloneRulesAndAttributesFrom(def).attributes[0];
+    expect(attr.extractionOperation).toBe('extract_matching');
+    expect(attr.occurrence).toBe(2);
+    // Pattern round-trips group-stripped but extraction-equivalent (the
+    // captured value is identical).
+    expect(attr.pattern).toBe('\\d+');
+  });
+
   it('sets extract_between_and_verify when VerifyValue is present', () => {
     const def = makeDefinition({
       Attributes: [

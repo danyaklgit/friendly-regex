@@ -651,15 +651,19 @@ function decomposeMatchingMods(regex: string): {
     rest = rest.slice(posM[0].length);
   }
 
-  // `(?:.*?(?:PAT)){K}.*?` then the captured body. Verify PAT equals the body's
-  // inner pattern so we only treat it as an occurrence skip when it really is.
+  // `(?:.*?(?:PAT)){K}.*?` then the captured body. Verify the skip's PAT equals
+  // the captured body so we only treat it as an occurrence skip when it really
+  // is. The body is `(PAT)` when regexifyExtraction wrapped a group-less pattern
+  // (compare against the STRIPPED body) or PAT itself when the user's pattern
+  // already had its own capture group (compare against the RAW body) — accept
+  // either, else occurrence silently dropped for grouped patterns like `(\d+)`.
   const occM = /^\(\?:\.\*\?\(\?:([\s\S]+)\)\)\{(\d+)\}\.\*\?([\s\S]+)$/.exec(rest);
   if (occM) {
     const innerPat = occM[1];
     const k = Number(occM[2]);
     const body = occM[3];
     const bodyInner = outerParensPair(body) ? body.slice(1, -1) : body;
-    if (k >= 1 && bodyInner === innerPat) {
+    if (k >= 1 && (bodyInner === innerPat || body === innerPat)) {
       occurrence = k + 1;
       rest = body;
     }
