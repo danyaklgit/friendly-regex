@@ -1501,6 +1501,23 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     builderOpen,
   );
 
+  // Lock the matching-tags group from the moment an Exclude is clicked until
+  // the recomputed match set lands. `matchingTagsLoading` alone isn't enough:
+  // it only flips true after the 700ms debounce in useMatchingTagIds, leaving
+  // a window where the displayed set is stale but still clickable. Held here
+  // and cleared when the reload's loading flag falls back to false.
+  const [excludePending, setExcludePending] = useState(false);
+  const prevMatchingLoadingRef = useRef(matchingTagsLoading);
+  useEffect(() => {
+    // Closing the builder ends any in-flight preview — drop the lock so it
+    // can't survive into the next session.
+    if (!builderOpen) { setExcludePending(false); prevMatchingLoadingRef.current = false; return; }
+    // Reload finished (loading fell true→false) → release the lock.
+    if (prevMatchingLoadingRef.current && !matchingTagsLoading) setExcludePending(false);
+    prevMatchingLoadingRef.current = matchingTagsLoading;
+  }, [matchingTagsLoading, builderOpen]);
+  const matchingTagsLocked = excludePending || matchingTagsLoading;
+
   // Read-only preview drawer for tags clicked in the "Existing Matching Tags"
   // section. Distinct from `handleTagClick` (which loads a tag into the builder
   // and would wipe in-progress draft state) — this surface must not disturb
@@ -1728,24 +1745,44 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       result = result.filter((item) => item.row['TransactionTypeCode'] === builder.formState.transactionTypeCode);
     }
 
-    // Builder Validity filter. Sample mode only — in live mode the
-    // Statement Date chip filter (kept in sync with builder validity
-    // via the bidirectional mirror) is the authoritative gate, and
-    // re-applying a client-side check here would surface a stale
-    // hide AFTER the operator cleared the chip: the server re-fetches
-    // broader rows, but if validity stays set in form state the
-    // client-side filter would mask everything until the operator
-    // also cleared validity. Aligns with the Transaction Type
-    // client-side filter below (also `!isLiveMode`-gated). Trim any
-    // T-suffix from StatementDate so a backend that ships ISO
-    // datetimes doesn't break the lexicographic compare on YYYY-MM-DD.
-    if (builderOpen && !isLiveMode && (validityStartDate || validityEndDate)) {
+    // Builder Validity filter. Narrows the table to rows whose StatementDate
+    // falls within the rule's validity window, in BOTH modes:
+    //  - Sample mode: no StatementDate chip exists, so read the bound straight
+    //    from the builder's form validity.
+    //  - Live mode: read the bound from the StatementDate chip (the
+    //    server-synced value the validity→chip mirror keeps in step with the
+    //    form). Keying on the CHIP rather than raw form validity is what makes
+    //    this safe: clearing the chip in the filter row turns the client mask
+    //    off too, so we don't reintroduce the stale-hide the old
+    //    `!isLiveMode` gate guarded against. The server already filters by the
+    //    same chip, so this is normally a no-op safety net — but when the
+    //    operator REMOVES the rule (e.g. via the inline builder's Remove
+    //    Group), `handleApplyRules` broadens the live scope to bank/side with
+    //    an empty REGEX, dropping the definition-ID scope that was implicitly
+    //    enforcing validity; without this client pass those out-of-validity
+    //    rows leak into the table. The count logic (`validityFilterActive`)
+    //    already collapses to `filteredLen` on the assumption this runs, so
+    //    skipping it left the counts and the visible rows disagreeing.
+    // Trim any T-suffix from both sides so a backend that ships ISO datetimes
+    // (and the ISO-lifted validity bound) compares cleanly as YYYY-MM-DD.
+    let validityFrom: string | undefined;
+    let validityTo: string | undefined;
+    if (builderOpen && !isLiveMode) {
+      validityFrom = validityStartDate ?? undefined;
+      validityTo = validityEndDate ?? undefined;
+    } else if (builderOpen && isLiveMode && statementDateFilterTag) {
+      validityFrom = [...(filters[`${statementDateFilterTag}_GTE`] ?? [])][0];
+      validityTo = [...(filters[`${statementDateFilterTag}_LTE`] ?? [])][0];
+    }
+    if (validityFrom || validityTo) {
+      const from = validityFrom?.split('T')[0];
+      const to = validityTo?.split('T')[0];
       result = result.filter((item) => {
         const raw = item.row['StatementDate'];
         if (raw == null) return false;
         const sd = String(raw).split('T')[0];
-        if (validityStartDate && sd < validityStartDate) return false;
-        if (validityEndDate && sd > validityEndDate) return false;
+        if (from && sd < from) return false;
+        if (to && sd > to) return false;
         return true;
       });
     }
@@ -1815,7 +1852,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     }
 
     return result;
-  }, [displayAnalyzedData, showOnlyUntagged, showOnlyMultiTagged, showOnlyDeadEnd, filters, isLiveMode, builderOpen, builder.formState.transactionTypeCode, builder.formState.ruleGroups, tempDefinition, tagClickState?.rulesetApplied, hiddenDefIds, sortOverride, validityStartDate, validityEndDate]);
+  }, [displayAnalyzedData, showOnlyUntagged, showOnlyMultiTagged, showOnlyDeadEnd, filters, isLiveMode, builderOpen, builder.formState.transactionTypeCode, builder.formState.ruleGroups, tempDefinition, tagClickState?.rulesetApplied, hiddenDefIds, sortOverride, validityStartDate, validityEndDate, statementDateFilterTag]);
 
   // Count of loaded rows that match any hidden tag spec. SAMPLE mode only:
   // live mode excludes hidden rows server-side, so the loaded buffer holds
@@ -3319,7 +3356,15 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                     No other existing tags match this rule yet.
                   </span>
                 ) : (
-                  <div className="flex flex-wrap gap-1.5">
+                  // While the matching set is recomputing after an Exclude,
+                  // lock the whole group: excluding a tag mutates the rule and
+                  // the list reloads, so a second click would act on a stale
+                  // set. `pointer-events-none` blocks pointer clicks (preview +
+                  // ×); `handleExclude` also early-returns to cover keyboard.
+                  <div
+                    className={`flex flex-wrap gap-1.5 transition-opacity ${matchingTagsLocked ? 'pointer-events-none opacity-50' : ''}`}
+                    aria-busy={matchingTagsLocked}
+                  >
                     {otherMatchingTagIds.map((id) => {
                       const def = tagDefinitions.find((d) => d.Id === id);
                       if (!def) return null;
@@ -3327,6 +3372,10 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                       const isUserCreated = !originalDefinitionIds?.has(id);
                       const versionInfo = definitionVersions.get(id);
                       const handleExclude = () => {
+                        // Ignore further excludes while a previous one is still
+                        // reloading the match set (keyboard path; pointer is
+                        // already blocked by the container's pointer-events).
+                        if (matchingTagsLocked) return;
                         // Exclude lives INSIDE the badge as a × icon;
                         // see TagBadge's `onExclude` prop for the
                         // stopPropagation wiring. This handler just
@@ -3334,11 +3383,23 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                         // surfaces the result toast.
                         const result = builder.excludeTag(def);
                         if (result.skipped) {
+                          // No rule change → the match set won't reload, so
+                          // don't engage the lock (it would never clear).
                           setToast({
                             message: result.reason ?? `Could not exclude "${def.Tag}"`,
                             type: 'error',
                           });
                         } else {
+                          // Lock the group until the recomputed set lands.
+                          setExcludePending(true);
+                          // Exclude is a deliberate rule edit. If we're in
+                          // tag-click "show all" mode (e.g. after "Discard your
+                          // unsaved changes and show all"), `matchingTagsFormState`
+                          // drops `ruleGroups`, so the match preview ignores the
+                          // rule — the negation we just added would have no
+                          // effect and the excluded tag would never drop out.
+                          // Exit show-all so the preview re-scopes to the rule.
+                          setTagClickState((prev) => (prev?.showingAll ? { ...prev, showingAll: false } : prev));
                           const n = result.conditions.length;
                           setToast({
                             message: `Excluded "${def.Tag}". Added ${n} condition${n === 1 ? '' : 's'} to the rule.`,
