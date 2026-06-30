@@ -2401,16 +2401,39 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     scrollContainerRef.current?.scrollTo({ left: Math.max(0, target) });
   }, []);
 
-  const getColumnAtMinimapX = useCallback((clientX: number, rect: DOMRect): number => {
-    if (minimapBlocks.length === 0) return 0;
-    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    let cum = 0;
-    for (const block of minimapBlocks) {
-      cum += block.widthPct;
-      if (cum >= ratio * 100) return block.origIdx;
+  // Resolve the column under the cursor by HIT-TESTING the rendered minimap
+  // blocks, not by cumulative `widthPct`. The blocks carry a `minWidth: 35px`
+  // floor, so once enough columns are shown the narrow ones stop tracking
+  // their proportional widths and a widthPct-based lookup lands on the wrong
+  // column (the reported "wrong column highlighted/scrolled"). The DOM rects
+  // are the source of truth for what the operator actually sees.
+  const getColumnAtMinimapX = useCallback((clientX: number): number => {
+    const bar = minimapBarRef.current;
+    if (!bar) return 0;
+    const blockEls = Array.from(bar.querySelectorAll<HTMLElement>('[data-minimap-idx]'));
+    if (blockEls.length === 0) return 0;
+    for (const el of blockEls) {
+      const r = el.getBoundingClientRect();
+      if (clientX >= r.left && clientX <= r.right) return Number(el.dataset.minimapIdx);
     }
-    return minimapBlocks[minimapBlocks.length - 1].origIdx;
-  }, [minimapBlocks]);
+    // Cursor fell in a sub-pixel gap or past an edge — clamp to first / last.
+    if (clientX < blockEls[0].getBoundingClientRect().left) {
+      return Number(blockEls[0].dataset.minimapIdx);
+    }
+    return Number(blockEls[blockEls.length - 1].dataset.minimapIdx);
+  }, []);
+
+  // Scroll the targeted column to the center of the viewport using its real
+  // <th> offset (accurate regardless of the minimap's minWidth distortion).
+  const scrollMinimapToColumn = useCallback((colIdx: number) => {
+    const container = scrollContainerRef.current;
+    const thead = theadRef.current;
+    if (!container || !thead) return;
+    const th = thead.querySelectorAll('th')[colIdx] as HTMLElement | undefined;
+    if (!th) return;
+    const target = th.offsetLeft - container.clientWidth / 2 + th.offsetWidth / 2;
+    container.scrollTo({ left: Math.max(0, target), behavior: 'smooth' });
+  }, []);
 
   const flashColumnHeader = useCallback((colIdx: number) => {
     if (!theadRef.current) return;
@@ -2426,11 +2449,12 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
 
   const handleMinimapPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     e.currentTarget.setPointerCapture(e.pointerId);
-    const rect = e.currentTarget.getBoundingClientRect();
-    scrollToMinimapX(e.clientX, rect);
-    const colIdx = getColumnAtMinimapX(e.clientX, rect);
+    // A click jumps to (and flashes) the column actually under the cursor.
+    // Drag scrubbing is handled by the proportional move handler below.
+    const colIdx = getColumnAtMinimapX(e.clientX);
+    scrollMinimapToColumn(colIdx);
     flashColumnHeader(colIdx);
-  }, [scrollToMinimapX, getColumnAtMinimapX, flashColumnHeader]);
+  }, [getColumnAtMinimapX, scrollMinimapToColumn, flashColumnHeader]);
 
   const handleMinimapPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (e.buttons === 0) return;
@@ -2935,6 +2959,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
           ) : minimapBlocks.map((block) => (
             <Tooltip key={block.col.key} content={getColumnLabel(block.col)} placement="bottom">
               <div
+                data-minimap-idx={block.origIdx}
                 className="h-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors overflow-hidden flex items-center px-px"
                 style={{ width: `${block.widthPct}%`, minWidth: 35, borderRight: '1px solid white', borderBottom: `3px solid ${getMinimapBorderColor(block.col.type) ?? columnAccentColors.get(block.col.key)}` }}
               >
