@@ -1501,6 +1501,23 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     builderOpen,
   );
 
+  // Lock the matching-tags group from the moment an Exclude is clicked until
+  // the recomputed match set lands. `matchingTagsLoading` alone isn't enough:
+  // it only flips true after the 700ms debounce in useMatchingTagIds, leaving
+  // a window where the displayed set is stale but still clickable. Held here
+  // and cleared when the reload's loading flag falls back to false.
+  const [excludePending, setExcludePending] = useState(false);
+  const prevMatchingLoadingRef = useRef(matchingTagsLoading);
+  useEffect(() => {
+    // Closing the builder ends any in-flight preview — drop the lock so it
+    // can't survive into the next session.
+    if (!builderOpen) { setExcludePending(false); prevMatchingLoadingRef.current = false; return; }
+    // Reload finished (loading fell true→false) → release the lock.
+    if (prevMatchingLoadingRef.current && !matchingTagsLoading) setExcludePending(false);
+    prevMatchingLoadingRef.current = matchingTagsLoading;
+  }, [matchingTagsLoading, builderOpen]);
+  const matchingTagsLocked = excludePending || matchingTagsLoading;
+
   // Read-only preview drawer for tags clicked in the "Existing Matching Tags"
   // section. Distinct from `handleTagClick` (which loads a tag into the builder
   // and would wipe in-progress draft state) — this surface must not disturb
@@ -3319,7 +3336,15 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                     No other existing tags match this rule yet.
                   </span>
                 ) : (
-                  <div className="flex flex-wrap gap-1.5">
+                  // While the matching set is recomputing after an Exclude,
+                  // lock the whole group: excluding a tag mutates the rule and
+                  // the list reloads, so a second click would act on a stale
+                  // set. `pointer-events-none` blocks pointer clicks (preview +
+                  // ×); `handleExclude` also early-returns to cover keyboard.
+                  <div
+                    className={`flex flex-wrap gap-1.5 transition-opacity ${matchingTagsLocked ? 'pointer-events-none opacity-50' : ''}`}
+                    aria-busy={matchingTagsLocked}
+                  >
                     {otherMatchingTagIds.map((id) => {
                       const def = tagDefinitions.find((d) => d.Id === id);
                       if (!def) return null;
@@ -3327,6 +3352,10 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                       const isUserCreated = !originalDefinitionIds?.has(id);
                       const versionInfo = definitionVersions.get(id);
                       const handleExclude = () => {
+                        // Ignore further excludes while a previous one is still
+                        // reloading the match set (keyboard path; pointer is
+                        // already blocked by the container's pointer-events).
+                        if (matchingTagsLocked) return;
                         // Exclude lives INSIDE the badge as a × icon;
                         // see TagBadge's `onExclude` prop for the
                         // stopPropagation wiring. This handler just
@@ -3334,11 +3363,23 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                         // surfaces the result toast.
                         const result = builder.excludeTag(def);
                         if (result.skipped) {
+                          // No rule change → the match set won't reload, so
+                          // don't engage the lock (it would never clear).
                           setToast({
                             message: result.reason ?? `Could not exclude "${def.Tag}"`,
                             type: 'error',
                           });
                         } else {
+                          // Lock the group until the recomputed set lands.
+                          setExcludePending(true);
+                          // Exclude is a deliberate rule edit. If we're in
+                          // tag-click "show all" mode (e.g. after "Discard your
+                          // unsaved changes and show all"), `matchingTagsFormState`
+                          // drops `ruleGroups`, so the match preview ignores the
+                          // rule — the negation we just added would have no
+                          // effect and the excluded tag would never drop out.
+                          // Exit show-all so the preview re-scopes to the rule.
+                          setTagClickState((prev) => (prev?.showingAll ? { ...prev, showingAll: false } : prev));
                           const n = result.conditions.length;
                           setToast({
                             message: `Excluded "${def.Tag}". Added ${n} condition${n === 1 ? '' : 's'} to the rule.`,
