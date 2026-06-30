@@ -1745,24 +1745,44 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       result = result.filter((item) => item.row['TransactionTypeCode'] === builder.formState.transactionTypeCode);
     }
 
-    // Builder Validity filter. Sample mode only — in live mode the
-    // Statement Date chip filter (kept in sync with builder validity
-    // via the bidirectional mirror) is the authoritative gate, and
-    // re-applying a client-side check here would surface a stale
-    // hide AFTER the operator cleared the chip: the server re-fetches
-    // broader rows, but if validity stays set in form state the
-    // client-side filter would mask everything until the operator
-    // also cleared validity. Aligns with the Transaction Type
-    // client-side filter below (also `!isLiveMode`-gated). Trim any
-    // T-suffix from StatementDate so a backend that ships ISO
-    // datetimes doesn't break the lexicographic compare on YYYY-MM-DD.
-    if (builderOpen && !isLiveMode && (validityStartDate || validityEndDate)) {
+    // Builder Validity filter. Narrows the table to rows whose StatementDate
+    // falls within the rule's validity window, in BOTH modes:
+    //  - Sample mode: no StatementDate chip exists, so read the bound straight
+    //    from the builder's form validity.
+    //  - Live mode: read the bound from the StatementDate chip (the
+    //    server-synced value the validity→chip mirror keeps in step with the
+    //    form). Keying on the CHIP rather than raw form validity is what makes
+    //    this safe: clearing the chip in the filter row turns the client mask
+    //    off too, so we don't reintroduce the stale-hide the old
+    //    `!isLiveMode` gate guarded against. The server already filters by the
+    //    same chip, so this is normally a no-op safety net — but when the
+    //    operator REMOVES the rule (e.g. via the inline builder's Remove
+    //    Group), `handleApplyRules` broadens the live scope to bank/side with
+    //    an empty REGEX, dropping the definition-ID scope that was implicitly
+    //    enforcing validity; without this client pass those out-of-validity
+    //    rows leak into the table. The count logic (`validityFilterActive`)
+    //    already collapses to `filteredLen` on the assumption this runs, so
+    //    skipping it left the counts and the visible rows disagreeing.
+    // Trim any T-suffix from both sides so a backend that ships ISO datetimes
+    // (and the ISO-lifted validity bound) compares cleanly as YYYY-MM-DD.
+    let validityFrom: string | undefined;
+    let validityTo: string | undefined;
+    if (builderOpen && !isLiveMode) {
+      validityFrom = validityStartDate ?? undefined;
+      validityTo = validityEndDate ?? undefined;
+    } else if (builderOpen && isLiveMode && statementDateFilterTag) {
+      validityFrom = [...(filters[`${statementDateFilterTag}_GTE`] ?? [])][0];
+      validityTo = [...(filters[`${statementDateFilterTag}_LTE`] ?? [])][0];
+    }
+    if (validityFrom || validityTo) {
+      const from = validityFrom?.split('T')[0];
+      const to = validityTo?.split('T')[0];
       result = result.filter((item) => {
         const raw = item.row['StatementDate'];
         if (raw == null) return false;
         const sd = String(raw).split('T')[0];
-        if (validityStartDate && sd < validityStartDate) return false;
-        if (validityEndDate && sd > validityEndDate) return false;
+        if (from && sd < from) return false;
+        if (to && sd > to) return false;
         return true;
       });
     }
@@ -1832,7 +1852,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     }
 
     return result;
-  }, [displayAnalyzedData, showOnlyUntagged, showOnlyMultiTagged, showOnlyDeadEnd, filters, isLiveMode, builderOpen, builder.formState.transactionTypeCode, builder.formState.ruleGroups, tempDefinition, tagClickState?.rulesetApplied, hiddenDefIds, sortOverride, validityStartDate, validityEndDate]);
+  }, [displayAnalyzedData, showOnlyUntagged, showOnlyMultiTagged, showOnlyDeadEnd, filters, isLiveMode, builderOpen, builder.formState.transactionTypeCode, builder.formState.ruleGroups, tempDefinition, tagClickState?.rulesetApplied, hiddenDefIds, sortOverride, validityStartDate, validityEndDate, statementDateFilterTag]);
 
   // Count of loaded rows that match any hidden tag spec. SAMPLE mode only:
   // live mode excludes hidden rows server-side, so the loaded buffer holds
