@@ -104,8 +104,15 @@ export function RuleGroupEditor({
             const preview = generateExpressionPrompt(first.operation, first.value, first.values);
             const rest = filled.length - 1;
             return (
-              <span className="text-xs text-faint ml-1">
-                ( <span className="text-primary italic">{humanizeFieldName(first.sourceField)}</span> → <span className="text-orange-500 dark:text-orange-300 italic">{preview}</span>
+              // Force the structural summary LTR and isolate the dynamic value
+              // (`preview`). Without this, an RTL value (e.g. an Arabic
+              // "Contains 'ي'") lets bidi reorder the surrounding neutrals and
+              // the "& N more" counter, so "Contains 'ي' & 1 more" renders
+              // garbled as "Contains ' 1 & ي more". `unicode-bidi: isolate`
+              // makes the value a self-contained run; `dir="auto"` picks its
+              // own base direction from its first strong character.
+              <span dir="ltr" className="text-xs text-faint ml-1">
+                ( <span className="text-primary italic">{humanizeFieldName(first.sourceField)}</span> → <span dir="auto" style={{ unicodeBidi: 'isolate' }} className="text-orange-500 dark:text-orange-300 italic">{preview}</span>
                 {rest > 0 && <span className="ml-2 text-purple-600 dark:text-purple-300"> &amp; {rest} more</span>}
                 {' '})
               </span>
