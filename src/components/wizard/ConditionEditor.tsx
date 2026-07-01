@@ -446,8 +446,8 @@ export function ConditionEditor({
             className="flex-1 min-w-0 cursor-pointer hover:bg-surface-active rounded px-2 py-1.5 transition-colors"
             onClick={() => { setSnapshot({ ...condition }); setEditing(true); }}
           >
-            <p className="text-xs text-primary italic truncate">
-              {humanizeFieldName(condition.sourceField)} &rarr; <span className='text-orange-500 dark:text-orange-300'>{preview}</span>
+            <p dir="ltr" className="text-xs text-primary italic truncate">
+              {humanizeFieldName(condition.sourceField)} &rarr; <span dir="auto" style={{ unicodeBidi: 'isolate' }} className='text-orange-500 dark:text-orange-300'>{preview}</span>
             </p>
           </div>
         )}
@@ -484,8 +484,8 @@ export function ConditionEditor({
       {editing && (
         <div className="mt-1 ml-3 flex flex-wrap items-center gap-2">
           {preview && (
-            <p className="text-xs text-primary italic text-left border-dashed border w-fit max-w-full px-2 py-1 break-all">
-              {humanizeFieldName(condition.sourceField)} &rarr; <span className='text-orange-500 dark:text-orange-300'>{preview}</span>
+            <p dir="ltr" className="text-xs text-primary italic text-left border-dashed border w-fit max-w-full px-2 py-1 break-all">
+              {humanizeFieldName(condition.sourceField)} &rarr; <span dir="auto" style={{ unicodeBidi: 'isolate' }} className='text-orange-500 dark:text-orange-300'>{preview}</span>
             </p>
           )}
           {isDuplicate && (

@@ -2198,6 +2198,47 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     return { lastLeftIdx: lastLeft, firstRightIdx: firstRight };
   }, [leftIndices, rightIndices]);
 
+  // --- Stable table width (compact-mode horizontal-scroll fix) ---
+  //
+  // Compact mode uses auto table-layout (resolveColumnWidth returns undefined),
+  // so every column is only as wide as its widest MOUNTED cell. While
+  // virtual-scrolling a fully-loaded set, the mounted window changes and the
+  // narrative column's width swings with it (long "CASH MANAGEMENT…" rows vs a
+  // short "/08"). When a narrow window mounts the table shrinks; if the operator
+  // had scrolled right, the browser clamps scrollLeft to the smaller max and the
+  // view snaps back to the left. Pin the table to the widest width it has been:
+  // it then never shrinks mid-scroll (it only ever GROWS, which extends
+  // rightward and never moves the viewport). The pin resets on structural
+  // changes (visible columns / compact toggle / char-view columns) so a
+  // genuinely narrower layout can shrink to fit.
+  const maxTableWidthRef = useRef(0);
+  const [stableMinWidth, setStableMinWidth] = useState(0);
+  const growPin = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const w = el.scrollWidth;
+    if (w > maxTableWidthRef.current) {
+      maxTableWidthRef.current = w;
+      setStableMinWidth(w);
+    }
+  }, []);
+  // String signature so churny prop identities (e.g. a fresh charViewColumns
+  // Set each render) don't reset the pin unless the layout actually changed.
+  const layoutSignature = useMemo(
+    () =>
+      `${relaxedMode}|${visibleColumns.map((c) => c.key).join(',')}|${[...(charViewColumns ?? [])].sort().join(',')}`,
+    [relaxedMode, visibleColumns, charViewColumns],
+  );
+  useEffect(() => {
+    // Drop the pin so the table can shrink to the new natural width, then
+    // re-measure on the next frame (after the reset render paints without the
+    // pin) and grow back to the fresh maximum.
+    maxTableWidthRef.current = 0;
+    setStableMinWidth(0);
+    const raf = requestAnimationFrame(growPin);
+    return () => cancelAnimationFrame(raf);
+  }, [layoutSignature, growPin]);
+
   // Measure header cell widths and compute left/right offsets for sticky columns
   useLayoutEffect(() => {
     if (!theadRef.current) return;
@@ -2242,7 +2283,10 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     // Measure Tags column width for minimap coordinate mapping
     const tagsIdx = visibleColumns.findIndex((col) => col.type === 'tags');
     tagsColWidthRef.current = tagsIdx !== -1 ? (ths[tagsIdx]?.offsetWidth ?? 0) : 0;
-  }, [visibleColumns, leftIndices, rightIndices, data]);
+
+    // Grow the width pin if this render mounted a wider row than we've seen.
+    growPin();
+  }, [visibleColumns, leftIndices, rightIndices, data, growPin]);
 
   // --- Minimap scroll tracking (via refs, no re-renders) ---
 
@@ -2298,6 +2342,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
         scrollWidth: el.scrollWidth,
       };
       setHasOverflow(el.scrollWidth > el.clientWidth + 10);
+      growPin();
       updateViewportIndicator();
     };
 
@@ -2309,7 +2354,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
       el.removeEventListener('scroll', update);
       ro.disconnect();
     };
-  }, [visibleColumns, data, updateViewportIndicator]);
+  }, [visibleColumns, data, updateViewportIndicator, growPin]);
 
   // External "scroll to a specific attribute column" trigger. The rule
   // builder lives above the table; the Attribute Editor's "View Attr Column"
@@ -2978,7 +3023,10 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
 
       {/* Scrollable table */}
       <div ref={scrollContainerRef} className="overflow-auto flex-1 min-h-0 custom-scrollbar">
-        <table className="min-w-full divide-y divide-divide">
+        <table
+          className="min-w-full divide-y divide-divide"
+          style={{ minWidth: stableMinWidth > 0 ? `max(100%, ${stableMinWidth}px)` : undefined }}
+        >
           <thead ref={theadRef} className="bg-surface-secondary">
             {loading && data.length === 0 && visibleColumns.length <= 1 ? (
               <tr className="animate-pulse">
