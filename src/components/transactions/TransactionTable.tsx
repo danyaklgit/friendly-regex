@@ -3023,10 +3023,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
 
       {/* Scrollable table */}
       <div ref={scrollContainerRef} className="overflow-auto flex-1 min-h-0 custom-scrollbar">
-        <table
-          className="min-w-full divide-y divide-divide"
-          style={{ minWidth: stableMinWidth > 0 ? `max(100%, ${stableMinWidth}px)` : undefined }}
-        >
+        <table className="min-w-full divide-y divide-divide">
           <thead ref={theadRef} className="bg-surface-secondary">
             {loading && data.length === 0 && visibleColumns.length <= 1 ? (
               <tr className="animate-pulse">
@@ -3189,6 +3186,16 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
             )}
           </tbody>
         </table>
+        {/* Invisible width-reservation spacer. Holds the scroll container's
+            scrollWidth at the widest the table has been (`stableMinWidth`) so a
+            narrow virtual window can't shrink the content and make the browser
+            clamp scrollLeft (the horizontal-scroll "jump back to the left"
+            bug). It reserves width WITHOUT stretching the table, so auto-layout
+            no longer dumps slack into a flexible column (the ballooned Tags
+            column). Zero height → no vertical footprint. */}
+        {stableMinWidth > 0 && (
+          <div aria-hidden style={{ width: `${stableMinWidth}px`, height: 0 }} />
+        )}
       </div>
     </div>
   );
