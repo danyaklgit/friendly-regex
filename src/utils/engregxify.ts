@@ -631,9 +631,10 @@ export function decomposeRegex(regex: string): {
  * when its inner pattern matches the captured body's pattern, so an unrelated
  * regex can't be mis-peeled.
  *
- * Note: occurrence == 1 (the default) emits no skip, so it is indistinguishable
- * from "unset" and stays unset on reload — the extraction is identical either
- * way (first match).
+ * Note: an explicitly-chosen occurrence == 1 emits a `{0}`-repeat skip and
+ * round-trips back to 1. UNSET occurrence (undefined) emits no skip at all and
+ * stays unset on reload — the two are distinct, though the extraction (first
+ * match) is identical either way.
  */
 function decomposeMatchingMods(regex: string): {
   operation: ExtractionOperation;
@@ -663,7 +664,11 @@ function decomposeMatchingMods(regex: string): {
     const k = Number(occM[2]);
     const body = occM[3];
     const bodyInner = outerParensPair(body) ? body.slice(1, -1) : body;
-    if (k >= 1 && (bodyInner === innerPat || body === innerPat)) {
+    // k >= 0: a `{0}` skip encodes occurrence 1 (see regexifyExtraction) and
+    // must decode back to 1, not be ignored. The self-consistency check (skip's
+    // inner pattern equals the captured body) still guards against mis-peeling
+    // an unrelated regex.
+    if (k >= 0 && (bodyInner === innerPat || body === innerPat)) {
       occurrence = k + 1;
       rest = body;
     }

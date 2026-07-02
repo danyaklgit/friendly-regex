@@ -81,7 +81,7 @@ export function RuleGroupEditor({
     <div data-tour="rule-group-editor" className="border border-border rounded-lg p-3 bg-surface flex flex-col items-start">
       <div className="flex items-center justify-between w-full">
         <div
-          className="flex items-center gap-1.5 cursor-pointer select-none flex-1"
+          className="flex items-center gap-1.5 cursor-pointer select-none flex-1 min-w-0"
           onClick={() => setIsExpanded((prev) => !prev)}
         >
           <svg
@@ -92,7 +92,7 @@ export function RuleGroupEditor({
           >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
           </svg>
-          <span className="text-xs font-medium text-muted uppercase tracking-wide">
+          <span className="text-xs font-medium text-muted uppercase tracking-wide shrink-0 whitespace-nowrap">
             Rule Set {groupIndex + 1}
           </span>
           {!isExpanded && (() => {
@@ -104,17 +104,20 @@ export function RuleGroupEditor({
             const preview = generateExpressionPrompt(first.operation, first.value, first.values);
             const rest = filled.length - 1;
             return (
-              // Force the structural summary LTR and isolate the dynamic value
-              // (`preview`). Without this, an RTL value (e.g. an Arabic
-              // "Contains 'ي'") lets bidi reorder the surrounding neutrals and
-              // the "& N more" counter, so "Contains 'ي' & 1 more" renders
-              // garbled as "Contains ' 1 & ي more". `unicode-bidi: isolate`
-              // makes the value a self-contained run; `dir="auto"` picks its
-              // own base direction from its first strong character.
-              <span dir="ltr" className="text-xs text-faint ml-1">
-                ( <span className="text-primary italic">{humanizeFieldName(first.sourceField)}</span> → <span dir="auto" style={{ unicodeBidi: 'isolate' }} className="text-orange-500 dark:text-orange-300 italic">{preview}</span>
-                {rest > 0 && <span className="ml-2 text-purple-600 dark:text-purple-300"> &amp; {rest} more</span>}
-                {' '})
+              // Flex row so a long value TRUNCATES (ellipsis) instead of
+              // wrapping the whole summary onto a second line. The field name,
+              // arrow, "& N more" counter, and parens stay pinned (`shrink-0`);
+              // only the dynamic value span (`truncate min-w-0`) gives up width.
+              // `dir="ltr"` + `unicode-bidi: isolate` on the value keep an RTL
+              // value (e.g. Arabic "Contains 'ي'") from reordering the counter
+              // ("Contains 'ي' & 1 more" would otherwise render garbled).
+              <span dir="ltr" className="flex items-center gap-1 text-xs text-faint ml-1 min-w-0 flex-1">
+                <span className="shrink-0">(</span>
+                <span className="text-primary italic shrink-0 whitespace-nowrap">{humanizeFieldName(first.sourceField)}</span>
+                <span className="shrink-0">→</span>
+                <span dir="auto" style={{ unicodeBidi: 'isolate' }} className="text-orange-500 dark:text-orange-300 italic truncate min-w-0">{preview}</span>
+                {rest > 0 && <span className="shrink-0 text-purple-600 dark:text-purple-300">&amp; {rest} more</span>}
+                <span className="shrink-0">)</span>
               </span>
             );
           })()}

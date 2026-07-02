@@ -190,7 +190,13 @@ export function regexifyExtraction(
   if (operation.startsWith('lov:')) {
     return ensureLovExtractionCaptureGroup(operation.slice(4));
   }
-  const occ = params.occurrence && params.occurrence > 1 ? params.occurrence : 0;
+  // Emit the occurrence skip for occurrence >= 1 (not just > 1). occurrence 1
+  // produces a `{0}`-repeat skip (`(?:.*?PAT){0}.*?…`) — a no-op for matching
+  // but a marker the decoder can recover, so an explicitly-chosen "1st
+  // occurrence" round-trips instead of vanishing into the unset/default state.
+  // UNSET occurrence (undefined) still emits nothing, so the default keeps a
+  // clean regex and stays unset on reload.
+  const occ = params.occurrence && params.occurrence >= 1 ? params.occurrence : 0;
   // Wrap the literal suffix as `(?:<suf>|$)` when the user opted into
   // end-of-input as an alternative boundary. Empty suffix degrades to `$`
   // alone (no spurious empty alternation).
@@ -201,8 +207,11 @@ export function regexifyExtraction(
     case 'extract_between': {
       const pre = escapeRegex(params.prefix ?? '');
       const suf = sufWithOptionalEoi(escapeRegex(params.suffix ?? ''));
-      const preOcc = params.prefixOccurrence && params.prefixOccurrence > 1 ? params.prefixOccurrence : 0;
-      const sufOcc = params.suffixOccurrence && params.suffixOccurrence > 1 ? params.suffixOccurrence : 0;
+      // `>= 1` (not `> 1`) so an explicit prefix/suffix occurrence of 1 emits a
+      // `{0}`-repeat marker and round-trips, matching the shared `occ` handling
+      // above. Unset (undefined) still emits nothing.
+      const preOcc = params.prefixOccurrence && params.prefixOccurrence >= 1 ? params.prefixOccurrence : 0;
+      const sufOcc = params.suffixOccurrence && params.suffixOccurrence >= 1 ? params.suffixOccurrence : 0;
       const preSkip = preOcc ? `(?:.*?${pre}){${preOcc - 1}}.*?` : '';
       // For suffixOccurrence N, the capture must span from prefix to the Nth
       // suffix. Fold the skip for earlier suffixes into the capture group so
