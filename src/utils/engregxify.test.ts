@@ -495,6 +495,70 @@ describe('enriched extraction round-trip preserves the operation', () => {
       suffixOccurrence: 3,
     });
   });
+
+  // Occurrence 1 is explicit (not the same as unset): it must round-trip.
+  it('extract_matching occurrence 1 round-trips (does not clear)', () => {
+    const regex = regexifyExtraction('extract_matching', { pattern: '\\d+', occurrence: 1 });
+    expect(decomposeExtractionRegex(regex)).toEqual({
+      operation: 'extract_matching',
+      pattern: '\\d+',
+      occurrence: 1,
+    });
+  });
+
+  it('extract_matching startingPosition + occurrence 1 round-trip together', () => {
+    const regex = regexifyExtraction('extract_matching', { pattern: '\\d+', startingPosition: 3, occurrence: 1 });
+    expect(decomposeExtractionRegex(regex)).toEqual({
+      operation: 'extract_matching',
+      pattern: '\\d+',
+      startingPosition: 3,
+      occurrence: 1,
+    });
+  });
+
+  it('unset occurrence emits no skip and stays unset', () => {
+    const regex = regexifyExtraction('extract_matching', { pattern: '\\d+' });
+    expect(regex).toBe('(\\d+)');
+    expect(decomposeExtractionRegex(regex)).toEqual({
+      operation: 'extract_matching',
+      pattern: '\\d+',
+    });
+  });
+
+  // The occurrence-1 fix must cover every method that carries an occurrence,
+  // including extract_between's separate prefix/suffix occurrence fields.
+  it('extract_between prefixOccurrence 1 round-trips', () => {
+    const regex = regexifyExtraction('extract_between', { prefix: 'AL', suffix: 'IN', prefixOccurrence: 1 });
+    expect(decomposeExtractionRegex(regex)).toEqual({
+      operation: 'extract_between',
+      prefix: 'AL',
+      suffix: 'IN',
+      prefixOccurrence: 1,
+    });
+  });
+
+  it('extract_between suffixOccurrence 1 round-trips', () => {
+    const regex = regexifyExtraction('extract_between', { prefix: 'AL', suffix: 'IN', suffixOccurrence: 1 });
+    expect(decomposeExtractionRegex(regex)).toEqual({
+      operation: 'extract_between',
+      prefix: 'AL',
+      suffix: 'IN',
+      suffixOccurrence: 1,
+    });
+  });
+
+  it('extract_after / extract_before occurrence 1 round-trip', () => {
+    expect(decomposeExtractionRegex(regexifyExtraction('extract_after', { prefix: 'AL', occurrence: 1 }))).toEqual({
+      operation: 'extract_after',
+      prefix: 'AL',
+      occurrence: 1,
+    });
+    expect(decomposeExtractionRegex(regexifyExtraction('extract_before', { suffix: 'IN', occurrence: 1 }))).toEqual({
+      operation: 'extract_before',
+      suffix: 'IN',
+      occurrence: 1,
+    });
+  });
 });
 
 describe('describeLiteralBoundary', () => {
