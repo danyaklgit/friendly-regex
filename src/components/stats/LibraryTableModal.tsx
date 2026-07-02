@@ -62,6 +62,7 @@ export function LibraryTableModal({
           <LibrarySection
             heading={`ACTIVE — ${activeLib.TagSpecDefinitions.length} definition${activeLib.TagSpecDefinitions.length === 1 ? '' : 's'}`}
             definitions={activeLib.TagSpecDefinitions}
+            statusLabel="ACTIVE"
           />
         )}
 
@@ -69,6 +70,7 @@ export function LibraryTableModal({
           <LibrarySection
             heading={`INPROGRESS — ${inProgressLib.TagSpecDefinitions.length} definition${inProgressLib.TagSpecDefinitions.length === 1 ? '' : 's'}`}
             definitions={inProgressLib.TagSpecDefinitions}
+            statusLabel="INPROGRESS"
           />
         )}
       </div>
@@ -109,9 +111,18 @@ function ScopePill({ value, label, scope, onChange }: ScopePillProps) {
 interface LibrarySectionProps {
   heading: string;
   definitions: TagSpecDefinition[];
+  /** Library scope this section renders (ACTIVE / INPROGRESS). Drives the
+   *  per-row Status cell — the definitions' own `StatusTag` is always
+   *  `ACTIVE` regardless of which library they live in, so it can't
+   *  distinguish the two sections in the Both view. */
+  statusLabel: string;
 }
 
-function LibrarySection({ heading, definitions }: LibrarySectionProps) {
+function LibrarySection({ heading, definitions, statusLabel }: LibrarySectionProps) {
+  // Collapsible so the Both view can fold either library away and keep the
+  // other in view without scrolling past a long table. Defaults expanded.
+  const [collapsed, setCollapsed] = useState(false);
+
   // Same alphabetical sort the Backlog expanded card list now uses
   // (StatsTab.tsx around the expanded definitions render). Keeping
   // ordering consistent across surfaces means the operator's eye lands
@@ -126,37 +137,61 @@ function LibrarySection({ heading, definitions }: LibrarySectionProps) {
 
   return (
     <section className="space-y-2">
-      <div className="text-xs font-semibold uppercase tracking-wide text-body-secondary">
+      <button
+        type="button"
+        onClick={() => setCollapsed((prev) => !prev)}
+        aria-expanded={!collapsed}
+        className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-body-secondary cursor-pointer hover:text-body transition-colors"
+      >
+        <svg
+          className={`w-3.5 h-3.5 text-faint transition-transform ${collapsed ? '' : 'rotate-90'}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
         {heading}
+      </button>
+      {/* Smooth collapse via the grid-rows 0fr↔1fr trick: the row track
+          animates between zero and content height while the inner wrapper
+          clips the overflow, so no per-content height measurement is needed. */}
+      <div
+        className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${
+          collapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'
+        }`}
+      >
+        <div className="overflow-hidden">
+          {sorted.length === 0 ? (
+            <div className="text-xs text-faint italic py-3 px-3 border border-border rounded-lg">
+              No tag definitions in this library.
+            </div>
+          ) : (
+            <div className="border border-border rounded-lg overflow-hidden">
+              <table className="w-full text-xs">
+                <thead className="bg-surface-secondary text-body-secondary">
+                  <tr>
+                    <Th>Tag</Th>
+                    <Th>Side</Th>
+                    <Th>Tx Type</Th>
+                    <Th>Certainty</Th>
+                    <Th>Status</Th>
+                    <Th>Validity</Th>
+                    <Th align="right">Rule sets</Th>
+                    <Th align="right">Conditions</Th>
+                    <Th align="right">Attributes</Th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {sorted.map((def) => (
+                    <DefinitionRow key={def.Id} def={def} statusLabel={statusLabel} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
-      {sorted.length === 0 ? (
-        <div className="text-xs text-faint italic py-3 px-3 border border-border rounded-lg">
-          No tag definitions in this library.
-        </div>
-      ) : (
-        <div className="border border-border rounded-lg overflow-hidden">
-          <table className="w-full text-xs">
-            <thead className="bg-surface-secondary text-body-secondary">
-              <tr>
-                <Th>Tag</Th>
-                <Th>Side</Th>
-                <Th>Tx Type</Th>
-                <Th>Certainty</Th>
-                <Th>Status</Th>
-                <Th>Validity</Th>
-                <Th align="right">Rule sets</Th>
-                <Th align="right">Conditions</Th>
-                <Th align="right">Attributes</Th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {sorted.map((def) => (
-                <DefinitionRow key={def.Id} def={def} />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
     </section>
   );
 }
@@ -188,7 +223,7 @@ const STATUS_CLASS: Record<string, string> = {
   INACTIVE: 'text-faint',
 };
 
-function DefinitionRow({ def }: { def: TagSpecDefinition }) {
+function DefinitionRow({ def, statusLabel }: { def: TagSpecDefinition; statusLabel: string }) {
   const ruleSets = def.TagRuleExpressions.length;
   const conditions = def.TagRuleExpressions.reduce((n, group) => n + group.length, 0);
   const sideRaw = getContextValue(def.Context, 'Side');
@@ -208,8 +243,8 @@ function DefinitionRow({ def }: { def: TagSpecDefinition }) {
       <td className={`px-3 py-2.5 whitespace-nowrap font-medium ${CERTAINTY_CLASS[def.CertaintyLevelTag] ?? 'text-body'}`}>
         {def.CertaintyLevelTag}
       </td>
-      <td className={`px-3 py-2.5 whitespace-nowrap font-medium ${STATUS_CLASS[def.StatusTag] ?? 'text-body'}`}>
-        {def.StatusTag}
+      <td className={`px-3 py-2.5 whitespace-nowrap font-medium ${STATUS_CLASS[statusLabel] ?? 'text-body'}`}>
+        {statusLabel}
       </td>
       <td className="px-3 py-2.5 whitespace-nowrap text-body-secondary">{validity}</td>
       <td className="px-3 py-2.5 text-right tabular-nums text-body">{ruleSets}</td>
