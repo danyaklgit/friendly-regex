@@ -105,11 +105,16 @@ export function cloneAttributeFromBackend(
     pattern: lovMatch ? undefined : decomposed.pattern,
     suffixOrEndOfInput: lovMatch ? undefined : decomposed.suffixOrEndOfInput,
     numChars: lovMatch ? undefined : decomposed.numChars,
+    toStr: lovMatch ? undefined : decomposed.toStr,
     fromPosition: lovMatch ? undefined : decomposed.fromPosition,
+    toStart: lovMatch ? undefined : decomposed.toStart,
     tillEndOfInput: lovMatch ? undefined : decomposed.tillEndOfInput,
     // extract_matching Starting Position / Occurrence (see decomposeMatchingMods).
     startingPosition: lovMatch ? undefined : decomposed.startingPosition,
     occurrence: lovMatch ? undefined : decomposed.occurrence,
+    // extract_between prefix/suffix occurrence (see decomposeStructuredExtraction).
+    prefixOccurrence: lovMatch ? undefined : decomposed.prefixOccurrence,
+    suffixOccurrence: lovMatch ? undefined : decomposed.suffixOccurrence,
     verifyValue: expr.VerifyValue,
     lovTag: attr.LOVTag ?? null,
     isLovBased: !!attr.LOVTag,

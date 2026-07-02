@@ -675,6 +675,218 @@ function decomposeMatchingMods(regex: string): {
   return { operation: 'extract_matching', pattern, startingPosition, occurrence };
 }
 
+export interface ExtractionDecomposition {
+  operation: ExtractionOperation;
+  prefix?: string;
+  suffix?: string;
+  pattern?: string;
+  suffixOrEndOfInput?: boolean;
+  numChars?: number;
+  toStr?: string;
+  fromPosition?: number;
+  toStart?: boolean;
+  tillEndOfInput?: boolean;
+  startingPosition?: number;
+  occurrence?: number;
+  prefixOccurrence?: number;
+  suffixOccurrence?: number;
+}
+
+// A single escaped-literal character: an escaped pair (`\x`) or any char that
+// is not a backslash or an unescaped paren. Used to match the literal
+// prefix/suffix/toStr tokens `regexifyExtraction` bakes into the regex.
+const STRUCT_LIT = String.raw`(?:\\.|[^\\()])`;
+
+/**
+ * Locate the FIRST unescaped CAPTURING group `(…)` (skipping `(?:`, `(?=`,
+ * lookbehinds, etc.) and split the regex into the text before it, the group's
+ * inner content, and the text after. Returns null when there is no capturing
+ * group. Balances nested parens so a group like `((?:.*?X){2}.*?)` is captured
+ * whole.
+ */
+function splitCaptureGroup(regex: string): { pre: string; inner: string; post: string } | null {
+  for (let i = 0; i < regex.length; i++) {
+    if (regex[i] === '\\') { i++; continue; }
+    if (regex[i] === '(' && regex[i + 1] !== '?') {
+      let depth = 0;
+      for (let j = i; j < regex.length; j++) {
+        if (regex[j] === '\\') { j++; continue; }
+        if (regex[j] === '(') depth++;
+        else if (regex[j] === ')' && --depth === 0) {
+          return { pre: regex.slice(0, i), inner: regex.slice(i + 1, j), post: regex.slice(j + 1) };
+        }
+      }
+      return null; // unbalanced
+    }
+  }
+  return null;
+}
+
+/** Unescape an escaped-literal boundary, or null when it still carries active
+ *  regex syntax (so the caller can bail to extract_matching). */
+function literalBoundary(escaped: string): string | null {
+  if (escaped.length === 0 || looksLikeRegex(escaped)) return null;
+  return unescapeRegex(escaped);
+}
+
+/**
+ * Reverse of the enriched extraction shapes `regexifyExtraction` emits for
+ * extract_after / extract_before / extract_between / extract_substring when the
+ * operator fills in numChars / toStr / position / occurrence / prefix- or
+ * suffix-occurrence. Without this, those shapes fell through to the
+ * extract_matching fallback and the method silently reverted to "Extract
+ * matching pattern" on reload.
+ *
+ * Returns null for base shapes (`PRE(.*?)SUF`, `PRE(.*)`, `(.*?)SUF`, …) and
+ * anything it can't confidently classify, so the existing classifiers still own
+ * them. Runs BEFORE decomposeMatchingMods so a leading `.{P}` substring skip
+ * isn't mis-peeled as a matching startingPosition.
+ */
+function decomposeStructuredExtraction(regex: string): ExtractionDecomposition | null {
+  const split = splitCaptureGroup(regex);
+  if (!split) return null;
+  let { pre } = split;
+  const { inner, post } = split;
+
+  // Peel an optional leading occurrence skip `(?:.*?TOKEN){K}.*?`. TOKEN is a
+  // literal (no unescaped parens), so the matching-occurrence shape
+  // `(?:.*?(?:PAT)){K}.*?` — whose token starts with `(?:` — never matches and
+  // is left for decomposeMatchingMods.
+  let occurrence: number | undefined;
+  const occM = new RegExp(String.raw`^\(\?:\.\*\?(${STRUCT_LIT}+)\)\{(\d+)\}\.\*\?`).exec(pre);
+  if (occM) {
+    occurrence = Number(occM[2]) + 1;
+    pre = pre.slice(occM[0].length);
+  }
+
+  // --- classify the three parts ---
+  // inner: the capture body.
+  const innerNChars = /^\.\{(\d+)\}$/.exec(inner);
+  const innerNLazy = /^\.\{0,(\d+)\}\?$/.exec(inner); // numChars + toStr
+  const innerSufRepeat = new RegExp(String.raw`^\(\?:\.\*\?(${STRUCT_LIT}+)\)\{(\d+)\}\.\*\?$`).exec(inner);
+  const innerRest = inner === '.*';
+  const innerLazy = inner === '.*?';
+
+  // post: the trailing boundary (suffix).
+  let suffix: string | undefined;
+  let suffixOrEndOfInput: boolean | undefined;
+  if (post === '') {
+    // no suffix
+  } else if (post === '$') {
+    return null; // `(.{N})$` is extract_last_n_chars — leave it to that rule.
+  } else {
+    const eoi = new RegExp(String.raw`^\(\?:(${STRUCT_LIT}+)\|\$\)$`).exec(post);
+    if (eoi) {
+      const s = literalBoundary(eoi[1]);
+      if (s === null) return null;
+      suffix = s;
+      suffixOrEndOfInput = true;
+    } else {
+      const s = literalBoundary(post);
+      if (s === null) return null;
+      suffix = s;
+    }
+  }
+  const hasSuffix = suffix !== undefined;
+
+  // pre (after occurrence peel): position skip, greedy `.*TOSTR`, or a prefix.
+  const prePos = /^\.\{(\d+)\}$/.exec(pre);
+  const preToStr = new RegExp(String.raw`^\.\*(${STRUCT_LIT}+)$`).exec(pre);
+  const fromPosition = prePos ? Number(prePos[1]) : undefined;
+  const preToStrLit = preToStr ? literalBoundary(preToStr[1]) : null;
+  const prefixLit = pre !== '' && !prePos && !preToStr ? literalBoundary(pre) : null;
+
+  // === extract_between with suffixOccurrence: PRE((?:.*?S){M}.*?)SUF ===
+  if (innerSufRepeat) {
+    if (prefixLit === null || !hasSuffix) return null;
+    if (literalBoundary(innerSufRepeat[1]) !== suffix) return null;
+    return {
+      operation: 'extract_between',
+      prefix: prefixLit,
+      suffix,
+      suffixOrEndOfInput,
+      prefixOccurrence: occurrence,
+      suffixOccurrence: Number(innerSufRepeat[2]) + 1,
+    };
+  }
+
+  // === extract_substring: position/empty pre, no prefix literal, no occurrence ===
+  // `pre` must be exactly empty or a pure `.{P}` skip — a non-empty
+  // unrecognised `pre` (e.g. the `^.{40}` of extract_skip_take) must NOT be
+  // treated as position-0 substring.
+  if (
+    occurrence === undefined
+    && prefixLit === null
+    && preToStrLit === null
+    && (pre === '' || fromPosition !== undefined)
+  ) {
+    if (!hasSuffix) {
+      if (innerNChars) {
+        return fromPosition !== undefined
+          ? { operation: 'extract_substring', fromPosition, numChars: Number(innerNChars[1]) }
+          : { operation: 'extract_substring', numChars: Number(innerNChars[1]) };
+      }
+      if (innerRest && fromPosition !== undefined) {
+        return { operation: 'extract_substring', fromPosition };
+      }
+      return null; // bare `(.*)` / `(.*?)` — degenerate, leave to base rules.
+    }
+    // position + literal suffix → capture from P up to toStr.
+    if (fromPosition !== undefined) {
+      if (innerLazy) return { operation: 'extract_substring', fromPosition, toStr: suffix };
+      if (innerNLazy) return { operation: 'extract_substring', fromPosition, numChars: Number(innerNLazy[1]), toStr: suffix };
+      return null;
+    }
+    // pre empty + literal suffix → extract_before (handled below).
+  }
+
+  // === extract_before: no prefix, optional greedy `.*TOSTR`, literal suffix ===
+  if (hasSuffix && prefixLit === null && (pre === '' || preToStrLit !== null)) {
+    const toStr = preToStrLit ?? undefined;
+    if (innerLazy) {
+      // base before (no toStr, no occurrence) → let the existing rule handle it.
+      if (toStr === undefined && occurrence === undefined) return null;
+      return { operation: 'extract_before', suffix, suffixOrEndOfInput, toStr, occurrence };
+    }
+    if (innerNChars && toStr === undefined) {
+      return { operation: 'extract_before', suffix, suffixOrEndOfInput, numChars: Number(innerNChars[1]), occurrence };
+    }
+    if (innerNLazy && toStr !== undefined) {
+      return { operation: 'extract_before', suffix, suffixOrEndOfInput, numChars: Number(innerNLazy[1]), toStr, occurrence };
+    }
+    return null;
+  }
+
+  // === extract_after / extract_between (a literal prefix is present) ===
+  if (prefixLit !== null) {
+    if (!hasSuffix) {
+      if (innerRest) {
+        // base after (no occurrence) → let the existing rule handle it.
+        if (occurrence === undefined) return null;
+        return { operation: 'extract_after', prefix: prefixLit, occurrence };
+      }
+      if (innerNChars) {
+        return { operation: 'extract_after', prefix: prefixLit, numChars: Number(innerNChars[1]), occurrence };
+      }
+      return null;
+    }
+    // prefix + literal suffix.
+    if (innerLazy) {
+      // PRE(.*?)SUF → base between; only claim when an occurrence skip made it
+      // enriched (prefixOccurrence), else let the base between rule handle it.
+      if (occurrence === undefined) return null;
+      return { operation: 'extract_between', prefix: prefixLit, suffix, suffixOrEndOfInput, prefixOccurrence: occurrence };
+    }
+    if (innerNLazy) {
+      // PRE(.{0,N}?)TOSTR → extract_after with numChars + toStr.
+      return { operation: 'extract_after', prefix: prefixLit, numChars: Number(innerNLazy[1]), toStr: suffix, occurrence };
+    }
+    return null;
+  }
+
+  return null;
+}
+
 /**
  * Decomposes an extraction regex into structured operation + params.
  *
@@ -682,18 +894,13 @@ function decomposeMatchingMods(regex: string): {
  * regex syntax in the regex falls back to `extract_matching` so the user sees
  * the raw pattern in one box rather than fragmented across "literal" inputs.
  */
-export function decomposeExtractionRegex(regex: string): {
-  operation: ExtractionOperation;
-  prefix?: string;
-  suffix?: string;
-  pattern?: string;
-  suffixOrEndOfInput?: boolean;
-  numChars?: number;
-  fromPosition?: number;
-  tillEndOfInput?: boolean;
-  startingPosition?: number;
-  occurrence?: number;
-} {
+export function decomposeExtractionRegex(regex: string): ExtractionDecomposition {
+  // Structured enriched shapes (numChars / toStr / position / occurrence /
+  // prefix|suffix-occurrence) first — before decomposeMatchingMods, whose
+  // leading-`.{P}` peel would otherwise swallow a substring position skip.
+  const structured = decomposeStructuredExtraction(regex);
+  if (structured) return structured;
+
   // 0. Extract matching with leading Starting Position / Occurrence skips.
   //    regexifyExtraction encodes startingPosition as a leading `.{N}` and
   //    occurrence>1 as a `(?:.*?(?:PAT)){K}.*?` skip in front of the captured

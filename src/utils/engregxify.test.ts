@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { engregxify, decomposeRegex, decomposeExtractionRegex, describeLiteralBoundary } from './engregxify';
-import { regexify } from './regexify';
-import type { MatchOperation } from '../types';
+import { regexify, regexifyExtraction } from './regexify';
+import type { MatchOperation, ExtractionOperation } from '../types';
 
 describe('engregxify', () => {
   // Numeric comparisons
@@ -335,11 +335,12 @@ describe('decomposeExtractionRegex', () => {
   });
 
   it('does not misread `(.{N})` without end-anchor as extract_last_n_chars', () => {
-    // No trailing `$` → falls through to extract_matching, preserving the
-    // distinction between "last N chars" and "first N chars from start".
+    // No trailing `$` → "first N chars from start", which is extract_substring
+    // (numChars). The trailing-`$` form stays extract_last_n_chars, so the two
+    // remain distinct.
     expect(decomposeExtractionRegex('(.{4})')).toEqual({
-      operation: 'extract_matching',
-      pattern: '.{4}',
+      operation: 'extract_substring',
+      numChars: 4,
     });
   });
 
@@ -439,6 +440,59 @@ describe('decomposeExtractionRegex', () => {
     expect(decomposeExtractionRegex('plain')).toEqual({
       operation: 'extract_matching',
       pattern: 'plain',
+    });
+  });
+});
+
+// Regression: enriched extraction shapes (numChars / toStr / position /
+// occurrence / prefix|suffix-occurrence) used to fall through to
+// extract_matching on reload, so the operator's chosen method silently reverted
+// to "Extract matching pattern". Assert the OPERATION survives an
+// encode → decode round-trip for every method + field combination.
+describe('enriched extraction round-trip preserves the operation', () => {
+  const cases: { name: string; op: ExtractionOperation; params: Record<string, unknown> }[] = [
+    { name: 'between preOcc', op: 'extract_between', params: { prefix: 'AL', suffix: 'IN', prefixOccurrence: 2 } },
+    { name: 'between sufOcc', op: 'extract_between', params: { prefix: 'AL', suffix: 'IN', suffixOccurrence: 2 } },
+    { name: 'between pre+sufOcc', op: 'extract_between', params: { prefix: 'AL', suffix: 'IN', prefixOccurrence: 2, suffixOccurrence: 3 } },
+    { name: 'after numChars', op: 'extract_after', params: { prefix: 'AL', numChars: 3 } },
+    { name: 'after numChars+toStr', op: 'extract_after', params: { prefix: '3', numChars: 3, toStr: '6' } },
+    { name: 'after occurrence', op: 'extract_after', params: { prefix: 'AL', occurrence: 2 } },
+    { name: 'before numChars', op: 'extract_before', params: { suffix: 'IN', numChars: 3 } },
+    { name: 'before toStr', op: 'extract_before', params: { suffix: 'IN', toStr: 'X' } },
+    { name: 'before numChars+toStr', op: 'extract_before', params: { suffix: 'IN', numChars: 3, toStr: 'X' } },
+    { name: 'before occurrence', op: 'extract_before', params: { suffix: 'IN', occurrence: 2 } },
+    { name: 'substring pos+n', op: 'extract_substring', params: { fromPosition: 3, numChars: 4 } },
+    { name: 'substring n only', op: 'extract_substring', params: { numChars: 4 } },
+    { name: 'substring pos+toStr', op: 'extract_substring', params: { fromPosition: 3, toStr: 'X' } },
+    { name: 'substring pos only', op: 'extract_substring', params: { fromPosition: 3 } },
+  ];
+  for (const c of cases) {
+    it(`${c.name} → ${c.op}`, () => {
+      const regex = regexifyExtraction(c.op, c.params);
+      expect(decomposeExtractionRegex(regex).operation).toBe(c.op);
+    });
+  }
+
+  it('recovers extract_after numChars + toStr fields', () => {
+    // The screenshot repro: extract_after prefix "3", numChars 3, toStr "6".
+    const regex = regexifyExtraction('extract_after', { prefix: '3', numChars: 3, toStr: '6' });
+    expect(regex).toBe('3(.{0,3}?)6');
+    expect(decomposeExtractionRegex(regex)).toEqual({
+      operation: 'extract_after',
+      prefix: '3',
+      numChars: 3,
+      toStr: '6',
+    });
+  });
+
+  it('recovers extract_between prefix + suffix occurrence', () => {
+    const regex = regexifyExtraction('extract_between', { prefix: 'AL', suffix: 'IN', prefixOccurrence: 2, suffixOccurrence: 3 });
+    expect(decomposeExtractionRegex(regex)).toEqual({
+      operation: 'extract_between',
+      prefix: 'AL',
+      suffix: 'IN',
+      prefixOccurrence: 2,
+      suffixOccurrence: 3,
     });
   });
 });
