@@ -343,8 +343,11 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
         // Raw length (no trim) so a single-space delimiter — a real,
         // meaningful value for `replace.find` / `split_and_pick.delimiter`
         // — counts as present. Matches the extraction-field gate above.
+        // An `allowEmpty` arg (e.g. Replace With) treats a blank value as valid
+        // intent (delete the matched text), so it must NOT block Save. Mirrors
+        // isCompleteTransformation — keep the two in lock-step.
         const val = t.args?.[arg.key];
-        if (val == null || val.length === 0) {
+        if ((val == null || val.length === 0) && !arg.allowEmpty) {
           missing.push(`${def.label}: ${arg.label}`);
         }
       }
@@ -1303,7 +1306,11 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
                         onChange={(e) => onUpdate({ suffixOrEndOfInput: e.target.checked || undefined })}
                         disabled={readOnly}
                       />
-                      or end of input
+                      {/* Label per product decision: Extract before reads "or start
+                          of input" (Extract between keeps "or end of input"). The
+                          underlying match is unchanged (suffix falls back to
+                          end-of-input either way) — this is wording only. */}
+                      {selectedOp.key === 'extract_before' ? 'or start of input' : 'or end of input'}
                     </label>
                   </div>
                 );

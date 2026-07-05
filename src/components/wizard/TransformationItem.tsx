@@ -111,6 +111,12 @@ export function TransformationItem({
           {methodDef!.args.map((argDef) => {
             const isCheckbox = argDef.type === 'checkbox';
             const checked = transformation.args[argDef.key] === 'true';
+            // An `allowEmpty` arg (e.g. Replace With) accepts a blank value as
+            // meaningful intent — deleting the matched text. Don't render it as
+            // required (no red asterisk, no HTML `required`), otherwise leaving
+            // it blank reads as "not allowed" even though the completeness gate
+            // and the preview both accept it.
+            const showAsRequired = argDef.required && !argDef.allowEmpty;
             return (
               <div
                 key={argDef.key}
@@ -134,7 +140,7 @@ export function TransformationItem({
                   <div className="flex flex-col gap-1">
                     <span className="text-xs font-medium text-body pl-1 leading-tight">
                       {argDef.label}
-                      {argDef.required && <span className="text-red-500 ml-0.5">*</span>}
+                      {showAsRequired && <span className="text-red-500 ml-0.5">*</span>}
                     </span>
                     <button
                       type="button"
@@ -174,7 +180,7 @@ export function TransformationItem({
                     type={argDef.type}
                     value={transformation.args[argDef.key] ?? ''}
                     disabled={readOnly}
-                    required={argDef.required}
+                    required={showAsRequired}
                     onChange={(e) =>
                       onUpdate({ args: { ...transformation.args, [argDef.key]: e.target.value } })
                     }
