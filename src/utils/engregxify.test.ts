@@ -561,6 +561,61 @@ describe('enriched extraction round-trip preserves the operation', () => {
   });
 });
 
+describe('extract_from_start / extract_from_end', () => {
+  // Encode: exact regex produced (this is the contract the backend mirrors).
+  it('encodes extract_from_start', () => {
+    expect(regexifyExtraction('extract_from_start', { toStr: '/' })).toBe('^(.*?)/');
+    expect(regexifyExtraction('extract_from_start', { toStr: '/', occurrence: 2 })).toBe('^((?:.*?/){1}.*?)/');
+    expect(regexifyExtraction('extract_from_start', { numChars: 3 })).toBe('^(.{3})');
+  });
+
+  it('encodes extract_from_end', () => {
+    expect(regexifyExtraction('extract_from_end', { toStr: '/' })).toBe('.*/(.*)$');
+    expect(regexifyExtraction('extract_from_end', { toStr: '/', occurrence: 2 })).toBe('.*/((?:.*?/){1}.*)$');
+    expect(regexifyExtraction('extract_from_end', { numChars: 3 })).toBe('(.{3})$');
+  });
+
+  // Live extraction behavior on a delimited sample matches the spec examples.
+  it('extracts the documented spans from "a/b/c"', () => {
+    const grab = (op: 'extract_from_start' | 'extract_from_end', params: Record<string, unknown>) =>
+      new RegExp(regexifyExtraction(op, params)).exec('a/b/c')?.[1];
+    expect(grab('extract_from_start', { toStr: '/' })).toBe('a');
+    expect(grab('extract_from_start', { toStr: '/', occurrence: 2 })).toBe('a/b');
+    expect(grab('extract_from_end', { toStr: '/' })).toBe('c');
+    expect(grab('extract_from_end', { toStr: '/', occurrence: 2 })).toBe('b/c');
+  });
+
+  // Decode: the toStr forms round-trip the operation + fields.
+  it('round-trips the toStr forms', () => {
+    expect(decomposeExtractionRegex(regexifyExtraction('extract_from_start', { toStr: '/' }))).toEqual({
+      operation: 'extract_from_start', toStr: '/',
+    });
+    expect(decomposeExtractionRegex(regexifyExtraction('extract_from_start', { toStr: '/', occurrence: 3 }))).toEqual({
+      operation: 'extract_from_start', toStr: '/', occurrence: 3,
+    });
+    expect(decomposeExtractionRegex(regexifyExtraction('extract_from_end', { toStr: '-' }))).toEqual({
+      operation: 'extract_from_end', toStr: '-',
+    });
+    expect(decomposeExtractionRegex(regexifyExtraction('extract_from_end', { toStr: '-', occurrence: 3 }))).toEqual({
+      operation: 'extract_from_end', toStr: '-', occurrence: 3,
+    });
+  });
+
+  // A regex-special delimiter escapes/unescapes cleanly through the round-trip.
+  it('handles a regex-special delimiter (.)', () => {
+    const regex = regexifyExtraction('extract_from_start', { toStr: '.' });
+    expect(regex).toBe('^(.*?)\\.');
+    expect(decomposeExtractionRegex(regex)).toEqual({ operation: 'extract_from_start', toStr: '.' });
+  });
+
+  // extract_from_start's `^(.*?)T` must NOT be confused with extract_before's
+  // unanchored `(.*?)T`.
+  it('does not confuse anchored from_start with extract_before', () => {
+    expect(decomposeExtractionRegex('(.*?)/').operation).toBe('extract_before');
+    expect(decomposeExtractionRegex('^(.*?)/').operation).toBe('extract_from_start');
+  });
+});
+
 describe('describeLiteralBoundary', () => {
   it('reports empty prefix', () => {
     expect(describeLiteralBoundary('', 'prefix')).toBe(

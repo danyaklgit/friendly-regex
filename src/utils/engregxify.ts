@@ -753,6 +753,39 @@ function decomposeStructuredExtraction(regex: string): ExtractionDecomposition |
   let { pre } = split;
   const { inner, post } = split;
 
+  // extract_from_start (toStr form): `^(.*?)T` or `^((?:.*?T){K-1}.*?)T`. The
+  // leading `^` anchor is what distinguishes it from extract_before (`(.*?)T`).
+  // The numChars form (`^(.{N})`) is intentionally NOT decoded here — it is
+  // byte-identical to extract_skip_take (fromPosition 0) and is left to that
+  // rule, so it reloads as the equivalent method.
+  if (pre === '^') {
+    const t = literalBoundary(post);
+    if (t !== null) {
+      if (inner === '.*?') return { operation: 'extract_from_start', toStr: t };
+      const m = new RegExp(String.raw`^\(\?:\.\*\?(${STRUCT_LIT}+)\)\{(\d+)\}\.\*\?$`).exec(inner);
+      if (m && literalBoundary(m[1]) === t) {
+        return { operation: 'extract_from_start', toStr: t, occurrence: Number(m[2]) + 1 };
+      }
+    }
+  }
+
+  // extract_from_end (toStr form): `.*T(.*)$` or `.*T((?:.*?T){K-1}.*)$`. The
+  // greedy leading `.*T` + `$` anchor distinguish it. numChars form (`(.{N})$`)
+  // is left to extract_last_n_chars (identical shape).
+  if (post === '$') {
+    const preM = new RegExp(String.raw`^\.\*(${STRUCT_LIT}+)$`).exec(pre);
+    if (preM) {
+      const t = literalBoundary(preM[1]);
+      if (t !== null) {
+        if (inner === '.*') return { operation: 'extract_from_end', toStr: t };
+        const m = new RegExp(String.raw`^\(\?:\.\*\?(${STRUCT_LIT}+)\)\{(\d+)\}\.\*$`).exec(inner);
+        if (m && literalBoundary(m[1]) === t) {
+          return { operation: 'extract_from_end', toStr: t, occurrence: Number(m[2]) + 1 };
+        }
+      }
+    }
+  }
+
   // Peel an optional leading occurrence skip `(?:.*?TOKEN){K}.*?`. TOKEN is a
   // literal (no unescaped parens), so the matching-occurrence shape
   // `(?:.*?(?:PAT)){K}.*?` — whose token starts with `(?:` — never matches and

@@ -61,6 +61,8 @@ export const EXTRACTION_OPERATIONS: ExtractionOperationDef[] = [
   { key: 'extract_substring', label: 'Sub-String', fields: [], optionalFields: ['numChars', 'toStr', 'toStart'] },
   { key: 'extract_last_n_chars', label: "Extract last 'n' characters", fields: [], optionalFields: ['numChars'] },
   { key: 'extract_skip_take', label: "Skip 'n' characters and take 'y' characters", fields: [] },
+  { key: 'extract_from_start', label: 'Extract from start of string', fields: [], optionalFields: ['numChars', 'toStr', 'occurrence'] },
+  { key: 'extract_from_end', label: 'Extract from end of string', fields: [], optionalFields: ['numChars', 'toStr', 'occurrence'] },
   { key: 'extract_between_and_verify', label: 'Extract between [prefix] and [suffix] and verify', fields: ['prefix', 'suffix', 'verifyValue']},
   { key: 'extract_full_field', label: 'Extract full field', fields: [] },
 ];
