@@ -1157,6 +1157,37 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     });
   }, [activePillFilters, filterDefinitions, baseFilters]);
 
+  // Tags of the "Show Only" (LIST+EQ boolean-flag) filter definitions. The
+  // Backlog badges are reflected into these checkboxes by the sync above.
+  const showOnlyFilterTags = useMemo(
+    () => filterDefinitions.filter((d) => d.Type === 'LIST' && d.Operand === 'EQ').map((d) => d.Tag),
+    [filterDefinitions],
+  );
+
+  // Wrap the filter-change handler so a MANUAL change to a Show Only flag drops
+  // the Backlog badge's auto-applied scope (`activePillFilters`). The badge
+  // both applies its flag as an extra server filter AND ticks the reflected
+  // checkbox; without this, unticking the checkbox cleared only the checkbox
+  // and the extra filter kept the table pinned to the badge's rows (e.g.
+  // Invalid Attributes stayed at 2). Only a Show Only change clears the pill —
+  // other filters (IBAN, Amount, …) leave it intact so a badge scope still
+  // composes with manual narrowing (e.g. Clean badge + IBAN search).
+  const handleFiltersChange = useCallback((next: Record<string, Set<string>>) => {
+    if (activePillFilters.length > 0) {
+      const showOnlyChanged = showOnlyFilterTags.some((tag) => {
+        const a = filters[tag];
+        const b = next[tag];
+        const aSize = a?.size ?? 0;
+        const bSize = b?.size ?? 0;
+        if (aSize !== bSize) return true;
+        if (a && b) { for (const v of a) if (!b.has(v)) return true; }
+        return false;
+      });
+      if (showOnlyChanged) setActivePillFilters([]);
+    }
+    setFilters(next);
+  }, [activePillFilters.length, showOnlyFilterTags, filters]);
+
   // Clear hidden tag specs when the checkout actually changes (release,
   // check-in, switching to a different bank/side). The initial-render
   // restore is handled by the useState lazy initializer above, so this
@@ -2780,7 +2811,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         fieldMeta={fieldMeta}
         tagDefinitions={tagDefinitions}
         filters={filters}
-        onFiltersChange={setFilters}
+        onFiltersChange={handleFiltersChange}
         showOnlyUntagged={showOnlyUntagged}
         onShowOnlyUntaggedChange={setShowOnlyUntagged}
         showOnlyMultiTagged={showOnlyMultiTagged}
