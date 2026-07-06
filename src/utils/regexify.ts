@@ -274,6 +274,34 @@ export function regexifyExtraction(
       }
       return `^${skip}(.*)`;
     }
+    case 'extract_from_start': {
+      // Capture measured from the START of the string. `toStr` and `numChars`
+      // are mutually exclusive (the UI presents them as "or"); `toStr` wins.
+      if (params.toStr) {
+        const t = escapeRegex(params.toStr);
+        // Everything from the start up to (excluding) the Kth occurrence of the
+        // delimiter, counting occurrences from the start. K == occurrence.
+        const skip = params.occurrence && params.occurrence > 1 ? `(?:.*?${t}){${params.occurrence - 1}}` : '';
+        return `^(${skip}.*?)${t}`;
+      }
+      if (params.numChars && params.numChars > 0) return `^(.{${params.numChars}})`;
+      return '^(.*)';
+    }
+    case 'extract_from_end': {
+      // Capture measured from the END of the string. `toStr`/`numChars` mutually
+      // exclusive; `toStr` wins.
+      if (params.toStr) {
+        const t = escapeRegex(params.toStr);
+        // Everything after (excluding) the Kth occurrence of the delimiter,
+        // counting occurrences from the END. The greedy leading `.*${t}` eats
+        // up to the Kth-from-last delimiter, leaving K-1 delimiters in the
+        // capture. K == occurrence.
+        const tail = params.occurrence && params.occurrence > 1 ? `(?:.*?${t}){${params.occurrence - 1}}.*` : '.*';
+        return `.*${t}(${tail})$`;
+      }
+      if (params.numChars && params.numChars > 0) return `(.{${params.numChars}})$`;
+      return '(.*)$';
+    }
     case 'extract_between_and_verify':
       return `${escapeRegex(params.prefix ?? '')}(.*?)${escapeRegex(params.suffix ?? '')}`;
     case 'extract_full_field':
@@ -393,6 +421,10 @@ export function generateExtractionPrompt(
       }
       return `${skip}, then take everything till end of input`;
     }
+    case 'extract_from_start':
+      return `Extract from start of string${suffix}`;
+    case 'extract_from_end':
+      return `Extract from end of string${suffix}`;
     case 'extract_between_and_verify':
       return `Extract between '${params.prefix ?? ''}' and '${params.suffix ?? ''}', verify = '${params.verifyValue ?? ''}'`;
     case 'extract_full_field':

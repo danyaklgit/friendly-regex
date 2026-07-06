@@ -30,6 +30,8 @@ export type ExtractionOperation =
   | 'extract_substring'
   | 'extract_last_n_chars'
   | 'extract_skip_take'
+  | 'extract_from_start'
+  | 'extract_from_end'
   | 'extract_between_and_verify'
   | 'extract_full_field'
   | `predefined:${string}`
