@@ -1264,6 +1264,11 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
                 const eoiLiteral = !attribute.suffixOrEndOfInput
                   ? parseEoiAlternationSuffix(suf)
                   : null;
+                // The "or end of input" boundary toggle is only meaningful for
+                // Extract between (where the suffix sits between prefix and the
+                // rest). Extract before captures from the start up to the
+                // suffix, so the toggle was removed there per product decision.
+                const showEoiToggle = selectedOp.key !== 'extract_before';
                 return (
                   <div className="flex flex-col gap-1.5">
                     <Input
@@ -1274,7 +1279,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
                       disabled={readOnly}
                       labelAdornment={<BoundaryHintIcon text={suf} role="suffix" ariaLabel="Suffix matching details" />}
                     />
-                    {eoiLiteral !== null && !readOnly && (
+                    {showEoiToggle && eoiLiteral !== null && !readOnly && (
                       <div className="rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-2 flex items-start gap-2">
                         <svg className="w-4 h-4 mt-0.5 shrink-0 text-primary-dark" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -1299,19 +1304,17 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
                         </div>
                       </div>
                     )}
-                    <label className={`flex items-center gap-1.5 text-xs text-body-secondary pl-1 select-none ${readOnly ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
-                      <input
-                        type="checkbox"
-                        checked={!!attribute.suffixOrEndOfInput}
-                        onChange={(e) => onUpdate({ suffixOrEndOfInput: e.target.checked || undefined })}
-                        disabled={readOnly}
-                      />
-                      {/* Label per product decision: Extract before reads "or start
-                          of input" (Extract between keeps "or end of input"). The
-                          underlying match is unchanged (suffix falls back to
-                          end-of-input either way) — this is wording only. */}
-                      {selectedOp.key === 'extract_before' ? 'or start of input' : 'or end of input'}
-                    </label>
+                    {showEoiToggle && (
+                      <label className={`flex items-center gap-1.5 text-xs text-body-secondary pl-1 select-none ${readOnly ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
+                        <input
+                          type="checkbox"
+                          checked={!!attribute.suffixOrEndOfInput}
+                          onChange={(e) => onUpdate({ suffixOrEndOfInput: e.target.checked || undefined })}
+                          disabled={readOnly}
+                        />
+                        or end of input
+                      </label>
+                    )}
                   </div>
                 );
               })()}
