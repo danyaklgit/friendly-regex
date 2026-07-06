@@ -3465,19 +3465,23 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
           })()}
 
           <span className='flex flex-col items-center w-full text-slate-500 text-xs pb-2 gap-1'>
-            {/* After Apply Rules: discard changes + show all */}
+            {/* After Apply Rules: discard the unsaved edits and revert to THIS
+                definition's own matches (scoped by OpsTagSpecDefinitionId via
+                activeExtraFilters), NOT the whole tag name. Clearing
+                rulesetApplied + showingAll and restoring the pre-click filters
+                drops the REGEX preview and the tag-name broadening, so the
+                table shows exactly the rows this saved definition tags. */}
             {tagClickState?.rulesetApplied && !tagClickState.showingAll && (
               <button
                 className='text-[11px] text-amber-600 dark:text-amber-400 hover:underline cursor-pointer'
                 onClick={() => {
                   if (!tagClickState) return;
                   builder.setFormState(tagClickState.originalFormState);
-                  const tagNameFilter = new Set([tagClickState.tagName]);
-                  setFilters({ ...tagClickState.preFilters, [tagClickState.tagFilterKey]: tagNameFilter });
-                  setTagClickState((prev) => prev ? { ...prev, rulesetApplied: false, rulesetFilters: [], showingAll: true } : prev);
+                  setFilters({ ...tagClickState.preFilters });
+                  setTagClickState((prev) => prev ? { ...prev, rulesetApplied: false, rulesetFilters: [], showingAll: false } : prev);
                 }}
               >
-                Discard your unsaved changes and show all
+                Discard your unsaved changes
               </button>
             )}
 
