@@ -93,6 +93,26 @@ describe('translateFilters', () => {
     expect(result).toEqual([{ ColumnName: 'OpsIsUntagged', Value: 'True', Operand: 'EQ' }]);
   });
 
+  it('LIST + EQ strips the OpsMultiTags.* mirror so it matches the Backlog badge', () => {
+    // Backend defines the "Invalid Attributes" Show-Only option with a
+    // pipe-joined multi-tag mirror; the badge (buildPillFilters) checks the
+    // primary column only. Strip the mirror so both match (2, not ~433).
+    const defs = [
+      listEqDef('SHOW ONLY', [
+        {
+          col: 'OpsContainsInvalidAttributes|OpsMultiTags.ContainsInvalidAttributes',
+          val: 'True',
+          label: 'Invalid Attributes',
+        },
+      ]),
+    ];
+    const result = translateFilters(
+      { 'SHOW ONLY': new Set(['OpsContainsInvalidAttributes|OpsMultiTags.ContainsInvalidAttributes']) },
+      defs,
+    );
+    expect(result).toEqual([{ ColumnName: 'OpsContainsInvalidAttributes', Value: 'True', Operand: 'EQ' }]);
+  });
+
   it('LIST + EQ multi-select with differing Values falls back to REGEX outer-OR', () => {
     const defs = [
       listEqDef('CUSTOM_EQ', [
@@ -187,7 +207,10 @@ describe('translateFilters', () => {
     expect(result).toEqual([{ ColumnName: 'OpsIsUntagged', Value: 'True', Operand: 'EQ' }]);
   });
 
-  it('LIST + EQ uses empty string when Value is null', () => {
+  it('LIST + EQ defaults a null Value to "True" (boolean Show-Only flag)', () => {
+    // A null option Value means the backend omitted it for a boolean "Show
+    // Only" flag; selecting the flag means <column> EQ 'True' (matching the
+    // Backlog badge). Sending EQ '' matched the UNSET rows instead.
     const def: FilterDefinition = {
       Tag: 'FLAGS',
       Label: 'Flags',
@@ -196,7 +219,7 @@ describe('translateFilters', () => {
       Values: [{ Column: 'FlagA', Value: null, Label: 'Flag A', Operand: null, DisabledBy: null }],
     };
     const result = translateFilters({ FLAGS: new Set(['FlagA']) }, [def]);
-    expect(result).toEqual([{ ColumnName: 'FlagA', Value: '', Operand: 'EQ' }]);
+    expect(result).toEqual([{ ColumnName: 'FlagA', Value: 'True', Operand: 'EQ' }]);
   });
 
   it('LIST + IN skips when Values array is empty', () => {

@@ -1,6 +1,24 @@
 import type { FilterProperty, FilterDefinition } from '../api/transactions';
 
 /**
+ * The boolean "Show Only" flag filters (LIST+EQ) mirror the Backlog badges,
+ * which check the PRIMARY single-tag column only (e.g.
+ * `OpsContainsInvalidAttributes`). The backend's GetFilters definition
+ * pipe-joins a multi-tag mirror (`…|OpsMultiTags.ContainsInvalidAttributes`),
+ * broadening the match to multi-tagged rows whose sub-tags carry the flag.
+ * That diverges from the badge + the backlog stat (e.g. Invalid Attributes
+ * returned ~433 rows manually vs the 2 the badge/backlog report, because
+ * multi-tagged rows are their own bucket). Drop the `OpsMultiTags.*` segments
+ * so the manual "Show Only" filter matches the badge. Multi-tagged rows remain
+ * reachable via the dedicated "Multi-tagged" filter — they're just not folded
+ * into every attribute-flag count here.
+ */
+function stripMultiTagMirror(column: string): string {
+  const kept = column.split('|').filter((c) => !c.startsWith('OpsMultiTags.'));
+  return kept.length > 0 ? kept.join('|') : column;
+}
+
+/**
  * Converts UI filters (Record<string, Set<string>>) to the API FilteringProperties format.
  * Uses filter definitions to look up Column, Operand, and other metadata.
  *
@@ -69,7 +87,12 @@ export function translateFilters(
         for (const col of values) {
           const valueDef = def.Values.find((v) => v.Column === col);
           if (!valueDef) continue;
-          resolved.push({ Column: valueDef.Column, Value: valueDef.Value ?? '' });
+          // LIST+EQ filters are the boolean "Show Only" flags (Untagged,
+          // Multi-tagged, Invalid Attributes, …). Match the Backlog badge
+          // recipe: the PRIMARY single-tag column (multi-tag mirror stripped —
+          // see stripMultiTagMirror) EQ 'True'. A missing option value
+          // (backend sometimes omits it) also defaults to 'True'.
+          resolved.push({ Column: stripMultiTagMirror(valueDef.Column), Value: valueDef.Value || 'True' });
         }
         if (resolved.length === 1) {
           result.push({
