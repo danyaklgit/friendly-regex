@@ -8,5 +8,6 @@ export const LOV_TAGS = [
   'ARNBSARI_TRANSACTION_TYPES',
   'EXTRACTIONS',
   'COUNTRIES',
-  'DEMO_USER_COMPS'
+  'DEMO_USER_COMPS',
+  'CARD_TYPES'
 ] as const;
