@@ -1401,10 +1401,16 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
                 />
               )}
               {filteredOp.optionalFields.includes('occurrence') && (
+                // Occurrence is 1-based — "no value" and "1" both mean the first
+                // occurrence, and the two can't be told apart in older saved
+                // regexes (occurrence 1 left no marker). Default the DISPLAY to
+                // "1" (not the stored value, so we don't bloat every regex with
+                // a {0} marker on re-save) so those attributes reload as 1
+                // instead of blank.
                 <SearchableSelect
                   label="Occurrence"
-                  placeholder="Optional"
-                  value={attribute.occurrence ? String(attribute.occurrence) : ''}
+                  placeholder="1"
+                  value={attribute.occurrence ? String(attribute.occurrence) : '1'}
                   onChange={(val) => onUpdate({ occurrence: val ? Number(val) : undefined })}
                   options={Array.from({ length: 10 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))}
                   disabled={readOnly}
@@ -1413,8 +1419,8 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
               {filteredOp.optionalFields.includes('prefixOccurrence') && (
                 <SearchableSelect
                   label="Prefix Occurrence"
-                  placeholder="Optional"
-                  value={attribute.prefixOccurrence ? String(attribute.prefixOccurrence) : ''}
+                  placeholder="1"
+                  value={attribute.prefixOccurrence ? String(attribute.prefixOccurrence) : '1'}
                   onChange={(val) => onUpdate({ prefixOccurrence: val ? Number(val) : undefined })}
                   options={Array.from({ length: 10 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))}
                   disabled={readOnly}
@@ -1423,8 +1429,8 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
               {filteredOp.optionalFields.includes('suffixOccurrence') && (
                 <SearchableSelect
                   label="Suffix Occurrence"
-                  placeholder="Optional"
-                  value={attribute.suffixOccurrence ? String(attribute.suffixOccurrence) : ''}
+                  placeholder="1"
+                  value={attribute.suffixOccurrence ? String(attribute.suffixOccurrence) : '1'}
                   onChange={(val) => onUpdate({ suffixOccurrence: val ? Number(val) : undefined })}
                   options={Array.from({ length: 10 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))}
                   disabled={readOnly}

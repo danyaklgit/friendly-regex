@@ -160,13 +160,18 @@ export function CurrentTagsDropdown({ entries, selectedIds, onChange, loading = 
     // While locked, only the locked entry stays interactive; every other
     // row dims to read-only with its checkbox visually inert.
     const rowDisabled = isLocked && id !== lockedToId;
+    // The locked entry itself also can't be toggled (its checkbox is disabled
+    // below), so neither it nor the dimmed rows should show a pointer cursor —
+    // only genuinely-clickable rows do. The active locked row keeps full
+    // opacity (it's the tag being edited), just a non-interactive cursor.
+    const rowNonInteractive = rowDisabled || (isLocked && id === lockedToId);
     const row = (
       <label
         key={id}
         title={rowDisabled ? 'Locked to the tag currently open in the Rule Builder' : undefined}
         className={`flex items-center gap-2 px-2 py-1.5 text-xs rounded ${
-          rowDisabled
-            ? 'cursor-not-allowed opacity-50'
+          rowNonInteractive
+            ? `cursor-not-allowed ${rowDisabled ? 'opacity-50' : ''}`
             : 'cursor-pointer hover:bg-surface-hover'
         } ${isSelected ? 'bg-primary/5' : ''}`}
       >
