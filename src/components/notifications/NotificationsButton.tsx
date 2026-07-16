@@ -220,6 +220,26 @@ export function NotificationsButton({ onNavigateToBacklog }: NotificationsButton
     if (newOne) downloadCenter.notifyExportEvent();
   }, [notifications, downloadCenter]);
 
+  // When the operator clears the Download Center, its files are gone, so the
+  // EXPORT_READY / EXPORT_FAILED notifications pointing at them are stale —
+  // purge them from the popup. Keyed off the context's clearedNonce (bumped on
+  // a confirmed clear) rather than files.length, which is also 0 before the
+  // Download Center has ever loaded. The ref seeds from the current nonce so
+  // this never fires on mount.
+  const lastClearNonceRef = useRef<number>(downloadCenter?.clearedNonce ?? 0);
+  useEffect(() => {
+    if (!downloadCenter) return;
+    const nonce = downloadCenter.clearedNonce;
+    if (nonce === lastClearNonceRef.current) return;
+    lastClearNonceRef.current = nonce;
+    for (const n of notifications) {
+      const t = (n.Type ?? '').toUpperCase();
+      if (t === 'EXPORT_READY' || t === 'EXPORT_FAILED') {
+        void markStatus(n.Id, 'DELETED');
+      }
+    }
+  }, [downloadCenter, notifications, markStatus]);
+
   // Sender enrichment: when the panel opens, fetch the comments for each
   // unique library referenced by a notification (cached per session) and
   // keep the full comment objects so we can derive the actual sender per
