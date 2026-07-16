@@ -51,6 +51,10 @@ export interface DownloadCenterApi {
   /** Imperative refresh entry-point used by the notifications subsystem to
    *  short-circuit polling when an EXPORT_READY / EXPORT_FAILED arrives. */
   notifyExportEvent: () => void;
+  /** Bumped each time the operator clears the Download Center (clearAll
+   *  succeeds). The notifications subsystem watches this to purge stale
+   *  EXPORT_READY / EXPORT_FAILED notifications, whose files no longer exist. */
+  clearedNonce: number;
 }
 
 const DownloadCenterContext = createContext<DownloadCenterApi | null>(null);
@@ -104,6 +108,7 @@ export function DownloadCenterProvider({ children }: DownloadCenterProviderProps
   const [files, setFiles] = useState<DownloadCenterFile[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [clearedNonce, setClearedNonce] = useState(0);
   const [seenReadyIds, setSeenReadyIds] = useState<Set<string>>(() => readSeenReadyIds());
 
   // Mirror state into refs so the callbacks can keep stable identities and
@@ -236,9 +241,15 @@ export function DownloadCenterProvider({ children }: DownloadCenterProviderProps
       const token = await getToken();
       if (!token) return;
       // Optimistic remove so the row vanishes immediately.
+      const willBeEmpty = filesRef.current.filter((f) => f.Id !== fileId).length === 0;
       setFiles((prev) => prev.filter((f) => f.Id !== fileId));
       try {
         await deleteDownloadCenterFile(fileId, token, tepHeaders);
+        // Deleting the last file leaves the Download Center empty — the export
+        // notifications are now orphaned too, so signal the purge (same as
+        // clearAll). filesRef is only populated after a load, so this can't
+        // false-fire before the center has data.
+        if (willBeEmpty) setClearedNonce((n) => n + 1);
       } catch (e) {
         // Roll back by refetching.
         await refresh();
@@ -256,6 +267,11 @@ export function DownloadCenterProvider({ children }: DownloadCenterProviderProps
     setFiles([]);
     try {
       await clearDownloadCenterFiles(token, tepHeaders);
+      // Signal the notifications subsystem to purge the now-orphaned
+      // EXPORT_READY / EXPORT_FAILED notifications. Bump only after the
+      // backend confirms the clear so a failed clear (rolled back below)
+      // doesn't wipe notifications for files that still exist.
+      setClearedNonce((n) => n + 1);
     } catch (e) {
       setFiles(prev);
       throw e;
@@ -297,6 +313,7 @@ export function DownloadCenterProvider({ children }: DownloadCenterProviderProps
       deleteFile,
       clearAll,
       notifyExportEvent,
+      clearedNonce,
     }),
     [
       isOpen,
@@ -312,6 +329,7 @@ export function DownloadCenterProvider({ children }: DownloadCenterProviderProps
       deleteFile,
       clearAll,
       notifyExportEvent,
+      clearedNonce,
     ],
   );
 
