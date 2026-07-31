@@ -330,7 +330,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const {
     transactions, fieldMeta, loadTransactions, resetToSample, isCustomData, flagDeadEnd,
     setComments, flagDeadEndWithComment,
-    isLiveMode, loading, totalTransactionsCount, replaceFromBeginning, replaceFromBeginningExcluding, appendBatch, fetchCount,
+    isLiveMode, loading, totalTransactionsCount, replaceFromBeginning, replaceFromBeginningExcluding, fetchCount,
     filterDefinitions, filterDefinitionsLoading, fetchFilterDefinitions,
     decimalMaxValues,
   } = useTransactionData();
@@ -1916,7 +1916,6 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     fetchCount,
     replaceFromBeginning,
     replaceFromBeginningExcluding,
-    appendBatch,
     outgoingFilters,
     activeExtraFilters,
     effectiveSorting,
@@ -1926,7 +1925,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     checkoutBank: activeCheckout?.bank ?? null,
     checkoutSide: activeCheckout?.side ?? null,
   });
-  const { ensureVisible, refetch: engineRefetch, notifyHiddenSetChanged } = engine;
+  const { ensureVisible, goToPage: engineGoToPage, refetch: engineRefetch, notifyHiddenSetChanged } = engine;
 
   // Live mode: fetch from API when filters or extraFilters change.
   // While a Backlog "edit" navigation is pending, skip auto-fetch — handleTagClick
@@ -1991,7 +1990,18 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       const next = new Set(hiddenDefIds);
       for (const d of newDefIds) next.add(d);
       setHiddenDefIds(next);
-      notifyHiddenSetChanged(next, 'hide', previousVisibleShown);
+      if (!incrementalPagination && isLiveMode) {
+        // Classic (per-page) mode: a prefix refill doesn't map onto a
+        // single-page buffer, and the current page index may no longer
+        // exist once rows are excluded. Return to page 1 and fetch page 0
+        // with the new hidden set — engineGoToPage's dual query also
+        // refreshes the visible/hidden counts.
+        setCurrentPage(0);
+        setPageInputValue('1');
+        void engineGoToPage(0, { hiddenIdsOverride: next });
+      } else {
+        notifyHiddenSetChanged(next, 'hide', previousVisibleShown);
+      }
       setToast({
         message: newDefIds.length === 1 && primaryName
           ? `Tag spec '${primaryName}' hidden`
@@ -2002,7 +2012,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       // the refilling-settle effect below) so the table skeleton covers
       // the whole operation, not just this 250ms beat.
     }, 250);
-  }, [hiddenDefIds, analyzedData, allDefinitions, incrementalPagination, filteredData, currentPage, engine.targetVisible, notifyHiddenSetChanged]);
+  }, [hiddenDefIds, analyzedData, allDefinitions, incrementalPagination, isLiveMode, filteredData, currentPage, engine.targetVisible, notifyHiddenSetChanged, engineGoToPage]);
 
   // Unhiding returns the operator to a clean starting view: the engine
   // resets its visible target to the initial PAGE_SIZE (50) and refetches
@@ -2148,16 +2158,17 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // the new target (e.g. right after an unhide), the rows appear
   // instantly with no fetch. The target persists per checkout, so
   // Refresh / tag toggles keep a Show-all window loaded.
-  const loadNVisible = useCallback(async (size: number, opts?: { bulk?: boolean }) => {
+  const loadNVisible = useCallback(async (size: number) => {
     if (size <= 0) return;
     if (!isLiveMode) {
       setVisibleCount((c) => c + size);
       return;
     }
     const shown = Math.min(engine.targetVisible, filteredData.length);
-    // +N buttons APPEND the next page(s); Show all passes `bulk` so a huge
-    // window is fetched as one request instead of N/50 parallel appends.
-    await ensureVisible(shown + size, { bulk: opts?.bulk });
+    // Incremental +N / Show all GROW the prefix buffer with a single
+    // `{PageIndex:0, PageSize:shown+size}` replace — one request per click,
+    // even for +500. (Per-page paging is classic-mode only, via goToPage.)
+    await ensureVisible(shown + size);
   }, [isLiveMode, ensureVisible, engine.targetVisible, filteredData]);
 
   // Classic-mode navigation: make sure the prefix buffer holds enough
@@ -2167,11 +2178,12 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const goToPage = useCallback((newPage: number) => {
     setCurrentPage(newPage);
     setPageInputValue(String(newPage + 1));
-    // Classic nav re-slices a prefix window; a far jump can need many
-    // pages, so fetch as one bulk request (replace) rather than appending
-    // dozens of parallel pages.
-    if (isLiveMode) void ensureVisible((newPage + 1) * BATCH_SIZE, { bulk: true });
-  }, [isLiveMode, ensureVisible]);
+    // Classic (normal) pagination fetches EXACTLY the requested page:
+    // `{PageIndex:newPage, PageSize:50}`, replacing the buffer with that
+    // page's rows. So page 12 loads 50 rows, not `12*50`. Sample mode
+    // paginates by client slice over the fully-loaded buffer (no fetch).
+    if (isLiveMode) void engineGoToPage(newPage);
+  }, [isLiveMode, engineGoToPage]);
 
   // Reset visible count / page when filtered data length changes
   // In live + classic pagination mode, data replaces on every page nav — don't reset page from here
@@ -2232,17 +2244,22 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // the pager and the footer counts always agree.
   const classicTotalPages = Math.max(1, Math.ceil(displayCounts.totalNow / BATCH_SIZE));
 
-  // When a hide shrinks the visible total below the current classic page,
-  // snap back to the last page that still exists. The prefix buffer
-  // already contains the clamped page's rows.
+  // When the visible total shrinks below the current classic page, snap
+  // back to the last page that still exists AND fetch it — with per-page
+  // buffers the clamped page isn't already loaded (unlike the old prefix
+  // buffer), so the display index and the buffer would otherwise disagree.
+  // Guarded on totalNow > 0 so a transient 0 mid-fetch doesn't bounce us to
+  // page 0.
   useEffect(() => {
     if (!isLiveMode || incrementalPagination) return;
+    if (displayCounts.totalNow <= 0) return;
     const clamped = clampPageIndex(currentPage, displayCounts.totalNow, BATCH_SIZE);
     if (clamped !== currentPage) {
       setCurrentPage(clamped);
       setPageInputValue(String(clamped + 1));
+      void engineGoToPage(clamped);
     }
-  }, [isLiveMode, incrementalPagination, currentPage, displayCounts.totalNow]);
+  }, [isLiveMode, incrementalPagination, currentPage, displayCounts.totalNow, engineGoToPage]);
 
   const visibleData = useMemo(() => {
     if (builderOpen) return filteredData;
@@ -2255,9 +2272,12 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         ? filteredData.slice(0, engine.targetVisible)
         : filteredData.slice(0, visibleCount);
     }
-    // Classic mode (both live and sample): a PAGE_SIZE window over the
-    // visible rows of the prefix buffer. goToPage ensures the buffer
-    // covers the requested page before this slice runs.
+    // Classic mode. LIVE: the buffer already holds ONLY the current page
+    // (goToPage fetched `{PageIndex:currentPage, PageSize:50}` and replaced
+    // the buffer), so show it whole — no `currentPage*50` offset, which
+    // would slice past a 50-row buffer and render an empty page. SAMPLE:
+    // the buffer holds every row, so the offset slice is the page window.
+    if (isLiveMode) return filteredData.slice(0, BATCH_SIZE);
     const start = currentPage * BATCH_SIZE;
     return filteredData.slice(start, start + BATCH_SIZE);
   }, [filteredData, visibleCount, isLiveMode, incrementalPagination, currentPage, builderOpen, engine.targetVisible]);
@@ -2685,12 +2705,16 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
           <div className="flex items-center gap-4">
             <Toggle label="Compact mode" checked={relaxedMode} onChange={setRelaxedMode} />
             <Toggle label="Incremental pagination" checked={incrementalPagination} onChange={(v) => {
-              // Both modes render windows over the same prefix buffer, so
-              // switching needs no fetch — just reset the window position.
+              // The two modes now hold DIFFERENT buffers — incremental keeps a
+              // growing prefix from row 0, classic (live) holds only the
+              // current page. Switching from a classic page > 1 back to
+              // incremental would otherwise show that page's rows as the
+              // "start", so reload page 0 for a clean buffer in both modes.
               setIncrementalPagination(v);
               setCurrentPage(0);
               setPageInputValue('1');
               setVisibleCount(BATCH_SIZE);
+              if (isLiveMode) void engineRefetch();
             }} />
             <span data-tour="show-attributes-toggle"><Toggle label="Show attributes" checked={showAttributes} onChange={setShowAttributes} /></span>
           </div>
@@ -3753,7 +3777,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                         if (remaining > SHOW_ALL_CONFIRM_THRESHOLD) {
                           setShowAllConfirmRemaining(remaining);
                         } else {
-                          loadNVisible(remaining, { bulk: true });
+                          loadNVisible(remaining);
                         }
                       }}
                     >
@@ -3854,7 +3878,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         onConfirm={() => {
           const n = showAllConfirmRemaining;
           setShowAllConfirmRemaining(null);
-          if (n != null && n > 0) loadNVisible(n, { bulk: true });
+          if (n != null && n > 0) loadNVisible(n);
         }}
         title="Load all transactions?"
         message={`This will fetch ${(showAllConfirmRemaining ?? 0).toLocaleString()} more transactions and may take a while. Continue?`}
