@@ -4,46 +4,19 @@ import type { FilterProperty, SortProperty } from '../api/transactions';
 import { PAGE_SIZE } from '../context/TransactionDataContext';
 
 /**
- * How the hidden-tag (dual NI query) path grows the buffer on an
- * incremental +N / Show all / classic page nav:
- *
- * - `'append'` (default): fetch the next PageSize-50 page(s) of the
- *   NI-excluded set with the SAME two `NI` filter properties as extra
- *   filters and APPEND them — consistent with the plain path. This relies
- *   on the backend paginating the NI-filtered result set correctly beyond
- *   page 0 (pagination applied AFTER filtering, same mechanism the plain
- *   page-index path already uses).
- * - `'replace'`: fall back to a single `{PageIndex:0, PageSize:target}`
- *   NI-excluded re-fetch that REPLACES the buffer (the pre-append
- *   behavior). Flip here if the backend does NOT paginate the NI-excluded
- *   set correctly (page N returns wrong / overlapping rows).
- *
- * The plain path (no hidden tags) always appends on incremental grow.
- */
-const HIDDEN_TAG_PAGINATION: 'append' | 'replace' = 'append';
-
-/** Page indices (0-based) needed to grow a page-aligned buffer of
- *  `haveRows` up to at least `wantRows`, at PAGE_SIZE per page. Returns the
- *  first not-yet-loaded page through the last page covering `wantRows`.
- *  `haveRows` is page-aligned in practice — appends only fire while
- *  `have < want <= total`, so every prior page was full (a short page only
- *  occurs at the dataset end, after which the buffer-satisfies short
- *  circuit stops further fetches). */
-function pageIndicesToGrow(haveRows: number, wantRows: number): number[] {
-  const from = Math.floor(haveRows / PAGE_SIZE);
-  const to = Math.ceil(wantRows / PAGE_SIZE) - 1;
-  const out: number[] = [];
-  for (let p = from; p <= to; p++) out.push(p);
-  return out;
-}
-
-/**
  * Visible-rows engine: keeps the loaded prefix buffer big enough that the
  * table always shows `targetVisible` VISIBLE rows (rows not matching a
  * hidden tag spec), as long as the visible total permits. One primitive —
- * `ensureVisible(target)` — serves every consumer: initial load and
- * filter-change refetches (`refetch`), incremental +N / Show all, the
- * post-hide refill, and classic page navigation.
+ * `ensureVisible(target)` — serves the incremental consumers: initial load
+ * and filter-change refetches (`refetch`), incremental +N / Show all, and
+ * the post-hide refill. Classic (normal) page nav uses `goToPage(k)`, which
+ * fetches exactly one page (`{PageIndex:k, PageSize:50}`) instead of a
+ * growing prefix.
+ *
+ * INCREMENTAL +N / Show all GROW the prefix buffer with a SINGLE
+ * `{PageIndex:0, PageSize:target}` replace (one request per click — a +500
+ * is one call, not 10 paged appends). Only classic page nav paginates by
+ * page index.
  *
  * When tag specs are hidden, exclusion happens SERVER-SIDE via
  * `replaceFromBeginningExcluding`: a single query carrying TWO `NI`
@@ -79,6 +52,7 @@ export interface VisibleRowsEngineArgs {
     pageSize: number,
     extraFilters?: FilterProperty[],
     sortingProperties?: SortProperty[],
+    pageIndex?: number,
   ) => Promise<TransactionRow[]>;
   replaceFromBeginningExcluding: (
     filters: Record<string, Set<string>>,
@@ -86,18 +60,8 @@ export interface VisibleRowsEngineArgs {
     hiddenDefIds: string[],
     extraFilters?: FilterProperty[],
     sortingProperties?: SortProperty[],
+    pageIndex?: number,
   ) => Promise<{ rows: TransactionRow[]; visibleTotal: number | null } | null>;
-  /** Fetch specific PageSize-50 page indices and APPEND them to the buffer
-   *  (no replace). Used for incremental +N / Show all / classic page nav so
-   *  a +50 click fires `{PageIndex:next, PageSize:50}` and grows the buffer
-   *  instead of re-fetching a bigger page 0. */
-  appendBatch: (
-    filters: Record<string, Set<string>>,
-    pageIndices: number[],
-    extraFilters?: FilterProperty[],
-    sortingProperties?: SortProperty[],
-    signal?: AbortSignal,
-  ) => Promise<TransactionRow[]>;
   outgoingFilters: Record<string, Set<string>>;
   activeExtraFilters: FilterProperty[];
   effectiveSorting: SortProperty[];
@@ -123,7 +87,13 @@ export interface VisibleRowsEngine {
   hiddenCountLoading: boolean;
   /** True while a refill (count and/or data call) is in flight. */
   refilling: boolean;
-  ensureVisible: (target: number, opts?: { forceFetch?: boolean; bulk?: boolean }) => Promise<void>;
+  ensureVisible: (target: number, opts?: { forceFetch?: boolean }) => Promise<void>;
+  /** Classic (normal) pagination: fetch EXACTLY the requested 0-based page
+   *  at PAGE_SIZE (50) as `{PageIndex, PageSize:50}` and REPLACE the buffer
+   *  with that page's rows — true server-side paging, NOT a grow-to-fit
+   *  prefix. `hiddenIdsOverride` lets the hide/unhide handlers pass the new
+   *  set before the prop propagates (same pattern as notifyHiddenSetChanged). */
+  goToPage: (pageIndex: number, opts?: { hiddenIdsOverride?: ReadonlySet<string> }) => Promise<void>;
   /** Filter-change / Refresh path: reset the window to PAGE_SIZE (50) and
    *  reload page 0. Discards any prior +N / Show all window. */
   refetch: () => Promise<void>;
@@ -179,15 +149,6 @@ export function useVisibleRowsEngine(args: VisibleRowsEngineArgs): VisibleRowsEn
   // replaceFromBeginning's abortRef.
   const runRef = useRef(0);
 
-  // Single-flight for the APPEND path. `appendBatch` (unlike
-  // `replaceFromBeginning`) has no internal abortRef, so the engine owns
-  // one: every ensureVisibleWithIds entry aborts the pending append before
-  // planning the next fetch. Without this, a +N append that resolves AFTER
-  // a superseding filter-change REPLACE would splice stale rows onto the
-  // new buffer (the append commits inside appendBatch). Aborting cancels
-  // the fetch BEFORE its commit, so partial rows are discarded.
-  const appendAbortRef = useRef<AbortController | null>(null);
-
   // Filters epoch: bumps whenever the filter scope identity changes
   // (render-time check). Used to key the EXACT visible total so a stale
   // measurement from a previous scope is never trusted.
@@ -204,7 +165,7 @@ export function useVisibleRowsEngine(args: VisibleRowsEngineArgs): VisibleRowsEn
 
   const ensureVisibleWithIds = useCallback(async (
     target: number,
-    opts: { forceFetch?: boolean; bulk?: boolean; hiddenIdsOverride?: ReadonlySet<string> } = {},
+    opts: { forceFetch?: boolean; hiddenIdsOverride?: ReadonlySet<string> } = {},
   ): Promise<void> => {
     const clamped = Math.max(PAGE_SIZE, Math.floor(target) || 0);
     targetVisibleRef.current = clamped;
@@ -215,30 +176,15 @@ export function useVisibleRowsEngine(args: VisibleRowsEngineArgs): VisibleRowsEn
       return;
     }
     const token = ++runRef.current;
-    // Any pending APPEND is now stale — cancel it before planning this
-    // fetch so its late commit can't splice old-scope rows onto the buffer
-    // this call is about to (re)build.
-    appendAbortRef.current?.abort();
-    appendAbortRef.current = null;
     // `hiddenIdsOverride` carries the post-hide/unhide set: the notify
     // call runs in the same tick as setHiddenDefIds, before the new prop
     // lands.
     const ids = opts.hiddenIdsOverride ?? argsRef.current.hiddenDefIds;
     const key = `${filtersEpochRef.current}:${[...ids].sort().join('|')}`;
-    // A load is FRESH (replace page 0) vs INCREMENTAL. Fresh: an explicit
-    // forceFetch (filter change / Refresh / tag-save / unhide) OR a
-    // scope/hidden-set change (key mismatch, e.g. a hide) OR an empty
-    // buffer. `opts.bulk` (Show all / classic page nav) also takes the
-    // replace path: those can request a huge window, and one
-    // `{PageIndex:0, PageSize:N}` request is far cheaper than N/50 parallel
-    // page appends. Only the +N button (non-bulk incremental grow) APPENDS
-    // the delta pages at PageSize 50, so a +50 fires
-    // `{PageIndex:next, PageSize:50}` and the new batch is appended.
-    const a0 = argsRef.current;
-    const isFresh = !!opts.forceFetch || bufferKeyRef.current !== key || a0.transactions.length === 0;
-    const useAppend = !isFresh && !opts.bulk;
 
     // ---- DUAL-QUERY PATH (hidden tags active): server-side exclusion ----
+    // Incremental +N / Show all GROW the prefix with a SINGLE
+    // `{PageIndex:0, PageSize:clamped}` replace (one request per click).
     if (ids.size > 0) {
       // The dual fetch returns the EXACT visible total AND refreshes
       // totalTransactionsCount with the no-exclusion scope total, so the
@@ -256,38 +202,8 @@ export function useVisibleRowsEngine(args: VisibleRowsEngineArgs): VisibleRowsEn
           return;
         }
       }
-      const extras = a.activeExtraFilters.length > 0 ? a.activeExtraFilters : undefined;
-
-      // INCREMENTAL grow of an existing NI-excluded buffer: append the next
-      // page(s) of the excluded set (same two NI filters as extra filters).
-      // Relies on the backend paginating the NI-filtered result correctly
-      // beyond page 0 — toggle HIDDEN_TAG_PAGINATION to 'replace' to fall
-      // back to a grow+replace if it doesn't.
-      if (useAppend && HIDDEN_TAG_PAGINATION === 'append') {
-        const have = a.transactions.length;
-        const pages = pageIndicesToGrow(have, clamped);
-        if (pages.length === 0) {
-          setRefilling(false);
-          return;
-        }
-        setRefilling(true);
-        const hiddenValue = [...ids].join('|');
-        const niExtras: FilterProperty[] = [
-          ...(extras ?? []),
-          { ColumnName: 'OpsTagSpecDefinitionId', Value: hiddenValue, Operand: 'NI' },
-          { ColumnName: 'OpsMultiTags.TagSpecDefinitionId', Value: hiddenValue, Operand: 'NI' },
-        ];
-        const controller = new AbortController();
-        appendAbortRef.current = controller;
-        await a.appendBatch(a.outgoingFilters, pages, niExtras, a.effectiveSorting, controller.signal);
-        if (appendAbortRef.current === controller) appendAbortRef.current = null;
-        if (token === runRef.current) setRefilling(false);
-        return;
-      }
-
-      // FRESH (or replace-mode fallback): re-fetch page 0 at PageSize
-      // `clamped`, REPLACE the buffer, and capture the exact visible total.
       setRefilling(true);
+      const extras = a.activeExtraFilters.length > 0 ? a.activeExtraFilters : undefined;
       const res = await a.replaceFromBeginningExcluding(
         a.outgoingFilters,
         clamped,
@@ -311,9 +227,10 @@ export function useVisibleRowsEngine(args: VisibleRowsEngineArgs): VisibleRowsEn
       return;
     }
 
-    // ---- PLAIN PATH (no hidden tags) ----
+    // ---- PLAIN PATH (no hidden tags): single exact-size fetch ----
     // No hidden rows to exclude, so fetching `clamped` rows yields exactly
-    // `clamped` visible rows.
+    // `clamped` visible rows — one request per +N click (a +500 is a single
+    // `{PageIndex:0, PageSize:target}` call, not 10 paged appends).
     const a = argsRef.current;
     const serverTotal = a.totalTransactionsCount;
     const extras = a.activeExtraFilters.length > 0 ? a.activeExtraFilters : undefined;
@@ -328,27 +245,6 @@ export function useVisibleRowsEngine(args: VisibleRowsEngineArgs): VisibleRowsEn
         return;
       }
     }
-
-    // INCREMENTAL grow: append the next PageSize-50 page(s) — a +50 click
-    // sends `{PageIndex:next, PageSize:50}` and the new batch is appended,
-    // not a bigger page 0 replacing the buffer.
-    if (useAppend) {
-      const have = a.transactions.length;
-      const pages = pageIndicesToGrow(have, clamped);
-      if (pages.length === 0) {
-        setRefilling(false);
-        return;
-      }
-      setRefilling(true);
-      const controller = new AbortController();
-      appendAbortRef.current = controller;
-      await a.appendBatch(a.outgoingFilters, pages, extras, a.effectiveSorting, controller.signal);
-      if (appendAbortRef.current === controller) appendAbortRef.current = null;
-      if (token === runRef.current) setRefilling(false);
-      return;
-    }
-
-    // FRESH: page 0 at PageSize `clamped`, REPLACE the buffer.
     setRefilling(true);
     await a.replaceFromBeginning(a.outgoingFilters, clamped, extras, a.effectiveSorting);
     if (token === runRef.current) {
@@ -358,8 +254,8 @@ export function useVisibleRowsEngine(args: VisibleRowsEngineArgs): VisibleRowsEn
   }, []);
 
   const ensureVisible = useCallback(
-    (target: number, opts?: { forceFetch?: boolean; bulk?: boolean }) =>
-      ensureVisibleWithIds(target, { forceFetch: opts?.forceFetch, bulk: opts?.bulk }),
+    (target: number, opts?: { forceFetch?: boolean }) =>
+      ensureVisibleWithIds(target, { forceFetch: opts?.forceFetch }),
     [ensureVisibleWithIds],
   );
 
@@ -378,6 +274,61 @@ export function useVisibleRowsEngine(args: VisibleRowsEngineArgs): VisibleRowsEn
   const resetTargetVisible = useCallback(() => {
     targetVisibleRef.current = PAGE_SIZE;
     setTargetVisible(PAGE_SIZE);
+  }, []);
+
+  // Classic (normal) pagination: fetch EXACTLY page `pageIndex` at
+  // PAGE_SIZE (50) and REPLACE the buffer with that one page. Unlike
+  // ensureVisible (which loads a growing prefix), this sends a single
+  // `{PageIndex, PageSize:50}` request — true server-side paging, so
+  // navigating to page 12 loads that page's 50 rows, not `12*50` rows.
+  // The buffer holds only the current page; the classic slice in
+  // TransactionsTab shows it whole (no `currentPage*50` offset in live
+  // mode). `TransactionsCount` is page-independent, so the plain total /
+  // dual-query visible total stay correct at any page index.
+  const goToPage = useCallback(async (
+    pageIndex: number,
+    opts: { hiddenIdsOverride?: ReadonlySet<string> } = {},
+  ): Promise<void> => {
+    const a = argsRef.current;
+    // Sample / non-live mode paginates purely by client slice over the
+    // fully-loaded buffer — no fetch, the slice reads currentPage directly.
+    if (!a.isLiveMode) return;
+    const token = ++runRef.current;
+    // Classic shows one page, so the intent window is a single PAGE_SIZE.
+    targetVisibleRef.current = PAGE_SIZE;
+    setTargetVisible(PAGE_SIZE);
+    const ids = opts.hiddenIdsOverride ?? a.hiddenDefIds;
+    const key = `${filtersEpochRef.current}:${[...ids].sort().join('|')}`;
+    const extras = a.activeExtraFilters.length > 0 ? a.activeExtraFilters : undefined;
+    setRefilling(true);
+    if (ids.size > 0) {
+      const res = await a.replaceFromBeginningExcluding(
+        a.outgoingFilters,
+        PAGE_SIZE,
+        [...ids],
+        extras,
+        a.effectiveSorting,
+        pageIndex,
+      );
+      if (token !== runRef.current) return;
+      if (res == null) {
+        setRefilling(false);
+        return;
+      }
+      bufferKeyRef.current = key;
+      if (res.visibleTotal != null) {
+        const next = { key, value: res.visibleTotal };
+        visibleTotalRef.current = next;
+        setVisibleTotalState(next);
+      }
+      setRefilling(false);
+      return;
+    }
+    await a.replaceFromBeginning(a.outgoingFilters, PAGE_SIZE, extras, a.effectiveSorting, pageIndex);
+    if (token === runRef.current) {
+      bufferKeyRef.current = key;
+      setRefilling(false);
+    }
   }, []);
 
   // Explicitly invoked from the hide/unhide handlers — NOT a useEffect
@@ -492,6 +443,7 @@ export function useVisibleRowsEngine(args: VisibleRowsEngineArgs): VisibleRowsEn
     hiddenCountLoading: refilling && hiddenDefIds.size > 0,
     refilling,
     ensureVisible,
+    goToPage,
     refetch,
     resetTargetVisible,
     notifyHiddenSetChanged,

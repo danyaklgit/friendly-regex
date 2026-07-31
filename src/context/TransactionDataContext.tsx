@@ -52,14 +52,14 @@ export interface TransactionDataContextValue {
    *  atomically (no pre-fetch clear / flicker). Used by `+N` pagination
    *  and `Show all` now that backend `PageSize` is uncapped — one round
    *  trip per click instead of `ceil(N / PAGE_SIZE)` aligned pages. */
-  replaceFromBeginning: (filters: Record<string, Set<string>>, pageSize: number, extraFilters?: FilterProperty[], sortingProperties?: SortProperty[]) => Promise<TransactionRow[]>;
+  replaceFromBeginning: (filters: Record<string, Set<string>>, pageSize: number, extraFilters?: FilterProperty[], sortingProperties?: SortProperty[], pageIndex?: number) => Promise<TransactionRow[]>;
   /** Hidden-tag aware variant: ONE query with two `NI` exclusions on the
    *  hidden definition ids (primary + multi-tag columns) — the backend keeps
    *  untagged rows under `NI`, so this alone is the visible set — plus a
    *  PageSize-1 no-exclusion count for the scope total (written to
    *  `totalTransactionsCount`). Returns the first `pageSize` visible rows and
    *  the EXACT visible total (the NI query's count), or null on abort/error. */
-  replaceFromBeginningExcluding: (filters: Record<string, Set<string>>, pageSize: number, hiddenDefIds: string[], extraFilters?: FilterProperty[], sortingProperties?: SortProperty[]) => Promise<{ rows: TransactionRow[]; visibleTotal: number | null } | null>;
+  replaceFromBeginningExcluding: (filters: Record<string, Set<string>>, pageSize: number, hiddenDefIds: string[], extraFilters?: FilterProperty[], sortingProperties?: SortProperty[], pageIndex?: number) => Promise<{ rows: TransactionRow[]; visibleTotal: number | null } | null>;
   fetchCount: (filters: Record<string, Set<string>>, extraFilters?: FilterProperty[], sortingProperties?: SortProperty[], signal?: AbortSignal) => Promise<number | null>;
   trimLoadedTransactions: (count: number) => void;
   filterDefinitions: FilterDefinition[];
@@ -558,6 +558,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
     pageSize: number,
     extraFilters?: FilterProperty[],
     sortingProperties?: SortProperty[],
+    pageIndex = 0,
   ): Promise<TransactionRow[]> => {
     if (!isLiveMode) return [];
     if (pageSize <= 0) return [];
@@ -586,7 +587,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
         {
           FilteringProperties: filteringProperties,
           SortingProperties: sortingProperties ?? DEFAULT_SORTING,
-          Pagination: { PageIndex: 0, PageSize: pageSize },
+          Pagination: { PageIndex: pageIndex, PageSize: pageSize },
         },
         token,
         tepHeaders,
@@ -603,7 +604,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
         const isDead = typeof ops === 'string' ? ops.toLowerCase() === 'true' : ops === true;
         return { ...row, IsDeadEnd: isDead };
       });
-      currentPageRef.current = 0;
+      currentPageRef.current = pageIndex;
       setHasMore(rows.length >= pageSize);
       if (data.TransactionsCount != null) {
         setTotalTransactionsCount(data.TransactionsCount);
@@ -657,6 +658,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
     hiddenDefIds: string[],
     extraFilters?: FilterProperty[],
     sortingProperties?: SortProperty[],
+    pageIndex = 0,
   ): Promise<{ rows: TransactionRow[]; visibleTotal: number | null } | null> => {
     if (!isLiveMode) return null;
     if (pageSize <= 0 || hiddenDefIds.length === 0) return null;
@@ -691,7 +693,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
               { ColumnName: 'OpsMultiTags.TagSpecDefinitionId', Value: hiddenValue, Operand: 'NI' },
             ],
             SortingProperties: sorting,
-            Pagination: { PageIndex: 0, PageSize: pageSize },
+            Pagination: { PageIndex: pageIndex, PageSize: pageSize },
           },
           token,
           tepHeaders,
@@ -725,7 +727,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
       const rows = mirror(visible.Transactions ?? []).slice(0, pageSize);
       const visibleTotal = visible.TransactionsCount ?? null;
 
-      currentPageRef.current = 0;
+      currentPageRef.current = pageIndex;
       setHasMore(visibleTotal != null ? rows.length < visibleTotal : rows.length >= pageSize);
       // Keep totalTransactionsCount = the no-exclusion scope total (the
       // "main load" total) so the hidden tally is totalTransactionsCount -
