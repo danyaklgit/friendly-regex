@@ -47,7 +47,7 @@ export interface TransactionDataContextValue {
    *  why this lives separate from `fetchPage`. Returns the merged rows in
    *  `pageIndices` order. Resolves with an empty array on error or non-
    *  live mode. */
-  appendBatch: (filters: Record<string, Set<string>>, pageIndices: number[], extraFilters?: FilterProperty[], sortingProperties?: SortProperty[]) => Promise<TransactionRow[]>;
+  appendBatch: (filters: Record<string, Set<string>>, pageIndices: number[], extraFilters?: FilterProperty[], sortingProperties?: SortProperty[], signal?: AbortSignal) => Promise<TransactionRow[]>;
   /** Fetch the first N rows in ONE request and replace the buffer
    *  atomically (no pre-fetch clear / flicker). Used by `+N` pagination
    *  and `Show all` now that backend `PageSize` is uncapped — one round
@@ -446,6 +446,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
     pageIndices: number[],
     extraFilters?: FilterProperty[],
     sortingProperties?: SortProperty[],
+    signal?: AbortSignal,
   ): Promise<TransactionRow[]> => {
     if (!isLiveMode) return [];
     if (pageIndices.length === 0) return [];
@@ -480,6 +481,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
             },
             token,
             tepHeaders,
+            signal,
           ).then((data) => ({ pageIndex, data })),
         ),
       );
@@ -522,10 +524,15 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
       });
       return merged;
     } catch (err) {
+      // A superseding fetch (filter change / new +N / hide) aborts this
+      // batch via `signal` BEFORE `Promise.all` resolves, so no partial
+      // rows were committed — swallow the abort quietly. The buffer commit
+      // above only runs on the success path.
+      if ((err as Error).name === 'AbortError') return [];
       console.error('Failed to batch-fetch transactions:', err);
       return [];
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   }, [isLiveMode, getAuthHeaders, refreshIfNeeded, userId, tepConfig]);
 

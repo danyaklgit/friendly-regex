@@ -330,7 +330,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const {
     transactions, fieldMeta, loadTransactions, resetToSample, isCustomData, flagDeadEnd,
     setComments, flagDeadEndWithComment,
-    isLiveMode, loading, totalTransactionsCount, replaceFromBeginning, replaceFromBeginningExcluding, fetchCount,
+    isLiveMode, loading, totalTransactionsCount, replaceFromBeginning, replaceFromBeginningExcluding, appendBatch, fetchCount,
     filterDefinitions, filterDefinitionsLoading, fetchFilterDefinitions,
     decimalMaxValues,
   } = useTransactionData();
@@ -1916,6 +1916,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     fetchCount,
     replaceFromBeginning,
     replaceFromBeginningExcluding,
+    appendBatch,
     outgoingFilters,
     activeExtraFilters,
     effectiveSorting,
@@ -2147,14 +2148,16 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // the new target (e.g. right after an unhide), the rows appear
   // instantly with no fetch. The target persists per checkout, so
   // Refresh / tag toggles keep a Show-all window loaded.
-  const loadNVisible = useCallback(async (size: number) => {
+  const loadNVisible = useCallback(async (size: number, opts?: { bulk?: boolean }) => {
     if (size <= 0) return;
     if (!isLiveMode) {
       setVisibleCount((c) => c + size);
       return;
     }
     const shown = Math.min(engine.targetVisible, filteredData.length);
-    await ensureVisible(shown + size);
+    // +N buttons APPEND the next page(s); Show all passes `bulk` so a huge
+    // window is fetched as one request instead of N/50 parallel appends.
+    await ensureVisible(shown + size, { bulk: opts?.bulk });
   }, [isLiveMode, ensureVisible, engine.targetVisible, filteredData]);
 
   // Classic-mode navigation: make sure the prefix buffer holds enough
@@ -2164,7 +2167,10 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const goToPage = useCallback((newPage: number) => {
     setCurrentPage(newPage);
     setPageInputValue(String(newPage + 1));
-    if (isLiveMode) void ensureVisible((newPage + 1) * BATCH_SIZE);
+    // Classic nav re-slices a prefix window; a far jump can need many
+    // pages, so fetch as one bulk request (replace) rather than appending
+    // dozens of parallel pages.
+    if (isLiveMode) void ensureVisible((newPage + 1) * BATCH_SIZE, { bulk: true });
   }, [isLiveMode, ensureVisible]);
 
   // Reset visible count / page when filtered data length changes
@@ -3747,7 +3753,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                         if (remaining > SHOW_ALL_CONFIRM_THRESHOLD) {
                           setShowAllConfirmRemaining(remaining);
                         } else {
-                          loadNVisible(remaining);
+                          loadNVisible(remaining, { bulk: true });
                         }
                       }}
                     >
@@ -3848,7 +3854,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         onConfirm={() => {
           const n = showAllConfirmRemaining;
           setShowAllConfirmRemaining(null);
-          if (n != null && n > 0) loadNVisible(n);
+          if (n != null && n > 0) loadNVisible(n, { bulk: true });
         }}
         title="Load all transactions?"
         message={`This will fetch ${(showAllConfirmRemaining ?? 0).toLocaleString()} more transactions and may take a while. Continue?`}
