@@ -261,7 +261,7 @@ export async function getTransactions(
 }
 
 export async function getBacklogStats(
-  dataSetType: string,
+  dataSetTypes: string[],
   authToken: string,
   tepHeaders: TepHeaders,
   signal?: AbortSignal,
@@ -279,7 +279,10 @@ export async function getBacklogStats(
       TTPRequestId: tepHeaders.requestId,
       TimeZone: tepHeaders.timeZone,
     },
-    body: JSON.stringify({ DataSetType: dataSetType }),
+    // `DataSetTypes` (a real JSON array), matching GetTagSpecLibraries — one
+    // call returns stats for every workspace, each entry keyed by its own
+    // TagSpecLibraryId.
+    body: JSON.stringify({ DataSetTypes: dataSetTypes }),
     signal,
   });
 

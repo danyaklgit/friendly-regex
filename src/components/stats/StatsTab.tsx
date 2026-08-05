@@ -229,14 +229,11 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
   const refetchBacklogStats = useCallback(async () => {
     if (!authToken || !tepHeaders) return;
     try {
-      // One call per DataSetType (the endpoint takes a single type) merged by
-      // TagSpecLibraryId — each library belongs to exactly one type, so no key
-      // collision.
-      const all = await Promise.all(
-        ALL_LIBRARY_DATA_SET_TYPES.map((t) => getBacklogStats(t, authToken, tepHeaders)),
-      );
+      // One call for all workspaces (DataSetTypes array); each entry is keyed
+      // by its own TagSpecLibraryId.
+      const stats = await getBacklogStats(ALL_LIBRARY_DATA_SET_TYPES, authToken, tepHeaders);
       const map = new Map<string, BacklogStatEntry>();
-      for (const stats of all) for (const s of stats) map.set(s.TagSpecLibraryId, s);
+      for (const s of stats) map.set(s.TagSpecLibraryId, s);
       setBacklogStats(map);
     } catch (err) {
       console.error('Failed to refetch backlog stats:', err);
@@ -279,12 +276,10 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
     if (authToken && tepHeaders) {
       let cancelled = false;
       setStatsLoading(true);
-      Promise.all(
-        ALL_LIBRARY_DATA_SET_TYPES.map((t) => getBacklogStats(t, authToken, tepHeaders)),
-      ).then((all) => {
+      getBacklogStats(ALL_LIBRARY_DATA_SET_TYPES, authToken, tepHeaders).then((stats) => {
         if (cancelled) return;
         const map = new Map<string, BacklogStatEntry>();
-        for (const stats of all) for (const s of stats) map.set(s.TagSpecLibraryId, s);
+        for (const s of stats) map.set(s.TagSpecLibraryId, s);
         setBacklogStats(map);
       }).catch((err) => console.error('Failed to fetch backlog stats:', err))
         .finally(() => { if (!cancelled) setStatsLoading(false); });
