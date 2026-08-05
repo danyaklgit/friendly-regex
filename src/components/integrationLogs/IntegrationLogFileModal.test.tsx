@@ -65,9 +65,11 @@ describe('IntegrationLogFileModal', () => {
   it('pretty-prints JSON content', async () => {
     mockedGetFile.mockResolvedValue({ Content: '{"a":1,"b":2}' });
     render(<IntegrationLogFileModal log={log} onClose={() => {}} />);
-    const pretty = await screen.findByText(/"a": 1/);
-    expect(pretty).not.toBeNull();
-    expect(pretty.textContent).toMatch(/\n/);
+    // Pretty-printed → each field lands on its own indented line. The viewer
+    // renders one <div> per line (windowed), so assert both lines are present
+    // rather than looking for a single node containing a newline.
+    expect(await screen.findByText(/"a": 1/)).not.toBeNull();
+    expect(screen.getByText(/"b": 2/)).not.toBeNull();
   });
 
   it('falls back to raw text when content is not valid JSON', async () => {
