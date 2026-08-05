@@ -35,6 +35,7 @@ import type { CheckoutState } from './types';
 import type { TepHeaders, FilterProperty } from './api/transactions';
 import type { TagSpecCommentTarget } from './types/comments';
 import { getContextValue } from './types/tagSpec';
+import { DEFAULT_DATA_SET_TYPE } from './constants/dataSetTypes';
 
 export interface BacklogNavigation {
   libraryId: string;
@@ -92,7 +93,7 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
   // tab switch; TransactionsTab consumes it on mount and clears via
   // `setPendingPillFilters(null)` once it's been applied to the page state.
   const [pendingPillFilters, setPendingPillFilters] = useState<FilterProperty[] | null>(null);
-  const [undoTarget, setUndoTarget] = useState<{ bank: string; side: string } | null>(null);
+  const [undoTarget, setUndoTarget] = useState<{ bank: string; side: string; dataSetType: string } | null>(null);
   const [headerActionLoading, setHeaderActionLoading] = useState(false);
   // Tracks whether the Transactions tab's rule builder is open so the
   // checkout header can disable Release / Check-in while the operator is
@@ -121,7 +122,9 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
   useEffect(() => {
     const stored = consumeStoredShareParams();
     if (stored) {
-      setActiveCheckout({ bank: stored.bank, side: stored.side });
+      // Share links predate intraday and carry no DataSetType — restore into
+      // the default (MT940) workspace.
+      setActiveCheckout({ bank: stored.bank, side: stored.side, dataSetType: DEFAULT_DATA_SET_TYPE });
       setActiveTab(1);
       setShareData(stored);           // drives banner
       setShareFilters(stored.filters); // persists for TransactionsTab
@@ -131,7 +134,7 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
   }, []);
 
   const { libraries, refetchLibraries, isPairBeingTagged } = useTagSpecs();
-  const { clearChanges, getChangeSummary, hasChanges } = useLocalChanges(activeCheckout?.bank, activeCheckout?.side);
+  const { clearChanges, getChangeSummary, hasChanges } = useLocalChanges(activeCheckout?.bank, activeCheckout?.side, activeCheckout?.dataSetType);
   const hasUnsyncedTags = useHasUnsyncedTags();
   const syncTags = useSyncTags();
   const [pendingTabChange, setPendingTabChange] = useState<number | null>(null);
@@ -165,6 +168,7 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
     const inProgressLib = libraries.find(
       (l) =>
         l.StatusTag === 'INPROGRESS' &&
+        l.DataSetType === activeCheckout.dataSetType &&
         getContextValue(l.Context, 'BankSwiftCode') === activeCheckout.bank &&
         getContextValue(l.Context, 'Side') === activeCheckout.side
     );
@@ -174,10 +178,14 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
     return inProgressLib.OperatorId !== userId;
   }, [activeCheckout, libraries, userId, isPairBeingTagged]);
 
-  const findInProgressLib = useCallback((bank: string, side: string) => {
+  // Match on DataSetType too — the same bank/side can have INPROGRESS libraries
+  // in more than one workspace (e.g. MT940 and MT942), and release/check-in
+  // must act on the right one.
+  const findInProgressLib = useCallback((bank: string, side: string, dataSetType: string) => {
     return libraries.find(
       (l) =>
         l.StatusTag === 'INPROGRESS' &&
+        l.DataSetType === dataSetType &&
         getContextValue(l.Context, 'BankSwiftCode') === bank &&
         getContextValue(l.Context, 'Side') === side
     );
@@ -186,10 +194,11 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
   const handleViewTransactions = useCallback((
     bank: string,
     side: string,
+    dataSetType: string,
     definitionId?: string,
     pillFilters?: FilterProperty[],
   ) => {
-    setActiveCheckout({ bank, side, pendingDefinitionId: definitionId });
+    setActiveCheckout({ bank, side, dataSetType, pendingDefinitionId: definitionId });
     setPendingPillFilters(pillFilters ?? null);
     setActiveTab(1);
   }, []);
@@ -199,17 +208,17 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
     setActiveTab(1);
   }, []);
 
-  const handleCheckoutComplete = useCallback((bank: string, side: string) => {
+  const handleCheckoutComplete = useCallback((bank: string, side: string, dataSetType: string) => {
     // Record the checkout so the Transactions tab is pre-filtered when the
     // operator navigates there, but stay on Backlog so they can see the
     // "In Progress" state and decide their next action.
-    setActiveCheckout({ bank, side, operatorName });
+    setActiveCheckout({ bank, side, dataSetType, operatorName });
   }, [operatorName]);
 
-  const handleRelease = useCallback(async (bank: string, side: string) => {
+  const handleRelease = useCallback(async (bank: string, side: string, dataSetType: string) => {
     if (isAudit) return;
     if (!authToken || !tepHeaders) return;
-    const inProgressLib = findInProgressLib(bank, side);
+    const inProgressLib = findInProgressLib(bank, side, dataSetType);
     if (!inProgressLib?.Id) return;
     setHeaderActionLoading(true);
     setToast({ message: `Releasing ${bank} / ${side}…`, type: 'info', duration: 60_000 });
@@ -217,10 +226,10 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
       // Always save the current in-memory state (reflects adds, edits, and deletes)
       await tagSpecLibrarySave(inProgressLib, authToken, tepHeaders);
       await tagSpecLibraryRelease(inProgressLib.Id, authToken, tepHeaders);
-      clearChanges(bank, side);
+      clearChanges(bank, side, dataSetType);
       await refetchLibraries();
       setActiveCheckout((prev) =>
-        prev && prev.bank === bank && prev.side === side ? null : prev
+        prev && prev.bank === bank && prev.side === side && prev.dataSetType === dataSetType ? null : prev
       );
       setToast({ message: `Saved and released ${bank} / ${side}`, type: 'success' });
       setActiveTab(0);
@@ -231,10 +240,10 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
     }
   }, [isAudit, authToken, tepHeaders, findInProgressLib, refetchLibraries, clearChanges]);
 
-  const handleCheckinWithSave = useCallback(async (bank: string, side: string) => {
+  const handleCheckinWithSave = useCallback(async (bank: string, side: string, dataSetType: string) => {
     if (isAudit) return;
     if (!authToken || !tepHeaders) return;
-    const inProgressLib = findInProgressLib(bank, side);
+    const inProgressLib = findInProgressLib(bank, side, dataSetType);
     if (!inProgressLib?.Id) return;
     setHeaderActionLoading(true);
     setToast({ message: `Checking in ${bank} / ${side}…`, type: 'info', duration: 60_000 });
@@ -242,10 +251,10 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
       // Always save the current in-memory state (reflects adds, edits, and deletes)
       await tagSpecLibrarySave(inProgressLib, authToken, tepHeaders);
       await tagSpecLibraryCheckIn(inProgressLib.Id, authToken, tepHeaders);
-      clearChanges(bank, side);
+      clearChanges(bank, side, dataSetType);
       await refetchLibraries();
       setActiveCheckout((prev) =>
-        prev && prev.bank === bank && prev.side === side ? null : prev
+        prev && prev.bank === bank && prev.side === side && prev.dataSetType === dataSetType ? null : prev
       );
       setToast({ message: `Saved and checked in ${bank} / ${side}`, type: 'success' });
       setActiveTab(0);
@@ -256,15 +265,15 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
     }
   }, [isAudit, authToken, tepHeaders, findInProgressLib, refetchLibraries, clearChanges]);
 
-  const handleRequestUndo = useCallback((bank: string, side: string) => {
+  const handleRequestUndo = useCallback((bank: string, side: string, dataSetType: string) => {
     if (isAudit) return;
-    setUndoTarget({ bank, side });
+    setUndoTarget({ bank, side, dataSetType });
   }, [isAudit]);
 
   const handleUndoConfirm = useCallback(async () => {
     if (isAudit) return;
     if (!undoTarget) return;
-    clearChanges(undoTarget.bank, undoTarget.side);
+    clearChanges(undoTarget.bank, undoTarget.side, undoTarget.dataSetType);
     await refetchLibraries();
     setUndoTarget(null);
   }, [isAudit, undoTarget, clearChanges, refetchLibraries]);
@@ -290,6 +299,7 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
           checkout={activeCheckout && activeTab === 1 ? {
             bank: activeCheckout.bank,
             side: activeCheckout.side,
+            dataSetType: activeCheckout.dataSetType,
             hasChanges: hasChanges ?? false,
             isReadOnly: isCheckoutReadOnly,
             // OR the rule-builder state into the disable signal — committing
@@ -311,7 +321,7 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
         open={!!undoTarget}
         bank={undoTarget?.bank ?? ''}
         side={undoTarget?.side ?? ''}
-        changeSummary={undoTarget ? getChangeSummary(undoTarget.bank, undoTarget.side) : null}
+        changeSummary={undoTarget ? getChangeSummary(undoTarget.bank, undoTarget.side, undoTarget.dataSetType) : null}
         onClose={() => setUndoTarget(null)}
         onConfirm={handleUndoConfirm}
       />

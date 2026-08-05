@@ -8,6 +8,7 @@ import { Badge } from '../shared/Badge';
 import { NotificationsButton } from '../notifications/NotificationsButton';
 import { DownloadCenterButton } from '../downloadCenter/DownloadCenterButton';
 import type { TagSpecCommentTarget } from '../../types/comments';
+import { DATA_SET_TYPE_LABELS, type DataSetType } from '../../constants/dataSetTypes';
 
 const SIDE_LABELS: Record<string, string> = {
   CR: 'Credit',
@@ -19,6 +20,7 @@ const SIDE_LABELS: Record<string, string> = {
 interface CheckoutInfo {
   bank: string;
   side: string;
+  dataSetType: string;
   hasChanges: boolean;
   isReadOnly?: boolean;
   actionLoading?: boolean;
@@ -26,9 +28,9 @@ interface CheckoutInfo {
    *  they're unavailable. Without this, the operator sees grayed buttons
    *  with no context (e.g. while a rule is being authored). */
   disabledReason?: string;
-  onRelease: (bank: string, side: string) => void;
-  onCheckin: (bank: string, side: string) => void;
-  onRequestUndo?: (bank: string, side: string) => void;
+  onRelease: (bank: string, side: string, dataSetType: string) => void;
+  onCheckin: (bank: string, side: string, dataSetType: string) => void;
+  onRequestUndo?: (bank: string, side: string, dataSetType: string) => void;
 }
 
 interface PageHeaderProps {
@@ -52,6 +54,7 @@ export function PageHeader({ tabs, activeIndex, onTabChange, checkout, onOpenOnb
   // entry never blanks the indicator.
   const bankName = checkout ? (lovLookup.get('BANKS')?.get(checkout.bank) ?? checkout.bank) : '';
   const sideName = checkout ? (SIDE_LABELS[checkout.side] ?? checkout.side) : '';
+  const dataSetTypeName = checkout ? (DATA_SET_TYPE_LABELS[checkout.dataSetType as DataSetType] ?? checkout.dataSetType) : '';
 
   return (
     <header className="bg-surface border-b border-border">
@@ -77,6 +80,9 @@ export function PageHeader({ tabs, activeIndex, onTabChange, checkout, onOpenOnb
           <div data-tour="checkout-active-indicator" className="flex items-center gap-3 ml-auto shrink-0">
             <span className="text-sm text-primary-dark whitespace-nowrap">
               <span className="font-semibold">{checkout.isReadOnly ? "You're viewing" : "You're working on"}</span>{' '}
+              <span className="inline-flex items-center rounded-full bg-primary/10 text-primary-dark dark:text-primary text-[11px] font-semibold px-2 py-0.5 mr-1 align-middle">
+                {dataSetTypeName}
+              </span>
               <Tooltip content={checkout.bank} placement="bottom">
                 <span className="underline decoration-dotted decoration-primary/40 cursor-help">{bankName}</span>
               </Tooltip>
@@ -88,7 +94,7 @@ export function PageHeader({ tabs, activeIndex, onTabChange, checkout, onOpenOnb
             {!checkout.isReadOnly && !isAudit && (
               <>
                 {checkout.onRequestUndo && checkout.hasChanges && (
-                  <Button variant="secondary" size="xs" onClick={() => checkout.onRequestUndo!(checkout.bank, checkout.side)} disabled={checkout.actionLoading} className="whitespace-nowrap">
+                  <Button variant="secondary" size="xs" onClick={() => checkout.onRequestUndo!(checkout.bank, checkout.side, checkout.dataSetType)} disabled={checkout.actionLoading} className="whitespace-nowrap">
                     Review Changes
                   </Button>
                 )}
@@ -97,14 +103,14 @@ export function PageHeader({ tabs, activeIndex, onTabChange, checkout, onOpenOnb
                     <>
                       <Tooltip content={checkout.disabledReason} placement="bottom">
                         <span>
-                          <Button variant="primary" size="xs" onClick={() => checkout.onRelease(checkout.bank, checkout.side)} disabled className="whitespace-nowrap">
+                          <Button variant="primary" size="xs" onClick={() => checkout.onRelease(checkout.bank, checkout.side, checkout.dataSetType)} disabled className="whitespace-nowrap">
                             {checkout.hasChanges ? 'Save and Release' : 'Release'}
                           </Button>
                         </span>
                       </Tooltip>
                       <Tooltip content={checkout.disabledReason} placement="bottom">
                         <span>
-                          <Button variant="primary" size="xs" onClick={() => checkout.onCheckin(checkout.bank, checkout.side)} disabled className="whitespace-nowrap">
+                          <Button variant="primary" size="xs" onClick={() => checkout.onCheckin(checkout.bank, checkout.side, checkout.dataSetType)} disabled className="whitespace-nowrap">
                             {checkout.hasChanges ? 'Save and Check In' : 'Check In'}
                           </Button>
                         </span>
@@ -112,10 +118,10 @@ export function PageHeader({ tabs, activeIndex, onTabChange, checkout, onOpenOnb
                     </>
                   ) : (
                     <>
-                      <Button variant="primary" size="xs" onClick={() => checkout.onRelease(checkout.bank, checkout.side)} disabled={checkout.actionLoading} className="whitespace-nowrap">
+                      <Button variant="primary" size="xs" onClick={() => checkout.onRelease(checkout.bank, checkout.side, checkout.dataSetType)} disabled={checkout.actionLoading} className="whitespace-nowrap">
                         {checkout.hasChanges ? 'Save and Release' : 'Release'}
                       </Button>
-                      <Button variant="primary" size="xs" onClick={() => checkout.onCheckin(checkout.bank, checkout.side)} disabled={checkout.actionLoading} className="whitespace-nowrap">
+                      <Button variant="primary" size="xs" onClick={() => checkout.onCheckin(checkout.bank, checkout.side, checkout.dataSetType)} disabled={checkout.actionLoading} className="whitespace-nowrap">
                         {checkout.hasChanges ? 'Save and Check In' : 'Check In'}
                       </Button>
                     </>

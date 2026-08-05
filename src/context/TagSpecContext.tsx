@@ -5,6 +5,7 @@ import type { TagTreeNode, TagHierarchyRawNode, TagsHierarchyWrapper } from '../
 import { getTagSpecLibraries } from '../api/tagSpecs';
 import { getRawTagsHierarchy, buildTagTree } from '../api/tagsHierarchy';
 import { getContextValue } from '../types/tagSpec';
+import { ALL_LIBRARY_DATA_SET_TYPES } from '../constants/dataSetTypes';
 import { useAuth } from './AuthContext';
 import { loadSampleTagData, loadSampleHierarchy } from '../data/loadSampleData';
 
@@ -24,8 +25,10 @@ function applyLocalDraftOrInvalidate(apiLib: TagSpecLibrary): TagSpecLibrary {
   const bank = getContextValue(apiLib.Context, 'BankSwiftCode') ?? '';
   const side = getContextValue(apiLib.Context, 'Side') ?? '';
   if (!bank || !side) return apiLib;
-  const currentKey = `tep:current:${bank}:${side}`;
-  const baselineKey = `tep:baseline:${bank}:${side}`;
+  // Keys are namespaced by DataSetType (matches useLocalChanges) so an MT942
+  // draft never shadows the MT940 library for the same bank/side.
+  const currentKey = `tep:current:${apiLib.DataSetType}:${bank}:${side}`;
+  const baselineKey = `tep:baseline:${apiLib.DataSetType}:${bank}:${side}`;
   try {
     const raw = localStorage.getItem(currentKey);
     if (!raw) return apiLib;
@@ -377,7 +380,7 @@ export function TagSpecProvider({ children, useDummyData, tepHeaders }: TagSpecP
     if (isFetchingLibsRef.current) return;
     isFetchingLibsRef.current = true;
     try {
-      const libsResult = await getTagSpecLibraries(authToken, tepHeaders);
+      const libsResult = await getTagSpecLibraries(ALL_LIBRARY_DATA_SET_TYPES, authToken, tepHeaders);
       const libsData = libsResult.libraries;
       setTaggingProgress(libsResult.taggingProgress);
       // Record first-seen timestamps for newly-observed tagging entries; prune removed ones.
@@ -423,7 +426,7 @@ export function TagSpecProvider({ children, useDummyData, tepHeaders }: TagSpecP
     // either side cleared both pieces of state, leaving the user-mode tag
     // picker showing "No tags available" even when the hierarchy fetch had
     // returned data.
-    const libsPromise = getTagSpecLibraries(authToken, tepHeaders, signal);
+    const libsPromise = getTagSpecLibraries(ALL_LIBRARY_DATA_SET_TYPES, authToken, tepHeaders, signal);
     const hierarchyPromise = getRawTagsHierarchy(authToken, tepHeaders, signal);
 
     try {

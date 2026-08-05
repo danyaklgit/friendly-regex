@@ -10,6 +10,7 @@ export interface TagSpecLibrariesResult {
 }
 
 export async function getTagSpecLibraries(
+  dataSetTypes: string[],
   authToken: string,
   tepHeaders: TepHeaders,
   signal?: AbortSignal,
@@ -27,7 +28,10 @@ export async function getTagSpecLibraries(
       TTPRequestId: tepHeaders.requestId,
       TimeZone: tepHeaders.timeZone,
     },
-    body: JSON.stringify({ DataSetType: 'MT940' }),
+    // `DataSetTypes` (a real JSON array) — the backend uses it when non-empty
+    // and every returned library carries its own DataSetType, so we fetch all
+    // workspaces in one call and group client-side.
+    body: JSON.stringify({ DataSetTypes: dataSetTypes }),
     signal,
   });
 

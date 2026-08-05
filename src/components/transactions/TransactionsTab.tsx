@@ -19,6 +19,7 @@ import {
 } from '../../utils/attributeFingerprint';
 import type { FilterProperty } from '../../api/transactions';
 import { getAllTransactionTags, buildSortingProperties, parseSortOverride, type SortOverride } from '../../api/transactions';
+import { dataSetTypeFilter, DEFAULT_DATA_SET_TYPE } from '../../constants/dataSetTypes';
 import { translateFilters } from '../../utils/translateFilters';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
 import { useOptionalDownloadCenter } from '../../context/DownloadCenterContext';
@@ -271,7 +272,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const { userId, usersMap, getAuthHeaders, refreshIfNeeded, isAudit } = useAuth();
   const { extractionMethods } = useLovAttributes();
   const tepConfig = useTepConfig();
-  const { saveBaseline, updateCurrent } = useLocalChanges(activeCheckout?.bank, activeCheckout?.side);
+  const { saveBaseline, updateCurrent } = useLocalChanges(activeCheckout?.bank, activeCheckout?.side, activeCheckout?.dataSetType);
 
   // Determine if the current user is NOT the checkout owner (read-only mode)
   const { isReadOnly, ownerName } = useMemo(() => {
@@ -280,6 +281,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     const inProgressLib = libraries.find(
       (l) =>
         l.StatusTag === 'INPROGRESS' &&
+        l.DataSetType === activeCheckout.dataSetType &&
         getContextValue(l.Context, 'BankSwiftCode') === activeCheckout.bank &&
         getContextValue(l.Context, 'Side') === activeCheckout.side
     );
@@ -301,6 +303,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     return libraries.find(
       (l) =>
         l.StatusTag === 'INPROGRESS' &&
+        l.DataSetType === activeCheckout.dataSetType &&
         getContextValue(l.Context, 'BankSwiftCode') === activeCheckout.bank &&
         getContextValue(l.Context, 'Side') === activeCheckout.side
     ) ?? null;
@@ -318,7 +321,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
 
   useEffect(() => {
     if (inProgressLib && activeCheckout) {
-      const baselineKey = `tep:baseline:${activeCheckout.bank}:${activeCheckout.side}`;
+      const baselineKey = `tep:baseline:${activeCheckout.dataSetType}:${activeCheckout.bank}:${activeCheckout.side}`;
       if (!localStorage.getItem(baselineKey)) {
         saveBaseline(inProgressLib);
       } else {
@@ -334,12 +337,14 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     filterDefinitions, filterDefinitionsLoading, fetchFilterDefinitions,
     decimalMaxValues,
   } = useTransactionData();
-  // Fetch filter definitions when the Transactions tab mounts
+  // Fetch filter definitions when the Transactions tab mounts, scoped to the
+  // checked-out DataSetType so the filter catalog matches the workspace.
+  // Re-fetches when the workspace changes.
   useEffect(() => {
-    if (isLiveMode && filterDefinitions.length === 0) {
-      fetchFilterDefinitions();
+    if (isLiveMode) {
+      fetchFilterDefinitions(activeCheckout?.dataSetType ?? DEFAULT_DATA_SET_TYPE);
     }
-  }, [isLiveMode, fetchFilterDefinitions, filterDefinitions.length]);
+  }, [isLiveMode, fetchFilterDefinitions, activeCheckout?.dataSetType]);
   // DECIMAL filter sliders use a static 200M default ceiling instead of a
   // probe-API call (see DEFAULT_DECIMAL_MAX in DynamicFilters). Edit mode lets
   // the user type a higher value if their workload needs it, so we don't pay
@@ -585,14 +590,23 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     // smaller trade-off here.
     const withHidden = (filters: FilterProperty[]): FilterProperty[] => filters;
 
+    // DataSetType scope — the checked-out library's type (MT940 / MT942 /
+    // INTERIM_MT940), or MT940 when browsing without a checkout. The grid
+    // endpoint returns EVERY type unless filtered, so this IN filter is what
+    // keeps the grid (and, via handleExport, the CSV) scoped to the workspace
+    // and stops intraday rows leaking into an MT940 view. It leads every
+    // returned filter list.
+    const dstScope = dataSetTypeFilter(activeCheckout?.dataSetType ?? DEFAULT_DATA_SET_TYPE);
+
     if (tagClickDefinitionId != null) {
       // After "Apply Rules": use REGEX-based filters (Call 3)
       if (tagClickRulesetApplied) {
-        return withHidden([...(tagClickRulesetFilters ?? []), ...activePillFilters]);
+        return withHidden([dstScope, ...(tagClickRulesetFilters ?? []), ...activePillFilters]);
       }
       // Default tag-click mode: scope by definition ID (Call 2)
       if (!tagClickShowingAll) {
         return withHidden([
+          dstScope,
           {
             ColumnName: 'OpsTagSpecDefinitionId|OpsMultiTags.TagSpecDefinitionId',
             Value: tagClickDefinitionId,
@@ -603,9 +617,9 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       }
       // "Show all" mode: don't scope by TransactionTypeCode — the tag name filter
       // (applied via `filters`) is what the user wants to broaden to.
-      return withHidden([...activePillFilters]);
+      return withHidden([dstScope, ...activePillFilters]);
     }
-    const extra: FilterProperty[] = [];
+    const extra: FilterProperty[] = [dstScope];
     // Current Tags multi-select scope. Multi-value IN goes as a pipe-joined
     // Value (CLAUDE.md gotcha #15) — same shape used by the SHOW ONLY filter
     // and the hidden-tag-count call. Applied whether or not the rule builder
@@ -659,7 +673,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     // filter was removed. Hiding a tag spec is a pure client-side
     // re-filter via `filteredData`; nothing in this memo's body reads
     // hiddenDefIds anymore.
-  }, [tagClickDefinitionId, tagClickRulesetApplied, tagClickShowingAll, tagClickRulesetFilters, builderOpen, builder.formState, currentTagFilterIds, activePillFilters, matchingRulesFilter]);
+  }, [activeCheckout?.dataSetType, tagClickDefinitionId, tagClickRulesetApplied, tagClickShowingAll, tagClickRulesetFilters, builderOpen, builder.formState, currentTagFilterIds, activePillFilters, matchingRulesFilter]);
 
   // Forward the UI filter state as-is. Earlier this hook stripped bank/side
   // when a TagSpecDefinitionId scope was active, on the theory that the
@@ -1400,7 +1414,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       ActiveTagSpecLibId: null,
       OperatorId: '',
       StatusTag: 'ACTIVE',
-      DataSetType: 'MT940',
+      DataSetType: activeCheckout?.dataSetType ?? DEFAULT_DATA_SET_TYPE,
       Version: 1,
       IsLatestVersion: true,
       VersionDate: '',
@@ -1408,7 +1422,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       TagSpecDefinitions: [tempDefinition],
     };
     return [...effectiveLibraries, previewLib];
-  }, [effectiveLibraries, tempDefinition, editingDef]);
+  }, [effectiveLibraries, tempDefinition, editingDef, activeCheckout?.dataSetType]);
 
   // Flat definitions including preview (for table column ordering + LOV resolution)
   const allDefinitions = useMemo(() => {

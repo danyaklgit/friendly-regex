@@ -1533,6 +1533,14 @@ const TableRow = memo(function TableRow({
                       className={`rounded border-border-strong shrink-0 ${loading ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''}`}
                     />
                   )}
+                  {/* Provisional marker for intraday rows (MT942 / INTERIM_MT940
+                      carry IsConfirmed = false). Reads only from the row, so it
+                      doesn't touch the RowCtx memo contract. */}
+                  {item.row['IsConfirmed'] === false && (
+                    <Tooltip content="Provisional intraday row — not yet confirmed by an end-of-day statement" placement="top">
+                      <Badge variant="none" size="sm" className="border border-amber-200 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800 px-2 shrink-0 cursor-help">Provisional</Badge>
+                    </Tooltip>
+                  )}
                   <div className="flex-1">
                     {item.analysis.tags.length > 0 ? (
                       (() => {

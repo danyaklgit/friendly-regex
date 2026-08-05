@@ -23,6 +23,7 @@ import { CommentSearchTrigger } from '../comments/CommentSearchTrigger';
 import { CommentSearchPanel } from '../comments/CommentSearchPanel';
 import type { TepHeaders, BacklogStatEntry, FilterProperty } from '../../api/transactions';
 import { getBacklogStats } from '../../api/transactions';
+import { ALL_LIBRARY_DATA_SET_TYPES, DATA_SET_TYPE_LABELS, type DataSetType } from '../../constants/dataSetTypes';
 import type { TagSpecLibrary, TagSpecDefinition } from '../../types';
 import type { TagSpecCommentTarget } from '../../types/comments';
 import { useLocalChanges } from '../../hooks/useLocalChanges';
@@ -38,17 +39,18 @@ interface StatsTabProps {
   onViewTransactions: (
     bank: string,
     side: string,
+    dataSetType: string,
     definitionId?: string,
     pillFilters?: FilterProperty[],
   ) => void;
   onViewAllTransactions: () => void;
-  onCheckoutComplete: (bank: string, side: string) => void;
+  onCheckoutComplete: (bank: string, side: string, dataSetType: string) => void;
   /** Releases a bank/side library checkout. Delegated to App so the
    *  release path stays in lock-step with the header's "Release"
    *  button (same save-then-release call sequence + activeCheckout
    *  cleanup + clearChanges + library refetch). The kebab menu's
    *  Release item routes through this. */
-  onRelease: (bank: string, side: string) => void | Promise<void>;
+  onRelease: (bank: string, side: string, dataSetType: string) => void | Promise<void>;
   authToken: string | null;
   tepHeaders: TepHeaders | null;
   /** Set when the user clicked "View in Backlog" from a comment thread.
@@ -93,7 +95,7 @@ type PillKind =
  *  raw column name. Operands match the spec for the flag conditions —
  *  `NE` for "exclude this state" so the backend doesn't include rows
  *  where the flag is missing. */
-function buildPillFilters(kind: PillKind, _bank: string, _side: string): FilterProperty[] {
+function buildPillFilters(kind: PillKind): FilterProperty[] {
   const base: FilterProperty[] = [];
   switch (kind) {
     case 'clean':
@@ -156,6 +158,7 @@ interface DisplayRow {
   library: TagSpecLibrary;
   bank: string;
   side: string;
+  dataSetType: string;
   operatorName: string | null;
   isInProgress: boolean;
   isOwnedByMe: boolean;
@@ -166,7 +169,7 @@ interface DisplayRow {
 export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckoutComplete, onRelease, authToken, tepHeaders, navigation, onNavigationConsumed, onNavigateToBacklog }: StatsTabProps) {
   const { libraries, tagDefinitions, loading, refetchTagSpecs, refetchLibraries, dispatch, taggingProgress, isPairBeingTagged, getTaggingFirstSeen } = useTagSpecs();
   const { usersMap, useDummyData, userId, isAudit } = useAuth();
-  const { clearChanges } = useLocalChanges(undefined, undefined);
+  const { clearChanges } = useLocalChanges(undefined, undefined, undefined);
   const { filterDefinitions, filterDefinitionsLoading, fetchFilterDefinitions, isLiveMode } = useTransactionData();
 
   // Fetch filter definitions on mount so bank names are available even when starting on Backlog
@@ -226,9 +229,14 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
   const refetchBacklogStats = useCallback(async () => {
     if (!authToken || !tepHeaders) return;
     try {
-      const stats = await getBacklogStats('MT940', authToken, tepHeaders);
+      // One call per DataSetType (the endpoint takes a single type) merged by
+      // TagSpecLibraryId — each library belongs to exactly one type, so no key
+      // collision.
+      const all = await Promise.all(
+        ALL_LIBRARY_DATA_SET_TYPES.map((t) => getBacklogStats(t, authToken, tepHeaders)),
+      );
       const map = new Map<string, BacklogStatEntry>();
-      for (const s of stats) map.set(s.TagSpecLibraryId, s);
+      for (const stats of all) for (const s of stats) map.set(s.TagSpecLibraryId, s);
       setBacklogStats(map);
     } catch (err) {
       console.error('Failed to refetch backlog stats:', err);
@@ -271,10 +279,12 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
     if (authToken && tepHeaders) {
       let cancelled = false;
       setStatsLoading(true);
-      getBacklogStats('MT940', authToken, tepHeaders).then((stats) => {
+      Promise.all(
+        ALL_LIBRARY_DATA_SET_TYPES.map((t) => getBacklogStats(t, authToken, tepHeaders)),
+      ).then((all) => {
         if (cancelled) return;
         const map = new Map<string, BacklogStatEntry>();
-        for (const s of stats) map.set(s.TagSpecLibraryId, s);
+        for (const stats of all) for (const s of stats) map.set(s.TagSpecLibraryId, s);
         setBacklogStats(map);
       }).catch((err) => console.error('Failed to fetch backlog stats:', err))
         .finally(() => { if (!cancelled) setStatsLoading(false); });
@@ -312,6 +322,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
         library: lib,
         bank: getContextValue(lib.Context, 'BankSwiftCode') ?? '',
         side: getContextValue(lib.Context, 'Side') ?? '',
+        dataSetType: lib.DataSetType,
         operatorName: hasOperator
           ? usersMap.get(inProgressLib!.OperatorId) ?? inProgressLib!.OperatorId
           : null,
@@ -322,15 +333,19 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
       };
     });
 
-    // Sort: my checkouts first, then other users' checkouts, then the rest.
-    // Within each bucket, sort alphabetically by bank name.
+    // Sort: DataSetType first (clusters each workspace together), then
+    // my checkouts, then other users' checkouts, then the rest; within a
+    // bucket, alphabetically by bank then side.
     const bucketOrder = (r: DisplayRow) =>
       r.isOwnedByMe ? 0 : (r.isInProgress && r.hasOperator) ? 1 : 2;
 
     return unsorted.sort((a, b) => {
+      const dst = a.dataSetType.localeCompare(b.dataSetType);
+      if (dst !== 0) return dst;
       const bucket = bucketOrder(a) - bucketOrder(b);
       if (bucket !== 0) return bucket;
-      return a.bank.localeCompare(b.bank);
+      const byBank = a.bank.localeCompare(b.bank);
+      return byBank !== 0 ? byBank : a.side.localeCompare(b.side);
     });
   }, [libraries, usersMap, userId]);
 
@@ -342,7 +357,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
     const sigOf = (r: DisplayRow) =>
       `${r.isInProgress}|${r.isOwnedByMe}|${r.hasOperator}|${r.operatorName ?? ''}`;
     const current = new Map<string, string>();
-    for (const r of rows) current.set(`${r.bank}:${r.side}`, sigOf(r));
+    for (const r of rows) current.set(`${r.dataSetType}:${r.bank}:${r.side}`, sigOf(r));
 
     const prev = prevRowSignaturesRef.current;
     prevRowSignaturesRef.current = current;
@@ -427,12 +442,15 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
     }
     const bank = getContextValue(target.Context, 'BankSwiftCode') ?? '';
     const side = getContextValue(target.Context, 'Side') ?? '';
-    const rowKey = `${bank}:${side}`;
-    // Find the canonical (non-in-progress) library for this bank/side, since
-    // that is the one the row uses as `row.library.Id` for its key/highlight.
+    const rowKey = `${target.DataSetType}:${bank}:${side}`;
+    // Find the canonical (non-in-progress) library for this bank/side/type,
+    // since that is the one the row uses as `row.library.Id` for its
+    // key/highlight. Match DataSetType too so we don't grab another
+    // workspace's library for the same bank/side.
     const canonical = libraries.find(
       (l) =>
         l.StatusTag !== 'INPROGRESS' &&
+        l.DataSetType === target.DataSetType &&
         getContextValue(l.Context, 'BankSwiftCode') === bank &&
         getContextValue(l.Context, 'Side') === side,
     );
@@ -484,7 +502,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
       await tagSpecLibraryCheckOut(checkoutId, authToken, tepHeaders);
       refreshAfterAction();
       setToast({ message: `Checked out ${row.bank} / ${row.side}`, type: 'success' });
-      onCheckoutComplete(row.bank, row.side);
+      onCheckoutComplete(row.bank, row.side, row.dataSetType);
     } catch (err) {
       setToast({ message: err instanceof Error ? err.message : 'Checkout failed', type: 'error' });
     } finally {
@@ -501,7 +519,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
     if (!row.inProgressLib?.Id) return;
     setActionLoading(row.library.Id!);
     try {
-      await onRelease(row.bank, row.side);
+      await onRelease(row.bank, row.side, row.dataSetType);
     } finally {
       setActionLoading(null);
     }
@@ -514,7 +532,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
     try {
       await tagSpecLibrarySave(row.inProgressLib, authToken, tepHeaders);
       await tagSpecLibraryCheckIn(row.inProgressLib.Id, authToken, tepHeaders);
-      clearChanges(row.bank, row.side);
+      clearChanges(row.bank, row.side, row.dataSetType);
       refreshAfterTaggingTrigger();
       setToast({ message: `Checked in ${row.bank} / ${row.side}`, type: 'success' });
     } catch (err) {
@@ -530,7 +548,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
     setToast({ message: `Rolling back ${rollbackTarget.bank} / ${rollbackTarget.side}…`, type: 'info', duration: 60_000 });
     try {
       await tagSpecLibraryRollback(rollbackTarget.inProgressLib.Id, authToken, tepHeaders);
-      clearChanges(rollbackTarget.bank, rollbackTarget.side);
+      clearChanges(rollbackTarget.bank, rollbackTarget.side, rollbackTarget.dataSetType);
       refreshAfterTaggingTrigger();
       setToast({ message: `Rolled back ${rollbackTarget.bank} / ${rollbackTarget.side}`, type: 'success' });
     } catch (err) {
@@ -547,7 +565,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
     if (!parentLib) return;
     const bank = getContextValue(parentLib.Context, 'BankSwiftCode') ?? '';
     const side = getContextValue(parentLib.Context, 'Side') ?? '';
-    onViewTransactions(bank, side, def.Id);
+    onViewTransactions(bank, side, parentLib.DataSetType, def.Id);
   }, [onViewTransactions]);
 
   const handleDeleteTag = useCallback((id: string) => {
@@ -665,7 +683,8 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
             <thead className="bg-surface-secondary sticky top-0 z-20">
               <tr className="flex items-center">
                 <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary w-10 shrink-0 whitespace-nowrap"></th>
-                <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary w-44 shrink-0 whitespace-nowrap">Bank</th>
+                <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary w-32 shrink-0 whitespace-nowrap">Bank</th>
+                <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary w-28 shrink-0 whitespace-nowrap">Type</th>
                 <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary w-24 shrink-0 whitespace-nowrap">Side</th>
                 <th className="px-4 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wider text-body-secondary w-16 shrink-0 whitespace-nowrap">Rules</th>
                 <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary flex-1 min-w-72 whitespace-nowrap">Statistics</th>
@@ -677,7 +696,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
             <tbody className="bg-surface divide-y divide-divide">
               {rows.map((row) => {
                 const isLoading = actionLoading === row.library.Id;
-                const rowKey = `${row.bank}:${row.side}`;
+                const rowKey = `${row.dataSetType}:${row.bank}:${row.side}`;
                 const isExpanded = expandedRows.has(rowKey);
                 const displayLib = getDisplayLib(row);
                 const definitions = displayLib.TagSpecDefinitions;
@@ -696,7 +715,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                     {row.isOwnedByMe && isRecentlyChanged && (
                       <td data-tour="row-just-checked-out" aria-hidden hidden />
                     )}
-                    <td colSpan={8} className="p-0">
+                    <td colSpan={9} className="p-0">
                       {/* Main row — sticky when expanded */}
                       <div className={`flex items-start transition-colors duration-500 ${isExpanded ? 'sticky top-8.5 z-10 shadow-sm border-b border-border bg-cyan-50 dark:bg-slate-800 ' : ''} ${row.isInProgress && !isExpanded ? 'bg-primary/5' : isExpanded ? '' : 'hover:bg-surface-hover'} ${isRecentlyChanged ? 'bg-amber-100! dark:bg-amber-500/15! ring-1 ring-inset ring-amber-400/60 dark:ring-amber-500/40' : ''} ${isNavHighlighted ? 'bg-cyan-100! dark:bg-cyan-500/15! ring-2 ring-inset ring-cyan-400/70 dark:ring-cyan-400/60' : ''}`}>
                         {/* Expand toggle */}
@@ -716,7 +735,13 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                           </button>
                         </div>
                         {/* Bank */}
-                        <div className="px-4 py-2.5 text-xs font-medium text-heading w-44 shrink-0 cursor-pointer select-none" onClick={() => toggleExpand(rowKey)}>{bankNameMap.get(row.bank) ?? row.bank}</div>
+                        <div className="px-4 py-2.5 text-xs font-medium text-heading w-32 shrink-0 cursor-pointer select-none truncate" onClick={() => toggleExpand(rowKey)}>{bankNameMap.get(row.bank) ?? row.bank}</div>
+                        {/* DataSetType */}
+                        <div className="px-4 py-2.5 w-28 shrink-0">
+                          <span className="inline-flex items-center rounded-full bg-surface-secondary border border-border text-[11px] font-medium text-body-secondary px-2 py-0.5 whitespace-nowrap">
+                            {DATA_SET_TYPE_LABELS[row.dataSetType as DataSetType] ?? row.dataSetType}
+                          </span>
+                        </div>
                         {/* Side */}
                         <div className="px-4 py-2.5 w-24 shrink-0">
                           <Badge variant={row.side === 'CR' ? 'emerald' : row.side === 'DR' ? 'red' : 'default'} size="xs">
@@ -780,7 +805,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                                 <div className="flex items-center justify-start pl-27 gap-2 flex-wrap min-w-0">
                                   <button
                                     type="button"
-                                    onClick={() => onViewTransactions(row.bank, row.side, undefined, buildPillFilters('clean', row.bank, row.side))}
+                                    onClick={() => onViewTransactions(row.bank, row.side, row.dataSetType, undefined, buildPillFilters('clean'))}
                                     className="cursor-pointer transition-transform hover:scale-105 active:scale-95"
                                     aria-label={`View ${stats.FullyTaggedCount.toLocaleString()} clean transactions`}
                                   >
@@ -800,7 +825,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                                     >
                                       <button
                                         type="button"
-                                        onClick={() => onViewTransactions(row.bank, row.side, undefined, buildPillFilters('near-clean', row.bank, row.side))}
+                                        onClick={() => onViewTransactions(row.bank, row.side, row.dataSetType, undefined, buildPillFilters('near-clean'))}
                                         className="cursor-pointer inline-flex transition-transform hover:scale-105 active:scale-95"
                                         aria-label={`View ${stats.TaggedWithMissingOptionalAttrCount.toLocaleString()} near-clean transactions`}
                                       >
@@ -833,7 +858,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                                     >
                                       <button
                                         type="button"
-                                        onClick={() => onViewTransactions(row.bank, row.side, undefined, buildPillFilters('problematic-all', row.bank, row.side))}
+                                        onClick={() => onViewTransactions(row.bank, row.side, row.dataSetType, undefined, buildPillFilters('problematic-all'))}
                                         className="cursor-pointer inline-flex transition-transform hover:scale-105 active:scale-95"
                                         aria-label={`View ${stats.IssuesCount.toLocaleString()} problematic transactions`}
                                       >
@@ -848,7 +873,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                                   {stats.TaggedWithMissingMandatoryAttrCount > 0 && (
                                     <button
                                       type="button"
-                                      onClick={() => onViewTransactions(row.bank, row.side, undefined, buildPillFilters('problematic-missing-mandatory', row.bank, row.side))}
+                                      onClick={() => onViewTransactions(row.bank, row.side, row.dataSetType, undefined, buildPillFilters('problematic-missing-mandatory'))}
                                       className="cursor-pointer transition-transform hover:scale-105 active:scale-95"
                                       aria-label={`View ${stats.TaggedWithMissingMandatoryAttrCount.toLocaleString()} transactions missing mandatory attributes`}
                                     >
@@ -858,7 +883,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                                   {stats.TaggedWithInvalidAttrCount > 0 && (
                                     <button
                                       type="button"
-                                      onClick={() => onViewTransactions(row.bank, row.side, undefined, buildPillFilters('problematic-invalid-attributes', row.bank, row.side))}
+                                      onClick={() => onViewTransactions(row.bank, row.side, row.dataSetType, undefined, buildPillFilters('problematic-invalid-attributes'))}
                                       className="cursor-pointer transition-transform hover:scale-105 active:scale-95"
                                       aria-label={`View ${stats.TaggedWithInvalidAttrCount.toLocaleString()} transactions with invalid attributes`}
                                     >
@@ -868,7 +893,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                                   {stats.MultiTaggedCount > 0 && (
                                     <button
                                       type="button"
-                                      onClick={() => onViewTransactions(row.bank, row.side, undefined, buildPillFilters('problematic-multi-tagged', row.bank, row.side))}
+                                      onClick={() => onViewTransactions(row.bank, row.side, row.dataSetType, undefined, buildPillFilters('problematic-multi-tagged'))}
                                       className="cursor-pointer transition-transform hover:scale-105 active:scale-95"
                                       aria-label={`View ${stats.MultiTaggedCount.toLocaleString()} multi-tagged transactions`}
                                     >
@@ -878,7 +903,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                                   {stats.UntaggedCount > 0 && (
                                     <button
                                       type="button"
-                                      onClick={() => onViewTransactions(row.bank, row.side, undefined, buildPillFilters('untagged', row.bank, row.side))}
+                                      onClick={() => onViewTransactions(row.bank, row.side, row.dataSetType, undefined, buildPillFilters('untagged'))}
                                       className="cursor-pointer transition-transform hover:scale-105 active:scale-95"
                                       aria-label={`View ${stats.UntaggedCount.toLocaleString()} untagged transactions`}
                                     >
@@ -888,7 +913,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                                   {stats.DeadEndCount > 0 && (
                                     <button
                                       type="button"
-                                      onClick={() => onViewTransactions(row.bank, row.side, undefined, buildPillFilters('dead-end', row.bank, row.side))}
+                                      onClick={() => onViewTransactions(row.bank, row.side, row.dataSetType, undefined, buildPillFilters('dead-end'))}
                                       className="cursor-pointer transition-transform hover:scale-105 active:scale-95"
                                       aria-label={`View ${stats.DeadEndCount.toLocaleString()} dead-end transactions`}
                                     >
@@ -1002,7 +1027,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                                 OverflowMenu above — the action row was
                                 getting too crowded to render any of them
                                 on a single line. */}
-                            <Button data-tour="backlog-transactions-button" variant="outline" size="xs" onClick={() => onViewTransactions(row.bank, row.side)} disabled={isLoading}>
+                            <Button data-tour="backlog-transactions-button" variant="outline" size="xs" onClick={() => onViewTransactions(row.bank, row.side, row.dataSetType)} disabled={isLoading}>
                               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
                                 <path fillRule="evenodd" d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zm0 5A.75.75 0 012.75 9h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 9.75zm0 5a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75a.75.75 0 01-.75-.75z" clipRule="evenodd" />
                               </svg>
@@ -1121,8 +1146,9 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
           onTagClick={(def) => {
             const bank = compareTarget.bank;
             const side = compareTarget.side;
+            const dataSetType = compareTarget.dataSetType;
             setCompareTarget(null);
-            onViewTransactions(bank, side, def.Id);
+            onViewTransactions(bank, side, dataSetType, def.Id);
           }}
         />
       )}

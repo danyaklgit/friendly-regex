@@ -5,8 +5,10 @@ import { getRegexDescription } from '../types/tagSpec';
 const BASELINE_PREFIX = 'tep:baseline:';
 const CURRENT_PREFIX = 'tep:current:';
 
-function key(prefix: string, bank: string, side: string) {
-  return `${prefix}${bank}:${side}`;
+// Keys are namespaced by DataSetType so a checked-out MT942 draft for a
+// bank/side never collides with the MT940 draft for the SAME bank/side.
+function key(prefix: string, dataSetType: string, bank: string, side: string) {
+  return `${prefix}${dataSetType}:${bank}:${side}`;
 }
 
 function readLib(storageKey: string): TagSpecLibrary | null {
@@ -198,51 +200,55 @@ function computeChangeSummary(baselineLib: TagSpecLibrary, currentLib: TagSpecLi
 
 // --- Hook ---
 
-export function useLocalChanges(bank: string | undefined, side: string | undefined) {
+export function useLocalChanges(
+  bank: string | undefined,
+  side: string | undefined,
+  dataSetType: string | undefined,
+) {
   const [hasChanges, setHasChanges] = useState(false);
 
-  // Recompute hasChanges whenever bank/side changes or after updates
+  // Recompute hasChanges whenever bank/side/dataSetType changes or after updates
   const recompute = useCallback(() => {
-    if (!bank || !side) { setHasChanges(false); return; }
-    const baselineRaw = localStorage.getItem(key(BASELINE_PREFIX, bank, side));
-    const currentRaw = localStorage.getItem(key(CURRENT_PREFIX, bank, side));
+    if (!bank || !side || !dataSetType) { setHasChanges(false); return; }
+    const baselineRaw = localStorage.getItem(key(BASELINE_PREFIX, dataSetType, bank, side));
+    const currentRaw = localStorage.getItem(key(CURRENT_PREFIX, dataSetType, bank, side));
     if (!baselineRaw || !currentRaw) { setHasChanges(false); return; }
     setHasChanges(baselineRaw !== currentRaw);
-  }, [bank, side]);
+  }, [bank, side, dataSetType]);
 
   useEffect(() => { recompute(); }, [recompute]);
 
   const saveBaseline = useCallback((lib: TagSpecLibrary) => {
-    if (!bank || !side) return;
+    if (!bank || !side || !dataSetType) return;
     const serialized = JSON.stringify(lib);
-    localStorage.setItem(key(BASELINE_PREFIX, bank, side), serialized);
-    localStorage.setItem(key(CURRENT_PREFIX, bank, side), serialized);
+    localStorage.setItem(key(BASELINE_PREFIX, dataSetType, bank, side), serialized);
+    localStorage.setItem(key(CURRENT_PREFIX, dataSetType, bank, side), serialized);
     setHasChanges(false);
-  }, [bank, side]);
+  }, [bank, side, dataSetType]);
 
   const updateCurrent = useCallback((lib: TagSpecLibrary) => {
-    if (!bank || !side) return;
-    localStorage.setItem(key(CURRENT_PREFIX, bank, side), JSON.stringify(lib));
+    if (!bank || !side || !dataSetType) return;
+    localStorage.setItem(key(CURRENT_PREFIX, dataSetType, bank, side), JSON.stringify(lib));
     recompute();
-  }, [bank, side, recompute]);
+  }, [bank, side, dataSetType, recompute]);
 
-  const clearChanges = useCallback((b: string, s: string) => {
-    localStorage.removeItem(key(BASELINE_PREFIX, b, s));
-    localStorage.removeItem(key(CURRENT_PREFIX, b, s));
-    if (b === bank && s === side) setHasChanges(false);
-  }, [bank, side]);
+  const clearChanges = useCallback((b: string, s: string, dst: string) => {
+    localStorage.removeItem(key(BASELINE_PREFIX, dst, b, s));
+    localStorage.removeItem(key(CURRENT_PREFIX, dst, b, s));
+    if (b === bank && s === side && dst === dataSetType) setHasChanges(false);
+  }, [bank, side, dataSetType]);
 
-  const getLocalLib = useCallback((b: string, s: string): TagSpecLibrary | null => {
-    return readLib(key(CURRENT_PREFIX, b, s));
+  const getLocalLib = useCallback((b: string, s: string, dst: string): TagSpecLibrary | null => {
+    return readLib(key(CURRENT_PREFIX, dst, b, s));
   }, []);
 
-  const hasLocalData = useCallback((b: string, s: string): boolean => {
-    return localStorage.getItem(key(CURRENT_PREFIX, b, s)) !== null;
+  const hasLocalData = useCallback((b: string, s: string, dst: string): boolean => {
+    return localStorage.getItem(key(CURRENT_PREFIX, dst, b, s)) !== null;
   }, []);
 
-  const getChangeSummary = useCallback((b: string, s: string): ChangeSummary | null => {
-    const baselineLib = readLib(key(BASELINE_PREFIX, b, s));
-    const currentLib = readLib(key(CURRENT_PREFIX, b, s));
+  const getChangeSummary = useCallback((b: string, s: string, dst: string): ChangeSummary | null => {
+    const baselineLib = readLib(key(BASELINE_PREFIX, dst, b, s));
+    const currentLib = readLib(key(CURRENT_PREFIX, dst, b, s));
     if (!baselineLib || !currentLib) return null;
     return computeChangeSummary(baselineLib, currentLib);
   }, []);
