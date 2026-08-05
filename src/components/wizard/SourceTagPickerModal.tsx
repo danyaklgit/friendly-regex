@@ -94,20 +94,29 @@ export function SourceTagPickerModal({ open, libraries, onClose, onSelect }: Sou
   // draft library and the ACTIVE released library during a checkout — duplicate
   // <li key={def.Id}> entries previously broke React's reconciliation when the
   // filter shrank the list.
+  //
+  // When a definition exists in more than one library version, ALWAYS prefer
+  // the most current one: the INPROGRESS (checked-out) draft over the ACTIVE
+  // released copy, and among same-status libraries the higher Version. This
+  // makes "Duplicate Rules From Tag" clone the operator's latest in-progress
+  // rules/attributes, not a stale released snapshot. `score` ranks candidates
+  // for the same def.Id; the highest score wins (matches the reducer's
+  // "prefer INPROGRESS" merge in TagSpecContext).
   const eligibleEntries = useMemo<PickerEntry[]>(() => {
-    const seen = new Set<string>();
-    const result: PickerEntry[] = [];
+    const byId = new Map<string, { entry: PickerEntry; score: number }>();
     for (const lib of libraries) {
       const bank = getContextValue(lib.Context, 'BankSwiftCode') ?? '';
       const side = getContextValue(lib.Context, 'Side') ?? '';
+      const score = (lib.StatusTag === 'INPROGRESS' ? 1_000_000 : 0) + (lib.Version ?? 0);
       for (const def of lib.TagSpecDefinitions) {
         if (!hasContent(def)) continue;
-        if (seen.has(def.Id)) continue;
-        seen.add(def.Id);
+        const existing = byId.get(def.Id);
+        if (existing && existing.score >= score) continue;
         const txnType = getContextValue(def.Context, 'TransactionTypeCode') ?? '';
-        result.push({ def, txnType, bank, side });
+        byId.set(def.Id, { entry: { def, txnType, bank, side }, score });
       }
     }
+    const result: PickerEntry[] = Array.from(byId.values(), (v) => v.entry);
     // Sort alphabetically by tag name (case-insensitive), with the def Id as a
     // stable tiebreaker so duplicate tag names (e.g. two "A2AIn" versions)
     // keep a deterministic order across renders.
