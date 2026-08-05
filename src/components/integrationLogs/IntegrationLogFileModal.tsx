@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useTepConfig } from '../../context/TepConfigContext';
 import {
@@ -8,6 +8,7 @@ import {
 } from '../../api/transactions';
 import { Modal } from '../shared/Modal';
 import { Button } from '../shared/Button';
+import { VirtualizedCodeBlock } from '../shared/VirtualizedCodeBlock';
 
 type Pane = 'request' | 'response';
 
@@ -135,7 +136,10 @@ export function IntegrationLogFileModal({ log, onClose }: IntegrationLogFileModa
   }, [log.Id]);
 
   const active = pane === 'request' ? request : response;
-  const display = pretty(active.content);
+  // Memoize the parse+stringify: the virtualized viewer re-renders on every
+  // scroll frame, and re-running `pretty` over a multi-MB payload each time
+  // would reintroduce the freeze this change is meant to remove.
+  const display = useMemo(() => pretty(active.content), [active.content]);
 
   const handleCopy = async () => {
     try {
@@ -219,10 +223,15 @@ export function IntegrationLogFileModal({ log, onClose }: IntegrationLogFileModa
             <div className="h-full flex items-center justify-center text-xs text-red-600">
               {active.error}
             </div>
+          ) : display ? (
+            // Windowed rendering: only the visible lines mount, more as the
+            // user scrolls — a huge JSON payload no longer freezes the page.
+            // Keyed by pane so switching tabs resets the scroll to the top.
+            <VirtualizedCodeBlock key={pane} text={display} />
           ) : (
-            <pre className="h-full overflow-auto custom-scrollbar bg-surface-tertiary text-body font-mono text-xs whitespace-pre-wrap p-3 rounded border border-border">
-              {display || <span className="text-muted">(empty)</span>}
-            </pre>
+            <div className="h-full flex items-center justify-center text-xs text-muted bg-surface-tertiary rounded border border-border">
+              (empty)
+            </div>
           )}
         </div>
       </div>
