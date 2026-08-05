@@ -10,6 +10,7 @@ interface Tab {
 interface CheckoutInfo {
   bank: string;
   side: string;
+  dataSetType: string;
   hasChanges: boolean;
   isReadOnly?: boolean;
   actionLoading?: boolean;
@@ -17,9 +18,9 @@ interface CheckoutInfo {
    *  PageHeader). Pairs with `actionLoading=true` to explain WHY the
    *  buttons are unavailable — e.g. while a rule is being authored. */
   disabledReason?: string;
-  onRelease: (bank: string, side: string) => void;
-  onCheckin: (bank: string, side: string) => void;
-  onRequestUndo?: (bank: string, side: string) => void;
+  onRelease: (bank: string, side: string, dataSetType: string) => void;
+  onCheckin: (bank: string, side: string, dataSetType: string) => void;
+  onRequestUndo?: (bank: string, side: string, dataSetType: string) => void;
 }
 
 interface TabContainerProps {

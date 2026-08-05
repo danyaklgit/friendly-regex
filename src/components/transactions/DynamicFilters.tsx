@@ -36,6 +36,13 @@ const HIDDEN_API_FILTER_TAGS = new Set([
   'IsUntagged',
   'IsMultiTagged',
   'OpsAttributes',
+  // DataSetType is owned by the checkout scope (sent via activeExtraFilters),
+  // never a user-toggleable pill — a second, conflicting DataSetType IN filter
+  // would AND server-side and empty the grid. Hidden defensively under a few
+  // likely tag spellings; confirm the real one against a live GetFilters.
+  'DataSetType',
+  'DATASET_TYPE',
+  'DataSetTypes',
 ]);
 
 interface DynamicFiltersProps {

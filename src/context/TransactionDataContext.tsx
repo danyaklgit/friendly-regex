@@ -6,6 +6,7 @@ import { getTransactions, getFilters, getUserFilters, markTransactionsAsDeadEnd,
 import { useAuth } from './AuthContext';
 import { useTepConfig } from './TepConfigContext';
 import { loadSampleTransactions } from '../data/loadSampleData';
+import { DEFAULT_DATA_SET_TYPE } from '../constants/dataSetTypes';
 
 // Default page size for the initial Transactions load + every
 // filter-change refetch. Stays at 50 so the first paint is light —
@@ -64,7 +65,7 @@ export interface TransactionDataContextValue {
   trimLoadedTransactions: (count: number) => void;
   filterDefinitions: FilterDefinition[];
   filterDefinitionsLoading: boolean;
-  fetchFilterDefinitions: () => Promise<void>;
+  fetchFilterDefinitions: (dataSetType?: string) => Promise<void>;
   /** User-screen filter definitions, fetched from GetUserFilters. Kept
    *  separate from the operator `filterDefinitions` so the user table's
    *  TransactionType label lookup (which reads `filterDefinitions`) is
@@ -74,7 +75,7 @@ export interface TransactionDataContextValue {
   /** Fetch user-screen filters. Pass selected bank SWIFT codes to narrow the
    *  BANKS filter and receive the ATTR:* attribute filters (union of their
    *  values). Omit on the first call (bank picker) to list all banks. */
-  fetchUserFilterDefinitions: (banks?: string[]) => Promise<void>;
+  fetchUserFilterDefinitions: (banks?: string[], dataSetType?: string) => Promise<void>;
   decimalMaxValues: Map<string, number>;
   fetchDecimalMaxValues: (filterDefs: FilterDefinition[]) => Promise<void>;
 }
@@ -215,7 +216,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
   }, [flagDeadEnd, setComments]);
 
   const filterFetchingRef = useRef(false);
-  const fetchFilterDefinitions = useCallback(async () => {
+  const fetchFilterDefinitions = useCallback(async (dataSetType: string = DEFAULT_DATA_SET_TYPE) => {
     if (!isLiveMode || filterFetchingRef.current) return;
     filterFetchingRef.current = true;
     try {
@@ -230,7 +231,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
         requestId: tepConfig.ttpRequestId,
       };
       setFilterDefinitionsLoading(true);
-      const defs = await getFilters('MT940', token, tepHeaders);
+      const defs = await getFilters(dataSetType, token, tepHeaders);
       setFilterDefinitions(defs);
     } catch (err) {
       console.error('Failed to fetch filter definitions:', err);
@@ -241,7 +242,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
   }, [isLiveMode, getAuthHeaders, refreshIfNeeded, userId, tepConfig]);
 
   const userFilterFetchingRef = useRef(false);
-  const fetchUserFilterDefinitions = useCallback(async (banks?: string[]) => {
+  const fetchUserFilterDefinitions = useCallback(async (banks?: string[], dataSetType: string = DEFAULT_DATA_SET_TYPE) => {
     if (!isLiveMode || userFilterFetchingRef.current) return;
     userFilterFetchingRef.current = true;
     try {
@@ -256,7 +257,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
         requestId: tepConfig.ttpRequestId,
       };
       setUserFilterDefinitionsLoading(true);
-      const defs = await getUserFilters('MT940', token, tepHeaders, undefined, banks);
+      const defs = await getUserFilters(dataSetType, token, tepHeaders, undefined, banks);
       setUserFilterDefinitions(defs);
     } catch (err) {
       console.error('Failed to fetch user filter definitions:', err);
