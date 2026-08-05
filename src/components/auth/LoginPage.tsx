@@ -142,6 +142,24 @@ const TotpInput = ({ value, onChange, onSubmit, isLoading, error }: {
     }
   };
 
+  // Pasting a full code must be handled here, NOT in onChange: each box has
+  // maxLength=1, so the browser truncates a pasted string to a single
+  // character before onChange sees it (which is why only the first digit
+  // landed). onPaste receives the raw clipboard text, so we can distribute
+  // the digits across the boxes starting at the focused one.
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>, index: number) => {
+    const pasted = e.clipboardData.getData('text').replace(/[^0-9]/g, '');
+    if (!pasted) return;
+    e.preventDefault();
+    const newValue = (
+      value.slice(0, index) + pasted + value.slice(index + pasted.length)
+    ).slice(0, 6);
+    onChange(newValue);
+    // Move focus to the box after the last one just filled (capped at 6).
+    const focusIndex = Math.min(index + pasted.length, 5);
+    (document.getElementById(`totp-${focusIndex}`) as HTMLInputElement)?.focus();
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex justify-center gap-2">
@@ -155,6 +173,7 @@ const TotpInput = ({ value, onChange, onSubmit, isLoading, error }: {
             value={value[i] ?? ''}
             onChange={(e) => handleInputChange(e, i)}
             onKeyDown={(e) => handleKeyDown(e, i)}
+            onPaste={(e) => handlePaste(e, i)}
             disabled={isLoading}
             // Auto-focus the first cell on mount so users can start typing
             // their code immediately without clicking into the field.
