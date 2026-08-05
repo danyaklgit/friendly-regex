@@ -23,7 +23,7 @@ import { CommentSearchTrigger } from '../comments/CommentSearchTrigger';
 import { CommentSearchPanel } from '../comments/CommentSearchPanel';
 import type { TepHeaders, BacklogStatEntry, FilterProperty } from '../../api/transactions';
 import { getBacklogStats } from '../../api/transactions';
-import { ALL_LIBRARY_DATA_SET_TYPES, DATA_SET_TYPE_LABELS, type DataSetType } from '../../constants/dataSetTypes';
+import { ALL_LIBRARY_DATA_SET_TYPES, DATA_SET_TYPES, DATA_SET_TYPE_LABELS, DEFAULT_DATA_SET_TYPE, type DataSetType } from '../../constants/dataSetTypes';
 import type { TagSpecLibrary, TagSpecDefinition } from '../../types';
 import type { TagSpecCommentTarget } from '../../types/comments';
 import { useLocalChanges } from '../../hooks/useLocalChanges';
@@ -348,6 +348,37 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
       return byBank !== 0 ? byBank : a.side.localeCompare(b.side);
     });
   }, [libraries, usersMap, userId]);
+
+  // DataSetType tabs, shown only for the types that actually have libraries.
+  // Known types keep the canonical MT940 / MT942 / INTERIM_MT940 order; any
+  // unrecognized type still gets a tab (appended) so its rows aren't hidden.
+  const availableDataSetTypes = useMemo(() => {
+    const present = Array.from(new Set(rows.map((r) => r.dataSetType)));
+    const known = DATA_SET_TYPES.filter((t) => present.includes(t));
+    const extra = present.filter((t) => !DATA_SET_TYPES.includes(t as DataSetType)).sort();
+    return [...known, ...extra];
+  }, [rows]);
+
+  const rowCountByType = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of rows) m.set(r.dataSetType, (m.get(r.dataSetType) ?? 0) + 1);
+    return m;
+  }, [rows]);
+
+  // User's explicit tab pick; falls back to MT940 (or the first available)
+  // when unset or when the picked type is no longer present.
+  const [selectedDataSetType, setSelectedDataSetType] = useState<string | null>(null);
+  const activeDataSetType =
+    selectedDataSetType && availableDataSetTypes.includes(selectedDataSetType)
+      ? selectedDataSetType
+      : availableDataSetTypes.includes(DEFAULT_DATA_SET_TYPE)
+        ? DEFAULT_DATA_SET_TYPE
+        : (availableDataSetTypes[0] ?? null);
+
+  const visibleRows = useMemo(
+    () => (activeDataSetType ? rows.filter((r) => r.dataSetType === activeDataSetType) : rows),
+    [rows, activeDataSetType],
+  );
 
   // Detect rows whose checkout-related state just changed (isInProgress,
   // isOwnedByMe, hasOperator, operatorName) and highlight them for 5s. The
@@ -678,13 +709,40 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
       ) : rows.length === 0 ? (
         <div className="text-center py-12 text-body-secondary text-sm">No active libraries found.</div>
       ) : (
+        <>
+        {/* DataSetType tabs — one per available statement type (workspace). */}
+        {availableDataSetTypes.length > 0 && (
+          <div className="flex items-center gap-1 mb-3 border-b border-border" role="tablist" aria-label="Statement type">
+            {availableDataSetTypes.map((t) => {
+              const active = t === activeDataSetType;
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setSelectedDataSetType(t)}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors cursor-pointer whitespace-nowrap ${
+                    active
+                      ? 'border-primary text-primary'
+                      : 'border-transparent text-body-secondary hover:text-heading hover:border-border-strong'
+                  }`}
+                >
+                  {DATA_SET_TYPE_LABELS[t as DataSetType] ?? t}
+                  <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${active ? 'bg-primary/15 text-primary-dark dark:text-primary' : 'bg-surface-secondary text-body-secondary'}`}>
+                    {rowCountByType.get(t) ?? 0}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
         <div data-tour="backlog-table" className="overflow-x-auto overflow-y-clip border border-border rounded-lg custom-scrollbar">
           <table className="min-w-full divide-y divide-divide">
             <thead className="bg-surface-secondary sticky top-0 z-20">
               <tr className="flex items-center">
                 <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary w-10 shrink-0 whitespace-nowrap"></th>
-                <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary w-32 shrink-0 whitespace-nowrap">Bank</th>
-                <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary w-28 shrink-0 whitespace-nowrap">Type</th>
+                <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary w-44 shrink-0 whitespace-nowrap">Bank</th>
                 <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary w-24 shrink-0 whitespace-nowrap">Side</th>
                 <th className="px-4 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wider text-body-secondary w-16 shrink-0 whitespace-nowrap">Rules</th>
                 <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary flex-1 min-w-72 whitespace-nowrap">Statistics</th>
@@ -694,7 +752,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
               </tr>
             </thead>
             <tbody className="bg-surface divide-y divide-divide">
-              {rows.map((row) => {
+              {visibleRows.map((row) => {
                 const isLoading = actionLoading === row.library.Id;
                 const rowKey = `${row.dataSetType}:${row.bank}:${row.side}`;
                 const isExpanded = expandedRows.has(rowKey);
@@ -715,7 +773,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                     {row.isOwnedByMe && isRecentlyChanged && (
                       <td data-tour="row-just-checked-out" aria-hidden hidden />
                     )}
-                    <td colSpan={9} className="p-0">
+                    <td colSpan={8} className="p-0">
                       {/* Main row — sticky when expanded */}
                       <div className={`flex items-start transition-colors duration-500 ${isExpanded ? 'sticky top-8.5 z-10 shadow-sm border-b border-border bg-cyan-50 dark:bg-slate-800 ' : ''} ${row.isInProgress && !isExpanded ? 'bg-primary/5' : isExpanded ? '' : 'hover:bg-surface-hover'} ${isRecentlyChanged ? 'bg-amber-100! dark:bg-amber-500/15! ring-1 ring-inset ring-amber-400/60 dark:ring-amber-500/40' : ''} ${isNavHighlighted ? 'bg-cyan-100! dark:bg-cyan-500/15! ring-2 ring-inset ring-cyan-400/70 dark:ring-cyan-400/60' : ''}`}>
                         {/* Expand toggle */}
@@ -735,13 +793,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                           </button>
                         </div>
                         {/* Bank */}
-                        <div className="px-4 py-2.5 text-xs font-medium text-heading w-32 shrink-0 cursor-pointer select-none truncate" onClick={() => toggleExpand(rowKey)}>{bankNameMap.get(row.bank) ?? row.bank}</div>
-                        {/* DataSetType */}
-                        <div className="px-4 py-2.5 w-28 shrink-0">
-                          <span className="inline-flex items-center rounded-full bg-surface-secondary border border-border text-[11px] font-medium text-body-secondary px-2 py-0.5 whitespace-nowrap">
-                            {DATA_SET_TYPE_LABELS[row.dataSetType as DataSetType] ?? row.dataSetType}
-                          </span>
-                        </div>
+                        <div className="px-4 py-2.5 text-xs font-medium text-heading w-44 shrink-0 cursor-pointer select-none truncate" onClick={() => toggleExpand(rowKey)}>{bankNameMap.get(row.bank) ?? row.bank}</div>
                         {/* Side */}
                         <div className="px-4 py-2.5 w-24 shrink-0">
                           <Badge variant={row.side === 'CR' ? 'emerald' : row.side === 'DR' ? 'red' : 'default'} size="xs">
@@ -1116,6 +1168,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       <RollbackConfirmDialog
