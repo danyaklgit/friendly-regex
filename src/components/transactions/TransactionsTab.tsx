@@ -1391,7 +1391,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     if (!tempDefinition) return effectiveLibraries;
 
     if (editingDef) {
-      return effectiveLibraries.map((lib) => {
+      const swapped = effectiveLibraries.map((lib) => {
         const hasDef = lib.TagSpecDefinitions.some((d) => d.Id === editingDef.Id);
         if (!hasDef) return lib;
         return {
@@ -1407,6 +1407,34 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
           ),
         };
       });
+      // Sample mode evaluates real libraries locally, so the in-place swap
+      // above is enough — the edited rules match new rows and extract
+      // attributes client-side.
+      if (!isLiveMode) return swapped;
+      // Live mode is the bug: analyzeRow trusts the backend's Ops tags for
+      // SAVED libraries and does NOT re-evaluate their rules locally (see
+      // analyzeRow's `useBackendTags && !isPreviewLib` guard). So a broadened
+      // edit's newly-matched rows aren't tagged/extracted client-side until
+      // the backend retags on check-in — the "new records show no attribute
+      // extractions" report. Expose the edited def through a preview library
+      // (empty parent Context ⇒ evaluated locally, exactly like a NEW rule's
+      // preview) so its in-progress rules run against the loaded rows and new
+      // matches get client-side extraction immediately. Id is preserved so it
+      // dedupes against any backend Ops tag and getAttributeValue's
+      // activeDefinitionId lookup resolves it.
+      const editPreviewLib: TagSpecLibrary = {
+        Id: 'edit-preview-lib',
+        ActiveTagSpecLibId: null,
+        OperatorId: '',
+        StatusTag: 'ACTIVE',
+        DataSetType: activeCheckout?.dataSetType ?? DEFAULT_DATA_SET_TYPE,
+        Version: 1,
+        IsLatestVersion: true,
+        VersionDate: '',
+        Context: [],
+        TagSpecDefinitions: [{ ...tempDefinition, Id: editingDef.Id }],
+      };
+      return [...swapped, editPreviewLib];
     }
 
     const previewLib: TagSpecLibrary = {
@@ -1422,7 +1450,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       TagSpecDefinitions: [tempDefinition],
     };
     return [...effectiveLibraries, previewLib];
-  }, [effectiveLibraries, tempDefinition, editingDef, activeCheckout?.dataSetType]);
+  }, [effectiveLibraries, tempDefinition, editingDef, activeCheckout?.dataSetType, isLiveMode]);
 
   // Flat definitions including preview (for table column ordering + LOV resolution)
   const allDefinitions = useMemo(() => {
