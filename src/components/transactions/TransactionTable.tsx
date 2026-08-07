@@ -111,6 +111,12 @@ interface TransactionTableProps {
 const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
   'data:AdditionalInformation': 320,
 };
+// Max width for a Character-view cell in compact mode (where columns have no
+// explicit width). Without a bound the exploded per-character boxes lay out on
+// ONE line — an Arabic-heavy intraday narrative then balloons the column and
+// the width-pin captures that transient, leaving empty horizontal scroll past
+// the last column. Bounding it makes the boxes wrap (their intended layout).
+const CHAR_VIEW_MAX_WIDTH = 480;
 // Narrative columns: in non-compact mode their content wraps and gets
 // clamped to 3 lines so a single long row doesn't crowd out the table.
 // Other column types (numeric, codes, dates) clip with ellipsis in
@@ -1325,8 +1331,12 @@ const TableRow = memo(function TableRow({
               return (
                 <td
                   key={col.key}
-                  className={`px-3 ${cellPy} text-xs text-body-secondary ${relaxedMode ? 'whitespace-nowrap' : 'align-top'} ${cellWidth != null ? 'overflow-hidden' : ''} ${stickyBg} ${isHighlighted ? 'ring-1 ring-primary/30 ring-inset bg-primary/5 dark:bg-primary/10' : ''} ${isInteractive ? 'cursor-pointer hover:ring-1 hover:ring-primary/50 hover:bg-primary/5 dark:hover:bg-primary/10 transition-shadow select-none' : ''}`}
-                  style={{ ...getCellStyle(colIdx), width: cellWidth, maxWidth: cellWidth }}
+                  // Char-view cells must wrap (they carry per-character boxes),
+                  // so they never take the compact `whitespace-nowrap` branch;
+                  // a max-width bounds them so the boxes wrap instead of forcing
+                  // one giant line.
+                  className={`px-3 ${cellPy} text-xs text-body-secondary ${relaxedMode && !showCharView ? 'whitespace-nowrap' : 'align-top'} ${cellWidth != null ? 'overflow-hidden' : ''} ${stickyBg} ${isHighlighted ? 'ring-1 ring-primary/30 ring-inset bg-primary/5 dark:bg-primary/10' : ''} ${isInteractive ? 'cursor-pointer hover:ring-1 hover:ring-primary/50 hover:bg-primary/5 dark:hover:bg-primary/10 transition-shadow select-none' : ''}`}
+                  style={{ ...getCellStyle(colIdx), width: cellWidth, maxWidth: showCharView ? (cellWidth ?? CHAR_VIEW_MAX_WIDTH) : cellWidth }}
                   title={titleAttr}
                   onDoubleClick={
                     onCellDoubleClick
