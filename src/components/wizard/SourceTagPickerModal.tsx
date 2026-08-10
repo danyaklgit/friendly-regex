@@ -7,12 +7,20 @@ import { Modal } from '../shared/Modal';
 import { Button } from '../shared/Button';
 import { Tooltip } from '../shared/Tooltip';
 import { CopyableId } from '../shared/CopyableId';
+import { DATA_SET_TYPE_LABELS, DEFAULT_DATA_SET_TYPE, type DataSetType } from '../../constants/dataSetTypes';
 
 interface SourceTagPickerModalProps {
   open: boolean;
   libraries: TagSpecLibrary[];
   onClose: () => void;
   onSelect: (def: TagSpecDefinition) => void;
+  /** Active checkout context — scopes/ranks the list so an operator tagging
+   *  an intraday (MT942 / INTERIM_MT940) bank/side sees the matching MT940
+   *  rules first (the ones worth cloning). Optional: when absent the list is
+   *  unscoped and alphabetical. */
+  currentBank?: string | null;
+  currentSide?: string | null;
+  currentDataSetType?: string | null;
 }
 
 interface PickerEntry {
@@ -20,7 +28,15 @@ interface PickerEntry {
   txnType: string;
   bank: string;
   side: string;
+  dataSetType: string;
 }
+
+const sideLabel: Record<string, string> = {
+  CR: 'Credit',
+  DR: 'Debit',
+  RC: 'Rev. Credit',
+  RD: 'Rev. Debit',
+};
 
 function hasContent(def: TagSpecDefinition): boolean {
   return def.TagRuleExpressions.length > 0 || def.Attributes.length > 0;
@@ -85,9 +101,13 @@ function renderRulesAndAttributesTooltip(def: TagSpecDefinition): ReactNode {
   );
 }
 
-export function SourceTagPickerModal({ open, libraries, onClose, onSelect }: SourceTagPickerModalProps) {
+export function SourceTagPickerModal({ open, libraries, onClose, onSelect, currentBank, currentSide, currentDataSetType }: SourceTagPickerModalProps) {
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // When a checkout bank is known, default to that bank only — the operator is
+  // almost always cloning from the same bank. "Show all banks" reveals the
+  // rest. No current bank ⇒ nothing to scope, so show everything.
+  const [showAllBanks, setShowAllBanks] = useState(false);
 
   // Walk libraries so each entry carries its parent context (Side, BankSwiftCode).
   // Dedupe by def.Id since the same definition can appear in both an INPROGRESS
@@ -113,23 +133,40 @@ export function SourceTagPickerModal({ open, libraries, onClose, onSelect }: Sou
         const existing = byId.get(def.Id);
         if (existing && existing.score >= score) continue;
         const txnType = getContextValue(def.Context, 'TransactionTypeCode') ?? '';
-        byId.set(def.Id, { entry: { def, txnType, bank, side }, score });
+        byId.set(def.Id, { entry: { def, txnType, bank, side, dataSetType: lib.DataSetType }, score });
       }
     }
     const result: PickerEntry[] = Array.from(byId.values(), (v) => v.entry);
-    // Sort alphabetically by tag name (case-insensitive), with the def Id as a
-    // stable tiebreaker so duplicate tag names (e.g. two "A2AIn" versions)
-    // keep a deterministic order across renders.
+    // Relevance rank for the operator's current context: same bank, then same
+    // side, then MT940 (the confirmed base workspace whose rules an intraday
+    // tag clones from) float to the top. Falls back to a pure alphabetical
+    // sort when there's no checkout context. Def Id is the stable tiebreaker.
+    const rank = (e: PickerEntry) => {
+      let r = 0;
+      if (currentBank && e.bank === currentBank) r += 8;
+      if (currentSide && e.side === currentSide) r += 4;
+      if (e.dataSetType === DEFAULT_DATA_SET_TYPE) r += 2;
+      return r;
+    };
     result.sort((a, b) => {
+      const byRank = rank(b) - rank(a);
+      if (byRank !== 0) return byRank;
       const byTag = a.def.Tag.localeCompare(b.def.Tag, undefined, { sensitivity: 'base' });
       return byTag !== 0 ? byTag : a.def.Id.localeCompare(b.def.Id);
     });
     return result;
-  }, [libraries]);
+  }, [libraries, currentBank, currentSide]);
+
+  // Bank scope: default to the checkout bank unless the operator opted into
+  // "Show all banks" (or there's no current bank to scope by).
+  const bankScoped = !showAllBanks && !!currentBank;
+  const scopedEntries = bankScoped
+    ? eligibleEntries.filter((e) => e.bank === currentBank)
+    : eligibleEntries;
 
   const term = search.trim().toLowerCase();
   const visibleEntries = term
-    ? eligibleEntries.filter((e) => {
+    ? scopedEntries.filter((e) => {
         return (
           e.def.Tag.toLowerCase().includes(term) ||
           e.def.Id.toLowerCase().includes(term) ||
@@ -138,16 +175,25 @@ export function SourceTagPickerModal({ open, libraries, onClose, onSelect }: Sou
           e.side.toLowerCase().includes(term)
         );
       })
-    : eligibleEntries;
+    : scopedEntries;
 
   const selectedEntry = useMemo(
     () => (selectedId ? eligibleEntries.find((e) => e.def.Id === selectedId) ?? null : null),
     [selectedId, eligibleEntries],
   );
 
+  const currentDataSetTypeLabel = currentDataSetType
+    ? (DATA_SET_TYPE_LABELS[currentDataSetType as DataSetType] ?? currentDataSetType)
+    : null;
+  const currentSideLabel = currentSide ? (sideLabel[currentSide] ?? currentSide) : null;
+  // Intraday workspaces borrow MT940's rules — that's the case where "MT940
+  // rules for this bank/side, first" is the actionable hint.
+  const isIntraday = currentDataSetType != null && currentDataSetType !== DEFAULT_DATA_SET_TYPE;
+
   const handleClose = () => {
     setSearch('');
     setSelectedId(null);
+    setShowAllBanks(false);
     onClose();
   };
 
@@ -193,11 +239,36 @@ export function SourceTagPickerModal({ open, libraries, onClose, onSelect }: Sou
           />
         </div>
 
+        {currentBank && (
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="text-xs text-muted min-w-0">
+              {isIntraday ? (
+                <>
+                  Tagging <span className="font-medium text-body-secondary">{currentDataSetTypeLabel}</span>
+                  {' · '}{currentBank}{currentSideLabel ? ` · ${currentSideLabel}` : ''} —{' '}
+                  <span className="text-body-secondary">MT940 rules for this bank/side are listed first</span> to clone.
+                </>
+              ) : (
+                <>Showing tags for <span className="font-medium text-body-secondary">{currentBank}</span>.</>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowAllBanks((v) => !v)}
+              className="text-xs font-medium text-primary hover:underline cursor-pointer whitespace-nowrap shrink-0"
+            >
+              {showAllBanks ? `Show only ${currentBank}` : 'Show all banks'}
+            </button>
+          </div>
+        )}
+
         {visibleEntries.length === 0 ? (
           <div className="text-center py-8 text-sm text-muted">
             {eligibleEntries.length === 0
               ? 'No existing tags have rules or attributes to duplicate.'
-              : 'No tags match your search.'}
+              : bankScoped && !term
+                ? `No tags with rules for ${currentBank}. Use "Show all banks" to clone from another bank.`
+                : 'No tags match your search.'}
           </div>
         ) : (
           <ul className="divide-y divide-border border border-border rounded-lg overflow-hidden">
@@ -214,6 +285,15 @@ export function SourceTagPickerModal({ open, libraries, onClose, onSelect }: Sou
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline gap-2 min-w-0">
+                        <span
+                          className={`shrink-0 text-[10px] font-semibold rounded-full px-2 py-0.5 border ${
+                            entry.dataSetType === DEFAULT_DATA_SET_TYPE
+                              ? 'bg-primary/10 text-primary-dark dark:text-primary border-primary/30'
+                              : 'bg-surface-secondary text-muted border-border'
+                          }`}
+                        >
+                          {DATA_SET_TYPE_LABELS[entry.dataSetType as DataSetType] ?? entry.dataSetType}
+                        </span>
                         <span className={`text-sm font-medium truncate ${isSelected ? 'text-primary' : 'text-heading'}`}>
                           {entry.def.Tag}
                         </span>

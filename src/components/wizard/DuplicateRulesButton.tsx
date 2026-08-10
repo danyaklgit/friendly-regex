@@ -14,6 +14,11 @@ interface DuplicateRulesButtonProps {
   currentAttributeCount: number;
   /** Apply the chosen source definition's rules + attributes to the form. */
   onApplyTemplate: (def: TagSpecDefinition) => void;
+  /** Active checkout context — forwarded to the picker so it defaults to this
+   *  bank and surfaces MT940 rules for the same bank/side first. */
+  currentBank?: string | null;
+  currentSide?: string | null;
+  currentDataSetType?: string | null;
   size?: 'xs' | 'sm' | 'md';
   className?: string;
   'data-tour'?: string;
@@ -23,6 +28,9 @@ export function DuplicateRulesButton({
   currentRuleGroupCount,
   currentAttributeCount,
   onApplyTemplate,
+  currentBank,
+  currentSide,
+  currentDataSetType,
   size = 'sm',
   className,
   ...rest
@@ -64,6 +72,9 @@ export function DuplicateRulesButton({
         libraries={libraries}
         onClose={() => setPickerOpen(false)}
         onSelect={handlePickerSelect}
+        currentBank={currentBank}
+        currentSide={currentSide}
+        currentDataSetType={currentDataSetType}
       />
 
       <ConfirmDialog
