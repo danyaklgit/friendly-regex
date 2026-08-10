@@ -27,6 +27,7 @@ import { useWizardForm, fromExistingDefinition } from '../../hooks/useWizardForm
 import type { TagSpecDefinition, TagSpecLibrary, AnalyzedTransaction, WizardFormState, RuleExpression, CheckoutState, TransactionRow, AndGroupFormValue } from '../../types';
 import type { WizardFormResult } from '../../hooks/useWizardForm';
 import { analyzeRow, buildAnalyzeScratch } from '../../utils/analyzeRow';
+import { matchingMt940Defs } from '../../utils/mt940Suggestions';
 import { evaluateRuleSet } from '../../utils/evaluateRuleSet';
 import { computeDefinitionVersions } from '../../utils/definitionVersions';
 import { getAllTagNameOptions, getAttributeSuggestionsForTag } from '../../utils/tagNameLookup';
@@ -365,6 +366,11 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     [libraries, builder.formState.tag, builderAttributeNamesKey],
   );
   const [builderOpen, setBuilderOpen] = useState(false);
+  // Set true when the builder is opened by cloning an MT940 suggestion onto an
+  // intraday row: that flow must leave the Transaction Type EMPTY (MT940 TTCs
+  // don't apply to MT942 / INTERIM_MT940), so the on-open effect below skips
+  // its single-value-chip TTC seed for that one open. Consumed + reset there.
+  const cloneMt940SkipTtcRef = useRef(false);
   // Bubble builder open/close to the parent so the page header can disable
   // Release / Check-in while a rule is being authored — committing those
   // actions mid-authoring would drop the in-progress definition without
@@ -896,6 +902,10 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   useEffect(() => {
     const wasOpen = prevBuilderOpenRef.current;
     prevBuilderOpenRef.current = builderOpen;
+    // Clear the one-shot MT940-clone TTC-skip flag whenever the builder is
+    // closed, so a suggestion clicked while the builder was already open
+    // (no open-transition to consume it) can't suppress a later genuine open.
+    if (!builderOpen) cloneMt940SkipTtcRef.current = false;
     if (wasOpen || !builderOpen) return;
     // Validity ← Statement Date filter
     if (statementDateFilterTag && !validityStartDate && !validityEndDate) {
@@ -918,13 +928,15 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     // rather leave the builder empty than narrow the operator's view
     // arbitrarily. The mirror above will pick up a subsequent
     // operator-driven change to the builder dropdown.
-    if (transactionTypeFilterTag && !builderTransactionType) {
+    if (transactionTypeFilterTag && !builderTransactionType && !cloneMt940SkipTtcRef.current) {
       const chipValues = filters[transactionTypeFilterTag];
       if (chipValues && chipValues.size === 1) {
         const onlyValue = [...chipValues][0];
         builder.updateBasicInfo({ transactionTypeCode: onlyValue });
       }
     }
+    // One-shot: an MT940-suggestion clone must keep Transaction Type empty.
+    cloneMt940SkipTtcRef.current = false;
   // We deliberately depend ONLY on `builderOpen` here. Reading the
   // current filter and validity values from closure on each open is
   // the intended behavior — including them in deps would re-run the
@@ -1473,6 +1485,61 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     }
     return [tempDefinition, ...tagDefinitions];
   }, [tagDefinitions, tempDefinition, editingDef]);
+
+  // Intraday helper: which MT940 rules (same bank + side) match each loaded
+  // row. Shown as clickable suggestions in the Tags cell so an operator
+  // tagging MT942 / INTERIM_MT940 can clone the MT940 rule that already
+  // describes the transaction. Gated to intraday workspaces — MT940 itself
+  // needs no suggestions, and the per-row × per-def evaluation should not run
+  // on the (large) end-of-day datasets. Keyed by row REFERENCE (stable within
+  // a fetch), so lookups in the memoized row don't need a row-id function.
+  const mt940SuggestionsByRow = useMemo(() => {
+    const map = new Map<TransactionRow, TagSpecDefinition[]>();
+    const dst = activeCheckout?.dataSetType;
+    if (!isLiveMode || !activeCheckout || !dst || dst === DEFAULT_DATA_SET_TYPE) return map;
+    // Gather candidate MT940 defs for the EXACT same bank + side as the
+    // intraday checkout (only). Dedupe by def.Id, keeping the most-current
+    // source (INPROGRESS draft over ACTIVE release, then higher Version) —
+    // mirrors the picker.
+    const defById = new Map<string, { def: TagSpecDefinition; score: number }>();
+    for (const lib of libraries) {
+      if (lib.DataSetType !== DEFAULT_DATA_SET_TYPE) continue;
+      if (getContextValue(lib.Context, 'BankSwiftCode') !== activeCheckout.bank) continue;
+      if (getContextValue(lib.Context, 'Side') !== activeCheckout.side) continue;
+      const score = (lib.StatusTag === 'INPROGRESS' ? 1_000_000 : 0) + (lib.Version ?? 0);
+      for (const def of lib.TagSpecDefinitions) {
+        if (def.StatusTag !== 'ACTIVE' || def.TagRuleExpressions.length === 0) continue;
+        const existing = defById.get(def.Id);
+        if (existing && existing.score >= score) continue;
+        defById.set(def.Id, { def, score });
+      }
+    }
+    if (defById.size === 0) return map;
+    const defs = Array.from(defById.values(), (v) => v.def);
+    const today = new Date().toISOString().split('T')[0];
+    for (const row of transactions) {
+      const matches = matchingMt940Defs(defs, row, today);
+      if (matches.length > 0) map.set(row, matches);
+    }
+    return map;
+  }, [isLiveMode, activeCheckout, libraries, transactions]);
+
+  // Clone a suggested MT940 rule into a NEW intraday tag: open the Rule
+  // Builder in create mode (for the current intraday checkout), pre-fill the
+  // MT940 tag name + its TransactionTypeCode scope, and clone its rule sets +
+  // attributes. The operator reviews and clicks Create; bank/side/DataSetType
+  // come from the checkout at save time.
+  const handleCloneMt940Suggestion = useCallback((def: TagSpecDefinition) => {
+    builder.resetForm();
+    builder.applyTemplate(def);
+    // Transaction Type is intentionally left EMPTY here: MT940 and MT942 use
+    // different type codes, so the MT940 rule's TTC must not carry over — the
+    // operator picks the intraday type. The ref suppresses the on-open
+    // single-value-chip TTC seed for this one open.
+    builder.updateBasicInfo({ tag: def.Tag, transactionTypeCode: '' });
+    cloneMt940SkipTtcRef.current = true;
+    setBuilderOpen(true);
+  }, [builder]);
 
   // Map definition ID → source label for tag tooltip
   const definitionSourceMap = useMemo(() => {
@@ -3687,6 +3754,8 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         onFlagDeadEndWithComment={!isReadOnly && !tagClickState?.showingAll && !tagClickState?.rulesetApplied ? flagDeadEndWithComment : undefined}
         onSetComments={!isReadOnly && !tagClickState?.showingAll && !tagClickState?.rulesetApplied ? setComments : undefined}
         onHideTagDefs={!isReadOnly && !tagClickState?.showingAll && !tagClickState?.rulesetApplied ? hideTagDefs : undefined}
+        mt940SuggestionsByRow={mt940SuggestionsByRow}
+        onCloneMt940Suggestion={!isReadOnly ? handleCloneMt940Suggestion : undefined}
         showAttributes={showAttributes}
         relaxedMode={relaxedMode}
         charViewColumns={effectiveCharViewCols}

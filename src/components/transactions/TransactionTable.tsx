@@ -43,6 +43,13 @@ interface TransactionTableProps {
   onFlagDeadEndWithComment?: (ids: string[], value: boolean, entries?: SetTransactionsCommentEntry[]) => Promise<void>;
   onSetComments?: (entries: SetTransactionsCommentEntry[]) => Promise<void>;
   onHideTagDefs?: (defIds: string[]) => void;
+  /** Intraday only: MT940 rules (same bank/side) that match each row, keyed by
+   *  row reference. Rendered as clickable "From MT940" suggestion pills in the
+   *  Tags cell so the operator can clone one into an intraday tag. */
+  mt940SuggestionsByRow?: Map<TransactionRow, TagSpecDefinition[]>;
+  /** Clicking a suggestion clones that MT940 rule into a new intraday tag.
+   *  Absent ⇒ suggestions aren't shown (e.g. read-only). */
+  onCloneMt940Suggestion?: (def: TagSpecDefinition) => void;
   showAttributes?: boolean;
   relaxedMode?: boolean;
   /** Narrative field names (e.g. `AdditionalInformation`) whose RTL-containing
@@ -1203,6 +1210,8 @@ interface RowCtx {
   definitionVersions?: Map<string, DefinitionVersionInfo>;
   onTagClick?: (tagName: string, definitionId?: string) => void;
   onRowContextMenu?: TransactionTableProps['onRowContextMenu'];
+  mt940SuggestionsByRow?: Map<TransactionRow, TagSpecDefinition[]>;
+  onCloneMt940Suggestion?: (def: TagSpecDefinition) => void;
   toggleSelect: (id: string) => void;
   setHighlightSource: React.Dispatch<React.SetStateAction<RowHighlight | null>>;
   highlightTimerRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>;
@@ -1248,7 +1257,8 @@ const TableRow = memo(function TableRow({
     interactiveCellHint, attrValidationMap, attrLovTagMap, lovLookup,
     activeDefinitionId, tagDefinitions, originalEditingDef,
     originalDefinitionIds, definitionSourceMap, definitionVersions,
-    onTagClick, onRowContextMenu, toggleSelect, setHighlightSource,
+    onTagClick, onRowContextMenu, mt940SuggestionsByRow, onCloneMt940Suggestion,
+    toggleSelect, setHighlightSource,
     highlightTimerRef,
   } = ctx;
 
@@ -1532,7 +1542,7 @@ const TableRow = memo(function TableRow({
                 className={`px-3 ${cellPy} ${tagsCellWidth != null ? 'overflow-hidden' : ''} ${stickyBg}`}
                 style={{ ...getCellStyle(colIdx), width: tagsCellWidth, maxWidth: tagsCellWidth }}
               >
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-start gap-1.5">
                   {selectable && (
                     <input
                       type="checkbox"
@@ -1540,10 +1550,10 @@ const TableRow = memo(function TableRow({
                       onChange={() => toggleSelect(rowId)}
                       disabled={loading}
                       aria-label={loading ? 'Loading transactions, selection disabled' : 'Select row'}
-                      className={`rounded border-border-strong shrink-0 ${loading ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''}`}
+                      className={`rounded border-border-strong shrink-0 mt-0.5 ${loading ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''}`}
                     />
                   )}
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     {item.analysis.tags.length > 0 ? (
                       (() => {
                         const renderTagBadge = (tag: string, ti: number) => {
@@ -1605,6 +1615,44 @@ const TableRow = memo(function TableRow({
                       null
                     )}
 
+                    {/* Intraday: MT940 rules (same bank/side) that match this
+                        row — click one to create an intraday tag cloned from
+                        it. Reads only from the row + ctx, so it doesn't touch
+                        the RowCtx memo contract (gotcha #23). */}
+                    {onCloneMt940Suggestion && (() => {
+                      const suggestions = mt940SuggestionsByRow?.get(item.row);
+                      if (!suggestions || suggestions.length === 0) return null;
+                      // Divider from the tags only when there IS something above
+                      // (tagged / dead-end / hints rows); on a bare untagged row
+                      // the suggestions stand alone, so just a small gap.
+                      const hasContentAbove = item.analysis.tags.length > 0 || isDeadEnd || hasHints;
+                      return (
+                        <div className={`flex flex-col gap-1 ${hasContentAbove ? 'mt-1.5 pt-1.5 border-t border-dashed border-amber-300/40 dark:border-amber-500/25' : 'mt-1'}`}>
+                          <Tooltip content="MT940 rules whose conditions match this transaction. Click one to create an intraday tag cloned from it (you can adjust it before saving)." placement="top">
+                            <span className="inline-flex items-center gap-1 self-start text-[9px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400/90 cursor-help">
+                              <svg className="w-2.5 h-2.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                                <rect x="9" y="9" width="11" height="11" rx="2" />
+                                <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+                              </svg>
+                              Clone from MT940
+                            </span>
+                          </Tooltip>
+                          <div className="flex flex-wrap gap-1">
+                            {suggestions.map((def) => (
+                              <Tooltip key={def.Id} content={renderTagTooltip(null, def, false, undefined)} placement="top">
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); onCloneMt940Suggestion(def); }}
+                                  className="max-w-full truncate text-[11px] font-medium rounded-md px-2 py-0.5 border border-amber-300/70 bg-amber-50 text-amber-800 hover:bg-amber-100 hover:border-amber-400 dark:border-amber-500/40 dark:bg-amber-900/20 dark:text-amber-300 dark:hover:bg-amber-900/40 cursor-pointer transition-colors"
+                                >
+                                  {def.Tag}
+                                </button>
+                              </Tooltip>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
                 {stickyEdgeShadow(colIdx)}
@@ -1617,7 +1665,7 @@ const TableRow = memo(function TableRow({
   );
 });
 
-export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, definitionSourceMap, definitionVersions, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, onFlagDeadEndWithComment, onSetComments, onHideTagDefs, showAttributes = true, relaxedMode = false, charViewColumns = EMPTY_CHAR_VIEW_COLUMNS, hiddenColumns = EMPTY_HIDDEN_COLUMNS, columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, forceSkeleton = false, accentHue = 190, onRowContextMenu, onCellDoubleClick, interactiveCellFields, interactiveCellHint, originalEditingDef, activeDefinitionId, sortOverride = null, onSortChange, columnWidths, onColumnWidthChange }: TransactionTableProps) {
+export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, definitionSourceMap, definitionVersions, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, onFlagDeadEndWithComment, onSetComments, onHideTagDefs, mt940SuggestionsByRow, onCloneMt940Suggestion, showAttributes = true, relaxedMode = false, charViewColumns = EMPTY_CHAR_VIEW_COLUMNS, hiddenColumns = EMPTY_HIDDEN_COLUMNS, columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, forceSkeleton = false, accentHue = 190, onRowContextMenu, onCellDoubleClick, interactiveCellFields, interactiveCellHint, originalEditingDef, activeDefinitionId, sortOverride = null, onSortChange, columnWidths, onColumnWidthChange }: TransactionTableProps) {
   // Resolve the effective width for a column: explicit override wins,
   // otherwise the catalog default, otherwise undefined (browser
   // auto-layout). Width overrides are intentionally scoped to non-compact
@@ -2561,6 +2609,8 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     definitionVersions,
     onTagClick,
     onRowContextMenu,
+    mt940SuggestionsByRow,
+    onCloneMt940Suggestion,
     toggleSelect,
     setHighlightSource,
     highlightTimerRef,
@@ -2571,7 +2621,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     interactiveCellHint, attrValidationMap, attrLovTagMap, lovLookup,
     activeDefinitionId, tagDefinitions, originalEditingDef,
     originalDefinitionIds, definitionSourceMap, definitionVersions,
-    onTagClick, onRowContextMenu, toggleSelect,
+    onTagClick, onRowContextMenu, mt940SuggestionsByRow, onCloneMt940Suggestion, toggleSelect,
   ]);
 
   const cellPy = relaxedMode ? 'py-1' : 'py-2';
