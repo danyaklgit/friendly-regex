@@ -51,19 +51,23 @@ function makeLib(
   status: TagSpecLibrary['StatusTag'],
   version: number,
   defs: TagSpecDefinition[],
+  opts: { bank?: string; side?: string; dataSetType?: string } = {},
 ): TagSpecLibrary {
+  const bank = opts.bank ?? 'ARNBSARI';
+  const side = opts.side ?? 'CR';
+  const dataSetType = opts.dataSetType ?? 'MT940';
   return {
-    Id: `lib-${status}-${version}`,
+    Id: `lib-${status}-${version}-${dataSetType}-${bank}-${side}`,
     ActiveTagSpecLibId: null,
     OperatorId: 'op-1',
     StatusTag: status,
-    DataSetType: 'MT940',
+    DataSetType: dataSetType,
     Version: version,
     IsLatestVersion: true,
     VersionDate: '2026-01-01',
     Context: [
-      { Key: 'BankSwiftCode', Value: 'ARNBSARI' },
-      { Key: 'Side', Value: 'CR' },
+      { Key: 'BankSwiftCode', Value: bank },
+      { Key: 'Side', Value: side },
     ],
     TagSpecDefinitions: defs,
   };
@@ -103,5 +107,58 @@ describe('SourceTagPickerModal — most-current version preference', () => {
     // The in-progress copy has 2 rule sets + 3 attributes; the active one had 1/1.
     expect(picked.TagRuleExpressions).toHaveLength(2);
     expect(picked.Attributes).toHaveLength(3);
+  });
+});
+
+describe('SourceTagPickerModal — bank scoping + relevance for intraday cloning', () => {
+  const gulfDef = makeDef('g1', 'GULF_TAG', 1, 1);
+  const arnbDef = makeDef('a1', 'ARNB_TAG', 1, 1);
+  const libs = [
+    makeLib('ACTIVE', 1, [gulfDef], { bank: 'GULFSARI', side: 'CR' }),
+    makeLib('ACTIVE', 1, [arnbDef], { bank: 'ARNBSARI', side: 'CR' }),
+  ];
+
+  it('defaults to the current bank and reveals the rest via "Show all banks"', () => {
+    render(
+      <SourceTagPickerModal
+        open
+        libraries={libs}
+        onClose={() => {}}
+        onSelect={() => {}}
+        currentBank="GULFSARI"
+        currentSide="CR"
+        currentDataSetType="MT942"
+      />,
+    );
+    // Scoped to GULFSARI: the other bank's tag is hidden until "Show all".
+    expect(screen.getByText('GULF_TAG')).toBeTruthy();
+    expect(screen.queryByText('ARNB_TAG')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Show all banks' }));
+    expect(screen.getByText('ARNB_TAG')).toBeTruthy();
+  });
+
+  it('ranks MT940 same-bank/side rules first (the intraday clone source)', () => {
+    const alpha = makeDef('m1', 'ALPHA_DR', 1, 1); // MT940 · GULFSARI · DR  (best)
+    const beta = makeDef('m2', 'BETA_DR', 1, 1); //  MT942 · GULFSARI · DR
+    const gamma = makeDef('m3', 'GAMMA_CR', 1, 1); // MT940 · GULFSARI · CR
+    const rankLibs = [
+      makeLib('ACTIVE', 1, [gamma], { bank: 'GULFSARI', side: 'CR', dataSetType: 'MT940' }),
+      makeLib('ACTIVE', 1, [beta], { bank: 'GULFSARI', side: 'DR', dataSetType: 'MT942' }),
+      makeLib('ACTIVE', 1, [alpha], { bank: 'GULFSARI', side: 'DR', dataSetType: 'MT940' }),
+    ];
+    render(
+      <SourceTagPickerModal
+        open
+        libraries={rankLibs}
+        onClose={() => {}}
+        onSelect={() => {}}
+        currentBank="GULFSARI"
+        currentSide="DR"
+        currentDataSetType="MT942"
+      />,
+    );
+    const inOrder = screen.getAllByText(/^(ALPHA_DR|BETA_DR|GAMMA_CR)$/).map((el) => el.textContent);
+    // same bank+side+MT940 → same bank+side → same bank+MT940 (other side).
+    expect(inOrder).toEqual(['ALPHA_DR', 'BETA_DR', 'GAMMA_CR']);
   });
 });

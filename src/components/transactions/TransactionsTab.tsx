@@ -3223,6 +3223,9 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                   currentRuleGroupCount={builder.formState.ruleGroups.length}
                   currentAttributeCount={builder.formState.attributes.length}
                   onApplyTemplate={builder.applyTemplate}
+                  currentBank={activeCheckout?.bank ?? null}
+                  currentSide={activeCheckout?.side ?? null}
+                  currentDataSetType={activeCheckout?.dataSetType ?? null}
                   size="xs"
                   className="whitespace-nowrap"
                   data-tour="builder-duplicate-rules"
