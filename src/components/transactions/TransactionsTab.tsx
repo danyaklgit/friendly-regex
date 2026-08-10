@@ -1526,20 +1526,28 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
 
   // Clone a suggested MT940 rule into a NEW intraday tag: open the Rule
   // Builder in create mode (for the current intraday checkout), pre-fill the
-  // MT940 tag name + its TransactionTypeCode scope, and clone its rule sets +
-  // attributes. The operator reviews and clicks Create; bank/side/DataSetType
-  // come from the checkout at save time.
+  // MT940 tag name, and clone its rule sets + attributes. The operator reviews
+  // and clicks Create; bank/side/DataSetType come from the checkout at save.
   const handleCloneMt940Suggestion = useCallback((def: TagSpecDefinition) => {
     builder.resetForm();
     builder.applyTemplate(def);
-    // Transaction Type is intentionally left EMPTY here: MT940 and MT942 use
-    // different type codes, so the MT940 rule's TTC must not carry over — the
-    // operator picks the intraday type. The ref suppresses the on-open
-    // single-value-chip TTC seed for this one open.
-    builder.updateBasicInfo({ tag: def.Tag, transactionTypeCode: '' });
+    // Transaction Type: DON'T carry over the MT940 rule's TTC (MT940 and MT942
+    // use different codes). Instead take it from the FIRST intraday transaction
+    // this rule matches — that row carries the correct intraday code (e.g.
+    // MSC). The ref suppresses the on-open single-value-chip TTC seed so this
+    // value wins for the one open.
+    let ttc = '';
+    for (const row of transactions) {
+      const sugg = mt940SuggestionsByRow.get(row);
+      if (sugg && sugg.some((d) => d.Id === def.Id)) {
+        ttc = String(row['TransactionTypeCode'] ?? '');
+        break;
+      }
+    }
+    builder.updateBasicInfo({ tag: def.Tag, transactionTypeCode: ttc });
     cloneMt940SkipTtcRef.current = true;
     setBuilderOpen(true);
-  }, [builder]);
+  }, [builder, transactions, mt940SuggestionsByRow]);
 
   // Map definition ID → source label for tag tooltip
   const definitionSourceMap = useMemo(() => {
