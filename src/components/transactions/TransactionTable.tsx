@@ -1954,6 +1954,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
   }, [onHideTagDefs]);
 
   const theadRef = useRef<HTMLTableSectionElement>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const viewportIndicatorRef = useRef<HTMLDivElement>(null);
   const minimapBarRef = useRef<HTMLDivElement>(null);
@@ -2280,6 +2281,27 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
       setStableMinWidth(w);
     }
   }, []);
+  // Counterpart to `growPin`: shrink the pin back DOWN to the table's real
+  // (natural) width once the pin is holding it wider than it needs to be. This
+  // reclaims the empty trailing gap left after a transiently-wide window (a long
+  // narrative row, or the async "Clone from MT940" suggestion cell) stops being
+  // the widest thing mounted — without it the pin stays stuck at that old
+  // maximum forever and the leftover width shows as dead space past the last
+  // column. Measured off the `<table>` itself (a sibling of the reservation
+  // spacer, so its width is independent of the pin — no feedback loop). Only
+  // shrinks when the natural width still covers the current viewport
+  // (`natural >= scrollLeft + clientWidth`), so it can NEVER clamp scrollLeft
+  // and re-introduce the mid-scroll snap the pin exists to prevent.
+  const shrinkPinIfSafe = useCallback(() => {
+    const el = scrollContainerRef.current;
+    const table = tableRef.current;
+    if (!el || !table) return;
+    const natural = table.offsetWidth;
+    if (natural < maxTableWidthRef.current && natural >= el.scrollLeft + el.clientWidth) {
+      maxTableWidthRef.current = natural;
+      setStableMinWidth(natural);
+    }
+  }, []);
   // String signature so churny prop identities (e.g. a fresh charViewColumns
   // Set each render) don't reset the pin unless the layout actually changed.
   const layoutSignature = useMemo(
@@ -2342,9 +2364,12 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     const tagsIdx = visibleColumns.findIndex((col) => col.type === 'tags');
     tagsColWidthRef.current = tagsIdx !== -1 ? (ths[tagsIdx]?.offsetWidth ?? 0) : 0;
 
-    // Grow the width pin if this render mounted a wider row than we've seen.
+    // Grow the width pin if this render mounted a wider row than we've seen,
+    // then reclaim any stale over-reservation once the layout has settled
+    // narrower again (safe-shrink can't move the viewport).
     growPin();
-  }, [visibleColumns, leftIndices, rightIndices, data, growPin]);
+    shrinkPinIfSafe();
+  }, [visibleColumns, leftIndices, rightIndices, data, growPin, shrinkPinIfSafe]);
 
   // --- Minimap scroll tracking (via refs, no re-renders) ---
 
@@ -2401,6 +2426,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
       };
       setHasOverflow(el.scrollWidth > el.clientWidth + 10);
       growPin();
+      shrinkPinIfSafe();
       updateViewportIndicator();
     };
 
@@ -2412,7 +2438,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
       el.removeEventListener('scroll', update);
       ro.disconnect();
     };
-  }, [visibleColumns, data, updateViewportIndicator, growPin]);
+  }, [visibleColumns, data, updateViewportIndicator, growPin, shrinkPinIfSafe]);
 
   // External "scroll to a specific attribute column" trigger. The rule
   // builder lives above the table; the Attribute Editor's "View Attr Column"
@@ -3083,7 +3109,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
 
       {/* Scrollable table */}
       <div ref={scrollContainerRef} className="overflow-auto flex-1 min-h-0 custom-scrollbar">
-        <table className="min-w-full divide-y divide-divide">
+        <table ref={tableRef} className="min-w-full divide-y divide-divide">
           <thead ref={theadRef} className="bg-surface-secondary">
             {loading && data.length === 0 && visibleColumns.length <= 1 ? (
               <tr className="animate-pulse">
