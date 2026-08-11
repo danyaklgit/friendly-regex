@@ -1622,19 +1622,17 @@ const TableRow = memo(function TableRow({
                         it. Reads only from the row + ctx, so it doesn't touch
                         the RowCtx memo contract (gotcha #23). */}
                     {onCloneMt940Suggestion && (() => {
-                      const allSuggestions = mt940SuggestionsByRow?.get(item.row);
-                      if (!allSuggestions || allSuggestions.length === 0) return null;
-                      // Drop any suggestion whose tag this row ALREADY carries —
-                      // once the transaction is tagged with it (backend Ops tag
-                      // or a cloned intraday def), re-suggesting the same MT940
-                      // rule is just noise.
-                      const appliedTags = new Set(item.analysis.tags);
-                      const suggestions = allSuggestions.filter((def) => !appliedTags.has(def.Tag));
-                      if (suggestions.length === 0) return null;
-                      // Divider from the tags only when there IS something above
-                      // (tagged / dead-end / hints rows); on a bare untagged row
-                      // the suggestions stand alone, so just a small gap.
-                      const hasContentAbove = item.analysis.tags.length > 0 || isDeadEnd || hasHints;
+                      // Once the row is tagged AT ALL — even with a tag other
+                      // than the suggestion — it's been handled, so hide the
+                      // whole "Clone from MT940" section. Suggestions are a
+                      // starting point for still-untagged intraday rows only.
+                      if (item.analysis.tags.length > 0) return null;
+                      const suggestions = mt940SuggestionsByRow?.get(item.row);
+                      if (!suggestions || suggestions.length === 0) return null;
+                      // Divider from other content above (dead-end / hints) when
+                      // present; on a bare untagged row the suggestions stand
+                      // alone, so just a small gap.
+                      const hasContentAbove = isDeadEnd || hasHints;
                       return (
                         <div className={`flex flex-col gap-1 ${hasContentAbove ? 'mt-1.5 pt-1.5 border-t border-dashed border-amber-300/40 dark:border-amber-500/25' : 'mt-1'}`}>
                           <Tooltip content="MT940 rules whose conditions match this transaction. Click one to create an intraday tag cloned from it (you can adjust it before saving)." placement="top">
