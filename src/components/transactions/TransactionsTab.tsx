@@ -1501,6 +1501,18 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     // intraday checkout (only). Dedupe by def.Id, keeping the most-current
     // source (INPROGRESS draft over ACTIVE release, then higher Version) —
     // mirrors the picker.
+    // Tags the operator has ALREADY created in this intraday (checked-out)
+    // library — a rule whose tag is already here shouldn't be suggested for
+    // cloning again. Collected across every intraday lib for this bank/side
+    // (released + in-progress), so a tag disappears from the suggestions the
+    // moment its intraday version is saved.
+    const existingIntradayTags = new Set<string>();
+    for (const lib of libraries) {
+      if (lib.DataSetType !== dst) continue;
+      if (getContextValue(lib.Context, 'BankSwiftCode') !== activeCheckout.bank) continue;
+      if (getContextValue(lib.Context, 'Side') !== activeCheckout.side) continue;
+      for (const def of lib.TagSpecDefinitions) existingIntradayTags.add(def.Tag);
+    }
     const defById = new Map<string, { def: TagSpecDefinition; score: number }>();
     for (const lib of libraries) {
       if (lib.DataSetType !== DEFAULT_DATA_SET_TYPE) continue;
@@ -1509,6 +1521,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       const score = (lib.StatusTag === 'INPROGRESS' ? 1_000_000 : 0) + (lib.Version ?? 0);
       for (const def of lib.TagSpecDefinitions) {
         if (def.StatusTag !== 'ACTIVE' || def.TagRuleExpressions.length === 0) continue;
+        if (existingIntradayTags.has(def.Tag)) continue;
         const existing = defById.get(def.Id);
         if (existing && existing.score >= score) continue;
         defById.set(def.Id, { def, score });
