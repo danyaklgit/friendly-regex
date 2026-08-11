@@ -1723,7 +1723,13 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     );
     if (def) {
       for (const v of def.Values) {
-        if (v.Value) m.set(v.Value, v.Label ?? v.SubLabel ?? '');
+        // Description lives in SubLabel (e.g. "TRF" → "Transfer"); Label is
+        // usually just the code again, so fall back to it only when it adds
+        // information over the raw Value.
+        if (v.Value) {
+          const desc = v.SubLabel ?? (v.Label && v.Label !== v.Value ? v.Label : '');
+          m.set(v.Value, desc);
+        }
       }
     }
     return m;
