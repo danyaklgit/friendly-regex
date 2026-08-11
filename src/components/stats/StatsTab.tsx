@@ -62,6 +62,11 @@ interface StatsTabProps {
   /** Forwarded to the comment search panel so clicking "View in Backlog"
    *  from a search result's thread reuses the same row-highlight flow. */
   onNavigateToBacklog?: (target: TagSpecCommentTarget) => void;
+  /** DataSetType of the current checkout (MT940 / MT942 / …). The Backlog
+   *  remounts each time it's opened, so seed the active DataSetType tab from
+   *  the checked-out workspace: returning from Transactions lands on the type
+   *  you were working in rather than resetting to MT940. */
+  preferredDataSetType?: string | null;
 }
 
 const sideLabel: Record<string, string> = {
@@ -166,7 +171,7 @@ interface DisplayRow {
   inProgressLib: TagSpecLibrary | undefined;
 }
 
-export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckoutComplete, onRelease, authToken, tepHeaders, navigation, onNavigationConsumed, onNavigateToBacklog }: StatsTabProps) {
+export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckoutComplete, onRelease, authToken, tepHeaders, navigation, onNavigationConsumed, onNavigateToBacklog, preferredDataSetType }: StatsTabProps) {
   const { libraries, tagDefinitions, loading, refetchTagSpecs, refetchLibraries, dispatch, taggingProgress, isPairBeingTagged, getTaggingFirstSeen } = useTagSpecs();
   const { usersMap, useDummyData, userId, isAudit } = useAuth();
   const { clearChanges } = useLocalChanges(undefined, undefined, undefined);
@@ -366,9 +371,11 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
   const activeDataSetType =
     selectedDataSetType && availableDataSetTypes.includes(selectedDataSetType)
       ? selectedDataSetType
-      : availableDataSetTypes.includes(DEFAULT_DATA_SET_TYPE)
-        ? DEFAULT_DATA_SET_TYPE
-        : (availableDataSetTypes[0] ?? null);
+      : preferredDataSetType && availableDataSetTypes.includes(preferredDataSetType)
+        ? preferredDataSetType
+        : availableDataSetTypes.includes(DEFAULT_DATA_SET_TYPE)
+          ? DEFAULT_DATA_SET_TYPE
+          : (availableDataSetTypes[0] ?? null);
 
   const visibleRows = useMemo(
     () => (activeDataSetType ? rows.filter((r) => r.dataSetType === activeDataSetType) : rows),

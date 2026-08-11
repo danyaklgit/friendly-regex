@@ -11,6 +11,16 @@ import { Toast } from '../shared/Toast';
 import type { FilterProperty, TepHeaders } from '../../api/transactions';
 import type { TransactionRow, TagSpecLibrary, AnalyzedTransaction } from '../../types';
 import type { ColumnDef } from './TransactionTable';
+import { DATA_SET_TYPE_LABELS, DEFAULT_DATA_SET_TYPE } from '../../constants/dataSetTypes';
+
+// Order the per-DataSetType context tables: intraday statements (MT942 /
+// INTERIM_MT940) always come BEFORE the end-of-day MT940 table; any
+// unrecognized type sorts after MT940.
+const CONTEXT_DATASET_ORDER = ['MT942', 'INTERIM_MT940', 'MT940'];
+function dataSetRank(t: string): number {
+  const i = CONTEXT_DATASET_ORDER.indexOf(t);
+  return i === -1 ? CONTEXT_DATASET_ORDER.length : i;
+}
 
 interface ViewContextModalProps {
   open: boolean;
@@ -33,6 +43,13 @@ function formatAmount(value: unknown): { integer: string; decimal: string } | nu
 }
 
 function isClickedRow(row: TransactionRow, clicked: TransactionRow): boolean {
+  // When both carry a DataSetType, require it to match so the same
+  // Sequence/BankReference/Amount appearing in more than one statement type
+  // (e.g. an intraday MT942 row and its MT940 end-of-day copy) only highlights
+  // the one the operator actually clicked. Skipped when either side lacks it.
+  const rowDst = String(row['DataSetType'] ?? '');
+  const clickedDst = String(clicked['DataSetType'] ?? '');
+  if (rowDst && clickedDst && rowDst !== clickedDst) return false;
   return (
     String(row['Sequence'] ?? '') === String(clicked['Sequence'] ?? '') &&
     String(row['BankReference'] ?? '') === String(clicked['BankReference'] ?? '') &&
@@ -123,6 +140,24 @@ export function ViewContextModal({ open, onClose, transaction, authToken, tepHea
     }
     return null;
   };
+
+  // Group the statement's rows by DataSetType and order them so the intraday
+  // tables (MT942 / INTERIM_MT940) render before the MT940 table. Rows within
+  // a group keep the Sequence order the fetch returned. A row with no
+  // DataSetType falls back to MT940 so it still appears.
+  const groupedRows = useMemo(() => {
+    const groups = new Map<string, AnalyzedTransaction[]>();
+    for (const item of rows) {
+      const dst = String(item.row['DataSetType'] ?? '') || DEFAULT_DATA_SET_TYPE;
+      const arr = groups.get(dst);
+      if (arr) arr.push(item);
+      else groups.set(dst, [item]);
+    }
+    return Array.from(groups.entries()).sort((a, b) => {
+      const r = dataSetRank(a[0]) - dataSetRank(b[0]);
+      return r !== 0 ? r : a[0].localeCompare(b[0]);
+    });
+  }, [rows]);
 
   const bankName = useMemo(() => {
     const code = String(transaction['BankSwiftCode'] ?? '');
@@ -372,7 +407,21 @@ export function ViewContextModal({ open, onClose, transaction, authToken, tepHea
         )}
 
         {!loading && !error && rows.length > 0 && (
-          <table className="w-full border-collapse text-xs">
+          <div className="pb-4">
+          {groupedRows.map(([dst, items]) => {
+            const isIntraday = dst !== DEFAULT_DATA_SET_TYPE;
+            return (
+            <section key={dst}>
+              {/* DataSetType group header — intraday statements (MT942 /
+                  INTERIM_MT940) are surfaced above the MT940 table and tinted
+                  so the operator can tell the tables apart at a glance. */}
+              <div className="flex items-center gap-2 px-6 pt-4 pb-2">
+                <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold ${isIntraday ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' : 'bg-surface-hover text-body-secondary'}`}>
+                  {DATA_SET_TYPE_LABELS[dst as keyof typeof DATA_SET_TYPE_LABELS] ?? dst}
+                </span>
+                <span className="text-xs text-faint">{items.length} transaction{items.length !== 1 ? 's' : ''}</span>
+              </div>
+              <table className="w-full border-collapse text-xs">
             <thead>
               <tr className="border-b border-border">
                 {contextColumns.flatMap((col, colIdx) => {
@@ -403,7 +452,7 @@ export function ViewContextModal({ open, onClose, transaction, authToken, tepHea
               </tr>
             </thead>
             <tbody>
-              {rows.map((item, i) => {
+              {items.map((item, i) => {
                 const isHighlighted = isClickedRow(item.row, transaction);
                 return (
                   <tr
@@ -489,7 +538,11 @@ export function ViewContextModal({ open, onClose, transaction, authToken, tepHea
                 );
               })}
             </tbody>
-          </table>
+              </table>
+            </section>
+            );
+          })}
+          </div>
         )}
       </div>
 

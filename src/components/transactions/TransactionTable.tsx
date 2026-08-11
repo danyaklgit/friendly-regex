@@ -14,7 +14,7 @@ import { containsRtl } from '../../utils/bidi';
 import { SegmentedRtlText } from '../shared/CharacterBreakdown';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
 import { decomposeExtractionRegex, engregxify } from '../../utils/engregxify';
-import { getRegexDescription } from '../../types/tagSpec';
+import { getRegexDescription, getContextValue } from '../../types/tagSpec';
 import { regexifyExtraction } from '../../utils/regexify';
 import { setScrolling } from '../../utils/scrollingSignal';
 import { extractAttributes } from '../../utils/extractAttributes';
@@ -1212,6 +1212,7 @@ interface RowCtx {
   onRowContextMenu?: TransactionTableProps['onRowContextMenu'];
   mt940SuggestionsByRow?: Map<TransactionRow, TagSpecDefinition[]>;
   onCloneMt940Suggestion?: (def: TagSpecDefinition) => void;
+  txnTypeDescriptions: Map<string, string>;
   toggleSelect: (id: string) => void;
   setHighlightSource: React.Dispatch<React.SetStateAction<RowHighlight | null>>;
   highlightTimerRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>;
@@ -1258,6 +1259,7 @@ const TableRow = memo(function TableRow({
     activeDefinitionId, tagDefinitions, originalEditingDef,
     originalDefinitionIds, definitionSourceMap, definitionVersions,
     onTagClick, onRowContextMenu, mt940SuggestionsByRow, onCloneMt940Suggestion,
+    txnTypeDescriptions,
     toggleSelect, setHighlightSource,
     highlightTimerRef,
   } = ctx;
@@ -1638,8 +1640,26 @@ const TableRow = memo(function TableRow({
                             </span>
                           </Tooltip>
                           <div className="flex flex-wrap gap-1">
-                            {suggestions.map((def) => (
-                              <Tooltip key={def.Id} content={renderTagTooltip(null, def, false, undefined)} placement="top">
+                            {suggestions.map((def) => {
+                              const ttc = getContextValue(def.Context, 'TransactionTypeCode');
+                              const ttcDesc = ttc ? txnTypeDescriptions.get(ttc) : undefined;
+                              return (
+                              <Tooltip
+                                key={def.Id}
+                                content={
+                                  <div className="space-y-1.5 max-w-xs">
+                                    {ttc && (
+                                      <div className="text-[11px]">
+                                        <span className="text-faint">Transaction type:</span>{' '}
+                                        <span className="font-mono font-semibold">{ttc}</span>
+                                        {ttcDesc && <span className="text-faint"> — {ttcDesc}</span>}
+                                      </div>
+                                    )}
+                                    {renderTagTooltip(null, def, false, undefined)}
+                                  </div>
+                                }
+                                placement="top"
+                              >
                                 <button
                                   type="button"
                                   onClick={(e) => { e.stopPropagation(); onCloneMt940Suggestion(def); }}
@@ -1648,7 +1668,8 @@ const TableRow = memo(function TableRow({
                                   {def.Tag}
                                 </button>
                               </Tooltip>
-                            ))}
+                              );
+                            })}
                           </div>
                         </div>
                       );
@@ -1684,7 +1705,22 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     },
     [columnWidths, relaxedMode],
   );
-  const { fieldMeta } = useTransactionData();
+  const { fieldMeta, filterDefinitions } = useTransactionData();
+  // Transaction-type code → human description, for the "Clone from MT940"
+  // suggestion tooltip (shows the source MT940 rule's transaction type). Same
+  // source the TransactionTypePicker reads (backend GetFilters catalog).
+  const txnTypeDescriptions = useMemo(() => {
+    const m = new Map<string, string>();
+    const def = filterDefinitions?.find(
+      (d) => d.Tag === 'TransactionTypeCode' || d.Label?.toLowerCase().includes('transaction type'),
+    );
+    if (def) {
+      for (const v of def.Values) {
+        if (v.Value) m.set(v.Value, v.Label ?? v.SubLabel ?? '');
+      }
+    }
+    return m;
+  }, [filterDefinitions]);
   const { lovLookup } = useLovAttributes();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   // Sticky "select-all" intent. Set true by the header checkbox and broken by
@@ -2637,6 +2673,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     onRowContextMenu,
     mt940SuggestionsByRow,
     onCloneMt940Suggestion,
+    txnTypeDescriptions,
     toggleSelect,
     setHighlightSource,
     highlightTimerRef,
@@ -2647,7 +2684,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     interactiveCellHint, attrValidationMap, attrLovTagMap, lovLookup,
     activeDefinitionId, tagDefinitions, originalEditingDef,
     originalDefinitionIds, definitionSourceMap, definitionVersions,
-    onTagClick, onRowContextMenu, mt940SuggestionsByRow, onCloneMt940Suggestion, toggleSelect,
+    onTagClick, onRowContextMenu, mt940SuggestionsByRow, onCloneMt940Suggestion, txnTypeDescriptions, toggleSelect,
   ]);
 
   const cellPy = relaxedMode ? 'py-1' : 'py-2';
