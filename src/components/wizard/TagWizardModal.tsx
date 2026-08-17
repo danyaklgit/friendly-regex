@@ -14,6 +14,7 @@ import { Button } from '../shared/Button';
 import { Tooltip } from '../shared/Tooltip';
 import { CommentSearchTrigger } from '../comments/CommentSearchTrigger';
 import { CommentSearchPanel } from '../comments/CommentSearchPanel';
+import { isLedger } from '../../utils/libraryIdentity';
 import { WizardStepIndicator } from './WizardStepIndicator';
 import { StepBasicInfo } from './StepBasicInfo';
 import { StepRuleExpressions } from './StepRuleExpressions';
@@ -101,10 +102,17 @@ export function TagWizardModal({ existingDef, parentLib, initialFormState, initi
         // short-circuits to valid — single-sided ranges are allowed.
         const { StartDate, EndDate } = wizard.formState.validity;
         const validityValid = !StartDate || !EndDate || StartDate <= EndDate;
+        // Library identity depends on the DataSetType: Ledger rules are keyed
+        // by (Client, ERP) and carry NO bank/side, so requiring side/bank
+        // there would permanently disable Next.
+        const identityValid = isLedger(wizard.formState.dataSetType)
+          ? wizard.formState.clientCode.trim().length > 0 &&
+            wizard.formState.erpCode.trim().length > 0
+          : wizard.formState.side.trim().length > 0 &&
+            wizard.formState.bankSwiftCode.trim().length > 0;
         return (
           wizard.formState.tag.trim().length > 0 &&
-          wizard.formState.side.trim().length > 0 &&
-          wizard.formState.bankSwiftCode.trim().length > 0 &&
+          identityValid &&
           wizard.formState.transactionTypeCode.trim().length > 0 &&
           validityValid
         );
