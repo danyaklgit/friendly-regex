@@ -25,6 +25,7 @@ function makeShare(overrides?: Partial<ShareParams>): ShareParams {
   return {
     bank: 'ARNB',
     side: 'CR',
+    dataSetType: 'MT940',
     filters: { BANKS: new Set(['ARNB']) },
     sharedBy: 'Nadim Ayoub',
     ...overrides,

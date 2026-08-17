@@ -1,6 +1,7 @@
 import type { WizardFormState } from '../../types';
 import { Badge } from '../shared/Badge';
 import { RulePreview } from './RulePreview';
+import { isLedger } from '../../utils/libraryIdentity';
 
 /** Render a validity range as plain text for the Review summary. Single-
  *  sided ranges fall back to "From <date>" / "Until <date>" and the
@@ -34,9 +35,11 @@ export function StepReview({ formState, isEditing }: StepReviewProps) {
           <span className="text-muted">Tag Name</span>
           <span className="font-medium text-heading">{formState.tag || '(not set)'}</span>
 
-          <span className="text-muted">Side / Bank</span>
+          <span className="text-muted">{isLedger(formState.dataSetType) ? 'Client / ERP' : 'Side / Bank'}</span>
           <span className="text-heading">
-            {formState.side} / {formState.bankSwiftCode}
+            {isLedger(formState.dataSetType)
+              ? `${formState.clientCode} / ${formState.erpCode}`
+              : `${formState.side} / ${formState.bankSwiftCode}`}
           </span>
 
           <span className="text-muted">Transaction Type</span>

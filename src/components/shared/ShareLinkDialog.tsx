@@ -15,6 +15,10 @@ interface ShareLinkDialogProps {
   onClose: () => void;
   bank: string;
   side: string;
+  /** Workspace type; defaults to MT940 when omitted (pre-intraday callers). */
+  dataSetType?: string;
+  clientCode?: string;
+  erpCode?: string;
   filters: Record<string, Set<string>>;
   toggles: ShareToggles;
   sharedBy: string;
@@ -51,7 +55,7 @@ function summarizeFilters(
   return entries;
 }
 
-export function ShareLinkDialog({ open, onClose, bank, side, filters, toggles, sharedBy }: ShareLinkDialogProps) {
+export function ShareLinkDialog({ open, onClose, bank, side, dataSetType, clientCode, erpCode, filters, toggles, sharedBy }: ShareLinkDialogProps) {
   const [note, setNote] = useState('');
   const [copied, setCopied] = useState(false);
   const { filterDefinitions } = useTransactionData();
@@ -62,7 +66,7 @@ export function ShareLinkDialog({ open, onClose, bank, side, filters, toggles, s
   }, [open]);
 
   const url = open
-    ? buildShareUrl({ bank, side, filters, toggles, note: note.trim() || undefined, sharedBy })
+    ? buildShareUrl({ bank, side, dataSetType: dataSetType ?? 'MT940', clientCode, erpCode, filters, toggles, note: note.trim() || undefined, sharedBy })
     : '';
 
   const filterSummary = summarizeFilters(filters, filterDefinitions);

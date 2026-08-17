@@ -11,6 +11,8 @@ interface CheckoutInfo {
   bank: string;
   side: string;
   dataSetType: string;
+  clientCode?: string;
+  erpCode?: string;
   hasChanges: boolean;
   isReadOnly?: boolean;
   actionLoading?: boolean;

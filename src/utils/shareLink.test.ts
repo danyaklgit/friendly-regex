@@ -53,6 +53,7 @@ describe('shareLink utilities', () => {
       const url = buildShareUrl({
         bank: 'ARNB',
         side: 'CR',
+        dataSetType: 'MT940',
         filters: { BANKS: new Set(['ARNB']) },
         sharedBy: 'Nadim',
       });
@@ -66,7 +67,7 @@ describe('shareLink utilities', () => {
 
     it('includes toggles when provided', () => {
       const url = buildShareUrl({
-        bank: 'X', side: 'DR', filters: {}, sharedBy: 'A',
+        bank: 'X', side: 'DR', dataSetType: 'MT940', filters: {}, sharedBy: 'A',
         toggles: { compactMode: true, incrementalPagination: false, showAttributes: true },
       });
       const parsed = new URL(url);
@@ -77,13 +78,13 @@ describe('shareLink utilities', () => {
 
     it('includes note when provided', () => {
       const url = buildShareUrl({
-        bank: 'X', side: 'CR', filters: {}, sharedBy: 'A', note: 'hello',
+        bank: 'X', side: 'CR', dataSetType: 'MT940', filters: {}, sharedBy: 'A', note: 'hello',
       });
       expect(new URL(url).searchParams.get('note')).toBe('hello');
     });
 
     it('omits toggles and note when not provided', () => {
-      const url = buildShareUrl({ bank: 'X', side: 'CR', filters: {}, sharedBy: 'A' });
+      const url = buildShareUrl({ bank: 'X', side: 'CR', dataSetType: 'MT940', filters: {}, sharedBy: 'A' });
       const parsed = new URL(url);
       expect(parsed.searchParams.has('toggles')).toBe(false);
       expect(parsed.searchParams.has('note')).toBe(false);
@@ -129,6 +130,24 @@ describe('shareLink utilities', () => {
       expect(result!.side).toBe('CR');
       expect(result!.sharedBy).toBe('Nadim');
       expect(result!.filters.BANKS).toEqual(new Set(['ARNB']));
+      // Pre-intraday links carry no `dst` → default to MT940.
+      expect(result!.dataSetType).toBe('MT940');
+    });
+
+    it('parses a Ledger share link (client/erp instead of bank/side)', () => {
+      const filters = btoa(JSON.stringify({}));
+      setSearch(`?share=1&dst=Ledger&client=BWATECH&erp=ZOHO&filters=${filters}&shared_by=Nadim`);
+      const result = parseShareParams();
+      expect(result).not.toBeNull();
+      expect(result!.dataSetType).toBe('Ledger');
+      expect(result!.clientCode).toBe('BWATECH');
+      expect(result!.erpCode).toBe('ZOHO');
+    });
+
+    it('returns null for a Ledger link missing client/erp', () => {
+      const filters = btoa(JSON.stringify({}));
+      setSearch(`?share=1&dst=Ledger&client=BWATECH&filters=${filters}&shared_by=Nadim`);
+      expect(parseShareParams()).toBeNull();
     });
 
     it('parses toggles and note', () => {
@@ -155,7 +174,7 @@ describe('shareLink utilities', () => {
 
     it('stores and consumes share params via sessionStorage', () => {
       const params: ShareParams = {
-        bank: 'ARNB', side: 'CR', filters: { X: new Set(['a']) },
+        bank: 'ARNB', side: 'CR', dataSetType: 'MT940', filters: { X: new Set(['a']) },
         toggles: { compactMode: true, incrementalPagination: false, showAttributes: false },
         note: 'test', sharedBy: 'Nadim',
       };
@@ -169,7 +188,7 @@ describe('shareLink utilities', () => {
     });
 
     it('returns null and clears storage after consumption', () => {
-      storeShareParams({ bank: 'A', side: 'B', filters: {}, sharedBy: 'Z' });
+      storeShareParams({ bank: 'A', side: 'B', dataSetType: 'MT940', filters: {}, sharedBy: 'Z' });
       consumeStoredShareParams();
       expect(consumeStoredShareParams()).toBeNull();
     });

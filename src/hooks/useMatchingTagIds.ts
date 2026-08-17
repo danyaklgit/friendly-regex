@@ -4,6 +4,7 @@ import type { TepHeaders, FilterProperty } from '../api/transactions';
 import { getAllTransactionTags } from '../api/transactions';
 import { buildRulesetFilters } from '../utils/buildRulesetFilters';
 import { isFilledCondition } from '../utils/ruleFingerprint';
+import { hasCompleteIdentity } from '../utils/libraryIdentity';
 import { useAuth } from '../context/AuthContext';
 import { useTepConfig } from '../context/TepConfigContext';
 import { useTransactionData } from './useTransactionData';
@@ -57,8 +58,20 @@ export function useMatchingTagIds(
   // and stable strings can drive the dependency array. We stringify once
   // because comparing arrays of nested objects by reference re-fires on every
   // keystroke even when the content is unchanged.
+  // Identity must be complete (bank+side, or client+erp for Ledger) before the
+  // preview can be scoped; otherwise GetAllTransactionTags has no library to
+  // look in.
+  // WizardFormState names the bank field `bankSwiftCode`; map it to the
+  // identity helper's `bank` slot.
+  const identityComplete = hasCompleteIdentity({
+    dataSetType: formState.dataSetType,
+    bank: formState.bankSwiftCode,
+    side: formState.side,
+    clientCode: formState.clientCode,
+    erpCode: formState.erpCode,
+  });
   const payload: FilterProperty[] | null =
-    enabled && isLiveMode && formState.bankSwiftCode && formState.side && hasNarrowingCriteria
+    enabled && isLiveMode && identityComplete && hasNarrowingCriteria
       ? buildRulesetFilters(formState)
       : null;
   const payloadKey = payload ? JSON.stringify(payload) : null;

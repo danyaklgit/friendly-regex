@@ -22,6 +22,8 @@ import {
 import { generateId, generateExpressionId } from '../utils/uuid';
 import { cloneRulesAndAttributesFrom } from '../utils/cloneRulesAndAttributes';
 import { computeExclusionConditions, type ExclusionResult } from '../utils/computeExclusionConditions';
+import { DEFAULT_DATA_SET_TYPE } from '../constants/dataSetTypes';
+import { isLedger, identityFromContext } from '../utils/libraryIdentity';
 
 /**
  * Sentinel value the backend ships on `Validity.StartDate` to mean "no
@@ -96,10 +98,14 @@ export function fromExistingDefinition(
         || (def.Id ? `${def.Id}-rule-${gi}-${ci}` : null),
     })),
   }));
+  const parentIdentity = parentLib ? identityFromContext(parentLib) : null;
   return {
     tag: def.Tag,
     side: parentLib ? (getContextValue(parentLib.Context, 'Side') ?? 'CR') : 'CR',
     bankSwiftCode: parentLib ? (getContextValue(parentLib.Context, 'BankSwiftCode') ?? '') : '',
+    dataSetType: parentLib?.DataSetType ?? DEFAULT_DATA_SET_TYPE,
+    clientCode: parentIdentity?.clientCode ?? '',
+    erpCode: parentIdentity?.erpCode ?? '',
     transactionTypeCode: getContextValue(def.Context, 'TransactionTypeCode') ?? '',
     statusTag: def.StatusTag,
     certaintyLevelTag: def.CertaintyLevelTag,
@@ -216,6 +222,9 @@ export function useWizardForm(
       tag: '',
       side: 'CR',
       bankSwiftCode: 'ARNBSARI',
+      dataSetType: DEFAULT_DATA_SET_TYPE,
+      clientCode: '',
+      erpCode: '',
       transactionTypeCode: '',
       statusTag: 'ACTIVE',
       certaintyLevelTag: 'HIGH',
@@ -485,10 +494,18 @@ export function useWizardForm(
   const toTagSpecDefinition = useCallback((libraryId?: string | null): WizardFormResult => {
     const id = existingDef?.Id ?? generateId();
 
-    const parentContext: ContextEntry[] = [
-      { Key: 'Side', Value: formState.side },
-      { Key: 'BankSwiftCode', Value: formState.bankSwiftCode },
-    ];
+    // Ledger libraries are identified by (ClientCode, ErpCode); every other
+    // type by (Side, BankSwiftCode). Side can still be a rule condition for
+    // Ledger, it is just not the library key.
+    const parentContext: ContextEntry[] = isLedger(formState.dataSetType)
+      ? [
+          { Key: 'ClientCode', Value: formState.clientCode },
+          { Key: 'ErpCode', Value: formState.erpCode },
+        ]
+      : [
+          { Key: 'Side', Value: formState.side },
+          { Key: 'BankSwiftCode', Value: formState.bankSwiftCode },
+        ];
 
     const childContext: ContextEntry[] = formState.transactionTypeCode
       ? [{ Key: 'TransactionTypeCode', Value: formState.transactionTypeCode }]

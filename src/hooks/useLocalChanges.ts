@@ -1,14 +1,17 @@
 import { useState, useCallback, useEffect } from 'react';
 import type { TagSpecLibrary, TagSpecDefinition } from '../types';
 import { getRegexDescription } from '../types/tagSpec';
+import { identityKeySuffix, hasCompleteIdentity, type IdentityInput } from '../utils/libraryIdentity';
 
 const BASELINE_PREFIX = 'tep:baseline:';
 const CURRENT_PREFIX = 'tep:current:';
 
-// Keys are namespaced by DataSetType so a checked-out MT942 draft for a
-// bank/side never collides with the MT940 draft for the SAME bank/side.
-function key(prefix: string, dataSetType: string, bank: string, side: string) {
-  return `${prefix}${dataSetType}:${bank}:${side}`;
+// Keys are namespaced by identity so a checked-out MT942 draft for a bank/side
+// never collides with the MT940 draft for the SAME bank/side, and a Ledger
+// draft (keyed by ClientCode/ErpCode) never collides with any of them. The
+// suffix is built centrally in libraryIdentity.identityKeySuffix.
+function key(prefix: string, identity: IdentityInput) {
+  return `${prefix}${identityKeySuffix(identity)}`;
 }
 
 function readLib(storageKey: string): TagSpecLibrary | null {
@@ -200,55 +203,58 @@ function computeChangeSummary(baselineLib: TagSpecLibrary, currentLib: TagSpecLi
 
 // --- Hook ---
 
-export function useLocalChanges(
-  bank: string | undefined,
-  side: string | undefined,
-  dataSetType: string | undefined,
-) {
+export function useLocalChanges(identity: IdentityInput | null | undefined) {
   const [hasChanges, setHasChanges] = useState(false);
 
-  // Recompute hasChanges whenever bank/side/dataSetType changes or after updates
+  const suffix = identity ? identityKeySuffix(identity) : '';
+  const bound = identity && hasCompleteIdentity(identity) ? identity : null;
+
+  // Recompute hasChanges whenever the bound identity changes or after updates.
   const recompute = useCallback(() => {
-    if (!bank || !side || !dataSetType) { setHasChanges(false); return; }
-    const baselineRaw = localStorage.getItem(key(BASELINE_PREFIX, dataSetType, bank, side));
-    const currentRaw = localStorage.getItem(key(CURRENT_PREFIX, dataSetType, bank, side));
+    if (!bound) { setHasChanges(false); return; }
+    const baselineRaw = localStorage.getItem(key(BASELINE_PREFIX, bound));
+    const currentRaw = localStorage.getItem(key(CURRENT_PREFIX, bound));
     if (!baselineRaw || !currentRaw) { setHasChanges(false); return; }
     setHasChanges(baselineRaw !== currentRaw);
-  }, [bank, side, dataSetType]);
+    // `suffix` is the serialized identity — recompute when it changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [suffix]);
 
   useEffect(() => { recompute(); }, [recompute]);
 
   const saveBaseline = useCallback((lib: TagSpecLibrary) => {
-    if (!bank || !side || !dataSetType) return;
+    if (!bound) return;
     const serialized = JSON.stringify(lib);
-    localStorage.setItem(key(BASELINE_PREFIX, dataSetType, bank, side), serialized);
-    localStorage.setItem(key(CURRENT_PREFIX, dataSetType, bank, side), serialized);
+    localStorage.setItem(key(BASELINE_PREFIX, bound), serialized);
+    localStorage.setItem(key(CURRENT_PREFIX, bound), serialized);
     setHasChanges(false);
-  }, [bank, side, dataSetType]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [suffix]);
 
   const updateCurrent = useCallback((lib: TagSpecLibrary) => {
-    if (!bank || !side || !dataSetType) return;
-    localStorage.setItem(key(CURRENT_PREFIX, dataSetType, bank, side), JSON.stringify(lib));
+    if (!bound) return;
+    localStorage.setItem(key(CURRENT_PREFIX, bound), JSON.stringify(lib));
     recompute();
-  }, [bank, side, dataSetType, recompute]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [suffix, recompute]);
 
-  const clearChanges = useCallback((b: string, s: string, dst: string) => {
-    localStorage.removeItem(key(BASELINE_PREFIX, dst, b, s));
-    localStorage.removeItem(key(CURRENT_PREFIX, dst, b, s));
-    if (b === bank && s === side && dst === dataSetType) setHasChanges(false);
-  }, [bank, side, dataSetType]);
+  const clearChanges = useCallback((target: IdentityInput) => {
+    localStorage.removeItem(key(BASELINE_PREFIX, target));
+    localStorage.removeItem(key(CURRENT_PREFIX, target));
+    if (identityKeySuffix(target) === suffix) setHasChanges(false);
+  }, [suffix]);
 
-  const getLocalLib = useCallback((b: string, s: string, dst: string): TagSpecLibrary | null => {
-    return readLib(key(CURRENT_PREFIX, dst, b, s));
+  const getLocalLib = useCallback((target: IdentityInput): TagSpecLibrary | null => {
+    return readLib(key(CURRENT_PREFIX, target));
   }, []);
 
-  const hasLocalData = useCallback((b: string, s: string, dst: string): boolean => {
-    return localStorage.getItem(key(CURRENT_PREFIX, dst, b, s)) !== null;
+  const hasLocalData = useCallback((target: IdentityInput): boolean => {
+    return localStorage.getItem(key(CURRENT_PREFIX, target)) !== null;
   }, []);
 
-  const getChangeSummary = useCallback((b: string, s: string, dst: string): ChangeSummary | null => {
-    const baselineLib = readLib(key(BASELINE_PREFIX, dst, b, s));
-    const currentLib = readLib(key(CURRENT_PREFIX, dst, b, s));
+  const getChangeSummary = useCallback((target: IdentityInput): ChangeSummary | null => {
+    const baselineLib = readLib(key(BASELINE_PREFIX, target));
+    const currentLib = readLib(key(CURRENT_PREFIX, target));
     if (!baselineLib || !currentLib) return null;
     return computeChangeSummary(baselineLib, currentLib);
   }, []);

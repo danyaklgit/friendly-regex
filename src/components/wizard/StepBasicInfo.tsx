@@ -6,6 +6,7 @@ import { TagTreePicker } from '../shared/TagTreePicker';
 import { Select } from '../shared/Select';
 import { TransactionTypePicker } from '../shared/TransactionTypePicker';
 import { CERTAINTY_OPTIONS, SIDE_OPTIONS, BANK_SWIFT_CODE_OPTIONS } from '../../constants/fields';
+import { isLedger } from '../../utils/libraryIdentity';
 import { WizardCommentIconButton } from './WizardCommentIconButton';
 import { WIZARD_DEFINITION_FORM_KEY } from '../../context/WizardCommentDraftsContext';
 import { ValidityEditor } from './ValidityEditor';
@@ -83,20 +84,42 @@ export function StepBasicInfo({
 
       <div data-tour="wizard-basic-info-fields" className="space-y-4">
         <div className="grid grid-cols-3 gap-4">
-          <Select
-            label="Side"
-            value={formState.side}
-            onChange={(e) => onUpdate({ side: e.target.value })}
-            options={SIDE_OPTIONS.map((s) => ({ value: s, label: s }))}
-            disabled={fromCheckoutContext}
-          />
-          <Select
-            label="Bank Swift Code"
-            value={formState.bankSwiftCode}
-            onChange={(e) => onUpdate({ bankSwiftCode: e.target.value })}
-            options={BANK_SWIFT_CODE_OPTIONS.map((s) => ({ value: s, label: s }))}
-            disabled={fromCheckoutContext}
-          />
+          {isLedger(formState.dataSetType) ? (
+            <>
+              {/* Ledger libraries are keyed by (Client, ERP), not (Side, Bank).
+                  Both come from the checkout and are read-only. Side can still
+                  be a rule condition on the next step. */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-body pl-1">Client</label>
+                <div className="rounded-lg border border-input-border bg-surface-secondary px-3 py-2 text-sm text-heading">
+                  {formState.clientCode || '-'}
+                </div>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-body pl-1">ERP</label>
+                <div className="rounded-lg border border-input-border bg-surface-secondary px-3 py-2 text-sm text-heading">
+                  {formState.erpCode || '-'}
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <Select
+                label="Side"
+                value={formState.side}
+                onChange={(e) => onUpdate({ side: e.target.value })}
+                options={SIDE_OPTIONS.map((s) => ({ value: s, label: s }))}
+                disabled={fromCheckoutContext}
+              />
+              <Select
+                label="Bank Swift Code"
+                value={formState.bankSwiftCode}
+                onChange={(e) => onUpdate({ bankSwiftCode: e.target.value })}
+                options={BANK_SWIFT_CODE_OPTIONS.map((s) => ({ value: s, label: s }))}
+                disabled={fromCheckoutContext}
+              />
+            </>
+          )}
           <div data-tour="wizard-transaction-type" className="flex flex-col gap-1">
             {/* Label markup mirrors Select's so the field reads identically
                 to its Side / Bank Swift Code siblings in the grid. */}

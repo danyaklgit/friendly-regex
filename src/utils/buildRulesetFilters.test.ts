@@ -7,6 +7,9 @@ function makeFormState(overrides: Partial<WizardFormState> = {}): WizardFormStat
     tag: '',
     side: 'CR',
     bankSwiftCode: 'ARNBSARI',
+    dataSetType: 'MT940',
+    clientCode: '',
+    erpCode: '',
     transactionTypeCode: '',
     statusTag: 'ACTIVE',
     certaintyLevelTag: 'HIGH',
@@ -33,6 +36,16 @@ describe('buildRulesetFilters', () => {
   it('adds TransactionTypeCode as EQ when set', () => {
     const filters = buildRulesetFilters(makeFormState({ transactionTypeCode: 'TRF' }));
     expect(filters).toContainEqual({ ColumnName: 'TransactionTypeCode', Value: 'TRF', Operand: 'EQ' });
+  });
+
+  it('emits ClientCode + ErpCode instead of bank/side for a Ledger workspace', () => {
+    const filters = buildRulesetFilters(
+      makeFormState({ dataSetType: 'Ledger', clientCode: 'BWATECH', erpCode: 'ZOHO', transactionTypeCode: '' }),
+    );
+    expect(filters).toEqual([
+      { ColumnName: 'ClientCode', Value: 'BWATECH', Operand: 'IN' },
+      { ColumnName: 'ErpCode', Value: 'ZOHO', Operand: 'IN' },
+    ]);
   });
 
   it('omits TransactionTypeCode when empty', () => {

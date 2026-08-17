@@ -10,10 +10,12 @@ import type { FilterProperty } from '../api/transactions';
  *
  * MT940 is the confirmed end-of-day statement (the original, only type until
  * intraday shipped). MT942 and INTERIM_MT940 are the provisional intraday
- * reports (their rows carry IsConfirmed = false). TransactionsList (an
- * end-of-day SNB list) is intentionally NOT here yet — see WORKSPACES.
+ * reports (their rows carry IsConfirmed = false). Ledger is the ERP ledger
+ * feed — its library is identified by (ClientCode, ErpCode), NOT (bank, side)
+ * (see src/utils/libraryIdentity.ts). TransactionsList (an end-of-day SNB
+ * list) is intentionally NOT here yet — see WORKSPACES.
  */
-export const DATA_SET_TYPES = ['MT940', 'MT942', 'INTERIM_MT940'] as const;
+export const DATA_SET_TYPES = ['MT940', 'MT942', 'INTERIM_MT940', 'Ledger'] as const;
 export type DataSetType = (typeof DATA_SET_TYPES)[number];
 
 /**
@@ -32,6 +34,7 @@ export const DATA_SET_TYPE_LABELS: Record<DataSetType, string> = {
   MT940: 'MT940',
   MT942: 'MT942',
   INTERIM_MT940: 'Interim MT940',
+  Ledger: 'Ledger (ERP)',
 };
 
 /**
@@ -51,6 +54,7 @@ export const WORKSPACES: Workspace[] = [
   { id: 'MT940', label: 'MT940', dataSetTypes: ['MT940'] },
   { id: 'MT942', label: 'MT942', dataSetTypes: ['MT942'] },
   { id: 'INTERIM_MT940', label: 'Interim MT940', dataSetTypes: ['INTERIM_MT940'] },
+  { id: 'Ledger', label: 'Ledger (ERP)', dataSetTypes: ['Ledger'] },
 ];
 
 /** Every DataSetType the app fetches libraries / backlog stats for. */
