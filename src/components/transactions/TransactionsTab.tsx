@@ -3287,6 +3287,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                 value={builder.formState.transactionTypeCode}
                 onChange={(val) => builder.updateBasicInfo({ transactionTypeCode: val })}
                 filterDefinitions={filterDefinitions}
+                dataSetType={activeCheckout?.dataSetType ?? builder.formState.dataSetType}
                 disabled={isReadOnly}
                 triggerClassName="!py-1 !text-xs !max-w-[220px]"
                 clearable
