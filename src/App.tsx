@@ -87,6 +87,11 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
   const [activeTab, setActiveTab] = useState(0);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [activeCheckout, setActiveCheckout] = useState<CheckoutState | null>(null);
+  // DataSetType of the most recent checkout, surviving the checkout itself.
+  // Release/check-in clear activeCheckout and land on the Backlog, whose
+  // StatsTab remounts on every tab switch — without this the Backlog would
+  // fall back to the MT940 sub-tab instead of the workspace just worked on.
+  const [lastCheckoutDataSetType, setLastCheckoutDataSetType] = useState<string | null>(null);
   // Transient extra filters propagated from a Backlog pill click (Clean,
   // Untagged, etc). Lives at the app level so the navigation outlives the
   // tab switch; TransactionsTab consumes it on mount and clears via
@@ -228,6 +233,13 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
     setActiveCheckout({ ...resolveCheckoutIdentity(bank, side, dataSetType), dataSetType, operatorName });
   }, [operatorName, resolveCheckoutIdentity]);
 
+  // Track the workspace across the checkout lifecycle (covers every path
+  // that establishes a checkout: Backlog view, checkout complete, share-link
+  // restore).
+  useEffect(() => {
+    if (activeCheckout?.dataSetType) setLastCheckoutDataSetType(activeCheckout.dataSetType);
+  }, [activeCheckout?.dataSetType]);
+
   const handleRelease = useCallback(async (bank: string, side: string, dataSetType: string) => {
     if (isAudit) return;
     if (!authToken || !tepHeaders) return;
@@ -247,6 +259,7 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
         prev && prev.bank === bank && prev.side === side && prev.dataSetType === dataSetType ? null : prev
       );
       setToast({ message: `Saved and released ${label}`, type: 'success' });
+      setLastCheckoutDataSetType(dataSetType);
       setActiveTab(0);
     } catch (err) {
       setToast({ message: err instanceof Error ? err.message : 'Release failed', type: 'error' });
@@ -274,6 +287,7 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
         prev && prev.bank === bank && prev.side === side && prev.dataSetType === dataSetType ? null : prev
       );
       setToast({ message: `Saved and checked in ${label}`, type: 'success' });
+      setLastCheckoutDataSetType(dataSetType);
       setActiveTab(0);
     } catch (err) {
       setToast({ message: err instanceof Error ? err.message : 'Check-in failed', type: 'error' });
@@ -303,7 +317,7 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
           activeIndex={activeTab}
           onTabChange={handleTabChange}
           tabs={[
-            { label: 'Backlog', content: <StatsTab onViewTransactions={handleViewTransactions} onViewAllTransactions={handleViewAllTransactions} onCheckoutComplete={handleCheckoutComplete} onRelease={handleRelease} authToken={authToken} tepHeaders={tepHeaders} navigation={backlogNavigation} onNavigationConsumed={handleBacklogNavigationConsumed} onNavigateToBacklog={handleNavigateToBacklog} preferredDataSetType={activeCheckout?.dataSetType ?? null} /> },
+            { label: 'Backlog', content: <StatsTab onViewTransactions={handleViewTransactions} onViewAllTransactions={handleViewAllTransactions} onCheckoutComplete={handleCheckoutComplete} onRelease={handleRelease} authToken={authToken} tepHeaders={tepHeaders} navigation={backlogNavigation} onNavigationConsumed={handleBacklogNavigationConsumed} onNavigateToBacklog={handleNavigateToBacklog} preferredDataSetType={activeCheckout?.dataSetType ?? lastCheckoutDataSetType} /> },
             { label: 'Transactions', content: <TransactionsTab activeCheckout={activeCheckout} onClearPendingDefinition={() => setActiveCheckout(prev => (prev && prev.pendingDefinitionId != null) ? { ...prev, pendingDefinitionId: undefined } : prev)} initialShareFilters={shareFilters} initialShareToggles={shareToggles} operatorName={operatorName} shareDialogOpen={shareDialogOpen} onShareDialogClose={() => setShareDialogOpen(false)} pendingPillFilters={pendingPillFilters} onPendingPillFiltersConsumed={() => setPendingPillFilters(null)} onBuilderOpenChange={setIsRuleBuilderOpen} /> },
             ...(isLiveMode && isDevops ? [{ label: 'Integration Logs', content: <IntegrationLogsTab /> }] : []),
             { label: 'Settings', content: <SettingsTab /> },

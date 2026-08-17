@@ -5,7 +5,7 @@ import { SearchableSelect } from '../shared/SearchableSelect';
 import { Toggle } from '../shared/Toggle';
 import { Button } from '../shared/Button';
 import { Tooltip } from '../shared/Tooltip';
-import { VALIDATION_RULE_TAG_OPTIONS } from '../../constants/fields';
+import { VALIDATION_RULE_TAG_OPTIONS, LEDGER_SOURCE_FIELDS } from '../../constants/fields';
 import { useLovAttributes } from '../../context/LovAttributesContext';
 import { useTransactionData } from '../../hooks/useTransactionData';
 import { EXTRACTION_OPERATIONS, PREDEFINED_PATTERNS } from '../../constants/operations';
@@ -30,6 +30,9 @@ const ALLOWED_SOURCE_FIELDS = new Set([
   'Description1', 'Description2', 'EntryDate', 'FundsCode',
   'IBAN', 'StatementDate', 'TransactionDetails', 'TransactionStatusIndicator',
   'ValueDate',
+  // Ledger fields — only surface when the loaded rows carry them (the
+  // dropdown intersects this set with fieldMeta.sourceFields).
+  ...LEDGER_SOURCE_FIELDS,
 ]);
 
 const FILTERED_EXTRACTION_OPERATIONS = EXTRACTION_OPERATIONS.filter(
