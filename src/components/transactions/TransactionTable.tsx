@@ -255,9 +255,11 @@ const DATE_COLUMN_LABELS: Record<string, string> = {
  */
 const LEDGER_COLUMN_LABELS: Record<string, string> = {
   StatementId: 'Txn Id',
-  StatementDate: 'Date',
-  EntryDate: 'Date',
-  ValueDate: 'Date',
+  // Distinct names per date — three columns all labeled "Date" left the
+  // operator unable to tell them apart in the header / column picker.
+  StatementDate: 'Txn Date',
+  EntryDate: 'Entry Date',
+  ValueDate: 'Value Date',
   TransactionTypeCode: 'Type Code',
   BankReference: 'Reference',
   TransactionDetails: 'Description',
@@ -3289,10 +3291,12 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                         title={sortTitle}
                         className={`group inline-flex items-center gap-1 -my-1 -ml-1 pl-1 pr-1.5 py-1 rounded hover:bg-primary/10 transition-colors ${activeSort ? 'text-primary-dark dark:text-primary-light' : 'text-body-secondary'}`}
                       >
-                        <span>{humanizeFieldName(col.field)}</span>
+                        {/* getColumnLabel (not humanizeFieldName) so Ledger
+                            header relabels match the column picker. */}
+                        <span>{getColumnLabel(col, dataSetType)}</span>
                         <SortChevron activeOrder={activeSort} />
                       </button>
-                    ) : humanizeFieldName(col.field))}
+                    ) : getColumnLabel(col, dataSetType))}
                     {col.type === 'attribute' && humanizeFieldName(col.name)}
                     {isResizable && onColumnWidthChange && (
                       <ColumnResizeHandle
