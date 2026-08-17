@@ -12,11 +12,12 @@ import type { FilterProperty, TepHeaders } from '../../api/transactions';
 import type { TransactionRow, TagSpecLibrary, AnalyzedTransaction } from '../../types';
 import type { ColumnDef } from './TransactionTable';
 import { DATA_SET_TYPE_LABELS, DEFAULT_DATA_SET_TYPE } from '../../constants/dataSetTypes';
+import { isLedger, LEDGER_DATA_SET_TYPE } from '../../utils/libraryIdentity';
 
 // Order the per-DataSetType context tables: intraday statements (MT942 /
-// INTERIM_MT940) always come BEFORE the end-of-day MT940 table; any
-// unrecognized type sorts after MT940.
-const CONTEXT_DATASET_ORDER = ['MT942', 'INTERIM_MT940', 'MT940'];
+// INTERIM_MT940) always come BEFORE the end-of-day MT940 table; Ledger and any
+// unrecognized type sort last.
+const CONTEXT_DATASET_ORDER = ['MT942', 'INTERIM_MT940', 'MT940', 'Ledger'];
 function dataSetRank(t: string): number {
   const i = CONTEXT_DATASET_ORDER.indexOf(t);
   return i === -1 ? CONTEXT_DATASET_ORDER.length : i;
@@ -167,12 +168,21 @@ export function ViewContextModal({ open, onClose, transaction, authToken, tepHea
   }, [transaction, filterDefinitions]);
 
   const fetchContext = useCallback(async () => {
+    const ledger = isLedger(String(transaction['DataSetType'] ?? ''));
     const bank = String(transaction['BankSwiftCode'] ?? '');
     const iban = String(transaction['IBAN'] ?? '');
     const stmtDate = String(transaction['StatementDate'] ?? '');
+    const statementId = String(transaction['StatementId'] ?? '');
 
-    if (!bank || !stmtDate) {
-      setError('Missing bank or statement date on this transaction.');
+    // For Ledger, "context" is the other legs of the SAME ERP transaction, so
+    // scope by StatementId (+ the Ledger type). Ledger rows have no
+    // BankSwiftCode, so the bank/date guard does not apply.
+    if (ledger ? !statementId : (!bank || !stmtDate)) {
+      setError(
+        ledger
+          ? 'Missing transaction id on this ledger row.'
+          : 'Missing bank or statement date on this transaction.',
+      );
       return;
     }
 
@@ -181,13 +191,16 @@ export function ViewContextModal({ open, onClose, transaction, authToken, tepHea
     setRows([]);
 
     try {
-      const filters = [
-        { ColumnName: 'BankSwiftCode', Value: bank, Operand: 'EQ' },
-        { ColumnName: 'StatementDate', Value: stmtDate, Operand: 'EQ' },
-      ];
-      if (iban) {
-        filters.push({ ColumnName: 'IBAN', Value: iban, Operand: 'EQ' });
-      }
+      const filters = ledger
+        ? [
+            { ColumnName: 'StatementId', Value: statementId, Operand: 'EQ' },
+            { ColumnName: 'DataSetType', Value: LEDGER_DATA_SET_TYPE, Operand: 'IN' },
+          ]
+        : [
+            { ColumnName: 'BankSwiftCode', Value: bank, Operand: 'EQ' },
+            { ColumnName: 'StatementDate', Value: stmtDate, Operand: 'EQ' },
+            ...(iban ? [{ ColumnName: 'IBAN', Value: iban, Operand: 'EQ' }] : []),
+          ];
       const result = await getTransactions(
         {
           FilteringProperties: filters,
@@ -228,6 +241,7 @@ export function ViewContextModal({ open, onClose, transaction, authToken, tepHea
     String(transaction['BankSwiftCode'] ?? ''),
     String(transaction['StatementDate'] ?? ''),
     String(transaction['IBAN'] ?? ''),
+    String(transaction['StatementId'] ?? ''),
   ]);
 
   // Reset transient export feedback whenever the modal is reopened on a
@@ -240,18 +254,30 @@ export function ViewContextModal({ open, onClose, transaction, authToken, tepHea
 
   const handleExport = useCallback(async () => {
     if (!downloadCenter) return;
+    const ledger = isLedger(String(transaction['DataSetType'] ?? ''));
     const bank = String(transaction['BankSwiftCode'] ?? '');
     const ibanVal = String(transaction['IBAN'] ?? '');
     const stmtDateVal = String(transaction['StatementDate'] ?? '');
-    if (!bank || !stmtDateVal) {
-      setExportStatus({ kind: 'error', message: 'Missing bank or statement date on this transaction.' });
+    const statementId = String(transaction['StatementId'] ?? '');
+    if (ledger ? !statementId : (!bank || !stmtDateVal)) {
+      setExportStatus({
+        kind: 'error',
+        message: ledger
+          ? 'Missing transaction id on this ledger row.'
+          : 'Missing bank or statement date on this transaction.',
+      });
       return;
     }
-    const filters: FilterProperty[] = [
-      { ColumnName: 'BankSwiftCode', Value: bank, Operand: 'EQ' },
-      { ColumnName: 'StatementDate', Value: stmtDateVal, Operand: 'EQ' },
-    ];
-    if (ibanVal) filters.push({ ColumnName: 'IBAN', Value: ibanVal, Operand: 'EQ' });
+    const filters: FilterProperty[] = ledger
+      ? [
+          { ColumnName: 'StatementId', Value: statementId, Operand: 'EQ' },
+          { ColumnName: 'DataSetType', Value: LEDGER_DATA_SET_TYPE, Operand: 'IN' },
+        ]
+      : [
+          { ColumnName: 'BankSwiftCode', Value: bank, Operand: 'EQ' },
+          { ColumnName: 'StatementDate', Value: stmtDateVal, Operand: 'EQ' },
+          ...(ibanVal ? [{ ColumnName: 'IBAN', Value: ibanVal, Operand: 'EQ' }] : []),
+        ];
 
     setExporting(true);
     setExportStatus(null);
@@ -300,22 +326,40 @@ export function ViewContextModal({ open, onClose, transaction, authToken, tepHea
 
   if (!open) return null;
 
+  const headerLedger = isLedger(String(transaction['DataSetType'] ?? ''));
   const iban = String(transaction['IBAN'] ?? '');
   const stmtDateRaw = String(transaction['StatementDate'] ?? '');
   const stmtDate = stmtDateRaw.split('T')[0];
+  const ledgerClient = String(transaction['ClientCode'] ?? '');
+  const ledgerErp = String(transaction['ErpCode'] ?? '');
+  const ledgerTxnId = String(transaction['StatementId'] ?? '');
 
   return (
     <div className="fixed inset-0 z-[10000] flex flex-col bg-surface">
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-3 border-b border-border bg-surface-elevated shrink-0">
         <div>
-          <h2 className="text-lg font-semibold text-heading">Statement Context</h2>
+          <h2 className="text-lg font-semibold text-heading">
+            {headerLedger ? 'Ledger Transaction Context' : 'Statement Context'}
+          </h2>
           <div className="flex items-center gap-2 text-sm text-body-secondary mt-0.5">
-            <span className="font-medium text-heading">{bankName}</span>
-            <span className="text-faint">/</span>
-            <span>{stmtDate}</span>
-            <span className="text-faint">/</span>
-            <span className="font-mono text-xs">{iban}</span>
+            {headerLedger ? (
+              <>
+                <span className="font-medium text-heading">{ledgerClient}</span>
+                <span className="text-faint">/</span>
+                <span>{ledgerErp}</span>
+                <span className="text-faint">/</span>
+                <span className="font-mono text-xs">Txn {ledgerTxnId}</span>
+              </>
+            ) : (
+              <>
+                <span className="font-medium text-heading">{bankName}</span>
+                <span className="text-faint">/</span>
+                <span>{stmtDate}</span>
+                <span className="text-faint">/</span>
+                <span className="font-mono text-xs">{iban}</span>
+              </>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-4">
@@ -409,7 +453,9 @@ export function ViewContextModal({ open, onClose, transaction, authToken, tepHea
         {!loading && !error && rows.length > 0 && (
           <div className="pb-4">
           {groupedRows.map(([dst, items]) => {
-            const isIntraday = dst !== DEFAULT_DATA_SET_TYPE;
+            // Amber = provisional intraday. Ledger is not provisional, so it
+            // gets the neutral treatment (its own group, no tint).
+            const isIntraday = dst === 'MT942' || dst === 'INTERIM_MT940';
             return (
             <section key={dst}>
               {/* DataSetType group header — intraday statements (MT942 /

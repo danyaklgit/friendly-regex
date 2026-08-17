@@ -5,6 +5,7 @@ import { DATE_SOURCE_FIELDS } from '../constants/fields';
 import { compileDateRangeRegex } from './dateRangeRegex';
 import { compileNumericRangeRegex } from './numericRangeRegex';
 import { isFilledCondition } from './ruleFingerprint';
+import { identityScopeFilters } from './libraryIdentity';
 
 type RegexCondition = { ColumnName: string; Value: string; Options: string };
 
@@ -92,10 +93,19 @@ export function buildRegexFilterFromRuleGroups(ruleGroups: AndGroupFormValue[]):
  *  - "GetAllTransactionTags" (live preview while authoring a rule).
  */
 export function buildRulesetFilters(formState: WizardFormState): FilterProperty[] {
-  const filters: FilterProperty[] = [
-    { ColumnName: 'BankSwiftCode', Value: formState.bankSwiftCode, Operand: 'IN' },
-    { ColumnName: 'Side', Value: formState.side, Operand: 'IN' },
-  ];
+  // Ledger scopes by ClientCode/ErpCode; every other type by BankSwiftCode/Side.
+  // WizardFormState names the bank field `bankSwiftCode`, so map it to the
+  // identity helper's `bank` slot.
+  const filters: FilterProperty[] = identityScopeFilters(
+    {
+      dataSetType: formState.dataSetType,
+      bank: formState.bankSwiftCode,
+      side: formState.side,
+      clientCode: formState.clientCode,
+      erpCode: formState.erpCode,
+    },
+    'IN',
+  );
   if (formState.transactionTypeCode) {
     filters.push({ ColumnName: 'TransactionTypeCode', Value: formState.transactionTypeCode, Operand: 'EQ' });
   }

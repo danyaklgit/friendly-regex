@@ -7,6 +7,11 @@ export interface ShareToggles {
 export interface ShareParams {
   bank: string;
   side: string;
+  /** Workspace type. Absent on pre-intraday links → defaults to MT940. */
+  dataSetType: string;
+  /** Ledger identity — present only for Ledger share links. */
+  clientCode?: string;
+  erpCode?: string;
   filters: Record<string, Set<string>>;
   toggles?: ShareToggles;
   note?: string;
@@ -36,6 +41,9 @@ export function deserializeFilters(encoded: string): Record<string, Set<string>>
 export function buildShareUrl(params: {
   bank: string;
   side: string;
+  dataSetType: string;
+  clientCode?: string;
+  erpCode?: string;
   filters: Record<string, Set<string>>;
   toggles?: ShareToggles;
   note?: string;
@@ -45,6 +53,9 @@ export function buildShareUrl(params: {
   url.searchParams.set('share', '1');
   url.searchParams.set('bank', params.bank);
   url.searchParams.set('side', params.side);
+  url.searchParams.set('dst', params.dataSetType);
+  if (params.clientCode) url.searchParams.set('client', params.clientCode);
+  if (params.erpCode) url.searchParams.set('erp', params.erpCode);
   url.searchParams.set('filters', serializeFilters(params.filters));
   if (params.toggles) url.searchParams.set('toggles', btoa(JSON.stringify(params.toggles)));
   if (params.note) url.searchParams.set('note', params.note);
@@ -56,17 +67,24 @@ export function buildShareUrl(params: {
 export function parseShareParams(): ShareParams | null {
   const params = new URLSearchParams(window.location.search);
   if (params.get('share') !== '1') return null;
-  const bank = params.get('bank');
-  const side = params.get('side');
+  const bank = params.get('bank') ?? '';
+  const side = params.get('side') ?? '';
+  const dataSetType = params.get('dst') || 'MT940';
+  const clientCode = params.get('client') || undefined;
+  const erpCode = params.get('erp') || undefined;
   const filtersRaw = params.get('filters');
   const sharedBy = params.get('shared_by');
-  if (!bank || !side || !filtersRaw || !sharedBy) return null;
+  if (!filtersRaw || !sharedBy) return null;
+  // Identity must be complete for the workspace: Ledger needs client+erp,
+  // every other type needs bank+side.
+  const ledger = dataSetType === 'Ledger';
+  if (ledger ? !(clientCode && erpCode) : !(bank && side)) return null;
   try {
     const filters = deserializeFilters(filtersRaw);
     const note = params.get('note') || undefined;
     const togglesRaw = params.get('toggles');
     const toggles = togglesRaw ? JSON.parse(atob(togglesRaw)) as ShareToggles : undefined;
-    return { bank, side, filters, toggles, note, sharedBy };
+    return { bank, side, dataSetType, clientCode, erpCode, filters, toggles, note, sharedBy };
   } catch {
     return null;
   }
@@ -91,12 +109,12 @@ export function consumeStoredShareParams(): ShareParams | null {
   if (!raw) return null;
   sessionStorage.removeItem(SESSION_KEY);
   try {
-    const obj = JSON.parse(raw) as { bank: string; side: string; filters: Record<string, string[]>; toggles?: ShareToggles; note?: string; sharedBy: string };
+    const obj = JSON.parse(raw) as { bank: string; side: string; dataSetType?: string; clientCode?: string; erpCode?: string; filters: Record<string, string[]>; toggles?: ShareToggles; note?: string; sharedBy: string };
     const filters: Record<string, Set<string>> = {};
     for (const [key, values] of Object.entries(obj.filters)) {
       filters[key] = new Set(values);
     }
-    return { bank: obj.bank, side: obj.side, filters, toggles: obj.toggles, note: obj.note, sharedBy: obj.sharedBy };
+    return { bank: obj.bank, side: obj.side, dataSetType: obj.dataSetType ?? 'MT940', clientCode: obj.clientCode, erpCode: obj.erpCode, filters, toggles: obj.toggles, note: obj.note, sharedBy: obj.sharedBy };
   } catch {
     sessionStorage.removeItem(SESSION_KEY);
     return null;
@@ -109,6 +127,9 @@ export function clearShareParamsFromUrl(): void {
   url.searchParams.delete('share');
   url.searchParams.delete('bank');
   url.searchParams.delete('side');
+  url.searchParams.delete('dst');
+  url.searchParams.delete('client');
+  url.searchParams.delete('erp');
   url.searchParams.delete('filters');
   url.searchParams.delete('toggles');
   url.searchParams.delete('note');

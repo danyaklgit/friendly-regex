@@ -20,6 +20,7 @@ import {
 import type { FilterProperty } from '../../api/transactions';
 import { getAllTransactionTags, buildSortingProperties, parseSortOverride, type SortOverride } from '../../api/transactions';
 import { dataSetTypeFilter, DEFAULT_DATA_SET_TYPE } from '../../constants/dataSetTypes';
+import { libraryMatchesCheckout, identityKeySuffix, identityScopeFilters, isLedger } from '../../utils/libraryIdentity';
 import { translateFilters } from '../../utils/translateFilters';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
 import { useOptionalDownloadCenter } from '../../context/DownloadCenterContext';
@@ -273,18 +274,14 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const { userId, usersMap, getAuthHeaders, refreshIfNeeded, isAudit } = useAuth();
   const { extractionMethods } = useLovAttributes();
   const tepConfig = useTepConfig();
-  const { saveBaseline, updateCurrent } = useLocalChanges(activeCheckout?.bank, activeCheckout?.side, activeCheckout?.dataSetType);
+  const { saveBaseline, updateCurrent } = useLocalChanges(activeCheckout);
 
   // Determine if the current user is NOT the checkout owner (read-only mode)
   const { isReadOnly, ownerName } = useMemo(() => {
     if (isAudit) return { isReadOnly: true, ownerName: null };
     if (!activeCheckout) return { isReadOnly: true, ownerName: null };
     const inProgressLib = libraries.find(
-      (l) =>
-        l.StatusTag === 'INPROGRESS' &&
-        l.DataSetType === activeCheckout.dataSetType &&
-        getContextValue(l.Context, 'BankSwiftCode') === activeCheckout.bank &&
-        getContextValue(l.Context, 'Side') === activeCheckout.side
+      (l) => l.StatusTag === 'INPROGRESS' && libraryMatchesCheckout(l, activeCheckout)
     );
     if (!inProgressLib || !inProgressLib.OperatorId) return { isReadOnly: true, ownerName: null };
     // A background tagging job locks the whole pair regardless of ownership.
@@ -302,11 +299,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const inProgressLib = useMemo(() => {
     if (!activeCheckout) return null;
     return libraries.find(
-      (l) =>
-        l.StatusTag === 'INPROGRESS' &&
-        l.DataSetType === activeCheckout.dataSetType &&
-        getContextValue(l.Context, 'BankSwiftCode') === activeCheckout.bank &&
-        getContextValue(l.Context, 'Side') === activeCheckout.side
+      (l) => l.StatusTag === 'INPROGRESS' && libraryMatchesCheckout(l, activeCheckout)
     ) ?? null;
   }, [libraries, activeCheckout]);
 
@@ -322,7 +315,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
 
   useEffect(() => {
     if (inProgressLib && activeCheckout) {
-      const baselineKey = `tep:baseline:${activeCheckout.dataSetType}:${activeCheckout.bank}:${activeCheckout.side}`;
+      const baselineKey = `tep:baseline:${identityKeySuffix(activeCheckout)}`;
       if (!localStorage.getItem(baselineKey)) {
         saveBaseline(inProgressLib);
       } else {
@@ -495,19 +488,14 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // persistence effect on mount and wipe the storage.
   const HIDDEN_DEF_IDS_STORAGE_KEY = 'tep:hiddenDefIds';
   const [hiddenDefIds, setHiddenDefIds] = useState<Set<string>>(() => {
-    const currBank = activeCheckout?.bank ?? null;
-    const currSide = activeCheckout?.side ?? null;
-    if (!currBank) return new Set();
+    // Scoped to the checkout identity (bank/side, or client/erp for Ledger).
+    const currKey = activeCheckout ? identityKeySuffix(activeCheckout) : null;
+    if (!currKey) return new Set();
     try {
       const raw = sessionStorage.getItem(HIDDEN_DEF_IDS_STORAGE_KEY);
       if (!raw) return new Set();
-      const stored = JSON.parse(raw) as { bank?: string; side?: string; ids?: string[] } | null;
-      if (
-        stored &&
-        stored.bank === currBank &&
-        stored.side === currSide &&
-        Array.isArray(stored.ids)
-      ) {
+      const stored = JSON.parse(raw) as { key?: string; ids?: string[] } | null;
+      if (stored && stored.key === currKey && Array.isArray(stored.ids)) {
         return new Set(stored.ids);
       }
     } catch { /* fall through to empty */ }
@@ -602,17 +590,25 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     // keeps the grid (and, via handleExport, the CSV) scoped to the workspace
     // and stops intraday rows leaking into an MT940 view. It leads every
     // returned filter list.
-    const dstScope = dataSetTypeFilter(activeCheckout?.dataSetType ?? DEFAULT_DATA_SET_TYPE);
+    // For Ledger, also pin the ClientCode/ErpCode identity (bank/side don't
+    // exist on Ledger rows). DataSetType alone suffices today (one client/erp),
+    // but sending the context keeps the grid correct when a second ERP arrives.
+    const scopePrefix: FilterProperty[] = [
+      dataSetTypeFilter(activeCheckout?.dataSetType ?? DEFAULT_DATA_SET_TYPE),
+      ...(activeCheckout && isLedger(activeCheckout.dataSetType)
+        ? identityScopeFilters(activeCheckout, 'EQ')
+        : []),
+    ];
 
     if (tagClickDefinitionId != null) {
       // After "Apply Rules": use REGEX-based filters (Call 3)
       if (tagClickRulesetApplied) {
-        return withHidden([dstScope, ...(tagClickRulesetFilters ?? []), ...activePillFilters]);
+        return withHidden([...scopePrefix, ...(tagClickRulesetFilters ?? []), ...activePillFilters]);
       }
       // Default tag-click mode: scope by definition ID (Call 2)
       if (!tagClickShowingAll) {
         return withHidden([
-          dstScope,
+          ...scopePrefix,
           {
             ColumnName: 'OpsTagSpecDefinitionId|OpsMultiTags.TagSpecDefinitionId',
             Value: tagClickDefinitionId,
@@ -623,9 +619,9 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       }
       // "Show all" mode: don't scope by TransactionTypeCode — the tag name filter
       // (applied via `filters`) is what the user wants to broaden to.
-      return withHidden([dstScope, ...activePillFilters]);
+      return withHidden([...scopePrefix, ...activePillFilters]);
     }
-    const extra: FilterProperty[] = [dstScope];
+    const extra: FilterProperty[] = [...scopePrefix];
     // Current Tags multi-select scope. Multi-value IN goes as a pipe-joined
     // Value (CLAUDE.md gotcha #15) — same shape used by the SHOW ONLY filter
     // and the hidden-tag-count call. Applied whether or not the rule builder
@@ -679,7 +675,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     // filter was removed. Hiding a tag spec is a pure client-side
     // re-filter via `filteredData`; nothing in this memo's body reads
     // hiddenDefIds anymore.
-  }, [activeCheckout?.dataSetType, tagClickDefinitionId, tagClickRulesetApplied, tagClickShowingAll, tagClickRulesetFilters, builderOpen, builder.formState, currentTagFilterIds, activePillFilters, matchingRulesFilter]);
+  }, [activeCheckout, tagClickDefinitionId, tagClickRulesetApplied, tagClickShowingAll, tagClickRulesetFilters, builderOpen, builder.formState, currentTagFilterIds, activePillFilters, matchingRulesFilter]);
 
   // Forward the UI filter state as-is. Earlier this hook stripped bank/side
   // when a TagSpecDefinitionId scope was active, on the theory that the
@@ -1024,6 +1020,9 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // rather than column names, so translateFilters can find the matching definition.
   const baseFilters = useMemo(() => {
     if (!activeCheckout) return undefined;
+    // Ledger has no bank/side; its ClientCode/ErpCode scope is applied via
+    // activeExtraFilters (identityScopeFilters), not as UI filter chips.
+    if (isLedger(activeCheckout.dataSetType)) return undefined;
     if (isLiveMode && filterDefinitions.length > 0) {
       const tagForColumn = (col: string) =>
         filterDefinitions.find((d) => d.Values.some((v) => v.Column === col))?.Tag ?? col;
@@ -1219,34 +1218,28 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // restore is handled by the useState lazy initializer above, so this
   // effect skips its mount-time fire — only a genuine change of bank/side
   // triggers the wipe.
-  const lastCheckoutRef = useRef<{ bank: string | null; side: string | null }>({
-    bank: activeCheckout?.bank ?? null,
-    side: activeCheckout?.side ?? null,
-  });
+  const checkoutKey = activeCheckout ? identityKeySuffix(activeCheckout) : null;
+  const lastCheckoutRef = useRef<string | null>(checkoutKey);
   useEffect(() => {
-    const prev = lastCheckoutRef.current;
-    const curr = { bank: activeCheckout?.bank ?? null, side: activeCheckout?.side ?? null };
-    if (prev.bank === curr.bank && prev.side === curr.side) return;
-    lastCheckoutRef.current = curr;
+    if (lastCheckoutRef.current === checkoutKey) return;
+    lastCheckoutRef.current = checkoutKey;
     setHiddenDefIds(new Set());
     setHiddenTagsPanelOpen(false);
-  }, [activeCheckout?.bank, activeCheckout?.side]);
+  }, [checkoutKey]);
 
-  // Persist the set on every change, scoped to the current checkout.
+  // Persist the set on every change, scoped to the current checkout identity.
   useEffect(() => {
-    const currBank = activeCheckout?.bank ?? null;
-    const currSide = activeCheckout?.side ?? null;
     try {
-      if (hiddenDefIds.size === 0 || currBank == null) {
+      if (hiddenDefIds.size === 0 || checkoutKey == null) {
         sessionStorage.removeItem(HIDDEN_DEF_IDS_STORAGE_KEY);
       } else {
         sessionStorage.setItem(
           HIDDEN_DEF_IDS_STORAGE_KEY,
-          JSON.stringify({ bank: currBank, side: currSide, ids: [...hiddenDefIds] }),
+          JSON.stringify({ key: checkoutKey, ids: [...hiddenDefIds] }),
         );
       }
     } catch { /* storage disabled — in-memory state still works */ }
-  }, [hiddenDefIds, activeCheckout?.bank, activeCheckout?.side]);
+  }, [hiddenDefIds, checkoutKey]);
 
   // Close the side panel once the last hidden tag spec is removed so it
   // doesn't linger as an empty drawer.
@@ -1496,7 +1489,10 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const mt940SuggestionsByRow = useMemo(() => {
     const map = new Map<TransactionRow, TagSpecDefinition[]>();
     const dst = activeCheckout?.dataSetType;
-    if (!isLiveMode || !activeCheckout || !dst || dst === DEFAULT_DATA_SET_TYPE) return map;
+    // Only the intraday workspaces clone from MT940. Gate explicitly (not
+    // "anything but MT940") so Ledger — which shares no rules with MT940 —
+    // never shows clone-from-MT940 pills.
+    if (!isLiveMode || !activeCheckout || (dst !== 'MT942' && dst !== 'INTERIM_MT940')) return map;
     // Gather candidate MT940 defs for the EXACT same bank + side as the
     // intraday checkout (only). Dedupe by def.Id, keeping the most-current
     // source (INPROGRESS draft over ACTIVE release, then higher Version) —
@@ -1650,7 +1646,14 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // only, returning all tag definitions for that combination.
   const matchingTagsFormState = useMemo(() => {
     const base = activeCheckout
-      ? { ...builder.formState, bankSwiftCode: activeCheckout.bank, side: activeCheckout.side }
+      ? {
+          ...builder.formState,
+          bankSwiftCode: activeCheckout.bank,
+          side: activeCheckout.side,
+          dataSetType: activeCheckout.dataSetType,
+          clientCode: activeCheckout.clientCode ?? '',
+          erpCode: activeCheckout.erpCode ?? '',
+        }
       : builder.formState;
     if (tagClickState?.showingAll) {
       return { ...base, ruleGroups: [] };
@@ -2229,10 +2232,8 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
           timeZone: tepConfig.timeZone,
           requestId: tepConfig.ttpRequestId,
         };
-        const filteringProperties: FilterProperty[] = [
-          { ColumnName: 'BankSwiftCode', Value: activeCheckout.bank, Operand: 'EQ' },
-          { ColumnName: 'Side', Value: activeCheckout.side, Operand: 'EQ' },
-        ];
+        // Ledger scopes by ClientCode/ErpCode; every other type by bank/side.
+        const filteringProperties: FilterProperty[] = identityScopeFilters(activeCheckout, 'EQ');
         const ids = await getAllTransactionTags(
           { FilteringProperties: filteringProperties },
           token,
@@ -2452,6 +2453,9 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       ...(isFromCheckout ? {
         side: activeCheckout!.side,
         bankSwiftCode: activeCheckout!.bank,
+        dataSetType: activeCheckout!.dataSetType,
+        clientCode: activeCheckout!.clientCode ?? '',
+        erpCode: activeCheckout!.erpCode ?? '',
         transactionTypeCode: builder.formState.transactionTypeCode,
         // Preserve the validity range the operator entered inline so it
         // pre-populates the Basic Info Validity section of the save popup.
@@ -2559,10 +2563,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
           // Find the inProgressLib and apply the change manually (dispatch is
           // async in React batching).
           const currentLib = libraries.find(
-            (l) =>
-              l.StatusTag === 'INPROGRESS' &&
-              getContextValue(l.Context, 'BankSwiftCode') === activeCheckout.bank &&
-              getContextValue(l.Context, 'Side') === activeCheckout.side
+            (l) => l.StatusTag === 'INPROGRESS' && libraryMatchesCheckout(l, activeCheckout)
           );
           if (currentLib) {
             const isEditing = !!editingDef;
@@ -3135,7 +3136,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
               </div>
             )}
             {tableColumns.length > 0 && (
-              <ColumnPicker columns={tableColumns} hiddenColumns={effectiveHiddenColumns} onChange={setHiddenColumns} columnOrder={columnOrder} onColumnOrderChange={setColumnOrder} defaultHiddenColumns={defaultHiddenColumns} onReset={handleColumnReset} lockedVisibleKeys={forcedSideColumnKeys} />
+              <ColumnPicker columns={tableColumns} hiddenColumns={effectiveHiddenColumns} onChange={setHiddenColumns} columnOrder={columnOrder} onColumnOrderChange={setColumnOrder} defaultHiddenColumns={defaultHiddenColumns} onReset={handleColumnReset} lockedVisibleKeys={forcedSideColumnKeys} dataSetType={activeCheckout?.dataSetType} />
             )}
             {sortOverride && (
               <button
@@ -3764,6 +3765,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       ) : (
       <TransactionTable
         data={visibleData}
+        dataSetType={activeCheckout?.dataSetType}
         tagDefinitions={allDefinitions}
         originalDefinitionIds={originalDefinitionIds}
         definitionSourceMap={definitionSourceMap}
@@ -4026,6 +4028,9 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
           onClose={onShareDialogClose ?? (() => {})}
           bank={activeCheckout.bank}
           side={activeCheckout.side}
+          dataSetType={activeCheckout.dataSetType}
+          clientCode={activeCheckout.clientCode}
+          erpCode={activeCheckout.erpCode}
           filters={filters}
           toggles={{ compactMode: relaxedMode, incrementalPagination, showAttributes }}
           sharedBy={operatorName ?? 'Unknown'}

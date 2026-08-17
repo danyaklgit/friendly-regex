@@ -24,6 +24,7 @@ import { CommentSearchPanel } from '../comments/CommentSearchPanel';
 import type { TepHeaders, BacklogStatEntry, FilterProperty } from '../../api/transactions';
 import { getBacklogStats } from '../../api/transactions';
 import { ALL_LIBRARY_DATA_SET_TYPES, DATA_SET_TYPES, DATA_SET_TYPE_LABELS, DEFAULT_DATA_SET_TYPE, type DataSetType } from '../../constants/dataSetTypes';
+import { identityFromContext, identityKeySuffix, libraryContextSummary, libraryMatchesCheckout, isLedger, type IdentityInput } from '../../utils/libraryIdentity';
 import type { TagSpecLibrary, TagSpecDefinition } from '../../types';
 import type { TagSpecCommentTarget } from '../../types/comments';
 import { useLocalChanges } from '../../hooks/useLocalChanges';
@@ -75,6 +76,12 @@ const sideLabel: Record<string, string> = {
   RC: 'Rev. Credit',
   RD: 'Rev. Debit',
 };
+
+/** "GULFSARI / DR" for bank/side rows, "BWATECH / ZOHO" for Ledger. */
+function identityLabel(r: IdentityInput): string {
+  const s = libraryContextSummary(r);
+  return `${s.primaryValue} / ${s.secondaryValue}`;
+}
 
 /** Backlog row pill identifiers. Mirrors the seven filter recipes specified
  *  by the backend: each click opens the Transactions tab scoped to
@@ -163,6 +170,9 @@ interface DisplayRow {
   library: TagSpecLibrary;
   bank: string;
   side: string;
+  /** Ledger identity — '' for bank/side workspaces. */
+  clientCode: string;
+  erpCode: string;
   dataSetType: string;
   operatorName: string | null;
   isInProgress: boolean;
@@ -174,7 +184,7 @@ interface DisplayRow {
 export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckoutComplete, onRelease, authToken, tepHeaders, navigation, onNavigationConsumed, onNavigateToBacklog, preferredDataSetType }: StatsTabProps) {
   const { libraries, tagDefinitions, loading, refetchTagSpecs, refetchLibraries, dispatch, taggingProgress, isPairBeingTagged, getTaggingFirstSeen } = useTagSpecs();
   const { usersMap, useDummyData, userId, isAudit } = useAuth();
-  const { clearChanges } = useLocalChanges(undefined, undefined, undefined);
+  const { clearChanges } = useLocalChanges(null);
   const { filterDefinitions, filterDefinitionsLoading, fetchFilterDefinitions, isLiveMode } = useTransactionData();
 
   // Fetch filter definitions on mount so bank names are available even when starting on Backlog
@@ -320,8 +330,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
       const hasOperator = !!inProgressLib?.OperatorId;
       return {
         library: lib,
-        bank: getContextValue(lib.Context, 'BankSwiftCode') ?? '',
-        side: getContextValue(lib.Context, 'Side') ?? '',
+        ...identityFromContext(lib),
         dataSetType: lib.DataSetType,
         operatorName: hasOperator
           ? usersMap.get(inProgressLib!.OperatorId) ?? inProgressLib!.OperatorId
@@ -376,6 +385,9 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
         : availableDataSetTypes.includes(DEFAULT_DATA_SET_TYPE)
           ? DEFAULT_DATA_SET_TYPE
           : (availableDataSetTypes[0] ?? null);
+  // A Backlog tab shows a single DataSetType, so its identity columns are
+  // uniform: Ledger shows Client | ERP, every other type shows Bank | Side.
+  const ledgerView = isLedger(activeDataSetType ?? undefined);
 
   const visibleRows = useMemo(
     () => (activeDataSetType ? rows.filter((r) => r.dataSetType === activeDataSetType) : rows),
@@ -390,7 +402,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
     const sigOf = (r: DisplayRow) =>
       `${r.isInProgress}|${r.isOwnedByMe}|${r.hasOperator}|${r.operatorName ?? ''}`;
     const current = new Map<string, string>();
-    for (const r of rows) current.set(`${r.dataSetType}:${r.bank}:${r.side}`, sigOf(r));
+    for (const r of rows) current.set(identityKeySuffix(r), sigOf(r));
 
     const prev = prevRowSignaturesRef.current;
     prevRowSignaturesRef.current = current;
@@ -473,19 +485,12 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
       onNavigationConsumed?.();
       return;
     }
-    const bank = getContextValue(target.Context, 'BankSwiftCode') ?? '';
-    const side = getContextValue(target.Context, 'Side') ?? '';
-    const rowKey = `${target.DataSetType}:${bank}:${side}`;
-    // Find the canonical (non-in-progress) library for this bank/side/type,
-    // since that is the one the row uses as `row.library.Id` for its
-    // key/highlight. Match DataSetType too so we don't grab another
-    // workspace's library for the same bank/side.
+    const targetIdentity: IdentityInput = { dataSetType: target.DataSetType, ...identityFromContext(target) };
+    const rowKey = identityKeySuffix(targetIdentity);
+    // Find the canonical (non-in-progress) library for this identity, since
+    // that is the one the row uses as `row.library.Id` for its key/highlight.
     const canonical = libraries.find(
-      (l) =>
-        l.StatusTag !== 'INPROGRESS' &&
-        l.DataSetType === target.DataSetType &&
-        getContextValue(l.Context, 'BankSwiftCode') === bank &&
-        getContextValue(l.Context, 'Side') === side,
+      (l) => l.StatusTag !== 'INPROGRESS' && libraryMatchesCheckout(l, targetIdentity),
     );
     const rowLibraryId = canonical?.Id ?? target.Id;
     setExpandedRows((prev) => {
@@ -530,11 +535,11 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
     const checkoutId = row.inProgressLib?.Id ?? row.library.Id;
     if (!authToken || !tepHeaders || !checkoutId) return;
     setActionLoading(row.library.Id!);
-    setToast({ message: `Checking out ${row.bank} / ${row.side}…`, type: 'info', duration: 60_000 });
+    setToast({ message: `Checking out ${identityLabel(row)}…`, type: 'info', duration: 60_000 });
     try {
       await tagSpecLibraryCheckOut(checkoutId, authToken, tepHeaders);
       refreshAfterAction();
-      setToast({ message: `Checked out ${row.bank} / ${row.side}`, type: 'success' });
+      setToast({ message: `Checked out ${identityLabel(row)}`, type: 'success' });
       onCheckoutComplete(row.bank, row.side, row.dataSetType);
     } catch (err) {
       setToast({ message: err instanceof Error ? err.message : 'Checkout failed', type: 'error' });
@@ -561,13 +566,13 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
   const handleCheckin = useCallback(async (row: DisplayRow) => {
     if (!authToken || !tepHeaders || !row.inProgressLib?.Id) return;
     setActionLoading(row.library.Id!);
-    setToast({ message: `Checking in ${row.bank} / ${row.side}…`, type: 'info', duration: 60_000 });
+    setToast({ message: `Checking in ${identityLabel(row)}…`, type: 'info', duration: 60_000 });
     try {
       await tagSpecLibrarySave(row.inProgressLib, authToken, tepHeaders);
       await tagSpecLibraryCheckIn(row.inProgressLib.Id, authToken, tepHeaders);
-      clearChanges(row.bank, row.side, row.dataSetType);
+      clearChanges(row);
       refreshAfterTaggingTrigger();
-      setToast({ message: `Checked in ${row.bank} / ${row.side}`, type: 'success' });
+      setToast({ message: `Checked in ${identityLabel(row)}`, type: 'success' });
     } catch (err) {
       setToast({ message: err instanceof Error ? err.message : 'Check-in failed', type: 'error' });
     } finally {
@@ -578,12 +583,12 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
   const handleRollbackConfirm = useCallback(async () => {
     if (!authToken || !tepHeaders || !rollbackTarget?.inProgressLib?.Id) return;
     setActionLoading(rollbackTarget.library.Id!);
-    setToast({ message: `Rolling back ${rollbackTarget.bank} / ${rollbackTarget.side}…`, type: 'info', duration: 60_000 });
+    setToast({ message: `Rolling back ${identityLabel(rollbackTarget)}…`, type: 'info', duration: 60_000 });
     try {
       await tagSpecLibraryRollback(rollbackTarget.inProgressLib.Id, authToken, tepHeaders);
-      clearChanges(rollbackTarget.bank, rollbackTarget.side, rollbackTarget.dataSetType);
+      clearChanges(rollbackTarget);
       refreshAfterTaggingTrigger();
-      setToast({ message: `Rolled back ${rollbackTarget.bank} / ${rollbackTarget.side}`, type: 'success' });
+      setToast({ message: `Rolled back ${identityLabel(rollbackTarget)}`, type: 'success' });
     } catch (err) {
       setToast({ message: err instanceof Error ? err.message : 'Rollback failed', type: 'error' });
     } finally {
@@ -744,8 +749,8 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
             <thead className="bg-surface-secondary sticky top-0 z-20">
               <tr className="flex items-center">
                 <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary w-10 shrink-0 whitespace-nowrap"></th>
-                <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary w-44 shrink-0 whitespace-nowrap">Bank</th>
-                <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary w-24 shrink-0 whitespace-nowrap">Side</th>
+                <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary w-44 shrink-0 whitespace-nowrap">{ledgerView ? 'Client' : 'Bank'}</th>
+                <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary w-24 shrink-0 whitespace-nowrap">{ledgerView ? 'ERP' : 'Side'}</th>
                 <th className="px-4 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wider text-body-secondary w-16 shrink-0 whitespace-nowrap">Rules</th>
                 <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary flex-1 min-w-72 whitespace-nowrap">Statistics</th>
                 <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary w-40 shrink-0 whitespace-nowrap">Operator</th>
@@ -756,7 +761,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
             <tbody className="bg-surface divide-y divide-divide">
               {visibleRows.map((row) => {
                 const isLoading = actionLoading === row.library.Id;
-                const rowKey = `${row.dataSetType}:${row.bank}:${row.side}`;
+                const rowKey = identityKeySuffix(row);
                 const isExpanded = expandedRows.has(rowKey);
                 const displayLib = getDisplayLib(row);
                 const definitions = displayLib.TagSpecDefinitions;
@@ -794,13 +799,17 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                             </svg>
                           </button>
                         </div>
-                        {/* Bank */}
-                        <div className="px-4 py-2.5 text-xs font-medium text-heading w-44 shrink-0 cursor-pointer select-none truncate" onClick={() => toggleExpand(rowKey)}>{bankNameMap.get(row.bank) ?? row.bank}</div>
-                        {/* Side */}
+                        {/* Bank (Client for Ledger) */}
+                        <div className="px-4 py-2.5 text-xs font-medium text-heading w-44 shrink-0 cursor-pointer select-none truncate" onClick={() => toggleExpand(rowKey)}>{ledgerView ? row.clientCode : (bankNameMap.get(row.bank) ?? row.bank)}</div>
+                        {/* Side (ERP for Ledger) */}
                         <div className="px-4 py-2.5 w-24 shrink-0">
-                          <Badge variant={row.side === 'CR' ? 'emerald' : row.side === 'DR' ? 'red' : 'default'} size="xs">
-                            {row.side} {sideLabel[row.side] ? `- ${sideLabel[row.side]}` : ''}
-                          </Badge>
+                          {ledgerView ? (
+                            <Badge variant="default" size="xs">{row.erpCode}</Badge>
+                          ) : (
+                            <Badge variant={row.side === 'CR' ? 'emerald' : row.side === 'DR' ? 'red' : 'default'} size="xs">
+                              {row.side} {sideLabel[row.side] ? `- ${sideLabel[row.side]}` : ''}
+                            </Badge>
+                          )}
                         </div>
                         {/* Rules count */}
                         <div className="px-4 py-2.5 text-xs text-body-secondary text-center w-16 shrink-0">
@@ -1090,9 +1099,9 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                             {libIdForComments && (
                               <CommentIconButton
                                 target={{ TagSpecLibraryId: libIdForComments }}
-                                targetLabel={`${bankNameMap.get(row.bank) ?? row.bank} · ${row.side}`}
+                                targetLabel={ledgerView ? `${row.clientCode} · ${row.erpCode}` : `${bankNameMap.get(row.bank) ?? row.bank} · ${row.side}`}
                                 size="xs"
-                                title="Comments on this bank/side"
+                                title={ledgerView ? 'Comments on this client/ERP' : 'Comments on this bank/side'}
                               />
                             )}
                           </div>
@@ -1175,8 +1184,8 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
 
       <RollbackConfirmDialog
         open={!!rollbackTarget}
-        bankCode={rollbackTarget?.bank ?? ''}
-        side={rollbackTarget?.side ?? ''}
+        bankCode={rollbackTarget ? (isLedger(rollbackTarget.dataSetType) ? rollbackTarget.clientCode : rollbackTarget.bank) : ''}
+        side={rollbackTarget ? (isLedger(rollbackTarget.dataSetType) ? rollbackTarget.erpCode : rollbackTarget.side) : ''}
         loading={!!rollbackTarget && actionLoading === rollbackTarget.library.Id}
         onClose={() => setRollbackTarget(null)}
         onConfirm={handleRollbackConfirm}
@@ -1214,9 +1223,9 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
           onClose={() => setExportTarget(null)}
           activeLib={exportTarget.library}
           inProgressLib={exportTarget.inProgressLib}
-          bank={exportTarget.bank}
-          side={exportTarget.side}
-          bankLabel={bankNameMap.get(exportTarget.bank)}
+          bank={isLedger(exportTarget.dataSetType) ? exportTarget.clientCode : exportTarget.bank}
+          side={isLedger(exportTarget.dataSetType) ? exportTarget.erpCode : exportTarget.side}
+          bankLabel={isLedger(exportTarget.dataSetType) ? exportTarget.clientCode : bankNameMap.get(exportTarget.bank)}
         />
       )}
 
@@ -1226,9 +1235,9 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
           onClose={() => setTableTarget(null)}
           activeLib={tableTarget.library}
           inProgressLib={tableTarget.inProgressLib}
-          bank={tableTarget.bank}
-          side={tableTarget.side}
-          bankLabel={bankNameMap.get(tableTarget.bank)}
+          bank={isLedger(tableTarget.dataSetType) ? tableTarget.clientCode : tableTarget.bank}
+          side={isLedger(tableTarget.dataSetType) ? tableTarget.erpCode : tableTarget.side}
+          bankLabel={isLedger(tableTarget.dataSetType) ? tableTarget.clientCode : bankNameMap.get(tableTarget.bank)}
         />
       )}
 

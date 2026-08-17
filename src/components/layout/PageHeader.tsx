@@ -9,6 +9,7 @@ import { NotificationsButton } from '../notifications/NotificationsButton';
 import { DownloadCenterButton } from '../downloadCenter/DownloadCenterButton';
 import type { TagSpecCommentTarget } from '../../types/comments';
 import { DATA_SET_TYPE_LABELS, type DataSetType } from '../../constants/dataSetTypes';
+import { isLedger } from '../../utils/libraryIdentity';
 
 const SIDE_LABELS: Record<string, string> = {
   CR: 'Credit',
@@ -21,6 +22,9 @@ interface CheckoutInfo {
   bank: string;
   side: string;
   dataSetType: string;
+  /** Ledger identity, for the pill display (bank/side are empty for Ledger). */
+  clientCode?: string;
+  erpCode?: string;
   hasChanges: boolean;
   isReadOnly?: boolean;
   actionLoading?: boolean;
@@ -52,9 +56,15 @@ export function PageHeader({ tabs, activeIndex, onTabChange, checkout, onOpenOnb
   // Resolve friendly bank / side names from the BANKS LOV and the fixed side
   // map. Falls back to the raw code when the lookup misses, so a missing LOV
   // entry never blanks the indicator.
+  const ledger = checkout ? isLedger(checkout.dataSetType) : false;
   const bankName = checkout ? (lovLookup.get('BANKS')?.get(checkout.bank) ?? checkout.bank) : '';
   const sideName = checkout ? (SIDE_LABELS[checkout.side] ?? checkout.side) : '';
   const dataSetTypeName = checkout ? (DATA_SET_TYPE_LABELS[checkout.dataSetType as DataSetType] ?? checkout.dataSetType) : '';
+  // Ledger has no bank/side; the pill shows Client / ERP instead.
+  const primaryName = ledger ? (checkout?.clientCode ?? '') : bankName;
+  const secondaryName = ledger ? (checkout?.erpCode ?? '') : sideName;
+  const primaryTip = ledger ? 'Client' : (checkout?.bank ?? '');
+  const secondaryTip = ledger ? 'ERP' : (checkout?.side ?? '');
 
   return (
     <header className="bg-surface border-b border-border">
@@ -83,12 +93,12 @@ export function PageHeader({ tabs, activeIndex, onTabChange, checkout, onOpenOnb
               <span className="inline-flex items-center rounded-full bg-primary/10 text-primary-dark dark:text-primary text-[11px] font-semibold px-2 py-0.5 mr-1 align-middle">
                 {dataSetTypeName}
               </span>
-              <Tooltip content={checkout.bank} placement="bottom">
-                <span className="underline decoration-dotted decoration-primary/40 cursor-help">{bankName}</span>
+              <Tooltip content={primaryTip} placement="bottom">
+                <span className="underline decoration-dotted decoration-primary/40 cursor-help">{primaryName}</span>
               </Tooltip>
               {' - '}
-              <Tooltip content={checkout.side} placement="bottom">
-                <span className="underline decoration-dotted decoration-primary/40 cursor-help">{sideName}</span>
+              <Tooltip content={secondaryTip} placement="bottom">
+                <span className="underline decoration-dotted decoration-primary/40 cursor-help">{secondaryName}</span>
               </Tooltip>
             </span>
             {!checkout.isReadOnly && !isAudit && (

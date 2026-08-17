@@ -12,7 +12,7 @@ describe('dataSetTypes', () => {
   it('uses the exact case-sensitive wire literals', () => {
     // The backend rejects anything else — guard against accidental
     // reformatting (e.g. "Interim_MT940" or "INTERM_MT940").
-    expect(DATA_SET_TYPES).toEqual(['MT940', 'MT942', 'INTERIM_MT940']);
+    expect(DATA_SET_TYPES).toEqual(['MT940', 'MT942', 'INTERIM_MT940', 'Ledger']);
     expect(DEFAULT_DATA_SET_TYPE).toBe('MT940');
   });
 
@@ -21,6 +21,7 @@ describe('dataSetTypes', () => {
       expect(DATA_SET_TYPE_LABELS[t]).toBeTruthy();
     }
     expect(DATA_SET_TYPE_LABELS.INTERIM_MT940).toBe('Interim MT940');
+    expect(DATA_SET_TYPE_LABELS.Ledger).toBe('Ledger (ERP)');
   });
 
   it('derives the library fetch list from the workspaces', () => {
@@ -28,6 +29,7 @@ describe('dataSetTypes', () => {
     expect(ALL_LIBRARY_DATA_SET_TYPES).toContain('MT940');
     expect(ALL_LIBRARY_DATA_SET_TYPES).toContain('MT942');
     expect(ALL_LIBRARY_DATA_SET_TYPES).toContain('INTERIM_MT940');
+    expect(ALL_LIBRARY_DATA_SET_TYPES).toContain('Ledger');
   });
 
   it('builds an IN scope filter for a single type', () => {

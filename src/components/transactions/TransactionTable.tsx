@@ -15,6 +15,7 @@ import { SegmentedRtlText } from '../shared/CharacterBreakdown';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
 import { decomposeExtractionRegex, engregxify } from '../../utils/engregxify';
 import { getRegexDescription, getContextValue } from '../../types/tagSpec';
+import { isLedger } from '../../utils/libraryIdentity';
 import { regexifyExtraction } from '../../utils/regexify';
 import { setScrolling } from '../../utils/scrollingSignal';
 import { extractAttributes } from '../../utils/extractAttributes';
@@ -106,6 +107,9 @@ interface TransactionTableProps {
   /** Fired when the operator drags a column resize handle. Passing `null`
    *  for `width` clears the override and reverts to natural width. */
   onColumnWidthChange?: (key: string, width: number | null) => void;
+  /** DataSetType of the current checkout. Only used for display: Ledger
+   *  workspaces relabel the reused data columns (see LEDGER_COLUMN_LABELS). */
+  dataSetType?: string;
 }
 
 // Default widths (in px) for columns whose natural width is too wide to
@@ -163,6 +167,14 @@ const DEFAULT_COLUMN_ORDER = [
   'data:Description2',
   'data:AdditionalInformation',
   'data:TransactionDetails',
+  // Ledger (ERP) columns — only exist on Ledger rows, ignored for other types.
+  'data:AccountName',
+  'data:AccountType',
+  'data:OffsetAccountName',
+  'data:TxnTypeName',
+  'data:AmountFcy',
+  'data:RunningBalance',
+  'data:IsStale',
   'data:Comment',
 ];
 
@@ -189,6 +201,16 @@ export const ALLOWED_COLUMN_KEYS = new Set([
   'data:AdditionalInformation',
   'data:Description1',
   'data:Description2',
+  // Ledger (ERP) columns — offerable in the column picker; they only appear
+  // when the loaded rows actually carry the key (Ledger data), so listing them
+  // is inert for MT940 / MT942 / INTERIM_MT940.
+  'data:AccountName',
+  'data:AccountType',
+  'data:OffsetAccountName',
+  'data:TxnTypeName',
+  'data:AmountFcy',
+  'data:RunningBalance',
+  'data:IsStale',
   'data:Comment',
 ]);
 
@@ -210,6 +232,11 @@ export const DEFAULT_VISIBLE_COLUMN_KEYS = new Set([
   'data:Description2',
   'data:AdditionalInformation',
   'data:Comment',
+  // Ledger (ERP) defaults — start visible when the loaded rows carry them.
+  'data:AccountName',
+  'data:AccountType',
+  'data:OffsetAccountName',
+  'data:TxnTypeName',
   // __debit / __credit are added conditionally by the caller based on checkout side.
 ]);
 const SIDE_AMOUNT_FIELDS = new Set(['Side', 'Amount']);
@@ -220,9 +247,31 @@ const DATE_COLUMN_LABELS: Record<string, string> = {
   ValueDate: 'Value Date',
 };
 
-function getColumnLabel(col: ColumnDef): string {
+/**
+ * Ledger (ERP) reuses the transaction schema with different meanings, so its
+ * data columns get ledger-appropriate headers. Applied ONLY when the checkout
+ * is a Ledger workspace; every other type keeps the standard labels.
+ */
+const LEDGER_COLUMN_LABELS: Record<string, string> = {
+  StatementId: 'Txn Id',
+  StatementDate: 'Date',
+  EntryDate: 'Date',
+  ValueDate: 'Date',
+  TransactionTypeCode: 'Type Code',
+  BankReference: 'Reference',
+  TransactionDetails: 'Description',
+  Description1: 'Entry Ref',
+  Description2: 'Party',
+  IBAN: 'Account No.',
+};
+
+function getColumnLabel(col: ColumnDef, dataSetType?: string): string {
   switch (col.type) {
-    case 'data': return DATE_COLUMN_LABELS[col.field] ?? humanizeFieldName(col.field);
+    case 'data':
+      if (isLedger(dataSetType) && LEDGER_COLUMN_LABELS[col.field]) {
+        return LEDGER_COLUMN_LABELS[col.field];
+      }
+      return DATE_COLUMN_LABELS[col.field] ?? humanizeFieldName(col.field);
     case 'attribute': return humanizeFieldName(col.name);
     case 'tags': return 'Tags';
     case 'dates': return 'Dates';
@@ -231,8 +280,8 @@ function getColumnLabel(col: ColumnDef): string {
   }
 }
 
-function getColumnInitials(col: ColumnDef): string {
-  const label = getColumnLabel(col);
+function getColumnInitials(col: ColumnDef, dataSetType?: string): string {
+  const label = getColumnLabel(col, dataSetType);
   // Split on spaces/slashes first, then split camelCase within each token
   const tokens = label.split(/[\s/]+/).filter(Boolean);
   const words = tokens.flatMap((t) => t.split(/(?=[A-Z])/)).filter(Boolean);
@@ -315,7 +364,7 @@ function highlightText(text: string, regexes: RegExp[]): ReactNode {
   return <>{parts}</>;
 }
 
-export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, onColumnOrderChange, defaultHiddenColumns, onReset, lockedVisibleKeys }: {
+export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, onColumnOrderChange, defaultHiddenColumns, onReset, lockedVisibleKeys, dataSetType }: {
   columns: ColumnDef[];
   hiddenColumns: Set<string>;
   onChange: (hidden: Set<string>) => void;
@@ -325,6 +374,8 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
   onReset?: () => void;
   /** Column keys that must stay visible (rendered checked + disabled in the picker). */
   lockedVisibleKeys?: Set<string>;
+  /** DataSetType for Ledger-aware column labels (see getColumnLabel). */
+  dataSetType?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -400,8 +451,8 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
   const filtered = useMemo(() => {
     if (!search.trim()) return ordered;
     const q = search.toLowerCase();
-    return ordered.filter((col) => getColumnLabel(col).toLowerCase().includes(q));
-  }, [ordered, search]);
+    return ordered.filter((col) => getColumnLabel(col, dataSetType).toLowerCase().includes(q));
+  }, [ordered, search, dataSetType]);
 
   const visibleCount = toggleable.filter((col) => !hiddenColumns.has(col.key)).length;
   const totalCount = toggleable.length;
@@ -494,7 +545,7 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
               </div>
             </div>
             {filtered.map((col, i) => {
-              const label = getColumnLabel(col);
+              const label = getColumnLabel(col, dataSetType);
               const isLocked = !!lockedVisibleKeys?.has(col.key);
               const isHidden = !isLocked && hiddenColumns.has(col.key);
               const isSearching = search.trim().length > 0;
@@ -1272,11 +1323,16 @@ const TableRow = memo(function TableRow({
   const getAttributeValue = (attrName: string) =>
     getAttributeValueFor(item, attrName, activeDefinitionId, tagDefinitions, originalEditingDef);
 
+  // Ledger: a stale row (ERP no longer produces this leg — edited/deleted
+  // after ingestion) stays visible for audit but is greyed. Only Ledger rows
+  // carry IsStale, so this is inert elsewhere. Treat null as not-stale.
+  const isStale = item.row['IsStale'] === true;
+
   return (
     <tr
       data-index={index}
       ref={measureRef}
-      className={`group transition-colors ${isDeadEnd ? 'bg-red-100/60 dark:bg-red-950/30 text-red-400 dark:text-red-500/70' : 'hover:bg-surface-hover'} ${isSelected ? 'bg-primary/10!' : ''}`}
+      className={`group transition-colors ${isDeadEnd ? 'bg-red-100/60 dark:bg-red-950/30 text-red-400 dark:text-red-500/70' : 'hover:bg-surface-hover'} ${isSelected ? 'bg-primary/10!' : ''} ${isStale ? 'opacity-55' : ''}`}
       onContextMenu={onRowContextMenu ? (e) => { e.preventDefault(); onRowContextMenu(item.row, e.clientX, e.clientY); } : undefined}
     >
       {visibleColumns.map((col, colIdx) => {
@@ -1286,6 +1342,26 @@ const TableRow = memo(function TableRow({
         switch (col.type) {
           case 'data': {
             const isHighlighted = rowHighlight?.field === col.field;
+            // Ledger IsStale: render a STALE badge (not "true"/"false"); the
+            // row is already greyed above.
+            if (col.field === 'IsStale') {
+              return (
+                <td
+                  key={col.key}
+                  className={`px-3 ${cellPy} text-xs ${stickyBg}`}
+                  style={getCellStyle(colIdx)}
+                >
+                  {item.row[col.field] === true ? (
+                    <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide border border-amber-200 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700">
+                      Stale
+                    </span>
+                  ) : (
+                    <span className="text-faint">-</span>
+                  )}
+                  {stickyEdgeShadow(colIdx)}
+                </td>
+              );
+            }
             // Comments are free-form and frequently long — clamp the cell to one
             // ellipsised line and surface the full text via tooltip on hover so
             // the table layout never blows out horizontally.
@@ -1691,7 +1767,7 @@ const TableRow = memo(function TableRow({
   );
 });
 
-export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, definitionSourceMap, definitionVersions, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, onFlagDeadEndWithComment, onSetComments, onHideTagDefs, mt940SuggestionsByRow, onCloneMt940Suggestion, showAttributes = true, relaxedMode = false, charViewColumns = EMPTY_CHAR_VIEW_COLUMNS, hiddenColumns = EMPTY_HIDDEN_COLUMNS, columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, forceSkeleton = false, accentHue = 190, onRowContextMenu, onCellDoubleClick, interactiveCellFields, interactiveCellHint, originalEditingDef, activeDefinitionId, sortOverride = null, onSortChange, columnWidths, onColumnWidthChange }: TransactionTableProps) {
+export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, definitionSourceMap, definitionVersions, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, onFlagDeadEndWithComment, onSetComments, onHideTagDefs, mt940SuggestionsByRow, onCloneMt940Suggestion, showAttributes = true, relaxedMode = false, charViewColumns = EMPTY_CHAR_VIEW_COLUMNS, hiddenColumns = EMPTY_HIDDEN_COLUMNS, columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, forceSkeleton = false, accentHue = 190, onRowContextMenu, onCellDoubleClick, interactiveCellFields, interactiveCellHint, originalEditingDef, activeDefinitionId, sortOverride = null, onSortChange, columnWidths, onColumnWidthChange, dataSetType }: TransactionTableProps) {
   // Resolve the effective width for a column: explicit override wins,
   // otherwise the catalog default, otherwise undefined (browser
   // auto-layout). Width overrides are intentionally scoped to non-compact
@@ -2712,8 +2788,8 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     const q = columnSearchQuery.toLowerCase();
     return visibleColumns
       .map((col, i) => ({ col, idx: i }))
-      .filter(({ col }) => getColumnLabel(col).toLowerCase().includes(q));
-  }, [columnSearchQuery, visibleColumns]);
+      .filter(({ col }) => getColumnLabel(col, dataSetType).toLowerCase().includes(q));
+  }, [columnSearchQuery, visibleColumns, dataSetType]);
 
   const [columnSearchSelected, setColumnSearchSelected] = useState(0);
 
@@ -2950,9 +3026,9 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                     onClick={() => { scrollToColumn(idx); setColumnSearchOpen(false); setColumnSearchQuery(''); setColumnSearchSelected(0); }}
                   >
                     <span className="w-5 h-5 rounded flex items-center justify-center text-[9px] font-bold shrink-0" style={{ backgroundColor: columnAccentColors.get(col.key), color: 'white' }}>
-                      {getColumnInitials(col).slice(0, 2)}
+                      {getColumnInitials(col, dataSetType).slice(0, 2)}
                     </span>
-                    <span className="truncate">{getColumnLabel(col)}</span>
+                    <span className="truncate">{getColumnLabel(col, dataSetType)}</span>
                     {i === columnSearchSelected && (
                       <span className="ml-auto text-[10px] text-faint">Enter to jump</span>
                     )}
@@ -3136,14 +3212,14 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
           {loading && data.length === 0 && minimapBlocks.length === 0 ? (
             <div className="w-full h-full animate-pulse bg-gray-200/30 dark:bg-gray-700/30" />
           ) : minimapBlocks.map((block) => (
-            <Tooltip key={block.col.key} content={getColumnLabel(block.col)} placement="bottom">
+            <Tooltip key={block.col.key} content={getColumnLabel(block.col, dataSetType)} placement="bottom">
               <div
                 data-minimap-idx={block.origIdx}
                 className="h-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors overflow-hidden flex items-center px-px"
                 style={{ width: `${block.widthPct}%`, minWidth: 35, borderRight: '1px solid white', borderBottom: `3px solid ${getMinimapBorderColor(block.col.type) ?? columnAccentColors.get(block.col.key)}` }}
               >
                 <span className={`text-[9px] pl-2 leading-none font-medium whitespace-nowrap ${getMinimapColor(block.col.type)}`}>
-                  {getColumnInitials(block.col)}
+                  {getColumnInitials(block.col, dataSetType)}
                 </span>
               </div>
             </Tooltip>

@@ -123,6 +123,13 @@ export interface WizardFormState {
   tag: string;
   side: string;
   bankSwiftCode: string;
+  /** DataSetType of the workspace the rule is authored in. Drives the parent
+   *  Context shape at save (Ledger uses ClientCode/ErpCode, not bank/side) and
+   *  the Basic Info step's identity display. */
+  dataSetType: string;
+  /** Ledger identity — '' for bank/side workspaces. */
+  clientCode: string;
+  erpCode: string;
   transactionTypeCode: string;
   statusTag: StatusTag;
   certaintyLevelTag: CertaintyLevelTag;
