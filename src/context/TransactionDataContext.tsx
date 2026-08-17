@@ -216,8 +216,14 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
   }, [flagDeadEnd, setComments]);
 
   const filterFetchingRef = useRef(false);
-  const fetchFilterDefinitions = useCallback(async (dataSetType: string = DEFAULT_DATA_SET_TYPE) => {
+  // Scope of the last explicit GetFilters request. No-arg refetches (post-save
+  // per gotcha #4, the table's Refresh button, post-hierarchy-sync) reuse it so
+  // they don't silently reset a Ledger/intraday catalog back to MT940.
+  const lastFilterDataSetTypeRef = useRef<string>(DEFAULT_DATA_SET_TYPE);
+  const fetchFilterDefinitions = useCallback(async (dataSetType?: string) => {
     if (!isLiveMode || filterFetchingRef.current) return;
+    const scope = dataSetType ?? lastFilterDataSetTypeRef.current;
+    lastFilterDataSetTypeRef.current = scope;
     filterFetchingRef.current = true;
     try {
       await refreshIfNeeded();
@@ -231,7 +237,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
         requestId: tepConfig.ttpRequestId,
       };
       setFilterDefinitionsLoading(true);
-      const defs = await getFilters(dataSetType, token, tepHeaders);
+      const defs = await getFilters(scope, token, tepHeaders);
       setFilterDefinitions(defs);
     } catch (err) {
       console.error('Failed to fetch filter definitions:', err);

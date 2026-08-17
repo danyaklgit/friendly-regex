@@ -323,4 +323,76 @@ describe('TransactionTypePicker', () => {
     await user.click(screen.getByRole('button'));
     expect((screen.getByPlaceholderText(/search swift/i) as HTMLInputElement).value).toBe('');
   });
+
+  it('resolves the definition by Values Column even when Tag/Label do not mention transaction type (Ledger shape)', async () => {
+    const user = userEvent.setup();
+    const defs: FilterDefinition[] = [
+      {
+        Tag: 'LedgerTypes',
+        Label: 'Type',
+        Type: 'LIST',
+        Operand: null,
+        Values: [
+          { Column: 'TransactionTypeCode', Value: 'invoice', Label: 'invoice', Operand: null, DisabledBy: null },
+          { Column: 'TransactionTypeCode', Value: 'bill', Label: 'bill', Operand: null, DisabledBy: null },
+        ],
+      },
+    ];
+    render(<TransactionTypePicker value="" onChange={noop} filterDefinitions={defs} dataSetType="Ledger" />);
+    await user.click(screen.getByRole('button'));
+    expect(screen.getByText('invoice')).toBeDefined();
+    expect(screen.getByText('bill')).toBeDefined();
+  });
+
+  it('prefers the Column-matched definition over a Label-matched one', async () => {
+    const user = userEvent.setup();
+    const defs: FilterDefinition[] = [
+      {
+        Tag: 'SomeOtherFilter',
+        Label: 'Transaction Type Group',
+        Type: 'LIST',
+        Operand: null,
+        Values: [
+          { Column: 'OtherColumn', Value: 'WRONG', Label: 'WRONG', Operand: null, DisabledBy: null },
+        ],
+      },
+      {
+        Tag: 'LedgerTypes',
+        Label: 'Type',
+        Type: 'LIST',
+        Operand: null,
+        Values: [
+          { Column: 'TransactionTypeCode', Value: 'invoice', Label: 'invoice', Operand: null, DisabledBy: null },
+        ],
+      },
+    ];
+    render(<TransactionTypePicker value="" onChange={noop} filterDefinitions={defs} dataSetType="Ledger" />);
+    await user.click(screen.getByRole('button'));
+    expect(screen.getByText('invoice')).toBeDefined();
+    expect(screen.queryByText('WRONG')).toBeNull();
+  });
+
+  it('does not fall back to static MT940 codes for Ledger when no definitions are loaded', async () => {
+    const user = userEvent.setup();
+    render(<TransactionTypePicker value="" onChange={noop} dataSetType="Ledger" />);
+    await user.click(screen.getByRole('button'));
+    expect(screen.getByText('No transaction types loaded')).toBeDefined();
+  });
+
+  it('uses a generic search placeholder for Ledger', async () => {
+    const user = userEvent.setup();
+    render(<TransactionTypePicker value="" onChange={noop} dataSetType="Ledger" />);
+    await user.click(screen.getByRole('button'));
+    expect(screen.getByPlaceholderText('Search transaction types...')).toBeDefined();
+    expect(screen.queryByPlaceholderText(/search swift/i)).toBeNull();
+  });
+
+  it('keeps the static MT940 fallback for non-Ledger data set types', async () => {
+    const user = userEvent.setup();
+    render(<TransactionTypePicker value="" onChange={noop} dataSetType="MT940" />);
+    await user.click(screen.getByRole('button'));
+    expect(screen.getByPlaceholderText(/search swift/i)).toBeDefined();
+    // Static list renders (search input present + at least one option row)
+    expect(screen.queryByText('No transaction types loaded')).toBeNull();
+  });
 });

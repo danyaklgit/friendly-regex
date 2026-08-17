@@ -132,6 +132,7 @@ export function StepBasicInfo({
               value={formState.transactionTypeCode}
               onChange={(val) => { onUpdate({ transactionTypeCode: val }); markTouched('transactionTypeCode'); }}
               filterDefinitions={filterDefinitions}
+              dataSetType={formState.dataSetType}
               disabled={fromCheckoutContext}
               triggerClassName="w-full"
             />

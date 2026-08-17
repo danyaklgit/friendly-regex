@@ -2,12 +2,18 @@ import { useState, useRef, useEffect, useMemo, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import type { FilterDefinition } from '../../api/transactions';
 import { TXN_TYPE_OPTIONS } from '../../constants/fields';
+import { isLedger } from '../../utils/libraryIdentity';
 import { DropdownBackdrop } from './DropdownBackdrop';
 
 interface TransactionTypePickerProps {
   value: string;
   onChange: (value: string) => void;
   filterDefinitions?: FilterDefinition[];
+  /** DataSetType the rule is being authored for. Ledger types come only from
+   *  the backend filter catalog — the static fallback list is SWIFT MT940
+   *  codes and would be wrong, so a Ledger picker with no loaded definitions
+   *  shows an empty list instead. */
+  dataSetType?: string | null;
   disabled?: boolean;
   /** Extra classes for the trigger button. Use `!`-prefixed utilities to
    *  override defaults (e.g. `!py-1`, `!max-w-[180px]`). */
@@ -19,7 +25,7 @@ interface TransactionTypePickerProps {
   clearable?: boolean;
 }
 
-export function TransactionTypePicker({ value, onChange, filterDefinitions, disabled, triggerClassName, clearable }: TransactionTypePickerProps) {
+export function TransactionTypePicker({ value, onChange, filterDefinitions, dataSetType, disabled, triggerClassName, clearable }: TransactionTypePickerProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [highlightIndex, setHighlightIndex] = useState(0);
@@ -100,11 +106,18 @@ export function TransactionTypePicker({ value, onChange, filterDefinitions, disa
     if (!open) setSearch('');
   }, [open]);
 
-  // Build options from filterDefinitions if available, else fall back to constants
+  // Build options from filterDefinitions if available, else fall back to constants.
+  // Resolve the SAME definition the filter row's Transaction Type dropdown
+  // renders — the one whose Values write to the TransactionTypeCode column.
+  // Tag/Label naming varies per DataSetType (Ledger's GetFilters names it
+  // differently than MT940's), but the Column contract is stable, so matching
+  // on it keeps this picker and the filter dropdown showing identical lists.
   const options = useMemo(() => {
-    const txnDef = filterDefinitions?.find(
-      (d) => d.Tag === 'TransactionTypeCode' || d.Label?.toLowerCase().includes('transaction type')
-    );
+    const txnDef =
+      filterDefinitions?.find((d) => d.Values.some((v) => v.Column === 'TransactionTypeCode')) ??
+      filterDefinitions?.find(
+        (d) => d.Tag === 'TransactionTypeCode' || d.Label?.toLowerCase().includes('transaction type')
+      );
     if (txnDef && txnDef.Values.length > 0) {
       return txnDef.Values.map((v) => ({
         value: v.Value ?? '',
@@ -112,8 +125,9 @@ export function TransactionTypePicker({ value, onChange, filterDefinitions, disa
         sublabel: v.SubLabel ?? undefined,
       }));
     }
+    if (isLedger(dataSetType)) return [];
     return TXN_TYPE_OPTIONS.map((t) => ({ value: t, label: t, sublabel: undefined }));
-  }, [filterDefinitions]);
+  }, [filterDefinitions, dataSetType]);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return options;
@@ -218,7 +232,7 @@ export function TransactionTypePicker({ value, onChange, filterDefinitions, disa
               <input
                 ref={searchInputRef}
                 type="text"
-                placeholder="Search swift mt940 transaction types..."
+                placeholder={isLedger(dataSetType) ? 'Search transaction types...' : 'Search swift mt940 transaction types...'}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={handleSearchKeyDown}
@@ -249,7 +263,9 @@ export function TransactionTypePicker({ value, onChange, filterDefinitions, disa
           </div>
           <div ref={listRef} className="max-h-60 overflow-y-auto custom-scrollbar p-1.5">
             {filtered.length === 0 ? (
-              <div className="px-2 py-3 text-xs text-faint text-center">No matches</div>
+              <div className="px-2 py-3 text-xs text-faint text-center">
+                {options.length === 0 ? 'No transaction types loaded' : 'No matches'}
+              </div>
             ) : (
               filtered.map((opt, idx) => {
                 const hasDistinctLabel = opt.value !== opt.label;
