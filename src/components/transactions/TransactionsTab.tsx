@@ -22,6 +22,7 @@ import { getAllTransactionTags, buildSortingProperties, parseSortOverride, type 
 import { dataSetTypeFilter, DEFAULT_DATA_SET_TYPE } from '../../constants/dataSetTypes';
 import { libraryMatchesCheckout, identityKeySuffix, identityScopeFilters, isLedger } from '../../utils/libraryIdentity';
 import { translateFilters } from '../../utils/translateFilters';
+import { findTransactionTypeFilterDef } from '../../utils/transactionTypeFilterDef';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
 import { useOptionalDownloadCenter } from '../../context/DownloadCenterContext';
 import { useWizardForm, fromExistingDefinition } from '../../hooks/useWizardForm';
@@ -800,13 +801,11 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     end: validityEndDate,
   });
   // Look up the Transaction Types filter's named-Tag too so the
-  // builder's Transaction Type dropdown can drive the chip. Same
-  // pattern as the StatementDate lookup above.
+  // builder's Transaction Type dropdown can drive the chip. Uses the shared
+  // resolver so the chip targets the def the filter bar actually renders
+  // (Ledger responses carry a master type catalog alongside the real filter).
   const transactionTypeFilterTag = useMemo<string | null>(() => {
-    const def = filterDefinitions.find(
-      (d) => d.Values.some((v) => v.Column === 'TransactionTypeCode'),
-    );
-    return def?.Tag ?? null;
+    return findTransactionTypeFilterDef(filterDefinitions)?.Tag ?? null;
   }, [filterDefinitions]);
   const builderTransactionType = builder.formState.transactionTypeCode;
   const prevBuilderTtcRef = useRef<string>(builderTransactionType);

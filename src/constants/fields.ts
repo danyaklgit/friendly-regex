@@ -10,6 +10,17 @@ export const TXN_TYPE_OPTIONS = [
   'COM', 'DCR', 'DPF', 'DPR', 'FEX', 'INT', 'LDP', 'MSC',
   'OTP', 'PFT', 'RTI', 'STO', 'TPY', 'TRF', 'VAT',
 ] as const;
+// Ledger (ERP) row fields offered as rule-condition Source Fields, in
+// addition to the standard banking fields. The rule builder's dropdown is
+// data-driven (fieldMeta.sourceFields ∩ allow-list), so these surface only
+// when the loaded rows actually carry them — i.e. Ledger checkouts — and the
+// MT940/intraday dropdowns are unchanged.
+export const LEDGER_SOURCE_FIELDS = [
+  'AccountId', 'AccountName', 'AccountNumber', 'AccountType',
+  'OffsetAccountId', 'OffsetAccountName', 'OffsetAccountNumber', 'OffsetAccountType',
+  'BankName', 'PartyId', 'PartyName',
+] as const;
+
 export const VALIDATION_RULE_TAG_OPTIONS = ['STRING', 'NUMBER', 'DATE'] as const;
 export const DATA_TYPE_OPTIONS = VALIDATION_RULE_TAG_OPTIONS;
 

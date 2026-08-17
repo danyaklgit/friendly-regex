@@ -5,7 +5,7 @@ import { Input } from '../shared/Input';
 import { Button } from '../shared/Button';
 import { Tooltip } from '../shared/Tooltip';
 import { MATCH_OPERATIONS } from '../../constants/operations';
-import { DATE_SOURCE_FIELDS } from '../../constants/fields';
+import { DATE_SOURCE_FIELDS, LEDGER_SOURCE_FIELDS } from '../../constants/fields';
 import { useTransactionData } from '../../hooks/useTransactionData';
 import { generateExpressionPrompt } from '../../utils/regexify';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
@@ -15,6 +15,9 @@ const ALLOWED_SOURCE_FIELDS = new Set([
   'AdditionalInformation', 'BankReference', 'CurrencyCode',
   'Description1', 'Description2',
   'IBAN', 'TransactionDetails',
+  // Ledger fields — only surface when the loaded rows carry them (the
+  // dropdown intersects this set with fieldMeta.sourceFields).
+  ...LEDGER_SOURCE_FIELDS,
 ]);
 
 // Date/numeric source fields surface a restricted operation set: only Equals
@@ -32,6 +35,9 @@ const NUMERIC_SOURCE_FIELDS = new Set(['Amount']);
 const TEXT_SOURCE_FIELDS = new Set([
   'AdditionalInformation', 'BankReference', 'CurrencyCode',
   'Description1', 'Description2', 'IBAN', 'TransactionDetails',
+  // Ledger ids/names are identifiers, not quantities — keep the full text
+  // operation set even when a sample happens to be all-numeric.
+  ...LEDGER_SOURCE_FIELDS,
 ]);
 // The 4 operations valid for date and numeric fields.
 const ORDERED_NUMERIC_DATE_OPS = new Set<string>([
