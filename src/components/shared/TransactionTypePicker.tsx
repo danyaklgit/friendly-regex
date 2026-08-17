@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import type { FilterDefinition } from '../../api/transactions';
 import { TXN_TYPE_OPTIONS } from '../../constants/fields';
 import { isLedger } from '../../utils/libraryIdentity';
+import { findTransactionTypeFilterDef } from '../../utils/transactionTypeFilterDef';
 import { DropdownBackdrop } from './DropdownBackdrop';
 
 interface TransactionTypePickerProps {
@@ -107,17 +108,12 @@ export function TransactionTypePicker({ value, onChange, filterDefinitions, data
   }, [open]);
 
   // Build options from filterDefinitions if available, else fall back to constants.
-  // Resolve the SAME definition the filter row's Transaction Type dropdown
-  // renders — the one whose Values write to the TransactionTypeCode column.
-  // Tag/Label naming varies per DataSetType (Ledger's GetFilters names it
-  // differently than MT940's), but the Column contract is stable, so matching
-  // on it keeps this picker and the filter dropdown showing identical lists.
+  // findTransactionTypeFilterDef resolves the SAME definition the filter row
+  // renders as its Transaction Type dropdown (a GetFilters response can carry
+  // a master type catalog ALONGSIDE the scoped filter — see the helper), so
+  // this picker and the filter dropdown always show identical lists.
   const options = useMemo(() => {
-    const txnDef =
-      filterDefinitions?.find((d) => d.Values.some((v) => v.Column === 'TransactionTypeCode')) ??
-      filterDefinitions?.find(
-        (d) => d.Tag === 'TransactionTypeCode' || d.Label?.toLowerCase().includes('transaction type')
-      );
+    const txnDef = findTransactionTypeFilterDef(filterDefinitions);
     if (txnDef && txnDef.Values.length > 0) {
       return txnDef.Values.map((v) => ({
         value: v.Value ?? '',

@@ -16,6 +16,7 @@ import { humanizeFieldName } from '../../utils/humanizeFieldName';
 import { decomposeExtractionRegex, engregxify } from '../../utils/engregxify';
 import { getRegexDescription, getContextValue } from '../../types/tagSpec';
 import { isLedger } from '../../utils/libraryIdentity';
+import { findTransactionTypeFilterDef } from '../../utils/transactionTypeFilterDef';
 import { regexifyExtraction } from '../../utils/regexify';
 import { setScrolling } from '../../utils/scrollingSignal';
 import { extractAttributes } from '../../utils/extractAttributes';
@@ -1792,9 +1793,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
   // source the TransactionTypePicker reads (backend GetFilters catalog).
   const txnTypeDescriptions = useMemo(() => {
     const m = new Map<string, string>();
-    const def = filterDefinitions?.find(
-      (d) => d.Tag === 'TransactionTypeCode' || d.Label?.toLowerCase().includes('transaction type'),
-    );
+    const def = findTransactionTypeFilterDef(filterDefinitions);
     if (def) {
       for (const v of def.Values) {
         // Description lives in SubLabel (e.g. "TRF" → "Transfer"); Label is
