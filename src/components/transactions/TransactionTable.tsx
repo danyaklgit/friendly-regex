@@ -2155,6 +2155,13 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
           cols.push({ type: 'credit', key: '__credit' });
           debitCreditInserted = true;
         }
+        // Side ALSO gets a raw data column of its own (a Ledger workspace
+        // spans both CR and DR rows, so the side is per-row information
+        // there). The per-type column spec controls whether it defaults on
+        // (Ledger) or stays offerable-but-hidden (everything else).
+        if (field === 'Side') {
+          cols.push({ type: 'data', key: 'data:Side', field: 'Side' });
+        }
         const attrs = attrsBySource.get(field);
         if (attrs) {
           for (const attr of attrs) {

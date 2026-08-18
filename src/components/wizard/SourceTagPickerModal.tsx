@@ -8,6 +8,7 @@ import { Button } from '../shared/Button';
 import { Tooltip } from '../shared/Tooltip';
 import { CopyableId } from '../shared/CopyableId';
 import { DATA_SET_TYPE_LABELS, DEFAULT_DATA_SET_TYPE, type DataSetType } from '../../constants/dataSetTypes';
+import { isLedger } from '../../utils/libraryIdentity';
 
 interface SourceTagPickerModalProps {
   open: boolean;
@@ -136,7 +137,14 @@ export function SourceTagPickerModal({ open, libraries, onClose, onSelect, curre
         byId.set(def.Id, { entry: { def, txnType, bank, side, dataSetType: lib.DataSetType }, score });
       }
     }
-    const result: PickerEntry[] = Array.from(byId.values(), (v) => v.entry);
+    let result: PickerEntry[] = Array.from(byId.values(), (v) => v.entry);
+    // Ledger rules never clone across DataSetTypes: the source fields,
+    // transaction types, and identity model are all different, so a bank/
+    // intraday rule pasted into a Ledger tag would reference fields Ledger
+    // rows don't carry. Offer ONLY Ledger definitions when tagging Ledger.
+    if (isLedger(currentDataSetType)) {
+      result = result.filter((e) => isLedger(e.dataSetType));
+    }
     // Relevance rank for the operator's current context: same bank, then same
     // side, then MT940 (the confirmed base workspace whose rules an intraday
     // tag clones from) float to the top. Falls back to a pure alphabetical
@@ -155,7 +163,7 @@ export function SourceTagPickerModal({ open, libraries, onClose, onSelect, curre
       return byTag !== 0 ? byTag : a.def.Id.localeCompare(b.def.Id);
     });
     return result;
-  }, [libraries, currentBank, currentSide]);
+  }, [libraries, currentBank, currentSide, currentDataSetType]);
 
   // Bank scope: default to the checkout bank unless the operator opted into
   // "Show all banks" (or there's no current bank to scope by).
@@ -238,6 +246,13 @@ export function SourceTagPickerModal({ open, libraries, onClose, onSelect, curre
             className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-input-border bg-input-bg text-heading placeholder:text-placeholder focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors"
           />
         </div>
+
+        {!currentBank && isLedger(currentDataSetType) && (
+          <div className="text-xs text-muted">
+            Tagging <span className="font-medium text-body-secondary">{currentDataSetTypeLabel}</span> —{' '}
+            only Ledger tags are offered as templates.
+          </div>
+        )}
 
         {currentBank && (
           <div className="flex items-center justify-between gap-3 flex-wrap">

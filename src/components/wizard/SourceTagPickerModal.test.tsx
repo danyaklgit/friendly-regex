@@ -162,3 +162,46 @@ describe('SourceTagPickerModal — bank scoping + relevance for intraday cloning
     expect(inOrder).toEqual(['ALPHA_DR', 'BETA_DR', 'GAMMA_CR']);
   });
 });
+
+describe('SourceTagPickerModal — Ledger only clones from Ledger', () => {
+  const mt940Def = makeDef('b1', 'BANK_TAG', 1, 1);
+  const ledgerDef = makeDef('l1', 'LEDGER_TAG', 1, 1);
+  const libs = [
+    makeLib('ACTIVE', 1, [mt940Def], { bank: 'GULFSARI', side: 'CR', dataSetType: 'MT940' }),
+    makeLib('ACTIVE', 1, [ledgerDef], { bank: '', side: '', dataSetType: 'Ledger' }),
+  ];
+
+  it('offers only Ledger definitions when tagging Ledger', () => {
+    render(
+      <SourceTagPickerModal
+        open
+        libraries={libs}
+        onClose={() => {}}
+        onSelect={() => {}}
+        currentBank=""
+        currentSide=""
+        currentDataSetType="Ledger"
+      />,
+    );
+    expect(screen.getByText('LEDGER_TAG')).toBeTruthy();
+    expect(screen.queryByText('BANK_TAG')).toBeNull();
+    expect(screen.getByText(/only Ledger tags are offered/i)).toBeTruthy();
+  });
+
+  it('still offers every type outside a Ledger checkout', () => {
+    render(
+      <SourceTagPickerModal
+        open
+        libraries={libs}
+        onClose={() => {}}
+        onSelect={() => {}}
+        currentBank="GULFSARI"
+        currentSide="CR"
+        currentDataSetType="MT942"
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Show all banks' }));
+    expect(screen.getByText('BANK_TAG')).toBeTruthy();
+    expect(screen.getByText('LEDGER_TAG')).toBeTruthy();
+  });
+});
