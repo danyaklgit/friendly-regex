@@ -7,9 +7,11 @@ export interface FieldMeta {
   sourceFields: string[];
 }
 
+// NOTE: Hash is intentionally NOT skipped — the Transactions column spec
+// wants it offerable (hidden by default) in the column picker on every
+// DataSetType.
 const SKIP_FIELDS = new Set([
   'FMSId',
-  'Hash',
   'IsDeadEnd',
   'TagSpecId',
   'Version',

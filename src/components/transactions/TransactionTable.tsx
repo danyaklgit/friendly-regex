@@ -15,8 +15,8 @@ import { SegmentedRtlText } from '../shared/CharacterBreakdown';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
 import { decomposeExtractionRegex, engregxify } from '../../utils/engregxify';
 import { getRegexDescription, getContextValue } from '../../types/tagSpec';
-import { isLedger } from '../../utils/libraryIdentity';
 import { findTransactionTypeFilterDef } from '../../utils/transactionTypeFilterDef';
+import { getColumnSpec } from '../../constants/transactionColumns';
 import { regexifyExtraction } from '../../utils/regexify';
 import { setScrolling } from '../../utils/scrollingSignal';
 import { extractAttributes } from '../../utils/extractAttributes';
@@ -150,131 +150,25 @@ type ColumnDef =
   | { type: 'debit'; key: string }
   | { type: 'credit'; key: string };
 
-const DEFAULT_COLUMN_ORDER = [
-  'data:Sequence',
-  'data:BankSwiftCode',
-  'data:StatementDate',
-  'data:EntryDate',
-  'data:ValueDate',
-  'data:TransactionTypeCode',
-  'data:IBAN',
-  'data:FundsCode',
-  'data:TransactionStatusIndicator',
-  'data:CurrencyCode',
-  '__debit',
-  '__credit',
-  'data:BankReference',
-  'data:Description1',
-  'data:Description2',
-  'data:AdditionalInformation',
-  'data:TransactionDetails',
-  // Ledger (ERP) columns — only exist on Ledger rows, ignored for other types.
-  'data:AccountName',
-  'data:AccountType',
-  'data:OffsetAccountName',
-  'data:TxnTypeName',
-  'data:AmountFcy',
-  'data:RunningBalance',
-  'data:IsStale',
-  'data:Comment',
-];
-
 /** Synthetic ID for the rule-builder live preview definition. Rows that
  *  only match this definition have no real tag yet, so surfaces like the
  *  "Hide Tag Specs" action must ignore it when collecting hideable defs. */
 export const PREVIEW_TEMP_DEF_ID = 'preview-temp';
 
-export const ALLOWED_COLUMN_KEYS = new Set([
-  'data:Sequence',
-  'data:StatementDate',
-  'data:EntryDate',
-  'data:ValueDate',
-  '__debit',
-  '__credit',
-  'data:CurrencyCode',
-  'data:TransactionTypeCode',
-  'data:FundsCode',
-  'data:BankSwiftCode',
-  'data:IBAN',
-  'data:BankReference',
-  'data:TransactionStatusIndicator',
-  'data:TransactionDetails',
-  'data:AdditionalInformation',
-  'data:Description1',
-  'data:Description2',
-  // Ledger (ERP) columns — offerable in the column picker; they only appear
-  // when the loaded rows actually carry the key (Ledger data), so listing them
-  // is inert for MT940 / MT942 / INTERIM_MT940.
-  'data:AccountName',
-  'data:AccountType',
-  'data:OffsetAccountName',
-  'data:TxnTypeName',
-  'data:AmountFcy',
-  'data:RunningBalance',
-  'data:IsStale',
-  'data:Comment',
-]);
-
-/**
- * Columns shown by default on first load. Anything not in this set (and not in
- * the per-side debit/credit rule applied by the caller) starts hidden; users
- * can toggle it on via the column picker.
- * Note: EntryDate, ValueDate, Sequence, BankSwiftCode, FundsCode,
- * TransactionStatusIndicator, and TransactionDetails are intentionally hidden
- * by default.
- */
-export const DEFAULT_VISIBLE_COLUMN_KEYS = new Set([
-  'data:StatementDate',
-  'data:TransactionTypeCode',
-  'data:IBAN',
-  'data:CurrencyCode',
-  'data:BankReference',
-  'data:Description1',
-  'data:Description2',
-  'data:AdditionalInformation',
-  'data:Comment',
-  // Ledger (ERP) defaults — start visible when the loaded rows carry them.
-  'data:AccountName',
-  'data:AccountType',
-  'data:OffsetAccountName',
-  'data:TxnTypeName',
-  // __debit / __credit are added conditionally by the caller based on checkout side.
-]);
 const SIDE_AMOUNT_FIELDS = new Set(['Side', 'Amount']);
 const DATE_FIELDS = new Set(['StatementDate', 'EntryDate', 'ValueDate']);
-const DATE_COLUMN_LABELS: Record<string, string> = {
-  StatementDate: 'Statement Date',
-  EntryDate: 'Entry Date',
-  ValueDate: 'Value Date',
-};
 
 /**
- * Ledger (ERP) reuses the transaction schema with different meanings, so its
- * data columns get ledger-appropriate headers. Applied ONLY when the checkout
- * is a Ledger workspace; every other type keeps the standard labels.
+ * Column display names derive MECHANICALLY from the API field name
+ * (Transactions column spec, Rule 1) — one deterministic function, no
+ * per-dataset label maps. What the operator sees in the header, the column
+ * picker, and the context modal is the same word the API returns. The only
+ * non-derived names are the synthetic columns below (Tags, Debit/Credit
+ * Amount) which have no single field.
  */
-const LEDGER_COLUMN_LABELS: Record<string, string> = {
-  StatementId: 'Txn Id',
-  // Distinct names per date — three columns all labeled "Date" left the
-  // operator unable to tell them apart in the header / column picker.
-  StatementDate: 'Txn Date',
-  EntryDate: 'Entry Date',
-  ValueDate: 'Value Date',
-  TransactionTypeCode: 'Type Code',
-  BankReference: 'Reference',
-  TransactionDetails: 'Description',
-  Description1: 'Entry Ref',
-  Description2: 'Party',
-  IBAN: 'Account No.',
-};
-
-function getColumnLabel(col: ColumnDef, dataSetType?: string): string {
+function getColumnLabel(col: ColumnDef): string {
   switch (col.type) {
-    case 'data':
-      if (isLedger(dataSetType) && LEDGER_COLUMN_LABELS[col.field]) {
-        return LEDGER_COLUMN_LABELS[col.field];
-      }
-      return DATE_COLUMN_LABELS[col.field] ?? humanizeFieldName(col.field);
+    case 'data': return humanizeFieldName(col.field);
     case 'attribute': return humanizeFieldName(col.name);
     case 'tags': return 'Tags';
     case 'dates': return 'Dates';
@@ -283,8 +177,8 @@ function getColumnLabel(col: ColumnDef, dataSetType?: string): string {
   }
 }
 
-function getColumnInitials(col: ColumnDef, dataSetType?: string): string {
-  const label = getColumnLabel(col, dataSetType);
+function getColumnInitials(col: ColumnDef): string {
+  const label = getColumnLabel(col);
   // Split on spaces/slashes first, then split camelCase within each token
   const tokens = label.split(/[\s/]+/).filter(Boolean);
   const words = tokens.flatMap((t) => t.split(/(?=[A-Z])/)).filter(Boolean);
@@ -377,7 +271,8 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
   onReset?: () => void;
   /** Column keys that must stay visible (rendered checked + disabled in the picker). */
   lockedVisibleKeys?: Set<string>;
-  /** DataSetType for Ledger-aware column labels (see getColumnLabel). */
+  /** DataSetType of the current checkout — resolves the per-type column spec
+   *  (default order fallback + the never-show exclusion). */
   dataSetType?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -431,17 +326,20 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Exclude tags (always visible), attributes, and columns not in the allowed list
+  const columnSpec = getColumnSpec(dataSetType);
+  // Exclude tags (always visible), attributes, and this DataSetType's
+  // never-show fields. Anything else — including fields not in the spec (a
+  // future backend addition) — stays offerable, defaulting to hidden.
   const toggleable = columns.filter((col) => {
     if (col.type === 'tags') return false;
     if (col.type === 'attribute') return false;
-    if (!ALLOWED_COLUMN_KEYS.has(col.key)) return false;
+    if (columnSpec.neverShow.has(col.key)) return false;
     return true;
   });
 
-  // Apply column order (custom drag order, or default priority)
+  // Apply column order (custom drag order, or the per-type spec default)
   const ordered = useMemo(() => {
-    const order = columnOrder && columnOrder.length > 0 ? columnOrder : DEFAULT_COLUMN_ORDER;
+    const order = columnOrder && columnOrder.length > 0 ? columnOrder : columnSpec.defaultOrder;
     const orderMap = new Map(order.map((key, idx) => [key, idx]));
     return [...toggleable].sort((a, b) => {
       const ai = orderMap.get(a.key) ?? Infinity;
@@ -449,12 +347,12 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
       if (ai === Infinity && bi === Infinity) return 0;
       return ai - bi;
     });
-  }, [toggleable, columnOrder]);
+  }, [toggleable, columnOrder, columnSpec]);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return ordered;
     const q = search.toLowerCase();
-    return ordered.filter((col) => getColumnLabel(col, dataSetType).toLowerCase().includes(q));
+    return ordered.filter((col) => getColumnLabel(col).toLowerCase().includes(q));
   }, [ordered, search, dataSetType]);
 
   const visibleCount = toggleable.filter((col) => !hiddenColumns.has(col.key)).length;
@@ -548,7 +446,7 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
               </div>
             </div>
             {filtered.map((col, i) => {
-              const label = getColumnLabel(col, dataSetType);
+              const label = getColumnLabel(col);
               const isLocked = !!lockedVisibleKeys?.has(col.key);
               const isHidden = !isLocked && hiddenColumns.has(col.key);
               const isSearching = search.trim().length > 0;
@@ -2291,17 +2189,21 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
   }, [columns, onColumnsReady]);
 
   const visibleColumns = useMemo(() => {
+    const spec = getColumnSpec(dataSetType);
     let result = columns;
     if (!showAttributes) result = result.filter((col) => col.type !== 'attribute');
     if (hiddenColumns.size > 0) result = result.filter((col) => col.type === 'attribute' || !hiddenColumns.has(col.key));
+    // Per-type never-show fields stay out of the table even when a stale
+    // saved preference (or the row payload) still carries them.
+    result = result.filter((col) => col.type === 'attribute' || !spec.neverShow.has(col.key));
 
     // Separate tags, attributes, and sortable columns
     const tags = result.filter((col) => col.type === 'tags');
     const attrs = result.filter((col) => col.type === 'attribute');
     const sortable = result.filter((col) => col.type !== 'tags' && col.type !== 'attribute');
 
-    // Sort only non-attribute columns by custom or default order
-    const order = columnOrder && columnOrder.length > 0 ? columnOrder : DEFAULT_COLUMN_ORDER;
+    // Sort only non-attribute columns by custom or the per-type default order
+    const order = columnOrder && columnOrder.length > 0 ? columnOrder : spec.defaultOrder;
     const orderMap = new Map(order.map((key, idx) => [key, idx]));
     sortable.sort((a, b) => {
       const ai = orderMap.get(a.key) ?? Infinity;
@@ -2350,7 +2252,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     final.push(...sourcelessAttrs);
 
     return final;
-  }, [columns, showAttributes, hiddenColumns, columnOrder, attrSourceMap]);
+  }, [columns, showAttributes, hiddenColumns, columnOrder, attrSourceMap, dataSetType]);
 
   useEffect(() => {
     onVisibleColumnsReady?.(visibleColumns);
@@ -2789,7 +2691,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     const q = columnSearchQuery.toLowerCase();
     return visibleColumns
       .map((col, i) => ({ col, idx: i }))
-      .filter(({ col }) => getColumnLabel(col, dataSetType).toLowerCase().includes(q));
+      .filter(({ col }) => getColumnLabel(col).toLowerCase().includes(q));
   }, [columnSearchQuery, visibleColumns, dataSetType]);
 
   const [columnSearchSelected, setColumnSearchSelected] = useState(0);
@@ -3027,9 +2929,9 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                     onClick={() => { scrollToColumn(idx); setColumnSearchOpen(false); setColumnSearchQuery(''); setColumnSearchSelected(0); }}
                   >
                     <span className="w-5 h-5 rounded flex items-center justify-center text-[9px] font-bold shrink-0" style={{ backgroundColor: columnAccentColors.get(col.key), color: 'white' }}>
-                      {getColumnInitials(col, dataSetType).slice(0, 2)}
+                      {getColumnInitials(col).slice(0, 2)}
                     </span>
-                    <span className="truncate">{getColumnLabel(col, dataSetType)}</span>
+                    <span className="truncate">{getColumnLabel(col)}</span>
                     {i === columnSearchSelected && (
                       <span className="ml-auto text-[10px] text-faint">Enter to jump</span>
                     )}
@@ -3213,14 +3115,14 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
           {loading && data.length === 0 && minimapBlocks.length === 0 ? (
             <div className="w-full h-full animate-pulse bg-gray-200/30 dark:bg-gray-700/30" />
           ) : minimapBlocks.map((block) => (
-            <Tooltip key={block.col.key} content={getColumnLabel(block.col, dataSetType)} placement="bottom">
+            <Tooltip key={block.col.key} content={getColumnLabel(block.col)} placement="bottom">
               <div
                 data-minimap-idx={block.origIdx}
                 className="h-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors overflow-hidden flex items-center px-px"
                 style={{ width: `${block.widthPct}%`, minWidth: 35, borderRight: '1px solid white', borderBottom: `3px solid ${getMinimapBorderColor(block.col.type) ?? columnAccentColors.get(block.col.key)}` }}
               >
                 <span className={`text-[9px] pl-2 leading-none font-medium whitespace-nowrap ${getMinimapColor(block.col.type)}`}>
-                  {getColumnInitials(block.col, dataSetType)}
+                  {getColumnInitials(block.col)}
                 </span>
               </div>
             </Tooltip>
@@ -3291,12 +3193,10 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                         title={sortTitle}
                         className={`group inline-flex items-center gap-1 -my-1 -ml-1 pl-1 pr-1.5 py-1 rounded hover:bg-primary/10 transition-colors ${activeSort ? 'text-primary-dark dark:text-primary-light' : 'text-body-secondary'}`}
                       >
-                        {/* getColumnLabel (not humanizeFieldName) so Ledger
-                            header relabels match the column picker. */}
-                        <span>{getColumnLabel(col, dataSetType)}</span>
+                        <span>{getColumnLabel(col)}</span>
                         <SortChevron activeOrder={activeSort} />
                       </button>
-                    ) : getColumnLabel(col, dataSetType))}
+                    ) : getColumnLabel(col))}
                     {col.type === 'attribute' && humanizeFieldName(col.name)}
                     {isResizable && onColumnWidthChange && (
                       <ColumnResizeHandle
