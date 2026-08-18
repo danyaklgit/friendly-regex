@@ -68,6 +68,12 @@ interface StatsTabProps {
    *  the checked-out workspace: returning from Transactions lands on the type
    *  you were working in rather than resetting to MT940. */
   preferredDataSetType?: string | null;
+  /** Library (identityKeySuffix) whose stats are known-stale because a header
+   *  check-in / release just triggered a backend retag. The row shows a
+   *  loading skeleton instead of the pre-action numbers until the tagging
+   *  cycle refreshes the stats. Timestamped so an old marker from a previous
+   *  action doesn't re-arm the skeleton on later Backlog visits. */
+  pendingStatsAction?: { key: string; at: number } | null;
 }
 
 const sideLabel: Record<string, string> = {
@@ -166,6 +172,11 @@ function buildPillFilters(kind: PillKind): FilterProperty[] {
   }
 }
 
+/** How long a row may hold the pending-stats skeleton before the safety
+ *  refetch clears it. Mirrors the 30s staggered post-checkin refresh window
+ *  (a tagging job that hasn't surfaced by then likely never will). */
+const PENDING_STATS_MAX_AGE_MS = 45_000;
+
 interface DisplayRow {
   library: TagSpecLibrary;
   bank: string;
@@ -181,7 +192,7 @@ interface DisplayRow {
   inProgressLib: TagSpecLibrary | undefined;
 }
 
-export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckoutComplete, onRelease, authToken, tepHeaders, navigation, onNavigationConsumed, onNavigateToBacklog, preferredDataSetType }: StatsTabProps) {
+export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckoutComplete, onRelease, authToken, tepHeaders, navigation, onNavigationConsumed, onNavigateToBacklog, preferredDataSetType, pendingStatsAction }: StatsTabProps) {
   const { libraries, tagDefinitions, loading, refetchTagSpecs, refetchLibraries, dispatch, taggingProgress, isPairBeingTagged, getTaggingFirstSeen } = useTagSpecs();
   const { usersMap, useDummyData, userId, isAudit } = useAuth();
   const { clearChanges } = useLocalChanges(null);
@@ -241,6 +252,26 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
   const [backlogStats, setBacklogStats] = useState<Map<string, BacklogStatEntry>>(new Map());
   const [statsLoading, setStatsLoading] = useState(false);
 
+  // Rows whose stats are known-stale: a check-in / release / rollback just
+  // triggered a backend retag, so the currently fetchable numbers are the
+  // PRE-action ones. Such rows render the stats skeleton until the tagging
+  // cycle completes and the post-job refetch lands (or the safety timeout
+  // fires for actions that never surface a visible tagging job). Keyed by
+  // identityKeySuffix, seeded from the header actions via pendingStatsAction
+  // and extended locally by the row-level check-in / rollback handlers.
+  const [pendingStatsKeys, setPendingStatsKeys] = useState<Set<string>>(() =>
+    pendingStatsAction && Date.now() - pendingStatsAction.at < PENDING_STATS_MAX_AGE_MS
+      ? new Set([pendingStatsAction.key])
+      : new Set(),
+  );
+  useEffect(() => {
+    if (!pendingStatsAction) return;
+    if (Date.now() - pendingStatsAction.at >= PENDING_STATS_MAX_AGE_MS) return;
+    setPendingStatsKeys((prev) =>
+      prev.has(pendingStatsAction.key) ? prev : new Set(prev).add(pendingStatsAction.key),
+    );
+  }, [pendingStatsAction]);
+
   const refetchBacklogStats = useCallback(async () => {
     if (!authToken || !tepHeaders) return;
     try {
@@ -254,6 +285,18 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
       console.error('Failed to refetch backlog stats:', err);
     }
   }, [authToken, tepHeaders]);
+
+  // Safety valve for the pending-stats skeleton: if no tagging job ever
+  // surfaces (or its completion signal is missed), refetch once and clear so
+  // a row can't sit in the skeleton state forever.
+  useEffect(() => {
+    if (pendingStatsKeys.size === 0) return;
+    const t = setTimeout(() => {
+      void refetchBacklogStats();
+      setPendingStatsKeys(new Set());
+    }, PENDING_STATS_MAX_AGE_MS);
+    return () => clearTimeout(t);
+  }, [pendingStatsKeys, refetchBacklogStats]);
 
   // Refresh after a write action: pulls libraries + TaggingProgress (lightweight — no
   // hierarchy) and backlog stats once. The delayed retry at ~2.5s only pulls libraries
@@ -305,11 +348,13 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
 
   // When tagging finishes (all IN_PROGRESS entries disappear), refresh backlog stats
   // so the Clean/Issues/Untagged counts reflect the newly tagged transactions.
+  // That refetch is also what releases any pending-stats skeletons — the
+  // numbers arriving after the job completed are the post-action ones.
   const hadActiveTaggingRef = useRef(false);
   useEffect(() => {
     const hasActive = Object.values(taggingProgress).some((e) => e.Status === 'IN_PROGRESS');
     if (hadActiveTaggingRef.current && !hasActive) {
-      refetchBacklogStats();
+      void refetchBacklogStats().then(() => setPendingStatsKeys(new Set()));
     }
     hadActiveTaggingRef.current = hasActive;
   }, [taggingProgress, refetchBacklogStats]);
@@ -571,6 +616,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
       await tagSpecLibrarySave(row.inProgressLib, authToken, tepHeaders);
       await tagSpecLibraryCheckIn(row.inProgressLib.Id, authToken, tepHeaders);
       clearChanges(row);
+      setPendingStatsKeys((prev) => new Set(prev).add(identityKeySuffix(row)));
       refreshAfterTaggingTrigger();
       setToast({ message: `Checked in ${identityLabel(row)}`, type: 'success' });
     } catch (err) {
@@ -587,6 +633,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
     try {
       await tagSpecLibraryRollback(rollbackTarget.inProgressLib.Id, authToken, tepHeaders);
       clearChanges(rollbackTarget);
+      setPendingStatsKeys((prev) => new Set(prev).add(identityKeySuffix(rollbackTarget)));
       refreshAfterTaggingTrigger();
       setToast({ message: `Rolled back ${identityLabel(rollbackTarget)}`, type: 'success' });
     } catch (err) {
@@ -830,7 +877,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                                 />
                               );
                             })()
-                          ) : statsLoading ? (
+                          ) : statsLoading || pendingStatsKeys.has(rowKey) ? (
                             <div className="space-y-1.5">
                               <div className="h-2 w-full rounded-full bg-surface-tertiary animate-pulse" />
                               <div className="flex gap-3">
