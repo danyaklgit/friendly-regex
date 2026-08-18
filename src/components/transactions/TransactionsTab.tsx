@@ -347,6 +347,39 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // the user type a higher value if their workload needs it, so we don't pay
   // the cost of an unscoped probe round-trip on every navigation here.
 
+  // The transaction buffer lives in TransactionDataContext and survives tab
+  // navigation, so right after a workspace switch it still holds the PREVIOUS
+  // workspace's rows until the new scope's first fetch lands — MT940 rows
+  // would flash inside a Ledger view (wrong columns, wrong data) and vice
+  // versa. Rows carry their scope (DataSetType + identity fields), so detect
+  // the mismatch directly off the buffer and hold the table in its skeleton
+  // state until the buffer belongs to the current checkout.
+  const staleScopeBuffer = useMemo(() => {
+    if (!isLiveMode || transactions.length === 0) return false;
+    const row = transactions[0] as Record<string, unknown>;
+    const rowDst = String(row['DataSetType'] ?? '');
+    // Rows without a DataSetType can't be classified — never hold the
+    // skeleton on a guess.
+    if (!rowDst) return false;
+    const dst = activeCheckout?.dataSetType ?? DEFAULT_DATA_SET_TYPE;
+    if (rowDst !== dst) return true;
+    if (!activeCheckout) return false;
+    if (isLedger(dst)) {
+      const client = String(row['ClientCode'] ?? '');
+      const erp = String(row['ErpCode'] ?? '');
+      return Boolean(
+        (activeCheckout.clientCode && client && client !== activeCheckout.clientCode) ||
+        (activeCheckout.erpCode && erp && erp !== activeCheckout.erpCode),
+      );
+    }
+    const bank = String(row['BankSwiftCode'] ?? '');
+    const side = String(row['Side'] ?? '');
+    return Boolean(
+      (activeCheckout.bank && bank && bank !== activeCheckout.bank) ||
+      (activeCheckout.side && side && side !== activeCheckout.side),
+    );
+  }, [isLiveMode, transactions, activeCheckout]);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Rule builder state (reuses the wizard form hook)
@@ -3806,7 +3839,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         onVisibleColumnsReady={setVisibleTableColumns}
         builderHeight={builderHeight}
         loading={loading}
-        forceSkeleton={hideBusy}
+        forceSkeleton={hideBusy || staleScopeBuffer}
         accentHue={190}
 //   190 — cyan (default)
 // 220 — blue
@@ -3887,7 +3920,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         })();
         return (
         <div className="flex items-center justify-center gap-3 py-2 mt-1 border border-border bg-surface-secondary rounded-lg">
-          {loading ? (
+          {loading || staleScopeBuffer ? (
             <div className="flex items-center gap-3 animate-pulse">
               <div className="h-4 w-28 rounded bg-gray-200 dark:bg-gray-700" />
               {fwdBatches.length > 0 && <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />}
