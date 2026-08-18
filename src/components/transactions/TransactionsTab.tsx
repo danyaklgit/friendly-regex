@@ -37,7 +37,9 @@ import { SearchableSelect } from '../shared/SearchableSelect';
 import { regexify, regexifyExtraction, generateExpressionPrompt, generateExtractionPrompt } from '../../utils/regexify';
 import { generateExpressionId } from '../../utils/uuid';
 import { getContextValue } from '../../types/tagSpec';
-import { TransactionTable, ColumnPicker, ALLOWED_COLUMN_KEYS, DEFAULT_VISIBLE_COLUMN_KEYS, PREVIEW_TEMP_DEF_ID, renderTagTooltip, type ColumnDef } from './TransactionTable';
+import { TransactionTable, ColumnPicker, PREVIEW_TEMP_DEF_ID, renderTagTooltip, type ColumnDef } from './TransactionTable';
+import { getColumnSpec } from '../../constants/transactionColumns';
+import { loadColumnPrefs, saveHiddenColumns, saveColumnOrder, saveColumnWidths, type ColumnPrefs } from '../../utils/columnPrefs';
 import { TagBadge } from './TagBadge';
 import { StepRuleExpressions } from '../wizard/StepRuleExpressions';
 import { StepAttributes } from '../wizard/StepAttributes';
@@ -415,26 +417,26 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     } catch { return new Set(['AdditionalInformation']); }
   });
   const [charViewMenuOpen, setCharViewMenuOpen] = useState(false);
-  const [hiddenColumns, setHiddenColumns] = useState<Set<string> | null>(() => {
-    try {
-      const stored = localStorage.getItem('tep:hiddenColumns');
-      return stored ? new Set(JSON.parse(stored) as string[]) : null;
-    } catch { return null; }
-  });
-  const [columnOrder, setColumnOrder] = useState<string[]>(() => {
-    try {
-      const stored = localStorage.getItem('tep:columnOrder');
-      if (!stored) return [];
-      const parsed = JSON.parse(stored) as string[];
-      // Migrate legacy '__dates' grouped-column key → three separate date columns.
-      if (parsed.includes('__dates')) {
-        return parsed.flatMap((k) =>
-          k === '__dates' ? ['data:StatementDate', 'data:EntryDate', 'data:ValueDate'] : [k]
-        );
-      }
-      return parsed;
-    } catch { return []; }
-  });
+  // Column layout (hidden set / order / widths) is stored PER DataSetType
+  // (column spec Rule 3): switching workspaces loads that type's saved
+  // layout, and changing one workspace's layout never affects another's.
+  // loadColumnPrefs also migrates the pre-Ledger global keys into the MT940
+  // slot on first run.
+  const columnPrefsDst = activeCheckout?.dataSetType ?? DEFAULT_DATA_SET_TYPE;
+  const initialColumnPrefsRef = useRef<ColumnPrefs | null>(null);
+  if (initialColumnPrefsRef.current === null) {
+    initialColumnPrefsRef.current = loadColumnPrefs(columnPrefsDst);
+  }
+  // The DataSetType the CURRENT column state belongs to. Save effects write
+  // under this key (not columnPrefsDst) so a mid-switch render can never leak
+  // one workspace's layout into another's storage slot.
+  const columnPrefsLoadedDstRef = useRef<string>(columnPrefsDst);
+  const [hiddenColumns, setHiddenColumns] = useState<Set<string> | null>(
+    () => initialColumnPrefsRef.current!.hidden
+  );
+  const [columnOrder, setColumnOrder] = useState<string[]>(
+    () => initialColumnPrefsRef.current!.order
+  );
   // Per-user alphabetical sort override on a single column. `null` means
   // fall back to DEFAULT_SORTING (StatementDate ASC + Sequence ASC).
   // parseSortOverride rejects unknown fields so a stale localStorage entry
@@ -451,21 +453,19 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // the default + line-clamp is too tight to read. Keyed by column key
   // (e.g. "data:AdditionalInformation"); absent keys fall back to the
   // column's natural / default width.
-  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => {
-    try {
-      const stored = localStorage.getItem('tep:columnWidths');
-      if (!stored) return {};
-      const parsed = JSON.parse(stored);
-      if (parsed && typeof parsed === 'object') {
-        const cleaned: Record<string, number> = {};
-        for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
-          if (typeof v === 'number' && Number.isFinite(v) && v > 0) cleaned[k] = v;
-        }
-        return cleaned;
-      }
-      return {};
-    } catch { return {}; }
-  });
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(
+    () => initialColumnPrefsRef.current!.widths
+  );
+  // Workspace switch while mounted (e.g. a share-link restore or a checkout
+  // change without a tab round-trip): reload that DataSetType's saved layout.
+  useEffect(() => {
+    if (columnPrefsLoadedDstRef.current === columnPrefsDst) return;
+    const prefs = loadColumnPrefs(columnPrefsDst);
+    setHiddenColumns(prefs.hidden);
+    setColumnOrder(prefs.order);
+    setColumnWidths(prefs.widths);
+    columnPrefsLoadedDstRef.current = columnPrefsDst;
+  }, [columnPrefsDst]);
   // Memoize the effective sort property array so passing it into useEffect
   // / useCallback dependency lists is stable as long as the override hasn't
   // changed. Falls back to DEFAULT_SORTING when no override is active.
@@ -700,20 +700,18 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     () => (charViewEnabled ? charViewCols : EMPTY_CHAR_VIEW_COLS),
     [charViewEnabled, charViewCols],
   );
-  useEffect(() => { if (hiddenColumns !== null) { try { localStorage.setItem('tep:hiddenColumns', JSON.stringify([...hiddenColumns])); } catch { /* ignore */ } } }, [hiddenColumns]);
-  useEffect(() => { try { localStorage.setItem('tep:columnOrder', JSON.stringify(columnOrder)); } catch { /* ignore */ } }, [columnOrder]);
+  // Column layout saves target the DataSetType the current state was LOADED
+  // for (columnPrefsLoadedDstRef), never the in-flight workspace, so a
+  // mid-switch commit can't write one workspace's layout under another's key.
+  useEffect(() => { saveHiddenColumns(columnPrefsLoadedDstRef.current, hiddenColumns); }, [hiddenColumns]);
+  useEffect(() => { saveColumnOrder(columnPrefsLoadedDstRef.current, columnOrder); }, [columnOrder]);
   useEffect(() => {
     try {
       if (sortOverride) localStorage.setItem('tep:sortOverride', JSON.stringify(sortOverride));
       else localStorage.removeItem('tep:sortOverride');
     } catch { /* ignore */ }
   }, [sortOverride]);
-  useEffect(() => {
-    try {
-      if (Object.keys(columnWidths).length === 0) localStorage.removeItem('tep:columnWidths');
-      else localStorage.setItem('tep:columnWidths', JSON.stringify(columnWidths));
-    } catch { /* ignore */ }
-  }, [columnWidths]);
+  useEffect(() => { saveColumnWidths(columnPrefsLoadedDstRef.current, columnWidths); }, [columnWidths]);
 
   // Track builder panel height so the table can adjust its maxHeight
   useEffect(() => {
@@ -941,10 +939,12 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   }, [builderOpen]);
 
 
+  const activeColumnSpec = useMemo(() => getColumnSpec(columnPrefsDst), [columnPrefsDst]);
+
   const defaultHiddenColumns = useMemo(() => {
     // Show the debit column only when the checked-out side produces debit rows,
     // and the credit column only when it produces credit rows. When no checkout
-    // is active, keep both visible as a safe fallback.
+    // is active (or the workspace has no side, e.g. Ledger), keep both visible.
     const side = activeCheckout?.side;
     const debitSide = side === 'DR' || side === 'RC';
     const creditSide = side === 'CR' || side === 'RD';
@@ -963,15 +963,28 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         if (!showCredit) s.add(col.key);
         continue;
       }
-      // Anything allowed but not in the default-visible set starts hidden.
-      if (ALLOWED_COLUMN_KEYS.has(col.key) && DEFAULT_VISIBLE_COLUMN_KEYS.has(col.key)) continue;
+      // Anything outside this DataSetType's default-visible set starts
+      // hidden — including fields unknown to the spec (a future backend
+      // addition), which stay offerable in the picker but never default-on.
+      if (activeColumnSpec.defaultVisible.has(col.key) && !activeColumnSpec.neverShow.has(col.key)) continue;
       s.add(col.key);
     }
     return s;
-  }, [tableColumns, activeCheckout?.side]);
+  }, [tableColumns, activeCheckout?.side, activeColumnSpec]);
 
-  // When hiddenColumns is null (no stored preference), use defaults
-  const effectiveHiddenColumns = useMemo(() => hiddenColumns ?? defaultHiddenColumns, [hiddenColumns, defaultHiddenColumns]);
+  // When hiddenColumns is null (no stored preference), use defaults. The
+  // per-type never-show fields are ALWAYS folded in so a stale saved
+  // preference can't reveal a column this DataSetType never populates.
+  const effectiveHiddenColumns = useMemo(() => {
+    const base = hiddenColumns ?? defaultHiddenColumns;
+    let result = base;
+    for (const key of activeColumnSpec.neverShow) {
+      if (result.has(key)) continue;
+      if (result === base) result = new Set(base);
+      result.add(key);
+    }
+    return result;
+  }, [hiddenColumns, defaultHiddenColumns, activeColumnSpec]);
 
   // When the view is filtered to a single side — either via an active checkout
   // or via a single-value Side filter pill — force-show the matching side
@@ -1009,10 +1022,15 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     return next ?? effectiveHiddenColumns;
   }, [effectiveHiddenColumns, forcedSideColumnKeys]);
 
+  // Reset the CURRENT workspace's layout to the spec defaults (visible set,
+  // order, and widths) — other workspaces' saved layouts are untouched.
+  // hiddenColumns → null drops the saved preference entirely so future
+  // default changes apply without another reset.
   const handleColumnReset = useCallback(() => {
-    setHiddenColumns(defaultHiddenColumns);
+    setHiddenColumns(null);
     setColumnOrder([]);
-  }, [defaultHiddenColumns]);
+    setColumnWidths({});
+  }, []);
 
   // Base filters from checkout — "clear filters" resets to these instead of empty
   // In live mode, keys must match filter definition Tags (e.g. "BANKS", "SIDE")
@@ -3135,7 +3153,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
               </div>
             )}
             {tableColumns.length > 0 && (
-              <ColumnPicker columns={tableColumns} hiddenColumns={effectiveHiddenColumns} onChange={setHiddenColumns} columnOrder={columnOrder} onColumnOrderChange={setColumnOrder} defaultHiddenColumns={defaultHiddenColumns} onReset={handleColumnReset} lockedVisibleKeys={forcedSideColumnKeys} dataSetType={activeCheckout?.dataSetType} />
+              <ColumnPicker columns={tableColumns} hiddenColumns={effectiveHiddenColumns} onChange={setHiddenColumns} columnOrder={columnOrder} onColumnOrderChange={setColumnOrder} defaultHiddenColumns={defaultHiddenColumns} onReset={handleColumnReset} lockedVisibleKeys={forcedSideColumnKeys} dataSetType={columnPrefsDst} />
             )}
             {sortOverride && (
               <button
@@ -3765,7 +3783,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       ) : (
       <TransactionTable
         data={visibleData}
-        dataSetType={activeCheckout?.dataSetType}
+        dataSetType={columnPrefsDst}
         tagDefinitions={allDefinitions}
         originalDefinitionIds={originalDefinitionIds}
         definitionSourceMap={definitionSourceMap}

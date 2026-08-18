@@ -26,10 +26,10 @@ describe('deriveFieldMeta', () => {
     expect(meta.identifierField).toBe('_id');
   });
 
-  it('excludes SKIP_FIELDS from dataFields', () => {
+  it('excludes SKIP_FIELDS from dataFields but keeps Hash (offerable per column spec)', () => {
     const rows = [{ _id: '1', Hash: 'abc', Tag: 'X', Amount: '100' }];
     const meta = deriveFieldMeta(rows);
-    expect(meta.dataFields).not.toContain('Hash');
+    expect(meta.dataFields).toContain('Hash');
     expect(meta.dataFields).not.toContain('Tag');
     expect(meta.dataFields).toContain('Amount');
   });

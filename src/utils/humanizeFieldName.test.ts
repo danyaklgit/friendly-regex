@@ -37,4 +37,22 @@ describe('humanizeFieldName', () => {
   it('handles TransactionTypeCode', () => {
     expect(humanizeFieldName('TransactionTypeCode')).toBe('Transaction Type Code');
   });
+
+  it('expands the Txn token to Transaction', () => {
+    expect(humanizeFieldName('TxnTypeName')).toBe('Transaction Type Name');
+  });
+
+  it('renders acronym tokens in their canonical casing', () => {
+    expect(humanizeFieldName('ErpCode')).toBe('ERP Code');
+    expect(humanizeFieldName('AmountFcy')).toBe('Amount FCY');
+    expect(humanizeFieldName('StaleSinceUtc')).toBe('Stale Since UTC');
+  });
+
+  it('derives the Ledger field names verbatim from the field', () => {
+    expect(humanizeFieldName('PartyName')).toBe('Party Name');
+    expect(humanizeFieldName('OffsetAccountNumber')).toBe('Offset Account Number');
+    expect(humanizeFieldName('StatementId')).toBe('Statement Id');
+    expect(humanizeFieldName('IsStale')).toBe('Is Stale');
+    expect(humanizeFieldName('ClientCode')).toBe('Client Code');
+  });
 });
