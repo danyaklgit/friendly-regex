@@ -52,6 +52,7 @@ const MT940_ORDER = [
   k('StatementDate'),
   k('EntryDate'),               // hidden by default
   k('ValueDate'),
+  k('Side'),                    // hidden by default (identity carries the side)
   '__debit',
   '__credit',
   k('CurrencyCode'),
@@ -122,6 +123,7 @@ const LEDGER_ORDER = [
   k('AccountType'),
   k('AccountId'),
   k('BankName'),
+  k('Side'),                    // default-visible: a Ledger library spans CR and DR
   '__debit',
   '__credit',
   k('CurrencyCode'),
@@ -158,6 +160,7 @@ const LEDGER_SPEC: DataSetColumnSpec = {
     k('AccountType'),
     k('AccountId'),
     k('BankName'),
+    k('Side'),
     '__debit',
     '__credit',
     k('CurrencyCode'),

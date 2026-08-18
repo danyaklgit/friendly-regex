@@ -95,6 +95,18 @@ describe('getColumnSpec', () => {
     expect(getColumnSpec('Ledger').defaultVisible.has('data:TransactionTypeCode')).toBe(false);
   });
 
+  it('shows the raw Side column by default only on Ledger, offerable-hidden elsewhere', () => {
+    const ledger = getColumnSpec('Ledger');
+    expect(ledger.defaultVisible.has('data:Side')).toBe(true);
+    expect(ledger.defaultOrder).toContain('data:Side');
+    for (const type of ['MT940', 'MT942', 'INTERIM_MT940'] as const) {
+      const spec = getColumnSpec(type);
+      expect(spec.defaultOrder).toContain('data:Side');
+      expect(spec.defaultVisible.has('data:Side'), type).toBe(false);
+      expect(spec.neverShow.has('data:Side'), type).toBe(false);
+    }
+  });
+
   it('offers Hash hidden-by-default on every type', () => {
     for (const type of DATA_SET_TYPES) {
       const spec = getColumnSpec(type);

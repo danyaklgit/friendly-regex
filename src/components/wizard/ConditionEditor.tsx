@@ -35,6 +35,8 @@ const NUMERIC_SOURCE_FIELDS = new Set(['Amount']);
 const TEXT_SOURCE_FIELDS = new Set([
   'AdditionalInformation', 'BankReference', 'CurrencyCode',
   'Description1', 'Description2', 'IBAN', 'TransactionDetails',
+  // Side is CR/DR — text. Offered only for Ledger data (see offersSideField).
+  'Side',
   // Ledger ids/names are identifiers, not quantities — keep the full text
   // operation set even when a sample happens to be all-numeric.
   ...LEDGER_SOURCE_FIELDS,
@@ -90,6 +92,13 @@ export function ConditionEditor({
   onEditingChange,
 }: ConditionEditorProps) {
   const { fieldMeta, transactions } = useTransactionData();
+  // Side is offered as a condition field ONLY for Ledger data: a Ledger
+  // library spans both CR and DR rows (side is not part of its identity), so
+  // rules there scope by Side. Bank workspaces carry side in the checkout
+  // identity, where a Side condition would be redundant. Ledger data is
+  // detected by its identity field on the loaded rows (same data-driven
+  // gating the rest of the source-field list uses).
+  const offersSideField = fieldMeta.sourceFields.includes('ClientCode');
   const [editing, setEditing] = useState(
     !startCollapsed && condition.value.trim().length === 0,
   );
@@ -323,7 +332,7 @@ export function ConditionEditor({
                   }
                   onUpdate(updates);
                 }}
-                options={fieldMeta.sourceFields.filter((f) => ALLOWED_SOURCE_FIELDS.has(f)).map((f) => ({ value: f, label: humanizeFieldName(f) })).sort((a, b) => a.label.localeCompare(b.label))}
+                options={fieldMeta.sourceFields.filter((f) => ALLOWED_SOURCE_FIELDS.has(f) || (offersSideField && f === 'Side')).map((f) => ({ value: f, label: humanizeFieldName(f) })).sort((a, b) => a.label.localeCompare(b.label))}
               />
             </div>
             <div data-tour="condition-operation">
