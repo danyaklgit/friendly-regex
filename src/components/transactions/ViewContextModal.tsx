@@ -8,6 +8,7 @@ import { TagBadge } from './TagBadge';
 import { Button } from '../shared/Button';
 import { Tooltip } from '../shared/Tooltip';
 import { Toast } from '../shared/Toast';
+import { AmountText, LEDGER_AMOUNT_FIELDS } from '../shared/AmountText';
 import type { FilterProperty, TepHeaders } from '../../api/transactions';
 import type { TransactionRow, TagSpecLibrary, AnalyzedTransaction } from '../../types';
 import type { ColumnDef } from './TransactionTable';
@@ -564,7 +565,9 @@ export function ViewContextModal({ open, onClose, transaction, authToken, tepHea
                         case 'data':
                           dataCell = (
                             <td key={col.key} dir="auto" className={`${cellCls} text-body-secondary ${isHighlighted ? 'font-medium' : ''}`}>
-                              {getCellValue(item.row, col.field)}
+                              {LEDGER_AMOUNT_FIELDS.has(col.field) && getCellValue(item.row, col.field) !== ''
+                                ? <AmountText value={item.row[col.field] as string | number} />
+                                : getCellValue(item.row, col.field)}
                             </td>
                           );
                           break;

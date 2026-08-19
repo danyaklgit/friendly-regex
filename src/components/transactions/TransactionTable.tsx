@@ -30,6 +30,7 @@ import { Button } from '../shared/Button';
 import type { SetTransactionsCommentEntry, SortOverride, SortableField } from '../../api/transactions';
 import { getSortableFields } from '../../api/transactions';
 import { ColumnManagerModal } from './ColumnManagerModal';
+import { AmountText, LEDGER_AMOUNT_FIELDS } from '../shared/AmountText';
 
 /** Above this many offerable columns the Columns button opens the manager
  *  modal directly instead of the dropdown — reordering 100+ rows inside the
@@ -809,6 +810,9 @@ function renderCellContentFor(
   searchHighlightMap: Map<string, RegExp[]> | null,
 ): ReactNode {
   if (value == null) return <span className="text-faint">-</span>;
+  // Ledger amount fields (AmountFcy, TxnAmountFC/LC, VAT*, FXGainLoss) render
+  // like the Debit/Credit money cells instead of as raw numbers.
+  if (LEDGER_AMOUNT_FIELDS.has(field)) return <AmountText value={value as string | number} />;
   // Dates come back as ISO strings — strip the time portion for display.
   const raw = String(value);
   const text = DATE_FIELDS.has(field) ? raw.split('T')[0] : raw;
