@@ -172,12 +172,15 @@ export function ViewContextModal({ open, onClose, transaction, authToken, tepHea
     const bank = String(transaction['BankSwiftCode'] ?? '');
     const iban = String(transaction['IBAN'] ?? '');
     const stmtDate = String(transaction['StatementDate'] ?? '');
-    const statementId = String(transaction['StatementId'] ?? '');
+    // Ledger model V2: the journal-entry grouping key is TransactionId
+    // (StatementId is only a deprecated get-only alias — read it as a
+    // fallback, never send it as the filter column).
+    const transactionId = String(transaction['TransactionId'] ?? transaction['StatementId'] ?? '');
 
     // For Ledger, "context" is the other legs of the SAME ERP transaction, so
-    // scope by StatementId (+ the Ledger type). Ledger rows have no
+    // scope by TransactionId (+ the Ledger type). Ledger rows have no
     // BankSwiftCode, so the bank/date guard does not apply.
-    if (ledger ? !statementId : (!bank || !stmtDate)) {
+    if (ledger ? !transactionId : (!bank || !stmtDate)) {
       setError(
         ledger
           ? 'Missing transaction id on this ledger row.'
@@ -193,7 +196,7 @@ export function ViewContextModal({ open, onClose, transaction, authToken, tepHea
     try {
       const filters = ledger
         ? [
-            { ColumnName: 'StatementId', Value: statementId, Operand: 'EQ' },
+            { ColumnName: 'TransactionId', Value: transactionId, Operand: 'EQ' },
             { ColumnName: 'DataSetType', Value: LEDGER_DATA_SET_TYPE, Operand: 'IN' },
           ]
         : [
@@ -241,7 +244,7 @@ export function ViewContextModal({ open, onClose, transaction, authToken, tepHea
     String(transaction['BankSwiftCode'] ?? ''),
     String(transaction['StatementDate'] ?? ''),
     String(transaction['IBAN'] ?? ''),
-    String(transaction['StatementId'] ?? ''),
+    String(transaction['TransactionId'] ?? transaction['StatementId'] ?? ''),
   ]);
 
   // Reset transient export feedback whenever the modal is reopened on a
@@ -258,8 +261,9 @@ export function ViewContextModal({ open, onClose, transaction, authToken, tepHea
     const bank = String(transaction['BankSwiftCode'] ?? '');
     const ibanVal = String(transaction['IBAN'] ?? '');
     const stmtDateVal = String(transaction['StatementDate'] ?? '');
-    const statementId = String(transaction['StatementId'] ?? '');
-    if (ledger ? !statementId : (!bank || !stmtDateVal)) {
+    // Ledger model V2 grouping key (StatementId read only as the alias fallback).
+    const transactionId = String(transaction['TransactionId'] ?? transaction['StatementId'] ?? '');
+    if (ledger ? !transactionId : (!bank || !stmtDateVal)) {
       setExportStatus({
         kind: 'error',
         message: ledger
@@ -270,7 +274,7 @@ export function ViewContextModal({ open, onClose, transaction, authToken, tepHea
     }
     const filters: FilterProperty[] = ledger
       ? [
-          { ColumnName: 'StatementId', Value: statementId, Operand: 'EQ' },
+          { ColumnName: 'TransactionId', Value: transactionId, Operand: 'EQ' },
           { ColumnName: 'DataSetType', Value: LEDGER_DATA_SET_TYPE, Operand: 'IN' },
         ]
       : [
@@ -332,7 +336,7 @@ export function ViewContextModal({ open, onClose, transaction, authToken, tepHea
   const stmtDate = stmtDateRaw.split('T')[0];
   const ledgerClient = String(transaction['ClientCode'] ?? '');
   const ledgerErp = String(transaction['ErpCode'] ?? '');
-  const ledgerTxnId = String(transaction['StatementId'] ?? '');
+  const ledgerTxnId = String(transaction['TransactionId'] ?? transaction['StatementId'] ?? '');
 
   return (
     <div className="fixed inset-0 z-[10000] flex flex-col bg-surface">
