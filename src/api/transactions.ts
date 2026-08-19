@@ -59,9 +59,14 @@ export const DEFAULT_SORTING: SortProperty[] = [
   { ColumnName: 'Sequence', SortingLevel: 2, SortingOrder: 'ASC' },
 ];
 
+// TransactionId sits between date and line number: Sequence restarts per
+// (account, document), so PostingDate + Sequence alone interleaves the legs
+// of different journal entries posted on the same date. Sorting by the
+// journal-entry grouping key keeps every document's legs contiguous.
 const LEDGER_DEFAULT_SORTING: SortProperty[] = [
   { ColumnName: 'PostingDate', SortingLevel: 1, SortingOrder: 'ASC' },
-  { ColumnName: 'Sequence', SortingLevel: 2, SortingOrder: 'ASC' },
+  { ColumnName: 'TransactionId', SortingLevel: 2, SortingOrder: 'ASC' },
+  { ColumnName: 'Sequence', SortingLevel: 3, SortingOrder: 'ASC' },
 ];
 
 /** Default sort for a DataSetType. Unknown/absent types get the statement

@@ -18,10 +18,11 @@ describe('getDefaultSorting', () => {
     expect(DEFAULT_SORTING[0]).toEqual({ ColumnName: 'StatementDate', SortingLevel: 1, SortingOrder: 'ASC' });
   });
 
-  it('Ledger sorts by PostingDate + Sequence (StatementDate is null on Ledger model V2)', () => {
+  it('Ledger sorts by PostingDate + TransactionId + Sequence (legs of one journal entry stay contiguous)', () => {
     expect(getDefaultSorting('Ledger')).toEqual([
       { ColumnName: 'PostingDate', SortingLevel: 1, SortingOrder: 'ASC' },
-      { ColumnName: 'Sequence', SortingLevel: 2, SortingOrder: 'ASC' },
+      { ColumnName: 'TransactionId', SortingLevel: 2, SortingOrder: 'ASC' },
+      { ColumnName: 'Sequence', SortingLevel: 3, SortingOrder: 'ASC' },
     ]);
   });
 });
@@ -51,12 +52,13 @@ describe('buildSortingProperties', () => {
     ]);
   });
 
-  it('uses PostingDate then Sequence as tiebreakers on Ledger', () => {
+  it('uses PostingDate, TransactionId, then Sequence as tiebreakers on Ledger', () => {
     const override: SortOverride = { field: 'Narrative', order: 'ASC' };
     expect(buildSortingProperties(override, 'Ledger')).toEqual([
       { ColumnName: 'Narrative', SortingLevel: 1, SortingOrder: 'ASC' },
       { ColumnName: 'PostingDate', SortingLevel: 2, SortingOrder: 'ASC' },
-      { ColumnName: 'Sequence', SortingLevel: 3, SortingOrder: 'ASC' },
+      { ColumnName: 'TransactionId', SortingLevel: 3, SortingOrder: 'ASC' },
+      { ColumnName: 'Sequence', SortingLevel: 4, SortingOrder: 'ASC' },
     ]);
   });
 
