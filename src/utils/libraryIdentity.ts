@@ -81,7 +81,7 @@ export function hasCompleteIdentity(x: IdentityInput): boolean {
 /**
  * Grid / tags / preview scope filters for a checkout's identity. Ledger emits
  * ClientCode + ErpCode; every other type emits BankSwiftCode + Side. The
- * operand is the caller's (EQ for GetAllTransactionTags / GetMT940Transactions
+ * operand is the caller's (EQ for GetAllTransactionTags / GetTEPTransactions
  * base scope, IN for the ruleset preview) — both parts single-valued, so EQ/IN
  * are equivalent for Ledger.
  */

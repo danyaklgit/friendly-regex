@@ -14,11 +14,17 @@ export const TXN_TYPE_OPTIONS = [
 // addition to the standard banking fields. The rule builder's dropdown is
 // data-driven (fieldMeta.sourceFields ∩ allow-list), so these surface only
 // when the loaded rows actually carry them — i.e. Ledger checkouts — and the
-// MT940/intraday dropdowns are unchanged.
+// MT940/intraday dropdowns are unchanged. Names follow the Ledger record
+// model V2 (2026-08-19): dedicated Ledger fields, no reused statement names.
 export const LEDGER_SOURCE_FIELDS = [
-  'AccountId', 'AccountName', 'AccountNumber', 'AccountType',
-  'OffsetAccountId', 'OffsetAccountName', 'OffsetAccountNumber', 'OffsetAccountType',
-  'BankName', 'PartyId', 'PartyName',
+  'AccountCode', 'AccountId', 'AccountName', 'AccountNumber', 'AccountType',
+  'AccountBankCode', 'AccountIBAN',
+  'OffsetAccountCode', 'OffsetAccountId', 'OffsetAccountName',
+  'OffsetAccountNumber', 'OffsetAccountType',
+  'CounterPartyType', 'CounterPartyCode', 'CounterPartyName',
+  'CounterPartyBankCode', 'CounterPartyAccountNumber', 'CounterPartyCountryCode',
+  'Narrative', 'TransactionRef', 'SourceRef', 'Notes',
+  'PaymentMethod', 'PaymentRef', 'BusinessUnit', 'GroupingRef',
 ] as const;
 
 export const VALIDATION_RULE_TAG_OPTIONS = ['STRING', 'NUMBER', 'DATE'] as const;
@@ -28,4 +34,4 @@ export const DATA_TYPE_OPTIONS = VALIDATION_RULE_TAG_OPTIONS;
 // condition editor (to restrict the operation set and surface a date picker)
 // and by buildRulesetFilters (to route GT/LT through the date-range regex
 // compiler).
-export const DATE_SOURCE_FIELDS = new Set(['StatementDate', 'EntryDate', 'ValueDate']);
+export const DATE_SOURCE_FIELDS = new Set(['StatementDate', 'PostingDate', 'EntryDate', 'ValueDate']);

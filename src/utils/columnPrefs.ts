@@ -19,6 +19,32 @@ const LEGACY_ORDER_KEY = 'tep:columnOrder';
 const LEGACY_WIDTHS_KEY = 'tep:columnWidths';
 const MIGRATION_TARGET_TYPE = 'MT940';
 
+/**
+ * Ledger model V2 (2026-08-19): Ledger rows stopped reusing statement fields,
+ * so saved Ledger layouts referencing the old column keys are rewritten to the
+ * dedicated Ledger field names on load. Applied as a pure transform each load
+ * (idempotent — new keys map to themselves by absence), so no write-back pass
+ * is needed; the next save persists the migrated keys. RunningBalance is no
+ * longer populated on Ledger and is dropped outright.
+ */
+const LEDGER_V2_KEY_RENAMES: Record<string, string> = {
+  'data:StatementId': 'data:TransactionId',
+  'data:StatementDate': 'data:PostingDate',
+  'data:IBAN': 'data:AccountIBAN',
+  'data:AdditionalInformation': 'data:TransactionRef',
+  'data:TransactionDetails': 'data:Narrative',
+  'data:Description1': 'data:SourceRef',
+  'data:PartyId': 'data:CounterPartyCode',
+  'data:PartyName': 'data:CounterPartyName',
+  'data:BankName': 'data:AccountBankCode',
+};
+const LEDGER_V2_DROPPED_KEYS = new Set(['data:RunningBalance']);
+
+function migrateLedgerKey(key: string): string | null {
+  if (LEDGER_V2_DROPPED_KEYS.has(key)) return null;
+  return LEDGER_V2_KEY_RENAMES[key] ?? key;
+}
+
 export interface ColumnPrefs {
   /** Hidden column keys, or null when the operator has no saved preference
    *  (the caller then applies the spec defaults). */
@@ -87,6 +113,39 @@ export function loadColumnPrefs(dataSetType: string): ColumnPrefs {
       }
     }
   } catch { widths = {}; }
+  if (dataSetType === 'Ledger') {
+    if (hidden) {
+      const migrated = new Set<string>();
+      for (const key of hidden) {
+        const next = migrateLedgerKey(key);
+        if (next !== null) migrated.add(next);
+      }
+      hidden = migrated;
+    }
+    if (order.length > 0) {
+      const seen = new Set<string>();
+      const migrated: string[] = [];
+      for (const key of order) {
+        const next = migrateLedgerKey(key);
+        if (next !== null && !seen.has(next)) {
+          seen.add(next);
+          migrated.push(next);
+        }
+      }
+      order = migrated;
+    }
+    const widthEntries = Object.entries(widths);
+    if (widthEntries.length > 0) {
+      const migrated: Record<string, number> = {};
+      for (const [key, value] of widthEntries) {
+        const next = migrateLedgerKey(key);
+        // First writer wins on a collision (an old key never collides with a
+        // distinct new key in practice — renames map 1:1).
+        if (next !== null && migrated[next] === undefined) migrated[next] = value;
+      }
+      widths = migrated;
+    }
+  }
   return { hidden, order, widths };
 }
 

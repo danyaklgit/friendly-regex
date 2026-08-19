@@ -31,17 +31,6 @@ export interface DataSetColumnSpec {
   neverShow: ReadonlySet<string>;
 }
 
-/** Fields only ever populated on Ledger rows — never offered elsewhere. */
-const LEDGER_ONLY_FIELDS = [
-  'ClientCode', 'ErpCode', 'TxnTypeName', 'EntryId',
-  'AccountId', 'AccountName', 'AccountNumber', 'AccountType',
-  'BankName', 'PartyId', 'PartyName',
-  'OffsetAccountName', 'OffsetAccountId', 'OffsetAccountNumber', 'OffsetAccountType',
-  'AmountFcy', 'IsStale', 'StaleSinceUtc',
-] as const;
-
-const LEDGER_ONLY_KEYS = LEDGER_ONLY_FIELDS.map(k);
-
 // MT940 (also covers TransactionsList rows if that type joins the MT940
 // workspace later). Hidden-by-default columns sit at their canonical spot in
 // the order; the default view ends with StatementId then Comment.
@@ -89,6 +78,141 @@ const MT940_VISIBLE = new Set([
   k('Comment'),
 ]);
 
+// Ledger (ERP) — record model V2 (backend deploy 2026-08-19). Ledger rows
+// carry DEDICATED fields instead of reusing statement fields:
+//   StatementId → TransactionId (journal-entry grouping key)
+//   StatementDate → PostingDate, IBAN → AccountIBAN,
+//   AdditionalInformation → TransactionRef, TransactionDetails → Narrative,
+//   Description1 → SourceRef, PartyId → CounterPartyCode,
+//   PartyName → CounterPartyName, BankName → AccountBankCode.
+// RunningBalance is no longer populated (per-day balances live in the ledger
+// headers) → neverShow, alongside every old statement-field name (the gateway
+// still serves StatementId/PartyId/PartyName/BankName as deprecated get-only
+// aliases; neverShow keeps those alias duplicates out of the picker).
+//
+// Conservative defaults: the pre-V2 visible set carried over under the new
+// names; new V2 line-level fields sit hidden at canonical spots; new
+// document-level fields (same value on every line of one accounting document)
+// sit hidden at the tail. Grouped identity → account → amounts → offset →
+// counterparty → payment → type → narrative → refs/VAT/reversal → ERP identity
+// → document tail.
+const LEDGER_ORDER = [
+  k('TransactionId'),
+  k('PostingDate'),
+  k('Sequence'),                // hidden by default (line number)
+  k('ValueDate'),               // hidden by default
+  k('EntryDate'),               // hidden by default
+  k('AccountName'),
+  k('AccountNumber'),
+  k('AccountCode'),             // hidden by default
+  k('AccountIBAN'),             // hidden by default
+  k('AccountType'),
+  k('AccountId'),
+  k('AccountBankCode'),
+  k('AccountCurrency'),         // hidden by default
+  k('AccountIsBankAccount'),    // hidden by default
+  k('Side'),                    // default-visible: a Ledger library spans CR and DR
+  '__debit',
+  '__credit',
+  k('CurrencyCode'),
+  k('AmountFcy'),
+  k('OffsetAccountName'),
+  k('OffsetAccountNumber'),
+  k('OffsetAccountCode'),       // hidden by default
+  k('OffsetAccountIBAN'),       // hidden by default
+  k('OffsetAccountType'),
+  k('OffsetAccountId'),
+  k('OffsetAccountBankCode'),   // hidden by default
+  k('OffsetAccountCurrency'),   // hidden by default
+  k('OffsetAccountIsBankAccount'), // hidden by default
+  k('CounterPartyName'),
+  k('CounterPartyCode'),
+  k('CounterPartyType'),        // hidden by default
+  k('CounterPartyBankCode'),    // hidden by default
+  k('CounterPartyAccountNumber'), // hidden by default
+  k('CounterPartyCountryCode'), // hidden by default
+  k('PaymentMethod'),           // hidden by default
+  k('PaymentRef'),              // hidden by default
+  k('ExtPaymentRef'),           // hidden by default
+  k('TxnTypeName'),
+  k('TransactionTypeCode'),     // hidden by default; canonical spot after TxnTypeName
+  k('Narrative'),
+  k('TransactionRef'),
+  k('SourceRef'),
+  k('Notes'),                   // hidden by default
+  k('GroupingRef'),             // hidden by default
+  k('BusinessUnit'),            // hidden by default
+  k('DocumentRef'),             // hidden by default
+  k('ExternalRef'),             // hidden by default
+  k('VATCode'),                 // hidden by default
+  k('VATAmount'),               // hidden by default
+  k('VATBaseAmount'),           // hidden by default
+  k('IsReversal'),              // hidden by default
+  k('IsReversed'),              // hidden by default
+  k('ReversalOfRef'),           // hidden by default
+  k('FXGainLoss'),              // hidden by default
+  k('Hash'),                    // hidden by default
+  k('EntryId'),
+  k('ClientCode'),
+  k('ErpCode'),
+  k('IsStale'),                 // hidden by default
+  k('StaleSinceUtc'),           // hidden by default
+  // Document-level V2 fields (repeated on every line of a document) — hidden.
+  k('Entity'),
+  k('FiscalPeriod'),
+  k('TransactionNarrative'),
+  k('TransactionNotes'),
+  k('TransactionExternalRef'),
+  k('TransactionCurrencyCode'),
+  k('FXRate'),
+  k('TxnAmountFC'),
+  k('TxnAmountLC'),
+  k('NumLines'),
+  k('Source'),
+  k('TransactionIsReversal'),
+  k('TransactionIsReversed'),
+  k('TransactionReversalOfRef'),
+  k('ReasonCode'),
+  k('ReasonDescription'),
+  k('Comment'),
+];
+
+const LEDGER_VISIBLE = new Set([
+  k('TransactionId'),
+  k('PostingDate'),
+  k('AccountName'),
+  k('AccountNumber'),
+  k('AccountType'),
+  k('AccountId'),
+  k('AccountBankCode'),
+  k('Side'),
+  '__debit',
+  '__credit',
+  k('CurrencyCode'),
+  k('AmountFcy'),
+  k('OffsetAccountName'),
+  k('OffsetAccountNumber'),
+  k('OffsetAccountType'),
+  k('OffsetAccountId'),
+  k('CounterPartyName'),
+  k('CounterPartyCode'),
+  k('TxnTypeName'),
+  k('Narrative'),
+  k('TransactionRef'),
+  k('SourceRef'),
+  k('EntryId'),
+  k('ClientCode'),
+  k('ErpCode'),
+  k('Comment'),
+]);
+
+/** Fields only ever populated on Ledger rows — never offered elsewhere.
+ *  Derived: every data column in the Ledger order that MT940 doesn't share. */
+const MT940_ORDER_SET = new Set(MT940_ORDER);
+const LEDGER_ONLY_KEYS = LEDGER_ORDER.filter(
+  (key) => key.startsWith('data:') && !MT940_ORDER_SET.has(key),
+);
+
 const MT940_SPEC: DataSetColumnSpec = {
   defaultOrder: MT940_ORDER,
   defaultVisible: MT940_VISIBLE,
@@ -109,84 +233,30 @@ const INTERIM_MT940_SPEC: DataSetColumnSpec = {
   neverShow: new Set(LEDGER_ONLY_KEYS),
 };
 
-// Ledger (ERP): every Ledger-only field default-visible except the stale pair.
-// Grouped account → amounts → offset → party → narrative → identity.
-const LEDGER_ORDER = [
-  k('StatementId'),
-  k('StatementDate'),
-  k('Sequence'),                // hidden by default
-  k('ValueDate'),               // hidden by default
-  k('EntryDate'),               // hidden by default
-  k('AccountName'),
-  k('AccountNumber'),
-  k('IBAN'),                    // hidden by default
-  k('AccountType'),
-  k('AccountId'),
-  k('BankName'),
-  k('Side'),                    // default-visible: a Ledger library spans CR and DR
-  '__debit',
-  '__credit',
-  k('CurrencyCode'),
-  k('AmountFcy'),
-  k('RunningBalance'),
-  k('OffsetAccountName'),
-  k('OffsetAccountNumber'),
-  k('OffsetAccountType'),
-  k('OffsetAccountId'),
-  k('PartyName'),
-  k('PartyId'),
-  k('TxnTypeName'),
-  k('TransactionTypeCode'),     // hidden by default; canonical spot after TxnTypeName
-  k('TransactionDetails'),
-  k('AdditionalInformation'),
-  k('Description1'),
-  k('TransactionStatusIndicator'), // hidden by default
-  k('Hash'),                    // hidden by default
-  k('EntryId'),
-  k('ClientCode'),
-  k('ErpCode'),
-  k('IsStale'),                 // hidden by default
-  k('StaleSinceUtc'),           // hidden by default
-  k('Comment'),
-];
-
 const LEDGER_SPEC: DataSetColumnSpec = {
   defaultOrder: LEDGER_ORDER,
-  defaultVisible: new Set([
-    k('StatementId'),
-    k('StatementDate'),
-    k('AccountName'),
-    k('AccountNumber'),
-    k('AccountType'),
-    k('AccountId'),
-    k('BankName'),
-    k('Side'),
-    '__debit',
-    '__credit',
-    k('CurrencyCode'),
-    k('AmountFcy'),
-    k('RunningBalance'),
-    k('OffsetAccountName'),
-    k('OffsetAccountNumber'),
-    k('OffsetAccountType'),
-    k('OffsetAccountId'),
-    k('PartyName'),
-    k('PartyId'),
-    k('TxnTypeName'),
-    k('TransactionDetails'),
-    k('AdditionalInformation'),
-    k('Description1'),
-    k('EntryId'),
-    k('ClientCode'),
-    k('ErpCode'),
-    k('Comment'),
-  ]),
+  defaultVisible: LEDGER_VISIBLE,
   neverShow: new Set([
+    // Never populated on Ledger.
     k('BankSwiftCode'),
     k('FundsCode'),
     k('BankReference'),
     k('Description2'),
     k('Hints'),
+    // Null on Ledger since model V2 (dedicated fields replaced them). The
+    // gateway still serves some as deprecated aliases — keep them out of the
+    // picker so the alias duplicates never surface.
+    k('StatementId'),
+    k('StatementDate'),
+    k('IBAN'),
+    k('AdditionalInformation'),
+    k('TransactionDetails'),
+    k('Description1'),
+    k('PartyId'),
+    k('PartyName'),
+    k('BankName'),
+    k('RunningBalance'),
+    k('TransactionStatusIndicator'),
   ]),
 };
 

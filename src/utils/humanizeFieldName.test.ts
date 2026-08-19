@@ -55,4 +55,23 @@ describe('humanizeFieldName', () => {
     expect(humanizeFieldName('IsStale')).toBe('Is Stale');
     expect(humanizeFieldName('ClientCode')).toBe('Client Code');
   });
+
+  it('derives the Ledger model V2 field names mechanically', () => {
+    expect(humanizeFieldName('TransactionId')).toBe('Transaction Id');
+    expect(humanizeFieldName('PostingDate')).toBe('Posting Date');
+    expect(humanizeFieldName('AccountIBAN')).toBe('Account IBAN');
+    expect(humanizeFieldName('OffsetAccountIBAN')).toBe('Offset Account IBAN');
+    expect(humanizeFieldName('CounterPartyName')).toBe('Counter Party Name');
+    expect(humanizeFieldName('TransactionRef')).toBe('Transaction Ref');
+    expect(humanizeFieldName('SourceRef')).toBe('Source Ref');
+    expect(humanizeFieldName('Narrative')).toBe('Narrative');
+    expect(humanizeFieldName('FXRate')).toBe('FX Rate');
+    expect(humanizeFieldName('FXGainLoss')).toBe('FX Gain Loss');
+    expect(humanizeFieldName('VATCode')).toBe('VAT Code');
+    expect(humanizeFieldName('VATBaseAmount')).toBe('VAT Base Amount');
+    expect(humanizeFieldName('TxnAmountFC')).toBe('Transaction Amount FC');
+    expect(humanizeFieldName('TxnAmountLC')).toBe('Transaction Amount LC');
+    expect(humanizeFieldName('NumLines')).toBe('Num Lines');
+    expect(humanizeFieldName('FiscalPeriod')).toBe('Fiscal Period');
+  });
 });

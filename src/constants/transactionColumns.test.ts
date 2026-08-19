@@ -36,7 +36,7 @@ describe('getColumnSpec', () => {
     }
   });
 
-  it('ends every default view with StatementId then Comment (StatementId leads on Ledger)', () => {
+  it('ends every default view with StatementId then Comment (TransactionId leads on Ledger)', () => {
     for (const type of ['MT940', 'MT942', 'INTERIM_MT940'] as const) {
       const spec = getColumnSpec(type);
       const visibleInOrder = spec.defaultOrder.filter((k) => spec.defaultVisible.has(k));
@@ -44,7 +44,7 @@ describe('getColumnSpec', () => {
     }
     const ledger = getColumnSpec('Ledger');
     const ledgerVisible = ledger.defaultOrder.filter((k) => ledger.defaultVisible.has(k));
-    expect(ledgerVisible[0]).toBe('data:StatementId');
+    expect(ledgerVisible[0]).toBe('data:TransactionId');
     expect(ledgerVisible[ledgerVisible.length - 1]).toBe('data:Comment');
   });
 
@@ -59,12 +59,17 @@ describe('getColumnSpec', () => {
     expect(interim.defaultVisible.has('data:RunningBalance')).toBe(false);
 
     expect(getColumnSpec('MT940').defaultVisible.has('data:RunningBalance')).toBe(true);
+
+    // Ledger model V2: RunningBalance is no longer populated on Ledger rows.
+    const ledger = getColumnSpec('Ledger');
+    expect(ledger.neverShow.has('data:RunningBalance')).toBe(true);
+    expect(ledger.defaultOrder).not.toContain('data:RunningBalance');
   });
 
   it('never offers Ledger-only fields on MT940/intraday types', () => {
     for (const type of ['MT940', 'MT942', 'INTERIM_MT940'] as const) {
       const spec = getColumnSpec(type);
-      for (const field of ['ClientCode', 'PartyName', 'OffsetAccountNumber', 'AmountFcy', 'IsStale']) {
+      for (const field of ['ClientCode', 'CounterPartyName', 'OffsetAccountNumber', 'AmountFcy', 'IsStale', 'TransactionId', 'PostingDate', 'Narrative', 'TransactionRef', 'SourceRef', 'AccountBankCode', 'FXRate', 'VATCode']) {
         expect(spec.neverShow.has(`data:${field}`), `${type}: ${field}`).toBe(true);
       }
     }
@@ -77,15 +82,36 @@ describe('getColumnSpec', () => {
     }
   });
 
-  it('defaults every Ledger-only field visible except the stale pair', () => {
+  it('never offers the pre-V2 statement-field names on Ledger (null / deprecated aliases)', () => {
     const ledger = getColumnSpec('Ledger');
-    for (const field of ['ClientCode', 'ErpCode', 'TxnTypeName', 'EntryId', 'AccountId', 'AccountName', 'AccountNumber', 'AccountType', 'BankName', 'PartyId', 'PartyName', 'OffsetAccountName', 'OffsetAccountId', 'OffsetAccountNumber', 'OffsetAccountType', 'AmountFcy']) {
+    for (const field of ['StatementId', 'StatementDate', 'IBAN', 'AdditionalInformation', 'TransactionDetails', 'Description1', 'PartyId', 'PartyName', 'BankName', 'RunningBalance', 'TransactionStatusIndicator']) {
+      expect(ledger.neverShow.has(`data:${field}`), field).toBe(true);
+      expect(ledger.defaultOrder).not.toContain(`data:${field}`);
+    }
+  });
+
+  it('keeps the pre-V2 visible set under the dedicated Ledger names', () => {
+    const ledger = getColumnSpec('Ledger');
+    for (const field of ['TransactionId', 'PostingDate', 'ClientCode', 'ErpCode', 'TxnTypeName', 'EntryId', 'AccountId', 'AccountName', 'AccountNumber', 'AccountType', 'AccountBankCode', 'CounterPartyCode', 'CounterPartyName', 'OffsetAccountName', 'OffsetAccountId', 'OffsetAccountNumber', 'OffsetAccountType', 'AmountFcy', 'Narrative', 'TransactionRef', 'SourceRef']) {
       expect(ledger.defaultVisible.has(`data:${field}`), field).toBe(true);
     }
     expect(ledger.defaultVisible.has('data:IsStale')).toBe(false);
     expect(ledger.defaultVisible.has('data:StaleSinceUtc')).toBe(false);
     expect(ledger.defaultOrder).toContain('data:IsStale');
     expect(ledger.defaultOrder).toContain('data:StaleSinceUtc');
+  });
+
+  it('offers the new V2 fields hidden-by-default (line-level at canonical spots, document-level at the tail)', () => {
+    const ledger = getColumnSpec('Ledger');
+    for (const field of ['AccountCode', 'AccountIBAN', 'AccountCurrency', 'OffsetAccountCode', 'OffsetAccountIBAN', 'CounterPartyType', 'CounterPartyBankCode', 'CounterPartyAccountNumber', 'CounterPartyCountryCode', 'PaymentMethod', 'PaymentRef', 'ExtPaymentRef', 'Notes', 'GroupingRef', 'BusinessUnit', 'DocumentRef', 'ExternalRef', 'VATCode', 'VATAmount', 'VATBaseAmount', 'IsReversal', 'IsReversed', 'ReversalOfRef', 'FXGainLoss', 'Entity', 'FiscalPeriod', 'TransactionNarrative', 'TransactionNotes', 'TransactionExternalRef', 'TransactionCurrencyCode', 'FXRate', 'TxnAmountFC', 'TxnAmountLC', 'NumLines', 'Source', 'TransactionIsReversal', 'TransactionIsReversed', 'TransactionReversalOfRef', 'ReasonCode', 'ReasonDescription']) {
+      expect(ledger.defaultOrder, field).toContain(`data:${field}`);
+      expect(ledger.defaultVisible.has(`data:${field}`), field).toBe(false);
+      expect(ledger.neverShow.has(`data:${field}`), field).toBe(false);
+    }
+    // Document-level fields sit after the ERP identity block, before Comment.
+    const order = ledger.defaultOrder;
+    expect(order.indexOf('data:Entity')).toBeGreaterThan(order.indexOf('data:ErpCode'));
+    expect(order.indexOf('data:ReasonDescription')).toBeLessThan(order.indexOf('data:Comment'));
   });
 
   it('places TransactionTypeCode right after TxnTypeName in the Ledger order', () => {

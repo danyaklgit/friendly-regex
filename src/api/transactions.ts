@@ -51,15 +51,29 @@ export interface TepHeaders {
 
 // --- Default sorting ---
 
+// Statement workspaces (MT940 / MT942 / INTERIM_MT940) sort by statement
+// date; Ledger model V2 rows carry PostingDate instead (StatementDate is
+// null on Ledger since 2026-08-19).
 export const DEFAULT_SORTING: SortProperty[] = [
   { ColumnName: 'StatementDate', SortingLevel: 1, SortingOrder: 'ASC' },
   { ColumnName: 'Sequence', SortingLevel: 2, SortingOrder: 'ASC' },
 ];
 
-// Columns the operator may sort the transactions table by. Kept as a
-// const tuple so the literal type drives both the override shape and the
-// TransactionTable header click handler.
-export const SORTABLE_FIELDS = [
+const LEDGER_DEFAULT_SORTING: SortProperty[] = [
+  { ColumnName: 'PostingDate', SortingLevel: 1, SortingOrder: 'ASC' },
+  { ColumnName: 'Sequence', SortingLevel: 2, SortingOrder: 'ASC' },
+];
+
+/** Default sort for a DataSetType. Unknown/absent types get the statement
+ *  default (matches getColumnSpec's fallback posture). */
+export function getDefaultSorting(dataSetType?: string | null): SortProperty[] {
+  return dataSetType === 'Ledger' ? LEDGER_DEFAULT_SORTING : DEFAULT_SORTING;
+}
+
+// Columns the operator may sort the transactions table by, per DataSetType.
+// Kept as const tuples so the literal types drive both the override shape and
+// the TransactionTable header click handler.
+export const STATEMENT_SORTABLE_FIELDS = [
   'IBAN',
   'BankReference',
   'Description1',
@@ -67,7 +81,22 @@ export const SORTABLE_FIELDS = [
   'AdditionalInformation',
 ] as const;
 
-export type SortableField = (typeof SORTABLE_FIELDS)[number];
+// Ledger model V2 names — the text columns operators alphabetize on.
+export const LEDGER_SORTABLE_FIELDS = [
+  'AccountIBAN',
+  'Narrative',
+  'TransactionRef',
+  'SourceRef',
+] as const;
+
+export type SortableField =
+  | (typeof STATEMENT_SORTABLE_FIELDS)[number]
+  | (typeof LEDGER_SORTABLE_FIELDS)[number];
+
+/** Sortable columns for a DataSetType. */
+export function getSortableFields(dataSetType?: string | null): readonly SortableField[] {
+  return dataSetType === 'Ledger' ? LEDGER_SORTABLE_FIELDS : STATEMENT_SORTABLE_FIELDS;
+}
 
 export interface SortOverride {
   field: SortableField;
@@ -77,32 +106,36 @@ export interface SortOverride {
 /**
  * Build the SortingProperties payload sent to the backend (or used by the
  * client-side sorter in sample / upload mode). When no override is active
- * the default StatementDate + Sequence ordering is used as-is. When an
- * override is active the user's column becomes the primary sort and the
- * default ordering drops to a secondary / tertiary tiebreaker so rows with
- * equal values stay in a predictable date order.
+ * the DataSetType's default ordering (statement: StatementDate + Sequence;
+ * Ledger: PostingDate + Sequence) is used as-is. When an override is active
+ * the user's column becomes the primary sort and the default ordering drops
+ * to a secondary / tertiary tiebreaker so rows with equal values stay in a
+ * predictable date order.
  */
-export function buildSortingProperties(override: SortOverride | null | undefined): SortProperty[] {
-  if (!override) return DEFAULT_SORTING;
+export function buildSortingProperties(
+  override: SortOverride | null | undefined,
+  dataSetType?: string | null,
+): SortProperty[] {
+  const defaults = getDefaultSorting(dataSetType);
+  if (!override) return defaults;
   return [
     { ColumnName: override.field, SortingLevel: 1, SortingOrder: override.order },
-    { ColumnName: 'StatementDate', SortingLevel: 2, SortingOrder: 'ASC' },
-    { ColumnName: 'Sequence', SortingLevel: 3, SortingOrder: 'ASC' },
+    ...defaults.map((prop, i) => ({ ...prop, SortingLevel: i + 2 })),
   ];
 }
 
-const SORTABLE_FIELD_SET: ReadonlySet<string> = new Set(SORTABLE_FIELDS);
-
 /**
  * Validate an unknown value (typically from localStorage) as a SortOverride
- * and return it, or null when the shape is unexpected. Rejecting unknown
- * fields here protects against renamed columns silently sorting on a field
- * the backend no longer knows.
+ * for the given DataSetType and return it, or null when the shape is
+ * unexpected. Rejecting unknown fields here protects against renamed columns
+ * (or a workspace switch to a type that doesn't carry the column) silently
+ * sending an invalid sort key to the backend.
  */
-export function parseSortOverride(raw: unknown): SortOverride | null {
+export function parseSortOverride(raw: unknown, dataSetType?: string | null): SortOverride | null {
   if (!raw || typeof raw !== 'object') return null;
   const obj = raw as { field?: unknown; order?: unknown };
-  if (typeof obj.field !== 'string' || !SORTABLE_FIELD_SET.has(obj.field)) return null;
+  if (typeof obj.field !== 'string') return null;
+  if (!(getSortableFields(dataSetType) as readonly string[]).includes(obj.field)) return null;
   if (obj.order !== 'ASC' && obj.order !== 'DESC') return null;
   return { field: obj.field as SortableField, order: obj.order };
 }
@@ -229,7 +262,7 @@ export async function getTransactions(
   tepHeaders: TepHeaders,
   signal?: AbortSignal,
 ): Promise<{ Transactions: TransactionRow[]; TransactionsCount?: number }> {
-  const res = await fetch(`${BASE}/GetMT940Transactions`, {
+  const res = await fetch(`${BASE}/GetTEPTransactions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -245,7 +278,7 @@ export async function getTransactions(
       // wire payload by ~10x on the heavy Show-all path.
       'Accept-Encoding': 'gzip',
       Authorization: `Bearer ${authToken}`,
-      ActivityTag: 'GetMT940Transactions',
+      ActivityTag: 'GetTEPTransactions',
       LanguageCode: tepHeaders.languageCode,
       TTPUserId: tepHeaders.userId,
       TTPTenantCode: tepHeaders.tenantCode,

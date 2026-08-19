@@ -14,8 +14,10 @@ interface TaggingStatsCellProps {
   onRetry?: (entry: TaggingProgressEntry) => void;
 }
 
-/** Threshold (ms) after which a stalled-looking job (no progress) flips to an amber warning. */
-const STALL_THRESHOLD_MS = 18_000;
+/** Threshold (ms) after which a stalled-looking job (no progress) flips to an amber warning.
+ *  Backend writes progress every ~1000 rows (2026-08-19 rework), so 5s is enough; one slow
+ *  bulk-write batch may briefly show the stall indicator and then recover — expected/accepted. */
+const STALL_THRESHOLD_MS = 5_000;
 
 /** Format milliseconds as "45s" / "4m 12s" / "1h 23m". Negative values clamp to 0s. */
 function formatDuration(ms: number): string {

@@ -502,13 +502,14 @@ export function TagSpecProvider({ children, useDummyData, tepHeaders }: TagSpecP
   }, [fetchLibrariesOnly]);
 
   // Background polling: while ANY tagging job is IN_PROGRESS, refetch libraries every
-  // 6 seconds so ProcessedTransactions updates live. Uses the lightweight path — no
+  // 1.5 seconds so ProcessedTransactions updates live (backend writes progress at least
+  // every ~1000 processed rows as of 2026-08-19). Uses the lightweight path — no
   // hierarchy fetch — since the tag tree doesn't change during tagging.
   useEffect(() => {
     if (useDummyData) return;
     const hasActive = Object.values(taggingProgress).some((e) => e.Status === 'IN_PROGRESS');
     if (!hasActive) return;
-    const id = setInterval(() => { refetchLibraries(); }, 6000);
+    const id = setInterval(() => { refetchLibraries(); }, 1500);
     return () => clearInterval(id);
   }, [taggingProgress, useDummyData, refetchLibraries]);
 

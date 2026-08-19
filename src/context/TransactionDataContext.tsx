@@ -104,7 +104,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
   // them without listing the array in their dependency arrays. Listing them
   // would churn the callback identity every time GetFilters returns, which
   // re-fires every downstream effect that has fetchPage as a dep — and that
-  // includes the live-fetch effect in TransactionsTab, causing GetMT940Transactions
+  // includes the live-fetch effect in TransactionsTab, causing GetTEPTransactions
   // to fire on every manual filter refresh. Translating with a stale snapshot
   // is harmless: filter keys map to the same backend column names, and the
   // next legitimate fetch (filter change, scope change, save) picks up the

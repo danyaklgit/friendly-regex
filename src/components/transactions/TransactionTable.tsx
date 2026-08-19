@@ -28,9 +28,7 @@ import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { Modal } from '../shared/Modal';
 import { Button } from '../shared/Button';
 import type { SetTransactionsCommentEntry, SortOverride, SortableField } from '../../api/transactions';
-import { SORTABLE_FIELDS } from '../../api/transactions';
-
-const SORTABLE_FIELD_SET = new Set<string>(SORTABLE_FIELDS);
+import { getSortableFields } from '../../api/transactions';
 
 interface TransactionTableProps {
   data: AnalyzedTransaction[];
@@ -140,6 +138,14 @@ const NARRATIVE_COLUMN_KEYS = new Set([
   'data:Description1',
   'data:Description2',
   'data:TransactionDetails',
+  // Ledger model V2 narrative/free-text fields (gotcha #29: preserve
+  // consecutive spaces — operators split rules on padding runs).
+  'data:Narrative',
+  'data:TransactionRef',
+  'data:SourceRef',
+  'data:Notes',
+  'data:TransactionNarrative',
+  'data:TransactionNotes',
 ]);
 
 type ColumnDef =
@@ -156,7 +162,7 @@ type ColumnDef =
 export const PREVIEW_TEMP_DEF_ID = 'preview-temp';
 
 const SIDE_AMOUNT_FIELDS = new Set(['Side', 'Amount']);
-const DATE_FIELDS = new Set(['StatementDate', 'EntryDate', 'ValueDate']);
+const DATE_FIELDS = new Set(['StatementDate', 'PostingDate', 'EntryDate', 'ValueDate']);
 
 /**
  * Column display names derive MECHANICALLY from the API field name
@@ -964,7 +970,7 @@ function getAttributeValueFor(
 }
 
 // Pulls the server-computed `IsValid` flag for an attribute out of the
-// GetMT940Transactions response (OpsAttributes for single-tag rows,
+// GetTEPTransactions response (OpsAttributes for single-tag rows,
 // OpsMultiTags[*].Attributes for multi-tag rows). Returns `null` when the
 // server didn't include the attribute on this row — the caller falls back
 // to client-side ValidationClass regex testing in that case (wizard
@@ -2688,6 +2694,14 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
 
   const hasSelection = selectedIds.size > 0;
 
+  // Sortable columns are per-DataSetType (statement text columns vs the
+  // Ledger V2 names). Memoized so the header render's .has() checks stay
+  // cheap and referentially stable while scrolling.
+  const sortableFieldSet = useMemo(
+    () => new Set<string>(getSortableFields(dataSetType)),
+    [dataSetType],
+  );
+
   // --- Column Search spotlight (press "/") ---
   const [columnSearchOpen, setColumnSearchOpen] = useState(false);
   const [columnSearchQuery, setColumnSearchQuery] = useState('');
@@ -3160,7 +3174,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
             <tr>
               {visibleColumns.map((col, idx) => {
                 const isAttr = col.type === 'attribute';
-                const isSortable = col.type === 'data' && !!onSortChange && SORTABLE_FIELD_SET.has(col.field);
+                const isSortable = col.type === 'data' && !!onSortChange && sortableFieldSet.has(col.field);
                 const activeSort = isSortable && sortOverride && sortOverride.field === col.field ? sortOverride.order : null;
                 const ariaSort: 'ascending' | 'descending' | 'none' | undefined =
                   isSortable ? (activeSort === 'ASC' ? 'ascending' : activeSort === 'DESC' ? 'descending' : 'none') : undefined;
