@@ -29,6 +29,12 @@ import { Modal } from '../shared/Modal';
 import { Button } from '../shared/Button';
 import type { SetTransactionsCommentEntry, SortOverride, SortableField } from '../../api/transactions';
 import { getSortableFields } from '../../api/transactions';
+import { ColumnManagerModal } from './ColumnManagerModal';
+
+/** Above this many offerable columns the Columns button opens the manager
+ *  modal directly instead of the dropdown — reordering 100+ rows inside the
+ *  288px dropdown was the Ledger pain the manager replaces. */
+const COLUMN_MANAGER_DIRECT_THRESHOLD = 40;
 
 interface TransactionTableProps {
   data: AnalyzedTransaction[];
@@ -282,6 +288,7 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
   dataSetType?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [managerOpen, setManagerOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [overIdx, setOverIdx] = useState<number | null>(null);
@@ -382,10 +389,45 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
     onColumnOrderChange(newOrder.map((c) => c.key));
   }, [ordered, onColumnOrderChange]);
 
+  // Column manager modal (batch draft + Apply). On long lists (Ledger offers
+  // 100+ columns) the dropdown is impractical for reordering, so the toolbar
+  // button opens the manager DIRECTLY past this threshold; otherwise it stays
+  // reachable via the "Manage…" action inside the dropdown.
+  const openManagerDirectly = totalCount > COLUMN_MANAGER_DIRECT_THRESHOLD;
+  const managerItems = useMemo(
+    () => ordered.map((col) => ({ key: col.key, label: getColumnLabel(col) })),
+    [ordered],
+  );
+  const handleManagerApply = useCallback((hidden: Set<string>, order: string[]) => {
+    // The manager only knows offerable columns — preserve the hidden state of
+    // anything else (attributes, never-show leftovers), matching Show All.
+    const nonToggleableHidden = [...hiddenColumns].filter((k) => !toggleable.some((c) => c.key === k));
+    // When the draft lands exactly on the spec defaults, clear the saved
+    // prefs (onReset) instead of persisting values identical to them.
+    const canonicalKeys = new Set(managerItems.map((it) => it.key));
+    const canonicalOrder = [
+      ...columnSpec.defaultOrder.filter((k) => canonicalKeys.has(k)),
+      ...managerItems.map((it) => it.key).filter((k) => !columnSpec.defaultOrder.includes(k)),
+    ];
+    const defaults = defaultHiddenColumns ?? new Set<string>();
+    const matchesDefaults =
+      onReset &&
+      hidden.size === [...defaults].filter((k) => canonicalKeys.has(k)).length &&
+      [...hidden].every((k) => defaults.has(k)) &&
+      order.length === canonicalOrder.length &&
+      order.every((k, i) => k === canonicalOrder[i]);
+    if (matchesDefaults) {
+      onReset();
+      return;
+    }
+    onChange(new Set([...nonToggleableHidden, ...hidden]));
+    onColumnOrderChange?.(order);
+  }, [hiddenColumns, toggleable, managerItems, columnSpec, defaultHiddenColumns, onReset, onChange, onColumnOrderChange]);
+
   return (
     <div ref={ref} className="relative">
       <button
-        onClick={() => setOpen(!open)}
+        onClick={() => (openManagerDirectly ? setManagerOpen(true) : setOpen(!open))}
         className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${hiddenColumns.size > 0
           ? 'bg-primary/10 border-primary/30 text-primary-dark'
           : 'bg-surface border-border-strong text-body hover:bg-surface-hover'
@@ -441,14 +483,22 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
                   />
                   {visibleCount === totalCount ? 'Hide All' : 'Show All'}
                 </label>
-                {onReset && !isDefault && (
+                <div className="flex items-center">
                   <button
-                    onClick={onReset}
+                    onClick={() => { setOpen(false); setSearch(''); setManagerOpen(true); }}
                     className="text-[11px] text-primary hover:text-primary-dark px-2 py-0.5 hover:underline"
                   >
-                    Reset
+                    Manage…
                   </button>
-                )}
+                  {onReset && !isDefault && (
+                    <button
+                      onClick={onReset}
+                      className="text-[11px] text-primary hover:text-primary-dark px-2 py-0.5 hover:underline"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
             {filtered.map((col, i) => {
@@ -511,6 +561,16 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
           </div>
         </>
       )}
+      <ColumnManagerModal
+        open={managerOpen}
+        onClose={() => setManagerOpen(false)}
+        items={managerItems}
+        canonicalOrder={columnSpec.defaultOrder}
+        hiddenKeys={hiddenColumns}
+        defaultHiddenKeys={defaultHiddenColumns}
+        lockedKeys={lockedVisibleKeys}
+        onApply={handleManagerApply}
+      />
     </div>
   );
 }
