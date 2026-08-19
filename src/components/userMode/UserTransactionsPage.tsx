@@ -72,7 +72,7 @@ export function UserTransactionsPage() {
   // changes.
   //
   // We intentionally do NOT probe AMOUNT's true max here (the operator path's
-  // fetchDecimalMaxValues): each probe is its own GetMT940Transactions call,
+  // fetchDecimalMaxValues): each probe is its own GetTEPTransactions call,
   // and in user mode those add up to visible request spam on load. The slider
   // falls back to its 200M default instead.
   useEffect(() => {
@@ -127,7 +127,7 @@ export function UserTransactionsPage() {
   // alongside the hidden bank floor. `fetchPage`'s own `translateFilters` runs
   // against the OPERATOR definitions (GetFilters), which don't carry the user's
   // ATTR:* / GetUserFilters tags — so translating in-page is the only way those
-  // selections (e.g. OpsAttributes:BeneficiaryName) reach GetMT940Transactions.
+  // selections (e.g. OpsAttributes:BeneficiaryName) reach GetTEPTransactions.
   // We therefore pass `{}` as the filters arg and put everything in extraFilters.
   const extraFilters = useMemo<FilterProperty[]>(
     () => [...bankFilter, ...translateFilters(effectiveFilters, userFilterDefinitions)],
@@ -138,7 +138,7 @@ export function UserTransactionsPage() {
   // it fires only when the actual filters change — not when `extraFilters` /
   // `fetchPage` merely churn identity (e.g. when userFilterDefinitions reloads,
   // tepConfig recreates, or the token rotates). Without this, those identity
-  // changes each triggered a redundant GetMT940Transactions on load.
+  // changes each triggered a redundant GetTEPTransactions on load.
   const requestKey = useMemo(() => JSON.stringify(extraFilters), [extraFilters]);
 
   // Refs let the effect/loadMore read the latest fetcher + filters without

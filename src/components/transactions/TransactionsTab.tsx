@@ -680,7 +680,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     // Builder Validity → backend StatementDate range filter goes through
     // the named-filter pipeline (see the useEffect that mirrors validity
     // into `filters[Tag_GTE/LTE]`). translateFilters then forwards the
-    // entries to GetMT940Transactions with the authoritative column name
+    // entries to GetTEPTransactions with the authoritative column name
     // from the filter definition. No extra push needed here.
     // While authoring a rule, also scope the live transactions fetch by the
     // ruleset being composed so the table reflects what the rule will catch.
@@ -794,7 +794,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
 
   // Builder Validity → StatementDate range filter, wired through the same
   // named-filter pipeline the DynamicFilters DateFilter uses, so the
-  // request that hits GetMT940Transactions carries identical
+  // request that hits GetTEPTransactions carries identical
   // FilteringProperties entries whether the operator set the range from
   // the filter bar or from the inline rule builder.
   //
@@ -1329,7 +1329,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // True while the TagSpecLibrarySave request is in flight. Disables the
   // wizard's Save button + keeps the modal open so the operator can see the
   // pending state instead of being dropped back to the table before the
-  // backend has persisted the rule (which would cause GetMT940Transactions
+  // backend has persisted the rule (which would cause GetTEPTransactions
   // to return stale, untagged rows).
   const [savingTagSpec, setSavingTagSpec] = useState(false);
   const [wizardInitialState, setWizardInitialState] = useState<WizardFormState | undefined>(undefined);
@@ -2591,7 +2591,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
 
   const handleWizardSave = useCallback(async (result: WizardFormResult) => {
     // Persist to the backend FIRST. In live mode `analyzeRow` defers to the
-    // row's OpsTag* fields for saved libraries, so any GetMT940Transactions
+    // row's OpsTag* fields for saved libraries, so any GetTEPTransactions
     // call fired before TagSpecLibrarySave completes comes back with rows
     // tagged under the old rule set. Doing the dispatch / wizard close /
     // filter reset only after the save ensures the refetch (triggered by

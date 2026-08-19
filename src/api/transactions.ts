@@ -229,7 +229,7 @@ export async function getTransactions(
   tepHeaders: TepHeaders,
   signal?: AbortSignal,
 ): Promise<{ Transactions: TransactionRow[]; TransactionsCount?: number }> {
-  const res = await fetch(`${BASE}/GetMT940Transactions`, {
+  const res = await fetch(`${BASE}/GetTEPTransactions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -245,7 +245,7 @@ export async function getTransactions(
       // wire payload by ~10x on the heavy Show-all path.
       'Accept-Encoding': 'gzip',
       Authorization: `Bearer ${authToken}`,
-      ActivityTag: 'GetMT940Transactions',
+      ActivityTag: 'GetTEPTransactions',
       LanguageCode: tepHeaders.languageCode,
       TTPUserId: tepHeaders.userId,
       TTPTenantCode: tepHeaders.tenantCode,

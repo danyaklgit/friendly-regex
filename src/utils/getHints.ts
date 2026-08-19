@@ -3,7 +3,7 @@ import type { TransactionRow } from '../types';
 /**
  * Reads the `Hints` field from a transaction row and returns a clean string[].
  *
- * The `Hints` field arrives on the GetMT940Transactions response as a string
+ * The `Hints` field arrives on the GetTEPTransactions response as a string
  * array, but the row type is permissive (Record-like) so it isn't statically
  * checked. This helper performs a defensive shape check so the call site can
  * just iterate the result.

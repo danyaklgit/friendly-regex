@@ -21,7 +21,7 @@ interface MatchingRulesFilterButtonProps {
 
 /**
  * Filter-row chip that lets the operator construct ad-hoc matching rules
- * and use them as a server-side filter on GetMT940Transactions. Mirrors
+ * and use them as a server-side filter on GetTEPTransactions. Mirrors
  * the Rule Builder's matching-rules UI (same RuleGroupEditor +
  * ConditionEditor components) but is frontend-only — clicking Apply
  * just commits the rule groups to the parent's state, which is then
@@ -231,7 +231,7 @@ export function MatchingRulesFilterButton({ value, onChange }: MatchingRulesFilt
           <div className="space-y-3">
             <p className="text-xs text-muted">
               Each rule set uses AND logic (all conditions must match). Multiple rule sets use OR logic (any set can match).
-              The active filter pipes into GetMT940Transactions as a REGEX FilterProperty so the table reflects the rules
+              The active filter pipes into GetTEPTransactions as a REGEX FilterProperty so the table reflects the rules
               at the server level.
             </p>
             <div ref={groupsRef} className="space-y-2">

@@ -964,7 +964,7 @@ function getAttributeValueFor(
 }
 
 // Pulls the server-computed `IsValid` flag for an attribute out of the
-// GetMT940Transactions response (OpsAttributes for single-tag rows,
+// GetTEPTransactions response (OpsAttributes for single-tag rows,
 // OpsMultiTags[*].Attributes for multi-tag rows). Returns `null` when the
 // server didn't include the attribute on this row — the caller falls back
 // to client-side ValidationClass regex testing in that case (wizard
