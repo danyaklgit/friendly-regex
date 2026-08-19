@@ -18,7 +18,7 @@ import {
   hasIncompleteAttribute,
 } from '../../utils/attributeFingerprint';
 import type { FilterProperty } from '../../api/transactions';
-import { getAllTransactionTags, buildSortingProperties, parseSortOverride, type SortOverride } from '../../api/transactions';
+import { getAllTransactionTags, buildSortingProperties, parseSortOverride, getSortableFields, type SortOverride } from '../../api/transactions';
 import { dataSetTypeFilter, DEFAULT_DATA_SET_TYPE } from '../../constants/dataSetTypes';
 import { libraryMatchesCheckout, identityKeySuffix, identityScopeFilters, isLedger } from '../../utils/libraryIdentity';
 import { translateFilters } from '../../utils/translateFilters';
@@ -246,12 +246,18 @@ const BATCH_SIZE = 50;
 // Stable empty set for the disabled "Character view" state (a fresh new Set()
 // each render would bust TransactionTable's rowCtx memo).
 const EMPTY_CHAR_VIEW_COLS: ReadonlySet<string> = new Set<string>();
-// Narrative columns eligible for the character-view breakdown.
+// Narrative columns eligible for the character-view breakdown. Statement
+// names first, then the Ledger model V2 narrative fields (only columns the
+// active workspace actually renders take effect — the rest are inert).
 const CHAR_VIEW_COLUMNS: { field: string; label: string }[] = [
   { field: 'AdditionalInformation', label: 'Additional Information' },
   { field: 'Description1', label: 'Description 1' },
   { field: 'Description2', label: 'Description 2' },
   { field: 'TransactionDetails', label: 'Transaction Details' },
+  { field: 'Narrative', label: 'Narrative' },
+  { field: 'TransactionRef', label: 'Transaction Ref' },
+  { field: 'SourceRef', label: 'Source Ref' },
+  { field: 'Notes', label: 'Notes' },
 ];
 // Stable set identity for the Rule Builder's double-click affordance —
 // re-creating the Set on every render would re-trigger memoization
@@ -471,14 +477,16 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     () => initialColumnPrefsRef.current!.order
   );
   // Per-user alphabetical sort override on a single column. `null` means
-  // fall back to DEFAULT_SORTING (StatementDate ASC + Sequence ASC).
-  // parseSortOverride rejects unknown fields so a stale localStorage entry
-  // from a renamed column silently reverts to default instead of sending an
-  // invalid sort key to the backend.
+  // fall back to the DataSetType's default sorting (statement: StatementDate
+  // ASC + Sequence ASC; Ledger: PostingDate ASC + Sequence ASC).
+  // parseSortOverride validates against the active type's sortable columns so
+  // a stale localStorage entry from a renamed column (or another workspace's
+  // column) silently reverts to default instead of sending an invalid sort
+  // key to the backend.
   const [sortOverride, setSortOverride] = useState<SortOverride | null>(() => {
     try {
       const stored = localStorage.getItem('tep:sortOverride');
-      return stored ? parseSortOverride(JSON.parse(stored)) : null;
+      return stored ? parseSortOverride(JSON.parse(stored), columnPrefsDst) : null;
     } catch { return null; }
   });
   // Per-column width overrides, in pixels. Lets the operator drag the
@@ -497,12 +505,23 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     setHiddenColumns(prefs.hidden);
     setColumnOrder(prefs.order);
     setColumnWidths(prefs.widths);
+    // Drop a sort override whose column the new workspace doesn't offer
+    // (e.g. Description1 sort active, then a switch to Ledger).
+    setSortOverride((prev) =>
+      prev && (getSortableFields(columnPrefsDst) as readonly string[]).includes(prev.field)
+        ? prev
+        : null,
+    );
     columnPrefsLoadedDstRef.current = columnPrefsDst;
   }, [columnPrefsDst]);
   // Memoize the effective sort property array so passing it into useEffect
   // / useCallback dependency lists is stable as long as the override hasn't
-  // changed. Falls back to DEFAULT_SORTING when no override is active.
-  const effectiveSorting = useMemo(() => buildSortingProperties(sortOverride), [sortOverride]);
+  // changed. Falls back to the DataSetType's default sorting when no
+  // override is active.
+  const effectiveSorting = useMemo(
+    () => buildSortingProperties(sortOverride, columnPrefsDst),
+    [sortOverride, columnPrefsDst],
+  );
   const [tableColumns, setTableColumns] = useState<ColumnDef[]>([]);
   const [visibleTableColumns, setVisibleTableColumns] = useState<ColumnDef[]>([]);
   const [filters, setFilters] = useState<Record<string, Set<string>>>({});
@@ -792,16 +811,16 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     if (!builderOpen) setBuilderCollapsed(false);
   }, [builderOpen]);
 
-  // Builder Validity → StatementDate range filter, wired through the same
-  // named-filter pipeline the DynamicFilters DateFilter uses, so the
-  // request that hits GetTEPTransactions carries identical
-  // FilteringProperties entries whether the operator set the range from
-  // the filter bar or from the inline rule builder.
+  // Builder Validity → statement-date range filter (Ledger V2: PostingDate),
+  // wired through the same named-filter pipeline the DynamicFilters
+  // DateFilter uses, so the request that hits GetTEPTransactions carries
+  // identical FilteringProperties entries whether the operator set the range
+  // from the filter bar or from the inline rule builder.
   //
   // The pipeline expects keys shaped like `${FilterDefinition.Tag}_GTE` /
   // `_LTE`, where the Tag comes from the backend's filter catalog (it
-  // happens to be "StatementDate" in the live snapshot but we look it up
-  // at runtime so the wire stays correct across deployments and across
+  // happens to be "StatementDate" in the live statement snapshot but we look
+  // it up at runtime so the wire stays correct across deployments and across
   // any future filter-Tag renames). In sample mode `filterDefinitions` is
   // empty, so the mirror is a no-op and the client-side filteredData
   // check below is the only enforcement.
@@ -823,7 +842,9 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const validityEndDate = builder.formState.validity.EndDate;
   const statementDateFilterTag = useMemo<string | null>(() => {
     const def = filterDefinitions.find(
-      (d) => d.Type === 'DATE' && d.Values.some((v) => v.Column === 'StatementDate'),
+      (d) =>
+        d.Type === 'DATE' &&
+        d.Values.some((v) => v.Column === 'StatementDate' || v.Column === 'PostingDate'),
     );
     return def?.Tag ?? null;
   }, [filterDefinitions]);
@@ -1992,7 +2013,8 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       const from = validityFrom?.split('T')[0];
       const to = validityTo?.split('T')[0];
       result = result.filter((item) => {
-        const raw = item.row['StatementDate'];
+        // Ledger V2 rows carry PostingDate instead of StatementDate.
+        const raw = item.row['StatementDate'] ?? item.row['PostingDate'];
         if (raw == null) return false;
         const sd = String(raw).split('T')[0];
         if (from && sd < from) return false;

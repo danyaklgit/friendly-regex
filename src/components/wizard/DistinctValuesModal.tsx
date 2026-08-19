@@ -8,7 +8,9 @@ import {
   getDistinctFieldValues,
   type DistinctFieldValuesResult,
 } from '../../api/distinctFieldValues';
+import { getDefaultSorting } from '../../api/transactions';
 import type { FilterProperty, TepHeaders } from '../../api/transactions';
+import { useTransactionData } from '../../hooks/useTransactionData';
 
 interface DistinctValuesModalProps {
   open: boolean;
@@ -121,6 +123,12 @@ export function DistinctValuesModal({
   const auth = useAuth();
   const tepConfig = useTepConfig();
   const { getAuthHeaders, refreshIfNeeded, userId } = auth;
+  const { fieldMeta } = useTransactionData();
+  // Ledger model V2 rows carry PostingDate (StatementDate is null there), so
+  // detect the workspace family from the loaded rows and walk pages in the
+  // dataset's own date order — sorting a null column would make successive
+  // page fetches non-deterministic.
+  const isLedgerData = fieldMeta.dataFields.includes('PostingDate');
 
   const tepHeaders = useMemo<TepHeaders | null>(() => {
     if (!userId) return null;
@@ -197,12 +205,9 @@ export function DistinctValuesModal({
             FieldName: attributeTag,
             FilteringProperties: filters,
             // Stable transaction ordering so successive page fetches walk
-            // the dataset deterministically; matches DEFAULT_SORTING used
-            // by the live transactions fetch.
-            SortingProperties: [
-              { ColumnName: 'StatementDate', SortingLevel: 1, SortingOrder: 'ASC' },
-              { ColumnName: 'Sequence', SortingLevel: 2, SortingOrder: 'ASC' },
-            ],
+            // the dataset deterministically; matches the per-DataSetType
+            // default sorting used by the live transactions fetch.
+            SortingProperties: getDefaultSorting(isLedgerData ? 'Ledger' : undefined),
             Pagination: { PageIndex: pageIndex, PageSize: PAGE_SIZE },
           },
           token,
@@ -220,7 +225,7 @@ export function DistinctValuesModal({
     })();
 
     return () => controller.abort();
-  }, [open, attributeTag, definitionId, tagSpecKind, pageIndex, reloadKey, getAuthHeaders, refreshIfNeeded, tepHeaders]);
+  }, [open, attributeTag, definitionId, tagSpecKind, pageIndex, reloadKey, getAuthHeaders, refreshIfNeeded, tepHeaders, isLedgerData]);
 
   if (!open) return null;
 

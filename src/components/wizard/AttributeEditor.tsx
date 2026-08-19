@@ -30,6 +30,8 @@ const ALLOWED_SOURCE_FIELDS = new Set([
   'Description1', 'Description2', 'EntryDate', 'FundsCode',
   'IBAN', 'StatementDate', 'TransactionDetails', 'TransactionStatusIndicator',
   'ValueDate',
+  // Ledger model V2 date (StatementDate's Ledger counterpart).
+  'PostingDate',
   // Ledger fields — only surface when the loaded rows carry them (the
   // dropdown intersects this set with fieldMeta.sourceFields).
   ...LEDGER_SOURCE_FIELDS,

@@ -520,7 +520,8 @@ export function useWizardForm(
       Validity: {
         // Lift bare YYYY-MM-DD dates to full ISO datetimes (see
         // serializeValidityBound). The tagging engine compares stored
-        // validity bounds against transaction StatementDate timestamps;
+        // validity bounds against transaction date timestamps
+        // (StatementDate; PostingDate on Ledger model V2 rows);
         // shipping the date without a time portion was the regression
         // that left rows untagged after check-in.
         StartDate: serializeValidityBound(formState.validity.StartDate),
