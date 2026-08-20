@@ -15,6 +15,7 @@ import { Tooltip } from '../shared/Tooltip';
 import { CommentSearchTrigger } from '../comments/CommentSearchTrigger';
 import { CommentSearchPanel } from '../comments/CommentSearchPanel';
 import { isLedger } from '../../utils/libraryIdentity';
+import { settingsStore } from '../../utils/settingsStore';
 import { WizardStepIndicator } from './WizardStepIndicator';
 import { StepBasicInfo } from './StepBasicInfo';
 import { StepRuleExpressions } from './StepRuleExpressions';
@@ -56,7 +57,7 @@ export function TagWizardModal({ existingDef, parentLib, initialFormState, initi
   // wizard has no toggle of its own) so the extraction/transformation previews
   // show the character breakdown only when the operator has it enabled.
   const [characterView] = useState(() => {
-    try { return localStorage.getItem('tep:charView') === 'true'; } catch { return false; }
+    try { return settingsStore.getItem('tep:charView') === 'true'; } catch { return false; }
   });
 
   const authHeader = auth.getAuthHeaders().Authorization ?? '';
