@@ -18,7 +18,7 @@ import {
   hasIncompleteAttribute,
 } from '../../utils/attributeFingerprint';
 import type { FilterProperty } from '../../api/transactions';
-import { getAllTransactionTags, buildSortingProperties, parseSortOverride, getSortableFields, type SortOverride } from '../../api/transactions';
+import { getAllTransactionTags, buildSortingProperties, parseSortOverride, type SortOverride } from '../../api/transactions';
 import { dataSetTypeFilter, DEFAULT_DATA_SET_TYPE, isSameDataSetFamily } from '../../constants/dataSetTypes';
 import { libraryMatchesCheckout, identityKeySuffix, identityScopeFilters, isLedger } from '../../utils/libraryIdentity';
 import { translateFilters } from '../../utils/translateFilters';
@@ -466,14 +466,38 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // loadColumnPrefs also migrates the pre-Ledger global keys into the MT940
   // slot on first run.
   const columnPrefsDst = activeCheckout?.dataSetType ?? DEFAULT_DATA_SET_TYPE;
-  const initialColumnPrefsRef = useRef<ColumnPrefs | null>(null);
+  const initialColumnPrefsRef = useRef<(ColumnPrefs & { sort: SortOverride | null }) | null>(null);
   if (initialColumnPrefsRef.current === null) {
-    initialColumnPrefsRef.current = loadColumnPrefs(columnPrefsDst);
+    let sort: SortOverride | null = null;
+    try {
+      const stored = localStorage.getItem('tep:sortOverride');
+      sort = stored ? parseSortOverride(JSON.parse(stored), columnPrefsDst) : null;
+    } catch { sort = null; }
+    initialColumnPrefsRef.current = { ...loadColumnPrefs(columnPrefsDst), sort };
   }
   // The DataSetType the CURRENT column state belongs to. Save effects write
   // under this key (not columnPrefsDst) so a mid-switch render can never leak
   // one workspace's layout into another's storage slot.
   const columnPrefsLoadedDstRef = useRef<string>(columnPrefsDst);
+  // The layout values the current state was HYDRATED from (mount load or a
+  // workspace-switch reload), updated after every save. The save effects
+  // compare by IDENTITY and skip when the state still IS this value, so a
+  // save only ever happens for a GENUINE user change. Without this the
+  // mount/switch commits echoed whatever the load returned back into
+  // storage — and a load that failed or came back empty (throwing/blocked
+  // localStorage read, corrupt entry) became a DESTRUCTIVE write that
+  // removed the stored layout ("column layouts randomly reset").
+  const hydratedPrefsRef = useRef<{
+    hidden: Set<string> | null;
+    order: string[];
+    widths: Record<string, number>;
+    sort: SortOverride | null;
+  }>({
+    hidden: initialColumnPrefsRef.current!.hidden,
+    order: initialColumnPrefsRef.current!.order,
+    widths: initialColumnPrefsRef.current!.widths,
+    sort: initialColumnPrefsRef.current!.sort,
+  });
   const [hiddenColumns, setHiddenColumns] = useState<Set<string> | null>(
     () => initialColumnPrefsRef.current!.hidden
   );
@@ -487,12 +511,9 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // a stale localStorage entry from a renamed column (or another workspace's
   // column) silently reverts to default instead of sending an invalid sort
   // key to the backend.
-  const [sortOverride, setSortOverride] = useState<SortOverride | null>(() => {
-    try {
-      const stored = localStorage.getItem('tep:sortOverride');
-      return stored ? parseSortOverride(JSON.parse(stored), columnPrefsDst) : null;
-    } catch { return null; }
-  });
+  const [sortOverride, setSortOverride] = useState<SortOverride | null>(
+    () => initialColumnPrefsRef.current!.sort,
+  );
   // Per-column width overrides, in pixels. Lets the operator drag the
   // Additional Information (and any other narrative) column wider when
   // the default + line-clamp is too tight to read. Keyed by column key
@@ -506,16 +527,23 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   useEffect(() => {
     if (columnPrefsLoadedDstRef.current === columnPrefsDst) return;
     const prefs = loadColumnPrefs(columnPrefsDst);
+    // Re-parse the stored sort against the NEW workspace's sortable columns
+    // (a column the new type doesn't offer parses to null) instead of just
+    // nulling the in-memory override — the stored value survives workspace
+    // round-trips (sort MT940 by Description1, visit Ledger, come back:
+    // the sort is still there).
+    let sort: SortOverride | null = null;
+    try {
+      const stored = localStorage.getItem('tep:sortOverride');
+      sort = stored ? parseSortOverride(JSON.parse(stored), columnPrefsDst) : null;
+    } catch { sort = null; }
     setHiddenColumns(prefs.hidden);
     setColumnOrder(prefs.order);
     setColumnWidths(prefs.widths);
-    // Drop a sort override whose column the new workspace doesn't offer
-    // (e.g. Description1 sort active, then a switch to Ledger).
-    setSortOverride((prev) =>
-      prev && (getSortableFields(columnPrefsDst) as readonly string[]).includes(prev.field)
-        ? prev
-        : null,
-    );
+    setSortOverride(sort);
+    // Mark the freshly loaded values as hydrated BEFORE the save effects see
+    // them — a reload must never write back into storage.
+    hydratedPrefsRef.current = { hidden: prefs.hidden, order: prefs.order, widths: prefs.widths, sort };
     columnPrefsLoadedDstRef.current = columnPrefsDst;
   }, [columnPrefsDst]);
   // Memoize the effective sort property array so passing it into useEffect
@@ -759,15 +787,34 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // Column layout saves target the DataSetType the current state was LOADED
   // for (columnPrefsLoadedDstRef), never the in-flight workspace, so a
   // mid-switch commit can't write one workspace's layout under another's key.
-  useEffect(() => { saveHiddenColumns(columnPrefsLoadedDstRef.current, hiddenColumns); }, [hiddenColumns]);
-  useEffect(() => { saveColumnOrder(columnPrefsLoadedDstRef.current, columnOrder); }, [columnOrder]);
+  // Each save is gated on IDENTITY against hydratedPrefsRef: the mount and
+  // workspace-switch commits re-fire these effects with the just-loaded
+  // values, and echoing those back used to DESTROY stored layouts whenever a
+  // load failed or defaulted (save of null/[] REMOVES the key). Only genuine
+  // user changes reach storage; each save records itself as the new baseline.
   useEffect(() => {
+    if (hiddenColumns === hydratedPrefsRef.current.hidden) return;
+    saveHiddenColumns(columnPrefsLoadedDstRef.current, hiddenColumns);
+    hydratedPrefsRef.current.hidden = hiddenColumns;
+  }, [hiddenColumns]);
+  useEffect(() => {
+    if (columnOrder === hydratedPrefsRef.current.order) return;
+    saveColumnOrder(columnPrefsLoadedDstRef.current, columnOrder);
+    hydratedPrefsRef.current.order = columnOrder;
+  }, [columnOrder]);
+  useEffect(() => {
+    if (sortOverride === hydratedPrefsRef.current.sort) return;
     try {
       if (sortOverride) localStorage.setItem('tep:sortOverride', JSON.stringify(sortOverride));
       else localStorage.removeItem('tep:sortOverride');
     } catch { /* ignore */ }
+    hydratedPrefsRef.current.sort = sortOverride;
   }, [sortOverride]);
-  useEffect(() => { saveColumnWidths(columnPrefsLoadedDstRef.current, columnWidths); }, [columnWidths]);
+  useEffect(() => {
+    if (columnWidths === hydratedPrefsRef.current.widths) return;
+    saveColumnWidths(columnPrefsLoadedDstRef.current, columnWidths);
+    hydratedPrefsRef.current.widths = columnWidths;
+  }, [columnWidths]);
 
   // Track builder panel height so the table can adjust its maxHeight
   useEffect(() => {
@@ -852,6 +899,22 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     );
     return def?.Tag ?? null;
   }, [filterDefinitions]);
+
+  // Ledger journal-entry zebra banding master switch: only in the PRISTINE
+  // default view. Any active filter chip, Show Only toggle, or tag drill-down
+  // removes the banding entirely (the table additionally requires the default
+  // sort — see TransactionTable's ledgerBands). Ledger's base scope travels
+  // via activeExtraFilters, so an untouched view has an empty `filters` map.
+  const journalBanding = useMemo(
+    () =>
+      isLedger(columnPrefsDst) &&
+      Object.values(filters).every((v) => v.size === 0) &&
+      !showOnlyUntagged &&
+      !showOnlyMultiTagged &&
+      !showOnlyDeadEnd &&
+      !tagClickState,
+    [columnPrefsDst, filters, showOnlyUntagged, showOnlyMultiTagged, showOnlyDeadEnd, tagClickState],
+  );
   const prevValidityRef = useRef<{ start: string | null; end: string | null }>({
     start: validityStartDate,
     end: validityEndDate,
@@ -3894,6 +3957,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         interactiveCellHint="Double-click to use as the rule's Transaction Type"
         originalEditingDef={editingDef}
         activeDefinitionId={tagClickDefinitionId ?? editingDef?.Id}
+        journalBanding={journalBanding}
         sortOverride={sortOverride}
         onSortChange={(next) => {
           setSortOverride(next);

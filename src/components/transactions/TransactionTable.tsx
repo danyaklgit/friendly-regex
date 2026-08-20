@@ -102,6 +102,11 @@ interface TransactionTableProps {
   /** Current alphabetical sort override, or null when default sort is in
    *  effect. Drives the chevron indicator on sortable column headers. */
   sortOverride?: SortOverride | null;
+  /** Ledger journal-entry zebra banding master switch. The parent enables it
+   *  only in the PRISTINE default Ledger view (no filter chips, no Show Only
+   *  toggles, no tag drill-down); the table additionally requires the
+   *  default sort (no click-sort override). */
+  journalBanding?: boolean;
   /** Click handler for sortable column headers. Receives the next override
    *  the table wants to apply (null clears back to default sorting). */
   onSortChange?: (next: SortOverride | null) => void;
@@ -1310,7 +1315,7 @@ const TableRow = memo(function TableRow({
     <tr
       data-index={index}
       ref={measureRef}
-      className={`group transition-colors ${isDeadEnd ? 'bg-red-100/60 dark:bg-red-950/30 text-red-400 dark:text-red-500/70' : `${band ? 'bg-surface-secondary' : ''} hover:bg-surface-hover`} ${isSelected ? 'bg-primary/10!' : ''} ${isStale ? 'opacity-55' : ''}`}
+      className={`group transition-colors ${isDeadEnd ? 'bg-red-100/60 dark:bg-red-950/30 text-red-400 dark:text-red-500/70' : `${band ? 'bg-row-band' : ''} hover:bg-surface-hover`} ${isSelected ? 'bg-primary/10!' : ''} ${isStale ? 'opacity-55' : ''}`}
       onContextMenu={onRowContextMenu ? (e) => { e.preventDefault(); onRowContextMenu(item.row, e.clientX, e.clientY); } : undefined}
     >
       {visibleColumns.map((col, colIdx) => {
@@ -1318,7 +1323,7 @@ const TableRow = memo(function TableRow({
         // Sticky cells paint their own opaque background (they overlay
         // scrolling content) — keep it in step with the row band.
         const stickyBg = isStickyCol
-          ? `${band && !isDeadEnd ? 'bg-surface-secondary' : 'bg-surface'} group-hover:bg-surface-hover`
+          ? `${band && !isDeadEnd ? 'bg-row-band' : 'bg-surface'} group-hover:bg-surface-hover`
           : '';
 
         switch (col.type) {
@@ -1749,7 +1754,7 @@ const TableRow = memo(function TableRow({
   );
 });
 
-export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, definitionSourceMap, definitionVersions, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, onFlagDeadEndWithComment, onSetComments, onHideTagDefs, mt940SuggestionsByRow, onCloneMt940Suggestion, showAttributes = true, relaxedMode = false, charViewColumns = EMPTY_CHAR_VIEW_COLUMNS, hiddenColumns = EMPTY_HIDDEN_COLUMNS, columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, forceSkeleton = false, accentHue = 190, onRowContextMenu, onCellDoubleClick, interactiveCellFields, interactiveCellHint, originalEditingDef, activeDefinitionId, sortOverride = null, onSortChange, columnWidths, onColumnWidthChange, dataSetType }: TransactionTableProps) {
+export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, definitionSourceMap, definitionVersions, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, onFlagDeadEndWithComment, onSetComments, onHideTagDefs, mt940SuggestionsByRow, onCloneMt940Suggestion, showAttributes = true, relaxedMode = false, charViewColumns = EMPTY_CHAR_VIEW_COLUMNS, hiddenColumns = EMPTY_HIDDEN_COLUMNS, columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, forceSkeleton = false, accentHue = 190, onRowContextMenu, onCellDoubleClick, interactiveCellFields, interactiveCellHint, originalEditingDef, activeDefinitionId, sortOverride = null, onSortChange, columnWidths, onColumnWidthChange, dataSetType, journalBanding = false }: TransactionTableProps) {
   // Resolve the effective width for a column: explicit override wins,
   // otherwise the catalog default, otherwise undefined (browser
   // auto-layout). Width overrides are intentionally scoped to non-compact
@@ -2781,11 +2786,13 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
   // one accounting document are contiguous (PostingDate → TransactionId →
   // Sequence), so alternate the row background whenever the TransactionId
   // changes — the operator can see where one document ends and the next
-  // begins. Disabled under a click-sort (legs scatter, so the band would
-  // flip on nearly every row) and everywhere outside Ledger. One O(rows)
-  // pass, re-run only when the row set changes.
+  // begins. Only in the PRISTINE default view: the parent turns
+  // `journalBanding` off whenever any filter chip / Show Only toggle / tag
+  // drill-down is active, and a click-sort disables it here (legs scatter,
+  // so the band would flip on nearly every row). One O(rows) pass, re-run
+  // only when the row set changes.
   const ledgerBands = useMemo(() => {
-    if (dataSetType !== 'Ledger' || sortOverride) return null;
+    if (!journalBanding || dataSetType !== 'Ledger' || sortOverride) return null;
     let band = false;
     let prev: string | null = null;
     return data.map(({ row }) => {
@@ -2794,7 +2801,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
       prev = id;
       return band;
     });
-  }, [data, dataSetType, sortOverride]);
+  }, [data, dataSetType, sortOverride, journalBanding]);
 
   // --- Column Search spotlight (press "/") ---
   const [columnSearchOpen, setColumnSearchOpen] = useState(false);
