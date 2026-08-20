@@ -1260,6 +1260,7 @@ const TableRow = memo(function TableRow({
   rowId,
   isSelected,
   isDeadEnd,
+  band = false,
   rowHighlight,
   measureRef,
   ctx,
@@ -1269,6 +1270,9 @@ const TableRow = memo(function TableRow({
   rowId: string;
   isSelected: boolean;
   isDeadEnd: boolean;
+  /** Ledger journal-entry zebra band (default sort only): true on every
+   *  other TransactionId group so a document's legs read as one block. */
+  band?: boolean;
   /** The parent's highlightSource when it targets THIS row, else null —
    *  scoping the prop per-row keeps the memo hit rate high (only the row
    *  being hovered re-renders when the highlight moves). */
@@ -1306,12 +1310,16 @@ const TableRow = memo(function TableRow({
     <tr
       data-index={index}
       ref={measureRef}
-      className={`group transition-colors ${isDeadEnd ? 'bg-red-100/60 dark:bg-red-950/30 text-red-400 dark:text-red-500/70' : 'hover:bg-surface-hover'} ${isSelected ? 'bg-primary/10!' : ''} ${isStale ? 'opacity-55' : ''}`}
+      className={`group transition-colors ${isDeadEnd ? 'bg-red-100/60 dark:bg-red-950/30 text-red-400 dark:text-red-500/70' : `${band ? 'bg-surface-secondary' : ''} hover:bg-surface-hover`} ${isSelected ? 'bg-primary/10!' : ''} ${isStale ? 'opacity-55' : ''}`}
       onContextMenu={onRowContextMenu ? (e) => { e.preventDefault(); onRowContextMenu(item.row, e.clientX, e.clientY); } : undefined}
     >
       {visibleColumns.map((col, colIdx) => {
         const isStickyCol = stickyLefts.has(colIdx) || stickyRights.has(colIdx);
-        const stickyBg = isStickyCol ? 'bg-surface group-hover:bg-surface-hover' : '';
+        // Sticky cells paint their own opaque background (they overlay
+        // scrolling content) — keep it in step with the row band.
+        const stickyBg = isStickyCol
+          ? `${band && !isDeadEnd ? 'bg-surface-secondary' : 'bg-surface'} group-hover:bg-surface-hover`
+          : '';
 
         switch (col.type) {
           case 'data': {
@@ -2769,6 +2777,25 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     [dataSetType],
   );
 
+  // Ledger journal-entry zebra banding: under the DEFAULT sort the legs of
+  // one accounting document are contiguous (PostingDate → TransactionId →
+  // Sequence), so alternate the row background whenever the TransactionId
+  // changes — the operator can see where one document ends and the next
+  // begins. Disabled under a click-sort (legs scatter, so the band would
+  // flip on nearly every row) and everywhere outside Ledger. One O(rows)
+  // pass, re-run only when the row set changes.
+  const ledgerBands = useMemo(() => {
+    if (dataSetType !== 'Ledger' || sortOverride) return null;
+    let band = false;
+    let prev: string | null = null;
+    return data.map(({ row }) => {
+      const id = String(row['TransactionId'] ?? row['StatementId'] ?? '');
+      if (prev !== null && id !== prev) band = !band;
+      prev = id;
+      return band;
+    });
+  }, [data, dataSetType, sortOverride]);
+
   // --- Column Search spotlight (press "/") ---
   const [columnSearchOpen, setColumnSearchOpen] = useState(false);
   const [columnSearchQuery, setColumnSearchQuery] = useState('');
@@ -3367,6 +3394,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
                       rowId={rowId}
                       isSelected={selectedIds.has(rowId)}
                       isDeadEnd={item.row['IsDeadEnd'] === true}
+                      band={ledgerBands?.[i] ?? false}
                       rowHighlight={highlightSource?.rowIdx === i ? highlightSource : null}
                       measureRef={rowVirtualizer.measureElement}
                       ctx={rowCtx}

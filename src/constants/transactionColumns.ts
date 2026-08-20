@@ -100,6 +100,7 @@ const MT940_VISIBLE = new Set([
 const LEDGER_ORDER = [
   // --- default-visible, exact operator order ---
   k('TransactionId'),
+  k('TransactionRef'),          // NULL for Zoho since V2.1; shown by operator request
   k('ExternalRef'),
   k('PostingDate'),
   k('TransactionTypeCode'),
@@ -142,7 +143,6 @@ const LEDGER_ORDER = [
   k('PaymentRef'),
   k('ExtPaymentRef'),
   k('Narrative'),               // NULL for Zoho since V2.1
-  k('TransactionRef'),          // NULL for Zoho since V2.1
   k('SourceRef'),
   k('Notes'),
   k('GroupingRef'),
@@ -180,7 +180,7 @@ const LEDGER_ORDER = [
 ];
 
 // The default view is exactly the leading block of LEDGER_ORDER.
-const LEDGER_VISIBLE_COUNT = 22;
+const LEDGER_VISIBLE_COUNT = 23;
 const LEDGER_VISIBLE = new Set(LEDGER_ORDER.slice(0, LEDGER_VISIBLE_COUNT));
 
 /** Fields only ever populated on Ledger rows — never offered elsewhere.
