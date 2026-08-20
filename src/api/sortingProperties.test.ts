@@ -32,7 +32,9 @@ describe('getSortableFields', () => {
     expect(getSortableFields('MT940')).toBe(STATEMENT_SORTABLE_FIELDS);
     expect(getSortableFields(undefined)).toBe(STATEMENT_SORTABLE_FIELDS);
     expect(getSortableFields('Ledger')).toBe(LEDGER_SORTABLE_FIELDS);
-    expect(LEDGER_SORTABLE_FIELDS).toEqual(['AccountIBAN', 'Narrative', 'TransactionRef', 'SourceRef']);
+    // V2.1 remap: TransactionNarrative/ExternalRef carry Zoho's text and
+    // reference; Narrative/TransactionRef are NULL columns and left out.
+    expect(LEDGER_SORTABLE_FIELDS).toEqual(['AccountIBAN', 'TransactionNarrative', 'ExternalRef', 'SourceRef']);
   });
 });
 
@@ -53,9 +55,9 @@ describe('buildSortingProperties', () => {
   });
 
   it('uses PostingDate, TransactionId, then Sequence as tiebreakers on Ledger', () => {
-    const override: SortOverride = { field: 'Narrative', order: 'ASC' };
+    const override: SortOverride = { field: 'TransactionNarrative', order: 'ASC' };
     expect(buildSortingProperties(override, 'Ledger')).toEqual([
-      { ColumnName: 'Narrative', SortingLevel: 1, SortingOrder: 'ASC' },
+      { ColumnName: 'TransactionNarrative', SortingLevel: 1, SortingOrder: 'ASC' },
       { ColumnName: 'PostingDate', SortingLevel: 2, SortingOrder: 'ASC' },
       { ColumnName: 'TransactionId', SortingLevel: 3, SortingOrder: 'ASC' },
       { ColumnName: 'Sequence', SortingLevel: 4, SortingOrder: 'ASC' },
@@ -85,8 +87,11 @@ describe('parseSortOverride', () => {
     // A statement column saved before a workspace switch is invalid on Ledger…
     expect(parseSortOverride({ field: 'Description1', order: 'ASC' }, 'Ledger')).toBeNull();
     // …and a Ledger column is invalid on statement types.
-    expect(parseSortOverride({ field: 'Narrative', order: 'ASC' }, 'MT940')).toBeNull();
-    expect(parseSortOverride({ field: 'Narrative', order: 'ASC' })).toBeNull();
+    expect(parseSortOverride({ field: 'TransactionNarrative', order: 'ASC' }, 'MT940')).toBeNull();
+    expect(parseSortOverride({ field: 'TransactionNarrative', order: 'ASC' })).toBeNull();
+    // V2.1 retired pair: persisted overrides on the now-NULL columns clean up.
+    expect(parseSortOverride({ field: 'Narrative', order: 'ASC' }, 'Ledger')).toBeNull();
+    expect(parseSortOverride({ field: 'TransactionRef', order: 'DESC' }, 'Ledger')).toBeNull();
   });
 
   it('returns null when the order is invalid', () => {

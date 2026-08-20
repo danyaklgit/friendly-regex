@@ -38,7 +38,9 @@ const LEDGER_V2_KEY_RENAMES: Record<string, string> = {
   'data:PartyName': 'data:CounterPartyName',
   'data:BankName': 'data:AccountBankCode',
 };
-const LEDGER_V2_DROPPED_KEYS = new Set(['data:RunningBalance']);
+// RunningBalance: dropped with model V2. AccountCode: dropped with the V2.1
+// remap (2026-08-20) — it duplicated AccountNumber and is NULL now.
+const LEDGER_V2_DROPPED_KEYS = new Set(['data:RunningBalance', 'data:AccountCode']);
 
 function migrateLedgerKey(key: string): string | null {
   if (LEDGER_V2_DROPPED_KEYS.has(key)) return null;

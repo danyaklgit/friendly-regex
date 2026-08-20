@@ -146,13 +146,16 @@ const NARRATIVE_COLUMN_KEYS = new Set([
   'data:Description2',
   'data:TransactionDetails',
   // Ledger model V2 narrative/free-text fields (gotcha #29: preserve
-  // consecutive spaces — operators split rules on padding runs).
+  // consecutive spaces — operators split rules on padding runs). V2.1 moved
+  // Zoho's text into TransactionNarrative and its reference into ExternalRef;
+  // the old pair stays listed for future ERPs that fill it.
   'data:Narrative',
   'data:TransactionRef',
   'data:SourceRef',
   'data:Notes',
   'data:TransactionNarrative',
   'data:TransactionNotes',
+  'data:ExternalRef',
 ]);
 
 type ColumnDef =

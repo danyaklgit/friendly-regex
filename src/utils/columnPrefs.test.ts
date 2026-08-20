@@ -54,9 +54,9 @@ describe('columnPrefs', () => {
       });
     });
 
-    it('drops RunningBalance (no longer populated on Ledger) and dedupes old/new collisions', () => {
-      saveColumnOrder('Ledger', ['data:StatementId', 'data:TransactionId', 'data:RunningBalance', 'data:Comment']);
-      saveHiddenColumns('Ledger', new Set(['data:RunningBalance']));
+    it('drops RunningBalance + AccountCode (no longer populated on Ledger) and dedupes old/new collisions', () => {
+      saveColumnOrder('Ledger', ['data:StatementId', 'data:TransactionId', 'data:RunningBalance', 'data:AccountCode', 'data:Comment']);
+      saveHiddenColumns('Ledger', new Set(['data:RunningBalance', 'data:AccountCode']));
 
       const ledger = loadColumnPrefs('Ledger');
       expect(ledger.order).toEqual(['data:TransactionId', 'data:Comment']);

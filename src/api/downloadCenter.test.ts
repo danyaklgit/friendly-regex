@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi, type MockInstance } from 'vitest';
 import {
-  exportMT940Transactions,
+  exportTepTransactions,
   getDownloadCenterFiles,
-  downloadMT940Transactions,
+  downloadTepTransactions,
   deleteDownloadCenterFile,
   clearDownloadCenterFiles,
 } from './downloadCenter';
@@ -43,10 +43,10 @@ describe('downloadCenter API helpers', () => {
     fetchSpy.mockRestore();
   });
 
-  describe('exportMT940Transactions', () => {
-    it('POSTs to /ExportMT940Transactions with the request body and returns FileId', async () => {
+  describe('exportTepTransactions', () => {
+    it('POSTs to /ExportTEPTransactions with the request body and returns FileId', async () => {
       fetchSpy.mockResolvedValueOnce(jsonResponse({ FileId: 'file-123' }));
-      const result = await exportMT940Transactions(
+      const result = await exportTepTransactions(
         {
           FilteringProperties: [{ ColumnName: 'BankSwiftCode', Value: 'NCBKSAJE', Operand: 'EQ' }],
           SortingProperties: [{ ColumnName: 'ValueDate', SortingLevel: 1, SortingOrder: 'DESC' }],
@@ -58,11 +58,11 @@ describe('downloadCenter API helpers', () => {
       expect(result.FileId).toBe('file-123');
       expect(fetchSpy).toHaveBeenCalledTimes(1);
       const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
-      expect(url).toBe(`${BASE}/ExportMT940Transactions`);
+      expect(url).toBe(`${BASE}/ExportTEPTransactions`);
       expect(init.method).toBe('POST');
       const headers = init.headers as Record<string, string>;
       expect(headers.Authorization).toBe(`Bearer ${TOKEN}`);
-      expect(headers.ActivityTag).toBe('ExportMT940Transactions');
+      expect(headers.ActivityTag).toBe('ExportTEPTransactions');
       const body = JSON.parse(init.body as string);
       expect(body.FilteringProperties[0].ColumnName).toBe('BankSwiftCode');
       expect(body.SortingProperties[0].ColumnName).toBe('ValueDate');
@@ -71,14 +71,14 @@ describe('downloadCenter API helpers', () => {
     it('throws when the server omits FileId', async () => {
       fetchSpy.mockResolvedValueOnce(jsonResponse({}));
       await expect(
-        exportMT940Transactions({}, TOKEN, tepHeaders),
+        exportTepTransactions({}, TOKEN, tepHeaders),
       ).rejects.toThrow(/FileId/i);
     });
 
     it('throws on non-ok response', async () => {
       fetchSpy.mockResolvedValueOnce(jsonResponse({}, 500));
       await expect(
-        exportMT940Transactions({}, TOKEN, tepHeaders),
+        exportTepTransactions({}, TOKEN, tepHeaders),
       ).rejects.toThrow();
     });
   });
@@ -116,10 +116,10 @@ describe('downloadCenter API helpers', () => {
     });
   });
 
-  describe('downloadMT940Transactions', () => {
+  describe('downloadTepTransactions', () => {
     it('returns kind="ready" with blob + filename when Content-Type is text/csv', async () => {
       fetchSpy.mockResolvedValueOnce(csvResponse('Id,Amount\n1,100', 'MT940_Export_2025.csv'));
-      const result = await downloadMT940Transactions('file-1', TOKEN, tepHeaders);
+      const result = await downloadTepTransactions('file-1', TOKEN, tepHeaders);
       expect(result.kind).toBe('ready');
       if (result.kind === 'ready') {
         expect(result.suggestedFilename).toBe('MT940_Export_2025.csv');
@@ -129,7 +129,7 @@ describe('downloadCenter API helpers', () => {
 
     it('returns kind="ready" with fallback filename when Content-Disposition is missing', async () => {
       fetchSpy.mockResolvedValueOnce(csvResponse('Id,Amount\n1,100'));
-      const result = await downloadMT940Transactions('file-1', TOKEN, tepHeaders);
+      const result = await downloadTepTransactions('file-1', TOKEN, tepHeaders);
       expect(result.kind).toBe('ready');
       if (result.kind === 'ready') {
         expect(result.suggestedFilename).toBe('MT940_Export_file-1.csv');
@@ -143,7 +143,7 @@ describe('downloadCenter API helpers', () => {
           SFM: { Constant: 'SFM_EXPORT_STILL_IN_PROGRESS' },
         }),
       );
-      const result = await downloadMT940Transactions('file-1', TOKEN, tepHeaders);
+      const result = await downloadTepTransactions('file-1', TOKEN, tepHeaders);
       expect(result.kind).toBe('in_progress');
       if (result.kind === 'in_progress') {
         expect(result.file?.Status).toBe('INPROGRESS');
@@ -157,7 +157,7 @@ describe('downloadCenter API helpers', () => {
           SFM: { Constant: 'SFM_EXPORT_FAILED' },
         }),
       );
-      const result = await downloadMT940Transactions('file-1', TOKEN, tepHeaders);
+      const result = await downloadTepTransactions('file-1', TOKEN, tepHeaders);
       expect(result.kind).toBe('failed');
       if (result.kind === 'failed') {
         expect(result.message).toBe('Disk full');
@@ -168,17 +168,17 @@ describe('downloadCenter API helpers', () => {
       fetchSpy.mockResolvedValueOnce(
         jsonResponse({ SFM: { Constant: 'SFM_EXPORT_NOT_FOUND' } }),
       );
-      const result = await downloadMT940Transactions('file-1', TOKEN, tepHeaders);
+      const result = await downloadTepTransactions('file-1', TOKEN, tepHeaders);
       expect(result.kind).toBe('not_found');
     });
 
     it('POSTs the FileId in the body and sets ActivityTag', async () => {
       fetchSpy.mockResolvedValueOnce(csvResponse('h\n'));
-      await downloadMT940Transactions('file-xyz', TOKEN, tepHeaders);
+      await downloadTepTransactions('file-xyz', TOKEN, tepHeaders);
       const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
-      expect(url).toBe(`${BASE}/DownloadMT940Transactions`);
+      expect(url).toBe(`${BASE}/DownloadTEPTransactions`);
       expect(JSON.parse(init.body as string)).toEqual({ FileId: 'file-xyz' });
-      expect((init.headers as Record<string, string>).ActivityTag).toBe('DownloadMT940Transactions');
+      expect((init.headers as Record<string, string>).ActivityTag).toBe('DownloadTEPTransactions');
     });
   });
 

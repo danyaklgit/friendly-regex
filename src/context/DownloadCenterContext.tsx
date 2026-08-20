@@ -13,9 +13,9 @@ import { useTepConfig } from './TepConfigContext';
 import type { TepHeaders, FilterProperty, SortProperty } from '../api/transactions';
 import type { DownloadCenterFile } from '../types/downloadCenter';
 import {
-  exportMT940Transactions,
+  exportTepTransactions,
   getDownloadCenterFiles,
-  downloadMT940Transactions,
+  downloadTepTransactions,
   deleteDownloadCenterFile,
   clearDownloadCenterFiles,
 } from '../api/downloadCenter';
@@ -179,7 +179,7 @@ export function DownloadCenterProvider({ children }: DownloadCenterProviderProps
       if (!tepHeaders) throw new Error('Not authenticated');
       const token = await getToken();
       if (!token) throw new Error('Not authenticated');
-      const { FileId } = await exportMT940Transactions(
+      const { FileId } = await exportTepTransactions(
         {
           FilteringProperties: filters,
           SortingProperties: sortingProps,
@@ -201,7 +201,7 @@ export function DownloadCenterProvider({ children }: DownloadCenterProviderProps
       const token = await getToken();
       if (!token) return { kind: 'error', message: 'Not authenticated' };
       try {
-        const result = await downloadMT940Transactions(fileId, token, tepHeaders);
+        const result = await downloadTepTransactions(fileId, token, tepHeaders);
         switch (result.kind) {
           case 'ready': {
             // Hand the blob straight to the browser with the backend's

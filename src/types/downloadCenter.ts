@@ -4,7 +4,7 @@ export type DownloadCenterFileStatus = 'INPROGRESS' | 'READY' | 'FAILED';
 
 /**
  * Shape of a single export job as returned by `GetDownloadCenterFiles` and
- * inside the JSON-error branch of `DownloadMT940Transactions`. Field names
+ * inside the JSON-error branch of `DownloadTEPTransactions`. Field names
  * mirror the backend exactly so consumers can pass the object straight back
  * to the API where needed.
  */

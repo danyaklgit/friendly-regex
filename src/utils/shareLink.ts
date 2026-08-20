@@ -18,6 +18,40 @@ export interface ShareParams {
   sharedBy: string;
 }
 
+/**
+ * Filter tags the backend retired for Ledger with the V2.1 filter set
+ * (2026-08-20): Statement Date → POSTINGDATE, Bank Reference → EXTERNALREF,
+ * IBAN removed, and the Party / Narrative / Reference searches merged into
+ * the shared Search. A persisted share link may still carry selections under
+ * the old tags — drop them on restore, the same posture parseSortOverride
+ * takes for unknown sort fields. Range keys (`TAG_GTE` / `TAG_LTE`) match on
+ * their base tag.
+ */
+const RETIRED_LEDGER_FILTER_TAGS = new Set([
+  'STATEMENTDATE',
+  'BANKREF',
+  'IBAN',
+  'PARTY',
+  'NARRATIVE',
+  'REFERENCE',
+]);
+
+/** Remove retired-for-Ledger filter tags from a restored filter state.
+ *  No-op for statement workspaces (their tags are unchanged). */
+export function pruneRetiredLedgerFilters(
+  filters: Record<string, Set<string>>,
+  dataSetType: string | undefined | null,
+): Record<string, Set<string>> {
+  if (dataSetType !== 'Ledger') return filters;
+  const result: Record<string, Set<string>> = {};
+  for (const [key, values] of Object.entries(filters)) {
+    const base = key.replace(/_(?:GTE|LTE)$/, '');
+    if (RETIRED_LEDGER_FILTER_TAGS.has(base)) continue;
+    result[key] = values;
+  }
+  return result;
+}
+
 /** Serialize FilterState (Record<string, Set<string>>) to a URL-safe base64 string. */
 export function serializeFilters(filters: Record<string, Set<string>>): string {
   const obj: Record<string, string[]> = {};

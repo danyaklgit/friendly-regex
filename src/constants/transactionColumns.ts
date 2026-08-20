@@ -104,7 +104,6 @@ const LEDGER_ORDER = [
   k('EntryDate'),               // hidden by default
   k('AccountName'),
   k('AccountNumber'),
-  k('AccountCode'),             // hidden by default
   k('AccountIBAN'),             // hidden by default
   k('AccountType'),
   k('AccountId'),
@@ -136,14 +135,20 @@ const LEDGER_ORDER = [
   k('ExtPaymentRef'),           // hidden by default
   k('TxnTypeName'),
   k('TransactionTypeCode'),     // hidden by default; canonical spot after TxnTypeName
-  k('Narrative'),
-  k('TransactionRef'),
+  // V2.1 remap (2026-08-20): Zoho's ERP description lives in
+  // TransactionNarrative and its reference_number in ExternalRef — those are
+  // the visible text/reference columns. Narrative and TransactionRef are NULL
+  // for Zoho since the remap but stay offerable-hidden (a future ERP may fill
+  // them).
+  k('TransactionNarrative'),
+  k('Narrative'),               // hidden by default
+  k('ExternalRef'),
+  k('TransactionRef'),          // hidden by default
   k('SourceRef'),
   k('Notes'),                   // hidden by default
   k('GroupingRef'),             // hidden by default
   k('BusinessUnit'),            // hidden by default
   k('DocumentRef'),             // hidden by default
-  k('ExternalRef'),             // hidden by default
   k('VATCode'),                 // hidden by default
   k('VATAmount'),               // hidden by default
   k('VATBaseAmount'),           // hidden by default
@@ -160,7 +165,6 @@ const LEDGER_ORDER = [
   // Document-level V2 fields (repeated on every line of a document) — hidden.
   k('Entity'),
   k('FiscalPeriod'),
-  k('TransactionNarrative'),
   k('TransactionNotes'),
   k('TransactionExternalRef'),
   k('TransactionCurrencyCode'),
@@ -197,8 +201,8 @@ const LEDGER_VISIBLE = new Set([
   k('CounterPartyName'),
   k('CounterPartyCode'),
   k('TxnTypeName'),
-  k('Narrative'),
-  k('TransactionRef'),
+  k('TransactionNarrative'),
+  k('ExternalRef'),
   k('SourceRef'),
   k('EntryId'),
   k('ClientCode'),
@@ -257,6 +261,9 @@ const LEDGER_SPEC: DataSetColumnSpec = {
     k('BankName'),
     k('RunningBalance'),
     k('TransactionStatusIndicator'),
+    // V2.1 (2026-08-20): AccountCode is dropped — it duplicated AccountNumber
+    // and is NULL from the backend now.
+    k('AccountCode'),
   ]),
 };
 
