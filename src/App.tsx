@@ -30,6 +30,7 @@ import { Toast } from './components/shared/Toast';
 import { tagSpecLibraryRelease, tagSpecLibraryCheckIn } from './api/checkout';
 import { tagSpecLibrarySave } from './api/tagSpecSave';
 import { parseShareParams, storeShareParams, consumeStoredShareParams, clearShareParamsFromUrl, pruneRetiredLedgerFilters } from './utils/shareLink';
+import { useUserProfileSync } from './hooks/useUserProfileSync';
 import type { ShareParams } from './utils/shareLink';
 import type { CheckoutState } from './types';
 import type { TepHeaders, FilterProperty } from './api/transactions';
@@ -60,6 +61,12 @@ interface AppShellProps {
 function AppShell(props: AppShellProps) {
   const { isUser } = useAuth();
   const { setBrand } = useTheme();
+
+  // Backend user-profile sync — above the operator/user fork so BOTH portals'
+  // preferences hydrate and save (column layouts, toggles, pro-mode,
+  // contributions...). No-ops in sample-data mode or when the profile
+  // endpoints are unavailable (localStorage keeps working as before).
+  useUserProfileSync(props.authToken, props.tepHeaders, props.userId);
 
   // role=user always implies bwatech. Force-apply on every render where isUser
   // is true so a stale `brand_preference` in localStorage can't leak Swittle
