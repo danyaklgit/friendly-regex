@@ -6,6 +6,7 @@ import {
   WORKSPACES,
   ALL_LIBRARY_DATA_SET_TYPES,
   dataSetTypeFilter,
+  isSameDataSetFamily,
 } from './dataSetTypes';
 
 describe('dataSetTypes', () => {
@@ -44,5 +45,23 @@ describe('dataSetTypes', () => {
     const f = dataSetTypeFilter(['MT940', 'TransactionsList']);
     expect(f.Operand).toBe('IN');
     expect('Value' in f && f.Value).toBe('MT940|TransactionsList');
+  });
+
+  describe('isSameDataSetFamily', () => {
+    it('accepts TransactionsList rows in the MT940 workspace (prod serves them under the MT940 scope filter)', () => {
+      expect(isSameDataSetFamily('TransactionsList', 'MT940')).toBe(true);
+      expect(isSameDataSetFamily('MT940', 'MT940')).toBe(true);
+    });
+
+    it('keeps every other workspace exact', () => {
+      expect(isSameDataSetFamily('MT942', 'MT940')).toBe(false);
+      expect(isSameDataSetFamily('INTERIM_MT940', 'MT940')).toBe(false);
+      expect(isSameDataSetFamily('MT940', 'MT942')).toBe(false);
+      expect(isSameDataSetFamily('TransactionsList', 'MT942')).toBe(false);
+      expect(isSameDataSetFamily('TransactionsList', 'Ledger')).toBe(false);
+      expect(isSameDataSetFamily('Ledger', 'Ledger')).toBe(true);
+      // Asymmetric on purpose: the FAMILY belongs to the workspace side.
+      expect(isSameDataSetFamily('MT940', 'TransactionsList')).toBe(false);
+    });
   });
 });

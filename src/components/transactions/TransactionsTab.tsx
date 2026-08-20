@@ -19,7 +19,7 @@ import {
 } from '../../utils/attributeFingerprint';
 import type { FilterProperty } from '../../api/transactions';
 import { getAllTransactionTags, buildSortingProperties, parseSortOverride, getSortableFields, type SortOverride } from '../../api/transactions';
-import { dataSetTypeFilter, DEFAULT_DATA_SET_TYPE } from '../../constants/dataSetTypes';
+import { dataSetTypeFilter, DEFAULT_DATA_SET_TYPE, isSameDataSetFamily } from '../../constants/dataSetTypes';
 import { libraryMatchesCheckout, identityKeySuffix, identityScopeFilters, isLedger } from '../../utils/libraryIdentity';
 import { translateFilters } from '../../utils/translateFilters';
 import { findTransactionTypeFilterDef } from '../../utils/transactionTypeFilterDef';
@@ -369,7 +369,10 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     // skeleton on a guess.
     if (!rowDst) return false;
     const dst = activeCheckout?.dataSetType ?? DEFAULT_DATA_SET_TYPE;
-    if (rowDst !== dst) return true;
+    // FAMILY comparison, not equality: prod serves TransactionsList-labeled
+    // rows under the MT940 scope filter — an exact check held the skeleton
+    // forever because the buffer never "matched" the workspace.
+    if (!isSameDataSetFamily(rowDst, dst)) return true;
     if (!activeCheckout) return false;
     if (isLedger(dst)) {
       const client = String(row['ClientCode'] ?? '');
