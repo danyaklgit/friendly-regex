@@ -49,6 +49,7 @@ describe('getColumnSpec', () => {
     const visibleInOrder = ledger.defaultOrder.filter((k) => ledger.defaultVisible.has(k));
     expect(visibleInOrder).toEqual([
       'data:TransactionId',
+      'data:TransactionRef',
       'data:ExternalRef',
       'data:PostingDate',
       'data:TransactionTypeCode',
@@ -130,14 +131,16 @@ describe('getColumnSpec', () => {
     expect(ledger.defaultOrder).toContain('data:StaleSinceUtc');
   });
 
-  it('V2.1 remap: TransactionNarrative/ExternalRef are the visible text columns; the remapped-away pair stays offerable-hidden; AccountCode is gone', () => {
+  it('V2.1 remap: TransactionNarrative/ExternalRef are the populated text/ref columns; AccountCode is gone', () => {
     const ledger = getColumnSpec('Ledger');
-    // Visible replacements sit right where the old columns sat.
     const order = ledger.defaultOrder;
     expect(order.indexOf('data:TransactionNarrative')).toBeLessThan(order.indexOf('data:Narrative'));
-    expect(order.indexOf('data:ExternalRef')).toBeLessThan(order.indexOf('data:TransactionRef'));
+    // TransactionRef is NULL for Zoho but shown by operator request, right
+    // before ExternalRef (the populated reference).
+    expect(order.indexOf('data:TransactionRef')).toBe(order.indexOf('data:ExternalRef') - 1);
+    expect(ledger.defaultVisible.has('data:TransactionRef')).toBe(true);
     // NULL-for-Zoho columns stay offerable (a future ERP may fill them), hidden.
-    for (const field of ['Narrative', 'TransactionRef', 'ValueDate']) {
+    for (const field of ['Narrative', 'ValueDate']) {
       expect(ledger.defaultOrder, field).toContain(`data:${field}`);
       expect(ledger.defaultVisible.has(`data:${field}`), field).toBe(false);
       expect(ledger.neverShow.has(`data:${field}`), field).toBe(false);
