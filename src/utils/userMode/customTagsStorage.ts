@@ -49,9 +49,11 @@ function isCurrent(value: unknown): value is CustomTag {
   return typeof v.name === 'string' && Array.isArray(v.groups);
 }
 
+import { settingsStore } from '../settingsStore';
+
 export function loadCustomTags(): CustomTag[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = settingsStore.getItem(STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
@@ -71,7 +73,7 @@ export function loadCustomTags(): CustomTag[] {
 
 export function saveCustomTags(tags: CustomTag[]): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(tags));
+    settingsStore.setItem(STORAGE_KEY, JSON.stringify(tags));
   } catch {
     console.warn('[customTagsStorage] localStorage write failed');
   }
