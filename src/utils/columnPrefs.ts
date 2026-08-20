@@ -14,6 +14,8 @@
  * defaults.
  */
 
+import { settingsStore } from './settingsStore';
+
 const LEGACY_HIDDEN_KEY = 'tep:hiddenColumns';
 const LEGACY_ORDER_KEY = 'tep:columnOrder';
 const LEGACY_WIDTHS_KEY = 'tep:columnWidths';
@@ -72,12 +74,12 @@ export function migrateLegacyColumnPrefs(): void {
       [LEGACY_WIDTHS_KEY, columnPrefsKey(MIGRATION_TARGET_TYPE, 'widths')],
     ];
     for (const [legacyKey, perTypeKey] of pairs) {
-      const legacy = localStorage.getItem(legacyKey);
+      const legacy = settingsStore.getItem(legacyKey);
       if (legacy === null) continue;
-      if (localStorage.getItem(perTypeKey) === null) {
-        localStorage.setItem(perTypeKey, legacy);
+      if (settingsStore.getItem(perTypeKey) === null) {
+        settingsStore.setItem(perTypeKey, legacy);
       }
-      localStorage.removeItem(legacyKey);
+      settingsStore.removeItem(legacyKey);
     }
   } catch { /* ignore storage failures */ }
 }
@@ -88,11 +90,11 @@ export function loadColumnPrefs(dataSetType: string): ColumnPrefs {
   let order: string[] = [];
   let widths: Record<string, number> = {};
   try {
-    const storedHidden = localStorage.getItem(columnPrefsKey(dataSetType, 'hidden'));
+    const storedHidden = settingsStore.getItem(columnPrefsKey(dataSetType, 'hidden'));
     if (storedHidden) hidden = new Set(JSON.parse(storedHidden) as string[]);
   } catch { hidden = null; }
   try {
-    const storedOrder = localStorage.getItem(columnPrefsKey(dataSetType, 'order'));
+    const storedOrder = settingsStore.getItem(columnPrefsKey(dataSetType, 'order'));
     if (storedOrder) {
       const parsed = JSON.parse(storedOrder) as string[];
       // Migrate legacy '__dates' grouped-column key → three separate date columns.
@@ -103,7 +105,7 @@ export function loadColumnPrefs(dataSetType: string): ColumnPrefs {
     }
   } catch { order = []; }
   try {
-    const storedWidths = localStorage.getItem(columnPrefsKey(dataSetType, 'widths'));
+    const storedWidths = settingsStore.getItem(columnPrefsKey(dataSetType, 'widths'));
     if (storedWidths) {
       const parsed = JSON.parse(storedWidths);
       if (parsed && typeof parsed === 'object') {
@@ -154,23 +156,23 @@ export function loadColumnPrefs(dataSetType: string): ColumnPrefs {
 export function saveHiddenColumns(dataSetType: string, hidden: Set<string> | null): void {
   try {
     const key = columnPrefsKey(dataSetType, 'hidden');
-    if (hidden === null) localStorage.removeItem(key);
-    else localStorage.setItem(key, JSON.stringify([...hidden]));
+    if (hidden === null) settingsStore.removeItem(key);
+    else settingsStore.setItem(key, JSON.stringify([...hidden]));
   } catch { /* ignore */ }
 }
 
 export function saveColumnOrder(dataSetType: string, order: string[]): void {
   try {
     const key = columnPrefsKey(dataSetType, 'order');
-    if (order.length === 0) localStorage.removeItem(key);
-    else localStorage.setItem(key, JSON.stringify(order));
+    if (order.length === 0) settingsStore.removeItem(key);
+    else settingsStore.setItem(key, JSON.stringify(order));
   } catch { /* ignore */ }
 }
 
 export function saveColumnWidths(dataSetType: string, widths: Record<string, number>): void {
   try {
     const key = columnPrefsKey(dataSetType, 'widths');
-    if (Object.keys(widths).length === 0) localStorage.removeItem(key);
-    else localStorage.setItem(key, JSON.stringify(widths));
+    if (Object.keys(widths).length === 0) settingsStore.removeItem(key);
+    else settingsStore.setItem(key, JSON.stringify(widths));
   } catch { /* ignore */ }
 }

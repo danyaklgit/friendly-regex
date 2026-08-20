@@ -40,6 +40,7 @@ import { getContextValue } from '../../types/tagSpec';
 import { TransactionTable, ColumnPicker, PREVIEW_TEMP_DEF_ID, renderTagTooltip, type ColumnDef } from './TransactionTable';
 import { getColumnSpec } from '../../constants/transactionColumns';
 import { loadColumnPrefs, saveHiddenColumns, saveColumnOrder, saveColumnWidths, type ColumnPrefs } from '../../utils/columnPrefs';
+import { settingsStore } from '../../utils/settingsStore';
 import { TagBadge } from './TagBadge';
 import { StepRuleExpressions } from '../wizard/StepRuleExpressions';
 import { StepAttributes } from '../wizard/StepAttributes';
@@ -326,7 +327,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   useEffect(() => {
     if (inProgressLib && activeCheckout) {
       const baselineKey = `tep:baseline:${identityKeySuffix(activeCheckout)}`;
-      if (!localStorage.getItem(baselineKey)) {
+      if (!settingsStore.getItem(baselineKey)) {
         saveBaseline(inProgressLib);
       } else {
         updateCurrent(inProgressLib);
@@ -436,26 +437,26 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const [showOnlyMultiTagged, setShowOnlyMultiTagged] = useState(false);
   const [showOnlyDeadEnd, setShowOnlyDeadEnd] = useState(false);
   const [showAttributes, setShowAttributes] = useState(() => {
-    try { return localStorage.getItem('tep:showAttributes') === 'true'; } catch { return false; }
+    try { return settingsStore.getItem('tep:showAttributes') === 'true'; } catch { return false; }
   });
   const [incrementalPagination, setIncrementalPagination] = useState(() => {
-    try { const v = localStorage.getItem('tep:incrementalPagination'); return v === null ? true : v === 'true'; } catch { return true; }
+    try { const v = settingsStore.getItem('tep:incrementalPagination'); return v === null ? true : v === 'true'; } catch { return true; }
   });
   const [currentPage, setCurrentPage] = useState(0);
   const [pageInputValue, setPageInputValue] = useState('1');
   const [relaxedMode, setRelaxedMode] = useState(() => {
-    try { const v = localStorage.getItem('tep:relaxedMode'); return v === null ? true : v === 'true'; } catch { return true; }
+    try { const v = settingsStore.getItem('tep:relaxedMode'); return v === null ? true : v === 'true'; } catch { return true; }
   });
   // "Character view": render RTL narrative cells as a logical-order character
   // breakdown so splitting positions are unambiguous. Off by default; the set
   // of target columns defaults to Additional Information and the operator can
   // add other narrative columns. Both persist per device.
   const [charViewEnabled, setCharViewEnabled] = useState(() => {
-    try { return localStorage.getItem('tep:charView') === 'true'; } catch { return false; }
+    try { return settingsStore.getItem('tep:charView') === 'true'; } catch { return false; }
   });
   const [charViewCols, setCharViewCols] = useState<Set<string>>(() => {
     try {
-      const stored = localStorage.getItem('tep:charViewCols');
+      const stored = settingsStore.getItem('tep:charViewCols');
       return stored ? new Set(JSON.parse(stored) as string[]) : new Set(['AdditionalInformation']);
     } catch { return new Set(['AdditionalInformation']); }
   });
@@ -470,7 +471,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   if (initialColumnPrefsRef.current === null) {
     let sort: SortOverride | null = null;
     try {
-      const stored = localStorage.getItem('tep:sortOverride');
+      const stored = settingsStore.getItem('tep:sortOverride');
       sort = stored ? parseSortOverride(JSON.parse(stored), columnPrefsDst) : null;
     } catch { sort = null; }
     initialColumnPrefsRef.current = { ...loadColumnPrefs(columnPrefsDst), sort };
@@ -534,7 +535,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     // the sort is still there).
     let sort: SortOverride | null = null;
     try {
-      const stored = localStorage.getItem('tep:sortOverride');
+      const stored = settingsStore.getItem('tep:sortOverride');
       sort = stored ? parseSortOverride(JSON.parse(stored), columnPrefsDst) : null;
     } catch { sort = null; }
     setHiddenColumns(prefs.hidden);
@@ -772,11 +773,11 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const outgoingFilters = filters;
 
   // Persist settings to localStorage
-  useEffect(() => { try { localStorage.setItem('tep:showAttributes', String(showAttributes)); } catch { /* ignore */ } }, [showAttributes]);
-  useEffect(() => { try { localStorage.setItem('tep:incrementalPagination', String(incrementalPagination)); } catch { /* ignore */ } }, [incrementalPagination]);
-  useEffect(() => { try { localStorage.setItem('tep:relaxedMode', String(relaxedMode)); } catch { /* ignore */ } }, [relaxedMode]);
-  useEffect(() => { try { localStorage.setItem('tep:charView', String(charViewEnabled)); } catch { /* ignore */ } }, [charViewEnabled]);
-  useEffect(() => { try { localStorage.setItem('tep:charViewCols', JSON.stringify([...charViewCols])); } catch { /* ignore */ } }, [charViewCols]);
+  useEffect(() => { try { settingsStore.setItem('tep:showAttributes', String(showAttributes)); } catch { /* ignore */ } }, [showAttributes]);
+  useEffect(() => { try { settingsStore.setItem('tep:incrementalPagination', String(incrementalPagination)); } catch { /* ignore */ } }, [incrementalPagination]);
+  useEffect(() => { try { settingsStore.setItem('tep:relaxedMode', String(relaxedMode)); } catch { /* ignore */ } }, [relaxedMode]);
+  useEffect(() => { try { settingsStore.setItem('tep:charView', String(charViewEnabled)); } catch { /* ignore */ } }, [charViewEnabled]);
+  useEffect(() => { try { settingsStore.setItem('tep:charViewCols', JSON.stringify([...charViewCols])); } catch { /* ignore */ } }, [charViewCols]);
   // Effective char-view columns passed to the table: empty (stable identity)
   // when the toggle is off so it never alters rendering, otherwise the picked
   // set. Memoized so it doesn't bust the table's rowCtx every render.
@@ -805,8 +806,8 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   useEffect(() => {
     if (sortOverride === hydratedPrefsRef.current.sort) return;
     try {
-      if (sortOverride) localStorage.setItem('tep:sortOverride', JSON.stringify(sortOverride));
-      else localStorage.removeItem('tep:sortOverride');
+      if (sortOverride) settingsStore.setItem('tep:sortOverride', JSON.stringify(sortOverride));
+      else settingsStore.removeItem('tep:sortOverride');
     } catch { /* ignore */ }
     hydratedPrefsRef.current.sort = sortOverride;
   }, [sortOverride]);
