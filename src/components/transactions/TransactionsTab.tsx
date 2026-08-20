@@ -255,6 +255,7 @@ const CHAR_VIEW_COLUMNS: { field: string; label: string }[] = [
   { field: 'Description2', label: 'Description 2' },
   { field: 'TransactionDetails', label: 'Transaction Details' },
   { field: 'Narrative', label: 'Narrative' },
+  { field: 'TransactionNarrative', label: 'Transaction Narrative' },
   { field: 'TransactionRef', label: 'Transaction Ref' },
   { field: 'SourceRef', label: 'Source Ref' },
   { field: 'Notes', label: 'Notes' },

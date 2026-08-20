@@ -87,10 +87,14 @@ export const STATEMENT_SORTABLE_FIELDS = [
 ] as const;
 
 // Ledger model V2 names — the text columns operators alphabetize on.
+// V2.1 remap (2026-08-20): Zoho's text lives in TransactionNarrative and its
+// reference_number in ExternalRef; Narrative/TransactionRef are NULL columns
+// now, so sorting on them is pointless. parseSortOverride drops persisted
+// overrides on the retired pair automatically.
 export const LEDGER_SORTABLE_FIELDS = [
   'AccountIBAN',
-  'Narrative',
-  'TransactionRef',
+  'TransactionNarrative',
+  'ExternalRef',
   'SourceRef',
 ] as const;
 

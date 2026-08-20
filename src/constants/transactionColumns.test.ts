@@ -92,7 +92,7 @@ describe('getColumnSpec', () => {
 
   it('keeps the pre-V2 visible set under the dedicated Ledger names', () => {
     const ledger = getColumnSpec('Ledger');
-    for (const field of ['TransactionId', 'PostingDate', 'ClientCode', 'ErpCode', 'TxnTypeName', 'EntryId', 'AccountId', 'AccountName', 'AccountNumber', 'AccountType', 'AccountBankCode', 'CounterPartyCode', 'CounterPartyName', 'OffsetAccountName', 'OffsetAccountId', 'OffsetAccountNumber', 'OffsetAccountType', 'AmountFcy', 'Narrative', 'TransactionRef', 'SourceRef']) {
+    for (const field of ['TransactionId', 'PostingDate', 'ClientCode', 'ErpCode', 'TxnTypeName', 'EntryId', 'AccountId', 'AccountName', 'AccountNumber', 'AccountType', 'AccountBankCode', 'CounterPartyCode', 'CounterPartyName', 'OffsetAccountName', 'OffsetAccountId', 'OffsetAccountNumber', 'OffsetAccountType', 'AmountFcy', 'TransactionNarrative', 'ExternalRef', 'SourceRef']) {
       expect(ledger.defaultVisible.has(`data:${field}`), field).toBe(true);
     }
     expect(ledger.defaultVisible.has('data:IsStale')).toBe(false);
@@ -101,9 +101,26 @@ describe('getColumnSpec', () => {
     expect(ledger.defaultOrder).toContain('data:StaleSinceUtc');
   });
 
+  it('V2.1 remap: TransactionNarrative/ExternalRef are the visible text columns; the remapped-away pair stays offerable-hidden; AccountCode is gone', () => {
+    const ledger = getColumnSpec('Ledger');
+    // Visible replacements sit right where the old columns sat.
+    const order = ledger.defaultOrder;
+    expect(order.indexOf('data:TransactionNarrative')).toBeLessThan(order.indexOf('data:Narrative'));
+    expect(order.indexOf('data:ExternalRef')).toBeLessThan(order.indexOf('data:TransactionRef'));
+    // NULL-for-Zoho columns stay offerable (a future ERP may fill them), hidden.
+    for (const field of ['Narrative', 'TransactionRef', 'ValueDate']) {
+      expect(ledger.defaultOrder, field).toContain(`data:${field}`);
+      expect(ledger.defaultVisible.has(`data:${field}`), field).toBe(false);
+      expect(ledger.neverShow.has(`data:${field}`), field).toBe(false);
+    }
+    // AccountCode duplicated AccountNumber and is dropped outright.
+    expect(ledger.neverShow.has('data:AccountCode')).toBe(true);
+    expect(ledger.defaultOrder).not.toContain('data:AccountCode');
+  });
+
   it('offers the new V2 fields hidden-by-default (line-level at canonical spots, document-level at the tail)', () => {
     const ledger = getColumnSpec('Ledger');
-    for (const field of ['AccountCode', 'AccountIBAN', 'AccountCurrency', 'OffsetAccountCode', 'OffsetAccountIBAN', 'CounterPartyType', 'CounterPartyBankCode', 'CounterPartyAccountNumber', 'CounterPartyCountryCode', 'PaymentMethod', 'PaymentRef', 'ExtPaymentRef', 'Notes', 'GroupingRef', 'BusinessUnit', 'DocumentRef', 'ExternalRef', 'VATCode', 'VATAmount', 'VATBaseAmount', 'IsReversal', 'IsReversed', 'ReversalOfRef', 'FXGainLoss', 'Entity', 'FiscalPeriod', 'TransactionNarrative', 'TransactionNotes', 'TransactionExternalRef', 'TransactionCurrencyCode', 'FXRate', 'TxnAmountFC', 'TxnAmountLC', 'NumLines', 'Source', 'TransactionIsReversal', 'TransactionIsReversed', 'TransactionReversalOfRef', 'ReasonCode', 'ReasonDescription']) {
+    for (const field of ['AccountIBAN', 'AccountCurrency', 'OffsetAccountCode', 'OffsetAccountIBAN', 'CounterPartyType', 'CounterPartyBankCode', 'CounterPartyAccountNumber', 'CounterPartyCountryCode', 'PaymentMethod', 'PaymentRef', 'ExtPaymentRef', 'Notes', 'GroupingRef', 'BusinessUnit', 'DocumentRef', 'VATCode', 'VATAmount', 'VATBaseAmount', 'IsReversal', 'IsReversed', 'ReversalOfRef', 'FXGainLoss', 'Entity', 'FiscalPeriod', 'TransactionNotes', 'TransactionExternalRef', 'TransactionCurrencyCode', 'FXRate', 'TxnAmountFC', 'TxnAmountLC', 'NumLines', 'Source', 'TransactionIsReversal', 'TransactionIsReversed', 'TransactionReversalOfRef', 'ReasonCode', 'ReasonDescription']) {
       expect(ledger.defaultOrder, field).toContain(`data:${field}`);
       expect(ledger.defaultVisible.has(`data:${field}`), field).toBe(false);
       expect(ledger.neverShow.has(`data:${field}`), field).toBe(false);

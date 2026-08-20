@@ -7,8 +7,35 @@ import {
   storeShareParams,
   consumeStoredShareParams,
   clearShareParamsFromUrl,
+  pruneRetiredLedgerFilters,
 } from './shareLink';
 import type { ShareParams } from './shareLink';
+
+describe('pruneRetiredLedgerFilters', () => {
+  it('drops the V2.1-retired Ledger tags, including range keys, and keeps the rest', () => {
+    const filters = {
+      STATEMENTDATE_GTE: new Set(['2026-01-01']),
+      STATEMENTDATE_LTE: new Set(['2026-02-01']),
+      BANKREF: new Set(['R1']),
+      IBAN: new Set(['SA123']),
+      PARTY: new Set(['ACME']),
+      NARRATIVE: new Set(['rent']),
+      REFERENCE: new Set(['X9']),
+      POSTINGDATE_GTE: new Set(['2026-01-01']),
+      EXTERNALREF: new Set(['Z1']),
+      OFFSET_ACCOUNT_TYPE: new Set(['Bank']),
+    };
+    const pruned = pruneRetiredLedgerFilters(filters, 'Ledger');
+    expect(Object.keys(pruned).sort()).toEqual(['EXTERNALREF', 'OFFSET_ACCOUNT_TYPE', 'POSTINGDATE_GTE']);
+    expect(pruned.POSTINGDATE_GTE).toBe(filters.POSTINGDATE_GTE);
+  });
+
+  it('is a no-op for statement workspaces (their tags are unchanged)', () => {
+    const filters = { STATEMENTDATE_GTE: new Set(['2026-01-01']), IBAN: new Set(['SA123']) };
+    expect(pruneRetiredLedgerFilters(filters, 'MT940')).toBe(filters);
+    expect(pruneRetiredLedgerFilters(filters, undefined)).toBe(filters);
+  });
+});
 
 describe('shareLink utilities', () => {
   // --- serializeFilters / deserializeFilters ---

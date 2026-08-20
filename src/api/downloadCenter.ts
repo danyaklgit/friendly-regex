@@ -15,21 +15,24 @@ interface SfmEnvelope {
   };
 }
 
-// --- ExportMT940Transactions -------------------------------------------------
+// --- ExportTEPTransactions -----------------------------------------------
+// Canonical name since 2026-08-20 (ExportMT940Transactions remains a
+// deprecated alias slated for retirement). Route and ActivityTag are
+// validated as a pair server-side — change them together.
 
 interface ExportResponse extends SfmEnvelope {
   FileId?: string;
 }
 
-export async function exportMT940Transactions(
+export async function exportTepTransactions(
   req: ExportMT940Request,
   token: string,
   tepHeaders: TepHeaders,
   signal?: AbortSignal,
 ): Promise<{ FileId: string }> {
-  const res = await fetch(`${BASE}/ExportMT940Transactions`, {
+  const res = await fetch(`${BASE}/ExportTEPTransactions`, {
     method: 'POST',
-    headers: buildHeaders(token, tepHeaders, 'ExportMT940Transactions'),
+    headers: buildHeaders(token, tepHeaders, 'ExportTEPTransactions'),
     body: JSON.stringify(req),
     signal,
   });
@@ -73,7 +76,10 @@ export async function getDownloadCenterFiles(
   return json?.Files ?? [];
 }
 
-// --- DownloadMT940Transactions ----------------------------------------------
+// --- DownloadTEPTransactions ----------------------------------------------
+// Canonical name since 2026-08-20 (DownloadMT940Transactions is the
+// deprecated alias). Route + ActivityTag change together (paired
+// server-side validation).
 
 /**
  * The download endpoint returns EITHER the CSV file as a binary stream
@@ -106,15 +112,15 @@ function parseFilename(res: Response, fallback: string): string {
   return fallback;
 }
 
-export async function downloadMT940Transactions(
+export async function downloadTepTransactions(
   fileId: string,
   token: string,
   tepHeaders: TepHeaders,
   signal?: AbortSignal,
 ): Promise<DownloadResult> {
-  const res = await fetch(`${BASE}/DownloadMT940Transactions`, {
+  const res = await fetch(`${BASE}/DownloadTEPTransactions`, {
     method: 'POST',
-    headers: buildHeaders(token, tepHeaders, 'DownloadMT940Transactions'),
+    headers: buildHeaders(token, tepHeaders, 'DownloadTEPTransactions'),
     body: JSON.stringify({ FileId: fileId }),
     signal,
   });

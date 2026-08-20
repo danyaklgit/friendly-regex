@@ -24,9 +24,9 @@ describe('LEDGER_SOURCE_FIELDS', () => {
     }
   });
 
-  it('excludes numerics, booleans, dates, and the stale pair', () => {
+  it('excludes numerics, booleans, dates, the stale pair, and V2.1-dropped AccountCode', () => {
     const set = new Set<string>(LEDGER_SOURCE_FIELDS);
-    for (const field of ['AmountFcy', 'FXRate', 'TxnAmountFC', 'TxnAmountLC', 'VATAmount', 'VATBaseAmount', 'FXGainLoss', 'NumLines', 'IsReversal', 'IsReversed', 'TransactionIsReversal', 'TransactionIsReversed', 'AccountIsBankAccount', 'OffsetAccountIsBankAccount', 'PostingDate', 'IsStale', 'StaleSinceUtc', 'Side', 'Comment', 'Hash']) {
+    for (const field of ['AmountFcy', 'FXRate', 'TxnAmountFC', 'TxnAmountLC', 'VATAmount', 'VATBaseAmount', 'FXGainLoss', 'NumLines', 'IsReversal', 'IsReversed', 'TransactionIsReversal', 'TransactionIsReversed', 'AccountIsBankAccount', 'OffsetAccountIsBankAccount', 'PostingDate', 'IsStale', 'StaleSinceUtc', 'Side', 'Comment', 'Hash', 'AccountCode']) {
       expect(set.has(field), field).toBe(false);
     }
   });

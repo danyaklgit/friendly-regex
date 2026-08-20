@@ -29,7 +29,7 @@ import { OnboardingHub } from './components/onboarding/OnboardingHub';
 import { Toast } from './components/shared/Toast';
 import { tagSpecLibraryRelease, tagSpecLibraryCheckIn } from './api/checkout';
 import { tagSpecLibrarySave } from './api/tagSpecSave';
-import { parseShareParams, storeShareParams, consumeStoredShareParams, clearShareParamsFromUrl } from './utils/shareLink';
+import { parseShareParams, storeShareParams, consumeStoredShareParams, clearShareParamsFromUrl, pruneRetiredLedgerFilters } from './utils/shareLink';
 import type { ShareParams } from './utils/shareLink';
 import type { CheckoutState } from './types';
 import type { TepHeaders, FilterProperty } from './api/transactions';
@@ -144,7 +144,9 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
       });
       setActiveTab(1);
       setShareData(stored);           // drives banner
-      setShareFilters(stored.filters); // persists for TransactionsTab
+      // Ledger V2.1 retired several filter tags — drop stale selections a
+      // persisted link may carry before they reach the Transactions tab.
+      setShareFilters(pruneRetiredLedgerFilters(stored.filters, stored.dataSetType));
       setShareToggles(stored.toggles); // persists for TransactionsTab
       clearShareParamsFromUrl();
     }

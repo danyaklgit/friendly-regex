@@ -31,8 +31,9 @@ export const TXN_TYPE_OPTIONS = [
 export const LEDGER_SOURCE_FIELDS = [
   // Identity / grouping
   'TransactionId', 'EntryId', 'ClientCode', 'ErpCode', 'TxnTypeName',
-  // Account
-  'AccountCode', 'AccountId', 'AccountName', 'AccountNumber', 'AccountType',
+  // Account (AccountCode was dropped by the V2.1 remap — permanently NULL,
+  // it duplicated AccountNumber)
+  'AccountId', 'AccountName', 'AccountNumber', 'AccountType',
   'AccountBankCode', 'AccountIBAN', 'AccountCurrency',
   // Offset account
   'OffsetAccountCode', 'OffsetAccountId', 'OffsetAccountName',
