@@ -41,6 +41,8 @@ export interface Contribution {
   contributionDate: string;
 }
 
+import { settingsStore } from '../settingsStore';
+
 function keyFor(userId: string): string {
   return `tep:userContributions:${userId}`;
 }
@@ -48,7 +50,7 @@ function keyFor(userId: string): string {
 export function loadContributions(userId: string | null): Contribution[] {
   if (!userId) return [];
   try {
-    const raw = localStorage.getItem(keyFor(userId));
+    const raw = settingsStore.getItem(keyFor(userId));
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? (parsed as Contribution[]) : [];
@@ -60,7 +62,7 @@ export function loadContributions(userId: string | null): Contribution[] {
 export function saveContributions(userId: string | null, contributions: Contribution[]): void {
   if (!userId) return;
   try {
-    localStorage.setItem(keyFor(userId), JSON.stringify(contributions));
+    settingsStore.setItem(keyFor(userId), JSON.stringify(contributions));
   } catch {
     console.warn('[contributionStorage] localStorage write failed');
   }

@@ -172,11 +172,16 @@ export const settingsStore = {
  * are not mirrored — their local fallback keeps its per-user suffix and is
  * only written on the next local edit.
  */
+/** Profile keys that local keys MAP onto (suffix dropped) — their local
+ *  fallback lives under a different name, so hydration must not mirror them. */
+const MAPPED_PROFILE_KEYS = new Set(['tep:userContributions']);
+
 export function hydrateSettingsStore(settings: ProfileSetting[]): void {
   state.values = new Map(settings.map((s) => [s.Key, s.Value]));
   state.hydrated = true;
   for (const s of settings) {
-    if (s.Key === profileKeyFor(s.Key) && isMigratableKey(s.Key)) {
+    if (MAPPED_PROFILE_KEYS.has(s.Key)) continue;
+    if (isMigratableKey(s.Key)) {
       try { localStorage.setItem(s.Key, s.Value); } catch { /* ignore */ }
     }
   }

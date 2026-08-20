@@ -20,6 +20,7 @@ import {
   clearDownloadCenterFiles,
 } from '../api/downloadCenter';
 import { downloadBlob } from '../utils/downloadBlob';
+import { settingsStore } from '../utils/settingsStore';
 
 const POLL_INTERVAL_MS = 3_000;
 const SEEN_READY_LS_KEY = 'tep.downloadCenter.seenReadyIds';
@@ -61,7 +62,7 @@ const DownloadCenterContext = createContext<DownloadCenterApi | null>(null);
 
 function readSeenReadyIds(): Set<string> {
   try {
-    const raw = localStorage.getItem(SEEN_READY_LS_KEY);
+    const raw = settingsStore.getItem(SEEN_READY_LS_KEY);
     if (!raw) return new Set();
     const arr = JSON.parse(raw);
     if (Array.isArray(arr)) return new Set(arr.filter((x): x is string => typeof x === 'string'));
@@ -73,7 +74,7 @@ function readSeenReadyIds(): Set<string> {
 
 function persistSeenReadyIds(ids: Set<string>): void {
   try {
-    localStorage.setItem(SEEN_READY_LS_KEY, JSON.stringify([...ids]));
+    settingsStore.setItem(SEEN_READY_LS_KEY, JSON.stringify([...ids]));
   } catch {
     // Quota exceeded / private mode — fail open; badge will just over-count.
   }

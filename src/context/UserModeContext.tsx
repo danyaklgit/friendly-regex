@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, useMemo, type ReactNode } from 'react';
 import { useAuth } from './AuthContext';
+import { settingsStore } from '../utils/settingsStore';
 import {
   loadContributions,
   saveContributions,
@@ -29,7 +30,7 @@ const PRO_MODE_KEY = 'tep:userProMode';
 
 function loadProMode(): boolean {
   try {
-    return localStorage.getItem(PRO_MODE_KEY) === '1';
+    return settingsStore.getItem(PRO_MODE_KEY) === '1';
   } catch {
     return false;
   }
@@ -81,7 +82,7 @@ export function UserModeProvider({ children }: { children: ReactNode }) {
   const setProMode = useCallback((next: boolean) => {
     setProModeState(next);
     try {
-      localStorage.setItem(PRO_MODE_KEY, next ? '1' : '0');
+      settingsStore.setItem(PRO_MODE_KEY, next ? '1' : '0');
     } catch {
       console.warn('[UserMode] failed to persist PRO mode');
     }
