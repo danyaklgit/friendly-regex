@@ -29,6 +29,20 @@ export const DEFAULT_DATA_SET_TYPE: DataSetType = 'MT940';
 /** Backend column name the grid / export / GetFilters use to scope by type. */
 export const DATA_SET_TYPE_COLUMN = 'DataSetType';
 
+/**
+ * Row-level DataSetTypes that belong to a workspace type's FAMILY. The prod
+ * backend serves TransactionsList rows (the end-of-day SNB list) under the
+ * plain `DataSetType IN MT940` scope filter — the request asks for MT940 and
+ * rows come back labeled TransactionsList. Any row-vs-workspace comparison
+ * must treat those as the same scope, or the row is misread as belonging to
+ * another workspace (the stale-buffer guard held the table in its skeleton
+ * forever on prod because of this). Intraday types and Ledger stay exact.
+ */
+export function isSameDataSetFamily(rowType: string, workspaceType: string): boolean {
+  if (rowType === workspaceType) return true;
+  return workspaceType === 'MT940' && rowType === 'TransactionsList';
+}
+
 /** Human labels for badges, backlog "Type" column, and the checkout banner. */
 export const DATA_SET_TYPE_LABELS: Record<DataSetType, string> = {
   MT940: 'MT940',

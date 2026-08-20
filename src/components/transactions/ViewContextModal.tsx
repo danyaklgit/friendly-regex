@@ -16,9 +16,10 @@ import { DATA_SET_TYPE_LABELS, DEFAULT_DATA_SET_TYPE } from '../../constants/dat
 import { isLedger, LEDGER_DATA_SET_TYPE } from '../../utils/libraryIdentity';
 
 // Order the per-DataSetType context tables: intraday statements (MT942 /
-// INTERIM_MT940) always come BEFORE the end-of-day MT940 table; Ledger and any
-// unrecognized type sort last.
-const CONTEXT_DATASET_ORDER = ['MT942', 'INTERIM_MT940', 'MT940', 'Ledger'];
+// INTERIM_MT940) always come BEFORE the end-of-day tables (MT940 and its
+// TransactionsList sibling — prod labels SNB end-of-day rows TransactionsList
+// under the MT940 scope); Ledger and any unrecognized type sort last.
+const CONTEXT_DATASET_ORDER = ['MT942', 'INTERIM_MT940', 'MT940', 'TransactionsList', 'Ledger'];
 function dataSetRank(t: string): number {
   const i = CONTEXT_DATASET_ORDER.indexOf(t);
   return i === -1 ? CONTEXT_DATASET_ORDER.length : i;
