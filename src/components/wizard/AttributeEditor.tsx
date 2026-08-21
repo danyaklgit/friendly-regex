@@ -1134,8 +1134,37 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
             )}
 
             <div>
+              {/* Custom label row so the "+ Extract Full Field" shortcut can
+                  sit on the label line (like the transformation sections'
+                  action links). One click sets the whole-field extraction
+                  without hunting for it in the method dropdown. */}
+              <div className="flex items-center justify-between mb-1 pl-1">
+                <label className="text-xs font-medium text-body">
+                  Extraction Method
+                  {!readOnly && <span className="text-red-500 dark:text-rose-300 ml-0.5">*</span>}
+                </label>
+                {!readOnly && attribute.extractionOperation !== 'extract_full_field' && (
+                  <button
+                    type="button"
+                    onClick={() => onUpdate({
+                      extractionOperation: 'extract_full_field',
+                      numChars: undefined,
+                      toStr: undefined,
+                      occurrence: undefined,
+                      startingPosition: undefined,
+                      fromPosition: undefined,
+                      prefixOccurrence: undefined,
+                      suffixOccurrence: undefined,
+                      suffixOrEndOfInput: undefined,
+                      tillEndOfInput: undefined,
+                    })}
+                    className="text-[11px] text-primary hover:text-primary-dark hover:underline"
+                  >
+                    + Extract Full Field
+                  </button>
+                )}
+              </div>
               <SearchableSelect
-                label="Extraction Method"
                 placeholder="Select extraction method"
                 value={attribute.extractionOperation}
                 onChange={(val) => onUpdate({
@@ -1155,7 +1184,6 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
                   ...extractionMethods.map((m) => ({ value: m.key, label: m.label, sublabel: m.description })),
                 ]}
                 disabled={readOnly}
-                required={!readOnly}
                 error={!readOnly && (!attribute.extractionOperation || attribute.extractionOperation.trim().length === 0)}
               />
             </div>
