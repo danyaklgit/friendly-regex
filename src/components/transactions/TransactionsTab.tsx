@@ -2577,14 +2577,11 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     return filteredData.slice(start, start + BATCH_SIZE);
   }, [filteredData, visibleCount, isLiveMode, incrementalPagination, currentPage, builderOpen, engine.targetVisible]);
 
-  // Block the builder's primary action (Create or Save changes) when the
-  // preview shows no transactions: a rule that matches nothing is almost always
-  // a mistake (wrong value / wrong type), whether it is being created OR an
-  // existing rule is being edited into a no-match state. In live mode the
-  // builder's conditions are applied server-side, so an empty result means the
-  // rule matches no transaction. Mirrors the exact condition that renders the
-  // "No transactions found" empty state below.
-  const builderHasNoVisibleTx = builderOpen && !loading && visibleData.length === 0;
+  // NOTE: an empty live preview (no currently-loaded transaction matches the
+  // rule) is NOT a save blocker. Operators author rules ahead of the data —
+  // transactions ingested later get auto-tagged — so "matches nothing right
+  // now" is expected. (The Create/Save gate lives on canCreateFromBuilder,
+  // which covers the real blockers: missing type, duplicates, unsaved rows.)
 
   // Flatten temp definition's rule expressions for highlighting
   const highlightExpressions: RuleExpression[] | undefined = useMemo(() => {
@@ -3524,7 +3521,12 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                 )
               )}
               {!isReadOnly && (
-                (!canCreateFromBuilder || builderHasNoVisibleTx) ? (
+                // Note: we intentionally do NOT block saving when zero currently
+                // loaded transactions match the rule. Operators author rules
+                // ahead of the data — future transactions ingested later get
+                // auto-tagged by this rule — so an empty live preview is a
+                // valid, expected state, not an error.
+                !canCreateFromBuilder ? (
                   <Tooltip
                     content={
                       !builderHasTransactionType
@@ -3535,9 +3537,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                             ? 'Finish filling (or remove) the unsaved attribute before saving.'
                             : builderHasUnsavedRow
                               ? 'Save or discard the open condition/attribute editor before creating the rule.'
-                              : !canCreateFromBuilder
-                                ? 'Fix or remove the duplicate rule sets, conditions, or attributes flagged above before saving.'
-                                : 'No transactions match this rule. Adjust the conditions so at least one transaction matches before saving.'
+                              : 'Fix or remove the duplicate rule sets, conditions, or attributes flagged above before saving.'
                     }
                     placement="bottom"
                   >
