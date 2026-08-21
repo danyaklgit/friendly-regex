@@ -37,35 +37,42 @@ describe('columnPrefs', () => {
     expect(mt940.widths).toEqual({});
   });
 
-  describe('Ledger model V2 key migration', () => {
-    it('rewrites old statement-field keys to the dedicated Ledger names on load', () => {
-      saveHiddenColumns('Ledger', new Set(['data:IBAN', 'data:PartyId']));
-      saveColumnOrder('Ledger', ['data:StatementId', 'data:StatementDate', 'data:PartyName', 'data:Comment']);
-      saveColumnWidths('Ledger', { 'data:AdditionalInformation': 320, 'data:TransactionDetails': 400, 'data:Description1': 150, 'data:BankName': 120 });
+  describe('Ledger v1→v2 migration (column-prefs poison-loop fix)', () => {
+    const v1 = (part: string) => `tep:cols:v1:Ledger:${part}`;
+
+    it('DROPS statement-era aliases from a stored v1 hidden set (never renames them onto real columns)', () => {
+      // Old buggy saves folded these never-show aliases into the hidden set.
+      // Renaming them (the previous behavior) hid the real V2 columns — the
+      // poison loop. They must be dropped; the real applied column survives.
+      localStorage.setItem(v1('hidden'), JSON.stringify(['data:StatementId', 'data:IBAN', 'data:AccountIBAN']));
 
       const ledger = loadColumnPrefs('Ledger');
-      expect([...ledger.hidden!].sort()).toEqual(['data:AccountIBAN', 'data:CounterPartyCode']);
-      expect(ledger.order).toEqual(['data:TransactionId', 'data:PostingDate', 'data:CounterPartyName', 'data:Comment']);
-      expect(ledger.widths).toEqual({
-        'data:TransactionRef': 320,
-        'data:Narrative': 400,
-        'data:SourceRef': 150,
-        'data:AccountBankCode': 120,
-      });
+      expect([...ledger.hidden!]).toEqual(['data:AccountIBAN']);
+      // v1 consumed, v2 written clean.
+      expect(localStorage.getItem(v1('hidden'))).toBeNull();
+      expect(JSON.parse(localStorage.getItem(columnPrefsKey('Ledger', 'hidden'))!)).toEqual(['data:AccountIBAN']);
     });
 
-    it('drops RunningBalance + AccountCode (no longer populated on Ledger) and dedupes old/new collisions', () => {
-      saveColumnOrder('Ledger', ['data:StatementId', 'data:TransactionId', 'data:RunningBalance', 'data:AccountCode', 'data:Comment']);
-      saveHiddenColumns('Ledger', new Set(['data:RunningBalance', 'data:AccountCode']));
+    it('drops aliases + dropped-outright keys from v1 order/widths, dedup-preserving', () => {
+      localStorage.setItem(v1('order'), JSON.stringify(['data:StatementId', 'data:TransactionId', 'data:RunningBalance', 'data:AccountCode', 'data:Comment']));
+      localStorage.setItem(v1('widths'), JSON.stringify({ 'data:IBAN': 100, 'data:AccountIBAN': 200 }));
 
       const ledger = loadColumnPrefs('Ledger');
       expect(ledger.order).toEqual(['data:TransactionId', 'data:Comment']);
-      expect([...ledger.hidden!]).toEqual([]);
+      expect(ledger.widths).toEqual({ 'data:AccountIBAN': 200 });
     });
 
-    it('never touches statement-type layouts (IBAN stays IBAN on MT940)', () => {
-      saveHiddenColumns('MT940', new Set(['data:IBAN']));
-      saveColumnOrder('MT940', ['data:StatementId', 'data:RunningBalance', 'data:Comment']);
+    it('does NOT transform a v2 value on load — applied fields survive repeated reloads', () => {
+      // A clean v2 hidden set of real columns must never be rewritten. This is
+      // the actual cure: the alias transform runs only on v1 reads, never here.
+      localStorage.setItem(columnPrefsKey('Ledger', 'hidden'), JSON.stringify(['data:SourceRef']));
+      expect([...loadColumnPrefs('Ledger').hidden!]).toEqual(['data:SourceRef']);
+      expect([...loadColumnPrefs('Ledger').hidden!]).toEqual(['data:SourceRef']);
+    });
+
+    it('never touches statement-type v1 layouts (MT940 keys pass through verbatim)', () => {
+      localStorage.setItem('tep:cols:v1:MT940:hidden', JSON.stringify(['data:IBAN']));
+      localStorage.setItem('tep:cols:v1:MT940:order', JSON.stringify(['data:StatementId', 'data:RunningBalance', 'data:Comment']));
 
       const mt940 = loadColumnPrefs('MT940');
       expect([...mt940.hidden!]).toEqual(['data:IBAN']);
