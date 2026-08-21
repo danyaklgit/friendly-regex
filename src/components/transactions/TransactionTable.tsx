@@ -74,7 +74,7 @@ interface TransactionTableProps {
    *  instead of the stale (pre-refill) rows. */
   forceSkeleton?: boolean;
   accentHue?: number;
-  onRowContextMenu?: (row: TransactionRow, x: number, y: number) => void;
+  onRowContextMenu?: (row: TransactionRow, x: number, y: number, field?: string) => void;
   /** Fired on double-click of a 'data:*' cell. Caller decides which fields
    *  to react to (e.g. the Rule Builder uses this to copy a row's
    *  TransactionTypeCode value into its dropdown). When omitted, cells
@@ -1335,7 +1335,14 @@ const TableRow = memo(function TableRow({
       data-index={index}
       ref={measureRef}
       className={`group transition-colors ${isBankRow ? 'font-bold' : ''} ${isDeadEnd ? 'bg-red-100/60 dark:bg-red-950/30 text-red-400 dark:text-red-500/70' : `${band ? 'bg-row-band' : ''} hover:bg-surface-hover`} ${isSelected ? 'bg-primary/10!' : ''} ${isStale ? 'opacity-55' : ''}`}
-      onContextMenu={onRowContextMenu ? (e) => { e.preventDefault(); onRowContextMenu(item.row, e.clientX, e.clientY); } : undefined}
+      onContextMenu={onRowContextMenu ? (e) => {
+        e.preventDefault();
+        // Which data column was right-clicked (from the cell's data-field) so
+        // the menu can offer "Add as matching rule" for that field/value.
+        const td = (e.target as HTMLElement).closest('td');
+        const field = td?.getAttribute('data-field') ?? undefined;
+        onRowContextMenu(item.row, e.clientX, e.clientY, field);
+      } : undefined}
     >
       {visibleColumns.map((col, colIdx) => {
         const isStickyCol = stickyLefts.has(colIdx) || stickyRights.has(colIdx);
@@ -1354,6 +1361,7 @@ const TableRow = memo(function TableRow({
               return (
                 <td
                   key={col.key}
+                  data-field={col.field}
                   className={`px-3 ${cellPy} text-xs ${stickyBg}`}
                   style={getCellStyle(colIdx)}
                 >
@@ -1377,6 +1385,7 @@ const TableRow = memo(function TableRow({
               return (
                 <td
                   key={col.key}
+                  data-field={col.field}
                   className={`px-3 ${cellPy} text-xs text-body-secondary max-w-[28rem] ${stickyBg} ${isHighlighted ? 'ring-1 ring-primary/30 ring-inset bg-primary/5 dark:bg-primary/10' : ''}`}
                   style={getCellStyle(colIdx)}
                 >
@@ -1425,6 +1434,7 @@ const TableRow = memo(function TableRow({
               return (
                 <td
                   key={col.key}
+                  data-field={col.field}
                   // Char-view cells must wrap (they carry per-character boxes),
                   // so they never take the compact `whitespace-nowrap` branch;
                   // a max-width bounds them so the boxes wrap instead of forcing

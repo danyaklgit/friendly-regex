@@ -321,6 +321,39 @@ export function useWizardForm(
     }));
   }, []);
 
+  // Append a fully-formed condition (field + operation + value) to the LAST
+  // rule set, creating a first rule set if none exist. Powers the transactions
+  // table's right-click "Add as matching rule =/contains" — the cell's field
+  // and value become an AND condition in the rule being authored.
+  const appendCondition = useCallback(
+    (sourceField: string, operation: ConditionFormValue['operation'], value: string) => {
+      setFormState((prev) => {
+        const condition: ConditionFormValue = {
+          id: crypto.randomUUID(),
+          sourceField,
+          operation,
+          value,
+        };
+        if (prev.ruleGroups.length === 0) {
+          return { ...prev, ruleGroups: [{ id: crypto.randomUUID(), conditions: [condition] }] };
+        }
+        const lastIdx = prev.ruleGroups.length - 1;
+        return {
+          ...prev,
+          ruleGroups: prev.ruleGroups.map((g, i) => {
+            if (i !== lastIdx) return g;
+            // Drop unfilled placeholder rows (a freshly "Add Rule Set" group
+            // carries one empty condition) so the appended condition replaces
+            // it instead of leaving a dangling empty row.
+            const kept = g.conditions.filter((c) => c.sourceField.trim().length > 0);
+            return { ...g, conditions: [...kept, condition] };
+          }),
+        };
+      });
+    },
+    [],
+  );
+
   const removeCondition = useCallback((groupId: string, conditionId: string) => {
     setFormState((prev) => ({
       ...prev,
@@ -637,6 +670,7 @@ export function useWizardForm(
     removeRuleGroup,
     cloneRuleGroup,
     addCondition,
+    appendCondition,
     removeCondition,
     updateCondition,
     excludeTag,
