@@ -359,6 +359,18 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
     return true;
   });
 
+  // Persist only real, offerable columns: drop never-show keys before emitting
+  // the hidden set. They're re-folded at render (TransactionsTab's
+  // effectiveHiddenColumns), so saving them is redundant AND poisons the stored
+  // set — a stray statement-era alias in a Ledger hidden-set gets migrated onto
+  // a real column and hides the operator's applied field
+  // (BUG_Ledger_Column_Prefs_Poison_Loop). Every change handler routes through
+  // this so no path can write a never-show key.
+  const emitHidden = useCallback(
+    (next: Set<string>) => onChange(new Set([...next].filter((k) => !columnSpec.neverShow.has(k)))),
+    [onChange, columnSpec],
+  );
+
   // Apply column order (custom drag order, or the per-type spec default)
   const ordered = useMemo(() => {
     const order = columnOrder && columnOrder.length > 0 ? columnOrder : columnSpec.defaultOrder;
@@ -429,9 +441,9 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
       onReset();
       return;
     }
-    onChange(new Set([...nonToggleableHidden, ...hidden]));
+    emitHidden(new Set([...nonToggleableHidden, ...hidden]));
     onColumnOrderChange?.(order);
-  }, [hiddenColumns, toggleable, managerItems, columnSpec, defaultHiddenColumns, onReset, onChange, onColumnOrderChange]);
+  }, [hiddenColumns, toggleable, managerItems, columnSpec, defaultHiddenColumns, onReset, emitHidden, onColumnOrderChange]);
 
   return (
     <div ref={ref} className="relative">
@@ -482,10 +494,10 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
                       if (visibleCount === totalCount) {
                         // Hide all toggleable
                         const next = new Set([...nonToggleableHidden, ...toggleable.map((c) => c.key)]);
-                        onChange(next);
+                        emitHidden(next);
                       } else {
                         // Show all toggleable (keep non-toggleable hidden)
-                        onChange(nonToggleableHidden);
+                        emitHidden(nonToggleableHidden);
                       }
                     }}
                     className="rounded border-border-strong"
@@ -554,7 +566,7 @@ export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, on
                         const next = new Set(hiddenColumns);
                         if (isHidden) next.delete(col.key);
                         else next.add(col.key);
-                        onChange(next);
+                        emitHidden(next);
                       }}
                       className="rounded border-border-strong"
                     />
