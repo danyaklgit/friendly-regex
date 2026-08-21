@@ -37,6 +37,16 @@ export interface GetTransactionsRequest {
   FilteringProperties: FilterProperty[];
   SortingProperties: SortProperty[];
   Pagination: PaginationParams;
+  /**
+   * "Whole documents" widening. When set (Ledger uses `'TransactionId'`), the
+   * request goes to `GetTEPTransactionsAnchorBased` instead of
+   * `GetTEPTransactions`: any row matching the filters pulls in every row
+   * sharing its Anchor value (all legs of the journal entry), so the operator
+   * never sees half a document. Response shape is identical; the widening
+   * happens server-side before count/skip/limit, so pages stay `PageSize` rows
+   * and `TransactionsCount` counts the widened set.
+   */
+  Anchor?: string;
 }
 
 // --- TEP header config ---
@@ -271,7 +281,12 @@ export async function getTransactions(
   tepHeaders: TepHeaders,
   signal?: AbortSignal,
 ): Promise<{ Transactions: TransactionRow[]; TransactionsCount?: number }> {
-  const res = await fetch(`${BASE}/GetTEPTransactions`, {
+  // "Whole documents" reads use a dedicated endpoint + ActivityTag; the route
+  // and ActivityTag are validated as a pair server-side, so they move together.
+  // Everything else about the request/response is identical (see GetTransactionsRequest.Anchor).
+  const anchored = !!request.Anchor;
+  const route = anchored ? 'GetTEPTransactionsAnchorBased' : 'GetTEPTransactions';
+  const res = await fetch(`${BASE}/${route}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -287,7 +302,7 @@ export async function getTransactions(
       // wire payload by ~10x on the heavy Show-all path.
       'Accept-Encoding': 'gzip',
       Authorization: `Bearer ${authToken}`,
-      ActivityTag: 'GetTEPTransactions',
+      ActivityTag: route,
       LanguageCode: tepHeaders.languageCode,
       TTPUserId: tepHeaders.userId,
       TTPTenantCode: tepHeaders.tenantCode,

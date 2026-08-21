@@ -78,6 +78,12 @@ export interface TransactionDataContextValue {
   fetchUserFilterDefinitions: (banks?: string[], dataSetType?: string) => Promise<void>;
   decimalMaxValues: Map<string, number>;
   fetchDecimalMaxValues: (filterDefs: FilterDefinition[]) => Promise<void>;
+  /** Set the "whole documents" anchor column applied to every grid fetch (or
+   *  null to disable). When set (Ledger uses `'TransactionId'`), reads route to
+   *  `GetTEPTransactionsAnchorBased` so a matched leg pulls in its whole
+   *  journal entry. Read from a ref at request time, so callers set it once and
+   *  the next fetch picks it up. */
+  setAnchorColumn: (col: string | null) => void;
 }
 
 export const TransactionDataContext = createContext<TransactionDataContextValue | null>(null);
@@ -100,6 +106,15 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
   const currentPageRef = useRef(0);
   const loadedCountRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
+  // "Whole documents" anchor applied to every grid fetch (null = off). Read at
+  // request time so the caller (TransactionsTab's Ledger toggle) sets it once
+  // and the next fetch picks it up without threading it through every fetch
+  // signature. See setAnchorColumn / GetTransactionsRequest.Anchor.
+  const anchorColumnRef = useRef<string | null>(null);
+  const setAnchorColumn = useCallback((col: string | null) => { anchorColumnRef.current = col || null; }, []);
+  // Spread into each getTransactions request body — omits the key entirely
+  // when off, so non-Ledger reads are byte-identical to before.
+  const anchorPayload = (): { Anchor?: string } => (anchorColumnRef.current ? { Anchor: anchorColumnRef.current } : {});
   // Mirror filterDefinitions into a ref so `fetchPage` / `fetchCount` can read
   // them without listing the array in their dependency arrays. Listing them
   // would churn the callback identity every time GetFilters returns, which
@@ -373,6 +388,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
           FilteringProperties: [...translateFilters(filters, filterDefinitionsRef.current), ...(extraFilters ?? [])],
           SortingProperties: sortingProperties ?? DEFAULT_SORTING,
           Pagination: { PageIndex: pageIndex, PageSize: effectivePageSize },
+          ...anchorPayload(),
         },
         token,
         tepHeaders,
@@ -485,6 +501,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
               FilteringProperties: filteringProperties,
               SortingProperties: sortingProperties ?? DEFAULT_SORTING,
               Pagination: { PageIndex: pageIndex, PageSize: PAGE_SIZE },
+              ...anchorPayload(),
             },
             token,
             tepHeaders,
@@ -595,6 +612,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
           FilteringProperties: filteringProperties,
           SortingProperties: sortingProperties ?? DEFAULT_SORTING,
           Pagination: { PageIndex: pageIndex, PageSize: pageSize },
+          ...anchorPayload(),
         },
         token,
         tepHeaders,
@@ -701,18 +719,22 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
             ],
             SortingProperties: sorting,
             Pagination: { PageIndex: pageIndex, PageSize: pageSize },
+            ...anchorPayload(),
           },
           token,
           tepHeaders,
           controller.signal,
         ),
         // No-exclusion scope total (the "main load" total for this filter
-        // scope). PageSize 1 — we only need its TransactionsCount.
+        // scope). PageSize 1 — we only need its TransactionsCount. Same anchor
+        // as the visible query so both counts widen together and "N hidden"
+        // (scope − visible) stays consistent.
         getTransactions(
           {
             FilteringProperties: baseFiltering,
             SortingProperties: sorting,
             Pagination: { PageIndex: 0, PageSize: 1 },
+            ...anchorPayload(),
           },
           token,
           tepHeaders,
@@ -774,6 +796,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
           FilteringProperties: [...translateFilters(filters, filterDefinitionsRef.current), ...(extraFilters ?? [])],
           SortingProperties: sortingProperties ?? DEFAULT_SORTING,
           Pagination: { PageIndex: 0, PageSize: 1 },
+          ...anchorPayload(),
         },
         token,
         tepHeaders,
@@ -817,6 +840,7 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
       filterDefinitions, filterDefinitionsLoading, fetchFilterDefinitions,
       userFilterDefinitions, userFilterDefinitionsLoading, fetchUserFilterDefinitions,
       decimalMaxValues, fetchDecimalMaxValues,
+      setAnchorColumn,
     }}>
       {children}
     </TransactionDataContext.Provider>

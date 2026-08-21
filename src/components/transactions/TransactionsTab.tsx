@@ -340,7 +340,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     setComments, flagDeadEndWithComment,
     isLiveMode, loading, totalTransactionsCount, replaceFromBeginning, replaceFromBeginningExcluding, fetchCount,
     filterDefinitions, filterDefinitionsLoading, fetchFilterDefinitions,
-    decimalMaxValues,
+    decimalMaxValues, setAnchorColumn,
   } = useTransactionData();
   // Fetch filter definitions when the Transactions tab mounts, scoped to the
   // checked-out DataSetType so the filter catalog matches the workspace.
@@ -446,6 +446,13 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const [pageInputValue, setPageInputValue] = useState('1');
   const [relaxedMode, setRelaxedMode] = useState(() => {
     try { const v = settingsStore.getItem('tep:relaxedMode'); return v === null ? true : v === 'true'; } catch { return true; }
+  });
+  // Ledger "Show full transactions": widen every matched leg to its whole
+  // journal entry (the GetTEPTransactionsAnchorBased read). Default ON — it
+  // matches how operators read a journal. Persisted per device; only affects
+  // the Ledger workspace.
+  const [showFullTransactions, setShowFullTransactions] = useState(() => {
+    try { const v = settingsStore.getItem('tep:ledgerFullDocs'); return v === null ? true : v === 'true'; } catch { return true; }
   });
   // "Character view": render RTL narrative cells as a logical-order character
   // breakdown so splitting positions are unambiguous. Off by default; the set
@@ -776,6 +783,13 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   useEffect(() => { try { settingsStore.setItem('tep:showAttributes', String(showAttributes)); } catch { /* ignore */ } }, [showAttributes]);
   useEffect(() => { try { settingsStore.setItem('tep:incrementalPagination', String(incrementalPagination)); } catch { /* ignore */ } }, [incrementalPagination]);
   useEffect(() => { try { settingsStore.setItem('tep:relaxedMode', String(relaxedMode)); } catch { /* ignore */ } }, [relaxedMode]);
+  useEffect(() => { try { settingsStore.setItem('tep:ledgerFullDocs', String(showFullTransactions)); } catch { /* ignore */ } }, [showFullTransactions]);
+  // The "whole documents" anchor is Ledger-only. Push it into the data context
+  // (read from a ref at fetch time) so every grid read routes to the anchor
+  // endpoint while ON. Kept current here; the refetch effect below lists
+  // `ledgerAnchor` so toggling re-fires a fetch.
+  const ledgerAnchor = isLedger(columnPrefsDst) && showFullTransactions ? 'TransactionId' : null;
+  useEffect(() => { setAnchorColumn(ledgerAnchor); }, [ledgerAnchor, setAnchorColumn]);
   useEffect(() => { try { settingsStore.setItem('tep:charView', String(charViewEnabled)); } catch { /* ignore */ } }, [charViewEnabled]);
   useEffect(() => { try { settingsStore.setItem('tep:charViewCols', JSON.stringify([...charViewCols])); } catch { /* ignore */ } }, [charViewCols]);
   // Effective char-view columns passed to the table: empty (stable identity)
@@ -907,14 +921,24 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // sort — see TransactionTable's ledgerBands). Ledger's base scope travels
   // via activeExtraFilters, so an untouched view has an empty `filters` map.
   const journalBanding = useMemo(
-    () =>
-      isLedger(columnPrefsDst) &&
-      Object.values(filters).every((v) => v.size === 0) &&
-      !showOnlyUntagged &&
-      !showOnlyMultiTagged &&
-      !showOnlyDeadEnd &&
-      !tagClickState,
-    [columnPrefsDst, filters, showOnlyUntagged, showOnlyMultiTagged, showOnlyDeadEnd, tagClickState],
+    () => {
+      if (!isLedger(columnPrefsDst)) return false;
+      // "Show full transactions" ON: every document in the grid is complete by
+      // construction (the anchor read pulls all legs), so the bands are always
+      // truthful even with filters active. (The table still requires the
+      // default sort — under a click-sort legs scatter and ledgerBands bails.)
+      if (showFullTransactions) return true;
+      // OFF: bands are pristine-view only — a filter could hide legs and make
+      // groups misleading.
+      return (
+        Object.values(filters).every((v) => v.size === 0) &&
+        !showOnlyUntagged &&
+        !showOnlyMultiTagged &&
+        !showOnlyDeadEnd &&
+        !tagClickState
+      );
+    },
+    [columnPrefsDst, showFullTransactions, filters, showOnlyUntagged, showOnlyMultiTagged, showOnlyDeadEnd, tagClickState],
   );
   const prevValidityRef = useRef<{ start: string | null; end: string | null }>({
     start: validityStartDate,
@@ -2218,7 +2242,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     if (activeCheckout?.pendingDefinitionId) return;
     const timer = setTimeout(() => { void engineRefetch(); }, 50);
     return () => clearTimeout(timer);
-  }, [isLiveMode, filterDefinitions.length, outgoingFilters, activeExtraFilters, activeCheckout?.pendingDefinitionId, effectiveSorting, engineRefetch]);
+  }, [isLiveMode, filterDefinitions.length, outgoingFilters, activeExtraFilters, activeCheckout?.pendingDefinitionId, effectiveSorting, ledgerAnchor, engineRefetch]);
 
   // Classic mode: a genuine scope change restarts at page 0 (the refetch
   // above replaces the buffer from the beginning).
@@ -2988,6 +3012,11 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
               if (isLiveMode) void engineRefetch();
             }} />
             <span data-tour="show-attributes-toggle"><Toggle label="Show attributes" checked={showAttributes} onChange={setShowAttributes} /></span>
+            {isLedger(columnPrefsDst) && (
+              <Tooltip content="Show every leg of a journal entry when any leg matches your filters, so you always see whole documents." placement="bottom">
+                <span><Toggle label="Show full transactions" checked={showFullTransactions} onChange={setShowFullTransactions} /></span>
+              </Tooltip>
+            )}
           </div>
 
           <div className="hidden md:flex items-center gap-5 ml-4 text-[11px] text-muted">

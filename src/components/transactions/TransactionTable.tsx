@@ -1310,12 +1310,19 @@ const TableRow = memo(function TableRow({
   // after ingestion) stays visible for audit but is greyed. Only Ledger rows
   // carry IsStale, so this is inert elsewhere. Treat null as not-stale.
   const isStale = item.row['IsStale'] === true;
+  // Ledger: bank/cash-account legs are emphasized — the whole row is bold so an
+  // operator scanning a journal entry can spot the money-movement leg at a
+  // glance. Only Ledger rows carry IsBank / AccountType, so this is inert on
+  // statement workspaces. `AccountType` compared case-insensitively.
+  const isBankRow =
+    item.row['IsBank'] === true ||
+    String(item.row['AccountType'] ?? '').toLowerCase() === 'bank';
 
   return (
     <tr
       data-index={index}
       ref={measureRef}
-      className={`group transition-colors ${isDeadEnd ? 'bg-red-100/60 dark:bg-red-950/30 text-red-400 dark:text-red-500/70' : `${band ? 'bg-row-band' : ''} hover:bg-surface-hover`} ${isSelected ? 'bg-primary/10!' : ''} ${isStale ? 'opacity-55' : ''}`}
+      className={`group transition-colors ${isBankRow ? 'font-bold' : ''} ${isDeadEnd ? 'bg-red-100/60 dark:bg-red-950/30 text-red-400 dark:text-red-500/70' : `${band ? 'bg-row-band' : ''} hover:bg-surface-hover`} ${isSelected ? 'bg-primary/10!' : ''} ${isStale ? 'opacity-55' : ''}`}
       onContextMenu={onRowContextMenu ? (e) => { e.preventDefault(); onRowContextMenu(item.row, e.clientX, e.clientY); } : undefined}
     >
       {visibleColumns.map((col, colIdx) => {
