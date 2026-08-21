@@ -6,10 +6,16 @@ interface RowContextMenuProps {
   y: number;
   onViewContext: () => void;
   onComment?: () => void;
+  /** Add the right-clicked cell to the open Rule Builder as a matching-rule
+   *  condition. Present only when the builder is open and a data cell was
+   *  clicked. `equals` → exact match; `contains` → substring match. */
+  onAddMatchingRule?: (op: 'equals' | 'contains') => void;
+  /** Short "Field: value" preview shown under the matching-rule items. */
+  matchingRuleHint?: string;
   onClose: () => void;
 }
 
-export function RowContextMenu({ x, y, onViewContext, onComment, onClose }: RowContextMenuProps) {
+export function RowContextMenu({ x, y, onViewContext, onComment, onAddMatchingRule, matchingRuleHint, onClose }: RowContextMenuProps) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -60,6 +66,30 @@ export function RowContextMenu({ x, y, onViewContext, onComment, onClose }: RowC
           </svg>
           Comment
         </button>
+      )}
+      {onAddMatchingRule && (
+        <>
+          <div className="my-1 border-t border-border" />
+          {matchingRuleHint && (
+            <div className="px-3 pt-1 pb-0.5 text-[11px] text-faint truncate max-w-[220px]" title={matchingRuleHint}>
+              {matchingRuleHint}
+            </div>
+          )}
+          <button
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-body hover:bg-surface-hover transition-colors cursor-pointer"
+            onClick={() => onAddMatchingRule('equals')}
+          >
+            <span className="w-4 h-4 flex items-center justify-center text-body-secondary font-mono font-semibold">=</span>
+            Add as matching rule (equals)
+          </button>
+          <button
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-body hover:bg-surface-hover transition-colors cursor-pointer"
+            onClick={() => onAddMatchingRule('contains')}
+          >
+            <span className="w-4 h-4 flex items-center justify-center text-body-secondary font-mono font-semibold text-[10px]">⊂</span>
+            Add as matching rule (contains)
+          </button>
+        </>
       )}
     </div>,
     document.body,

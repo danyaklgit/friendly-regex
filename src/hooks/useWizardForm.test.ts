@@ -176,6 +176,41 @@ describe('useWizardForm — Validity round-trip via the hook', () => {
   });
 });
 
+describe('appendCondition — right-click "Add as matching rule"', () => {
+  it('creates a first rule set with the filled condition when none exist', () => {
+    const { result } = renderHook(() => useWizardForm(undefined, undefined, undefined, mkLib()));
+    expect(result.current.formState.ruleGroups).toHaveLength(0);
+    act(() => {
+      result.current.appendCondition('AccountType', 'equals', 'bank');
+    });
+    const groups = result.current.formState.ruleGroups;
+    expect(groups).toHaveLength(1);
+    expect(groups[0].conditions).toHaveLength(1);
+    expect(groups[0].conditions[0]).toMatchObject({
+      sourceField: 'AccountType',
+      operation: 'equals',
+      value: 'bank',
+    });
+  });
+
+  it('ANDs into the LAST existing rule set (contains operation)', () => {
+    const { result } = renderHook(() => useWizardForm(undefined, undefined, undefined, mkLib()));
+    act(() => { result.current.appendCondition('AccountType', 'equals', 'bank'); });
+    act(() => { result.current.addRuleGroup(); }); // a second (OR) rule set
+    act(() => { result.current.appendCondition('AccountName', 'contains', 'Alinma'); });
+    const groups = result.current.formState.ruleGroups;
+    expect(groups).toHaveLength(2);
+    // First set untouched; the new condition lands in the last set.
+    expect(groups[0].conditions).toHaveLength(1);
+    expect(groups[1].conditions).toHaveLength(1);
+    expect(groups[1].conditions[0]).toMatchObject({
+      sourceField: 'AccountName',
+      operation: 'contains',
+      value: 'Alinma',
+    });
+  });
+});
+
 describe('toTagSpecDefinition — PreExtractionTransformations round-trip', () => {
   it('emits PreExtractionTransformations when the form-state pre list is non-empty', () => {
     const { result } = renderHook(() => useWizardForm(undefined, undefined, undefined, mkLib()));

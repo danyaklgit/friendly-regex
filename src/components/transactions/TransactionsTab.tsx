@@ -596,7 +596,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   });
   const [hiddenTagsPanelOpen, setHiddenTagsPanelOpen] = useState(false);
   const [hideBusy, setHideBusy] = useState(false);
-  const [contextMenu, setContextMenu] = useState<{ row: TransactionRow; x: number; y: number } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ row: TransactionRow; x: number; y: number; field?: string } | null>(null);
   const [contextModalRow, setContextModalRow] = useState<TransactionRow | null>(null);
   const [otherDefsModalOpen, setOtherDefsModalOpen] = useState(false);
   const [singleRowCommentRow, setSingleRowCommentRow] = useState<TransactionRow | null>(null);
@@ -3966,7 +3966,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
 // 340 — pink
 // 30 — orange
 // 140 — green
-        onRowContextMenu={(row, x, y) => setContextMenu({ row, x, y })}
+        onRowContextMenu={(row, x, y, field) => setContextMenu({ row, x, y, field })}
         onCellDoubleClick={
           builderOpen && !isReadOnly
             ? (field, value) => {
@@ -4214,6 +4214,24 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
           y={contextMenu.y}
           onViewContext={() => { setContextModalRow(contextMenu.row); setContextMenu(null); }}
           onComment={!isAudit ? () => { setSingleRowCommentRow(contextMenu.row); setContextMenu(null); } : undefined}
+          onAddMatchingRule={
+            builderOpen && !isReadOnly && contextMenu.field
+              ? (op) => {
+                  const field = contextMenu.field!;
+                  builder.appendCondition(field, op, String(contextMenu.row[field] ?? ''));
+                  setBuilderCollapsed(false); // reveal the rule set the condition landed in
+                  setContextMenu(null);
+                }
+              : undefined
+          }
+          matchingRuleHint={
+            builderOpen && !isReadOnly && contextMenu.field
+              ? `${humanizeFieldName(contextMenu.field)}: ${(() => {
+                  const v = String(contextMenu.row[contextMenu.field] ?? '');
+                  return v.length > 40 ? `${v.slice(0, 40)}…` : v;
+                })()}`
+              : undefined
+          }
           onClose={() => setContextMenu(null)}
         />
       )}
