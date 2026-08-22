@@ -12,8 +12,9 @@ import {
   VIP_EXPORT_HEADERS,
   sameOrgIban,
   accountNameFor,
+  type VIPOrgGroup,
 } from '../../utils/vipCustomers';
-import { getVIPCustomers, saveVIPCustomer, deleteVIPCustomer, type VIPCustomer } from '../../api/vipCustomers';
+import { getVIPCustomers, saveVIPCustomer, deleteVIPCustomer, deleteVIPCustomerOrg, type VIPCustomer } from '../../api/vipCustomers';
 import type { TepHeaders } from '../../api/transactions';
 
 export function VIPCustomersPage() {
@@ -36,6 +37,7 @@ export function VIPCustomersPage() {
   const [editTarget, setEditTarget] = useState<VIPCustomer | null>(null);
   const [prefillOrg, setPrefillOrg] = useState<{ OrgId: string; OrgNames: VIPCustomer['OrgNames']; TenantCode?: string | null } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<VIPCustomer | null>(null);
+  const [deleteOrgTarget, setDeleteOrgTarget] = useState<VIPOrgGroup | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
@@ -142,6 +144,22 @@ export function VIPCustomersPage() {
     await refresh();
   }, [deleteTarget, getAuthHeaders, tepHeaders, refresh]);
 
+  const handleDeleteOrgConfirm = useCallback(async () => {
+    const target = deleteOrgTarget;
+    if (!target) return;
+    const token = getAuthHeaders().Authorization?.replace('Bearer ', '') ?? '';
+    try {
+      const count = await deleteVIPCustomerOrg(target.orgId, token, tepHeaders);
+      setToast({ message: `${target.orgNameEn || target.orgId} deleted (${count} account${count === 1 ? '' : 's'})`, type: 'success' });
+    } catch (err) {
+      // 400 = org already gone (stale list). Any error → refresh so no phantom
+      // group lingers; message the operator either way.
+      setToast({ message: err instanceof Error ? err.message : 'Delete failed. The customer may have already been removed.', type: 'error' });
+    }
+    setDeleteOrgTarget(null);
+    await refresh();
+  }, [deleteOrgTarget, getAuthHeaders, tepHeaders, refresh]);
+
   const handleExport = useCallback(() => {
     downloadCsv(
       `vip_customers_${new Date().toISOString().slice(0, 10)}.csv`,
@@ -217,6 +235,7 @@ export function VIPCustomersPage() {
                   onAddToOrg={handleAddToOrg}
                   onEdit={handleEdit}
                   onDelete={setDeleteTarget}
+                  onDeleteOrg={setDeleteOrgTarget}
                 />
               ))}
             </tbody>
@@ -252,9 +271,33 @@ export function VIPCustomersPage() {
         variant="danger_ghost"
       />
 
+      <ConfirmDialog
+        open={!!deleteOrgTarget}
+        onClose={() => setDeleteOrgTarget(null)}
+        onConfirm={handleDeleteOrgConfirm}
+        title="Delete VIP Customer"
+        message={
+          deleteOrgTarget
+            ? `Delete ${deleteOrgTarget.orgNameEn || deleteOrgTarget.orgId} and all ${deleteOrgTarget.accounts.length} of its account${deleteOrgTarget.accounts.length === 1 ? '' : 's'}?` +
+              ` Removing: ${summarizeIbans(deleteOrgTarget.accounts.map((a) => a.IBAN))}.` +
+              ' This removes the customer from the operator console’s VIP Customers filter. This cannot be undone — export the list first if you may need it back.'
+            : ''
+        }
+        confirmLabel="Delete Customer"
+        variant="danger_ghost"
+      />
+
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
+}
+
+/** "SA01, SA02, SA03 and 6 more" — keeps the confirm dialog scope explicit
+ *  without an unbounded wall of IBANs for a large customer. */
+function summarizeIbans(ibans: string[]): string {
+  const MAX = 5;
+  if (ibans.length <= MAX) return ibans.join(', ');
+  return `${ibans.slice(0, MAX).join(', ')} and ${ibans.length - MAX} more`;
 }
 
 /** One org's header row + its account rows. */
@@ -264,12 +307,14 @@ function FragmentGroup({
   onAddToOrg,
   onEdit,
   onDelete,
+  onDeleteOrg,
 }: {
-  group: ReturnType<typeof groupByOrg>[number];
+  group: VIPOrgGroup;
   isAudit: boolean;
   onAddToOrg: (orgId: string) => void;
   onEdit: (c: VIPCustomer) => void;
   onDelete: (c: VIPCustomer) => void;
+  onDeleteOrg: (group: VIPOrgGroup) => void;
 }) {
   return (
     <>
@@ -280,13 +325,23 @@ function FragmentGroup({
             <span className="text-[10px] font-mono text-muted">#{group.orgId}</span>
             <span className="text-[10px] text-faint">· {group.accounts.length} account{group.accounts.length === 1 ? '' : 's'}</span>
             {!isAudit && (
-              <button
-                type="button"
-                onClick={() => onAddToOrg(group.orgId)}
-                className="ml-auto text-[11px] text-primary hover:text-primary-dark hover:underline"
-              >
-                + Add account
-              </button>
+              <div className="ml-auto flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => onAddToOrg(group.orgId)}
+                  className="text-[11px] text-primary hover:text-primary-dark hover:underline"
+                >
+                  + Add account
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onDeleteOrg(group)}
+                  className="text-[11px] text-red-600 dark:text-rose-300 hover:underline"
+                  title="Delete this customer and all its accounts"
+                >
+                  Delete customer
+                </button>
+              </div>
             )}
           </div>
         </td>
