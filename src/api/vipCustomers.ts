@@ -131,3 +131,27 @@ export async function deleteVIPCustomer(
   });
   await throwIfNotOk(res, 'Failed to delete VIP customer');
 }
+
+/**
+ * Delete an ENTIRE VIP customer — every account under `orgId` — in one atomic
+ * DeleteMany (no partial state). Returns how many accounts were removed (for
+ * the success toast). A 400 means the org has no accounts (already deleted /
+ * stale OrgId) — the caller should refresh, same as the stale-id handling on
+ * the single-account save/delete.
+ */
+export async function deleteVIPCustomerOrg(
+  orgId: string,
+  token: string,
+  tepHeaders: TepHeaders,
+  signal?: AbortSignal,
+): Promise<number> {
+  const res = await fetch(`${BASE}/DeleteVIPCustomerOrg`, {
+    method: 'POST',
+    headers: buildHeaders(token, tepHeaders, 'DeleteVIPCustomerOrg'),
+    body: JSON.stringify({ OrgId: orgId }),
+    signal,
+  });
+  await throwIfNotOk(res, 'Failed to delete VIP customer');
+  const json = await res.json();
+  return Number(json.DeletedCount ?? json.deletedCount ?? 0);
+}
