@@ -53,7 +53,7 @@ interface TransactionTableProps {
   /** Intraday only: MT940 rules (same bank/side) that match each row, keyed by
    *  row reference. Rendered as clickable "From MT940" suggestion pills in the
    *  Tags cell so the operator can clone one into an intraday tag. */
-  mt940SuggestionsByRow?: Map<TransactionRow, TagSpecDefinition[]>;
+  mt940SuggestionsByRow?: Map<string, TagSpecDefinition[]>;
   /** Clicking a suggestion clones that MT940 rule into a new intraday tag.
    *  Absent ⇒ suggestions aren't shown (e.g. read-only). */
   onCloneMt940Suggestion?: (def: TagSpecDefinition) => void;
@@ -1252,7 +1252,7 @@ interface RowCtx {
   definitionVersions?: Map<string, DefinitionVersionInfo>;
   onTagClick?: (tagName: string, definitionId?: string) => void;
   onRowContextMenu?: TransactionTableProps['onRowContextMenu'];
-  mt940SuggestionsByRow?: Map<TransactionRow, TagSpecDefinition[]>;
+  mt940SuggestionsByRow?: Map<string, TagSpecDefinition[]>;
   onCloneMt940Suggestion?: (def: TagSpecDefinition) => void;
   txnTypeDescriptions: Map<string, string>;
   toggleSelect: (id: string) => void;
@@ -1719,7 +1719,7 @@ const TableRow = memo(function TableRow({
                       // whole "Clone from MT940" section. Suggestions are a
                       // starting point for still-untagged intraday rows only.
                       if (item.analysis.tags.length > 0) return null;
-                      const suggestions = mt940SuggestionsByRow?.get(item.row);
+                      const suggestions = mt940SuggestionsByRow?.get(rowId);
                       if (!suggestions || suggestions.length === 0) return null;
                       // Divider from other content above (dead-end / hints) when
                       // present; on a bare untagged row the suggestions stand
