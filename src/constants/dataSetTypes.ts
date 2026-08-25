@@ -43,6 +43,18 @@ export function isSameDataSetFamily(rowType: string, workspaceType: string): boo
   return workspaceType === 'MT940' && rowType === 'TransactionsList';
 }
 
+/**
+ * All row-level DataSetType values a workspace scope should match — the family
+ * expressed as an IN-filter value list. MT940 expands to MT940 +
+ * TransactionsList (the backend serves the SNB list under the MT940 scope, and
+ * those rows carry their own tags); every other type maps to just itself. Use
+ * with `dataSetTypeFilter` when a request must catch the whole family (e.g.
+ * GetAllTransactionTags), not only the exact workspace type.
+ */
+export function dataSetTypeScopeValues(workspaceType: string): string[] {
+  return workspaceType === 'MT940' ? ['MT940', 'TransactionsList'] : [workspaceType];
+}
+
 /** Human labels for badges, backlog "Type" column, and the checkout banner. */
 export const DATA_SET_TYPE_LABELS: Record<DataSetType, string> = {
   MT940: 'MT940',
