@@ -1642,15 +1642,25 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     return [tempDefinition, ...tagDefinitions];
   }, [tagDefinitions, tempDefinition, editingDef]);
 
+  // Stable row identity — the SAME key the table uses for selection/virtual
+  // keys (identifier field, then Id). Keying the MT940 suggestions by this
+  // rather than by object reference makes the lookup survive buffer swaps: a
+  // classic page change replaces the transactions buffer with fresh row
+  // objects, so a reference-keyed map went stale on every page but page one.
+  const mt940RowKey = useCallback(
+    (row: TransactionRow) => String(row[fieldMeta.identifierField] ?? row['Id'] ?? ''),
+    [fieldMeta.identifierField],
+  );
+
   // Intraday helper: which MT940 rules (same bank + side) match each loaded
   // row. Shown as clickable suggestions in the Tags cell so an operator
   // tagging MT942 / INTERIM_MT940 can clone the MT940 rule that already
   // describes the transaction. Gated to intraday workspaces — MT940 itself
   // needs no suggestions, and the per-row × per-def evaluation should not run
-  // on the (large) end-of-day datasets. Keyed by row REFERENCE (stable within
-  // a fetch), so lookups in the memoized row don't need a row-id function.
+  // on the (large) end-of-day datasets. Keyed by the stable row id (see
+  // mt940RowKey) so every page's rows resolve, not just the first buffer's.
   const mt940SuggestionsByRow = useMemo(() => {
-    const map = new Map<TransactionRow, TagSpecDefinition[]>();
+    const map = new Map<string, TagSpecDefinition[]>();
     const dst = activeCheckout?.dataSetType;
     // Only the intraday workspaces clone from MT940. Gate explicitly (not
     // "anything but MT940") so Ledger — which shares no rules with MT940 —
@@ -1691,10 +1701,10 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     const today = new Date().toISOString().split('T')[0];
     for (const row of transactions) {
       const matches = matchingMt940Defs(defs, row, today);
-      if (matches.length > 0) map.set(row, matches);
+      if (matches.length > 0) map.set(mt940RowKey(row), matches);
     }
     return map;
-  }, [isLiveMode, activeCheckout, libraries, transactions]);
+  }, [isLiveMode, activeCheckout, libraries, transactions, mt940RowKey]);
 
   // Clone a suggested MT940 rule into a NEW intraday tag: open the Rule
   // Builder in create mode (for the current intraday checkout), pre-fill the
@@ -1710,7 +1720,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     // value wins for the one open.
     let ttc = '';
     for (const row of transactions) {
-      const sugg = mt940SuggestionsByRow.get(row);
+      const sugg = mt940SuggestionsByRow.get(mt940RowKey(row));
       if (sugg && sugg.some((d) => d.Id === def.Id)) {
         ttc = String(row['TransactionTypeCode'] ?? '');
         break;
@@ -1719,7 +1729,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     builder.updateBasicInfo({ tag: def.Tag, transactionTypeCode: ttc });
     cloneMt940SkipTtcRef.current = true;
     setBuilderOpen(true);
-  }, [builder, transactions, mt940SuggestionsByRow]);
+  }, [builder, transactions, mt940SuggestionsByRow, mt940RowKey]);
 
   // Map definition ID → source label for tag tooltip
   const definitionSourceMap = useMemo(() => {
