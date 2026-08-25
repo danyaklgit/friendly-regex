@@ -59,6 +59,31 @@ describe('matchingMt940Defs', () => {
     expect(matchingMt940Defs([otherType, sameType], row, TODAY).map((d) => d.Id)).toEqual(['d1', 'd2']);
   });
 
+  it('IGNORES a TransactionTypeCode/Name CONDITION, matching on the remaining conditions', () => {
+    // The MT940 rule requires a narrative match AND type 'Expense'. The intraday
+    // row is a differently-typed 'TRF' — the type condition must be stripped so
+    // the rule still matches on its narrative (the "works on first page only"
+    // bug: only rows whose type coincided ever showed the suggestion).
+    const narrativeAndType = def('d1', 'SADADBillPay', {
+      TagRuleExpressions: [[
+        { SourceField: 'AdditionalInformation', ExpressionPrompt: null, ExpressionId: null, Regex: regexify('contains', 'SARIE'), RegexDetails: [] },
+        { SourceField: 'TransactionTypeName', ExpressionPrompt: null, ExpressionId: null, Regex: regexify('equals', 'Expense'), RegexDetails: [] },
+      ]],
+    });
+    expect(matchingMt940Defs([narrativeAndType], row, TODAY).map((d) => d.Id)).toEqual(['d1']);
+  });
+
+  it('suggests a rule whose ONLY condition is the transaction type (type ignored ⇒ applies to any row)', () => {
+    const typeOnly = def('d1', 'ExpenseTag', {
+      TagRuleExpressions: [[
+        { SourceField: 'TransactionTypeCode', ExpressionPrompt: null, ExpressionId: null, Regex: regexify('equals', 'CHG'), RegexDetails: [] },
+      ]],
+    });
+    // Row is coded 'TRF' (≠ 'CHG'), but with type ignored the rule imposes
+    // nothing else, so it is offered as a clone candidate.
+    expect(matchingMt940Defs([typeOnly], row, TODAY).map((d) => d.Id)).toEqual(['d1']);
+  });
+
   it('honors the validity window', () => {
     const future = def('d1', 'T', { Validity: { StartDate: '2026-09-01', EndDate: null } });
     const expired = def('d2', 'T', { Validity: { StartDate: null, EndDate: '2026-07-01' } });
