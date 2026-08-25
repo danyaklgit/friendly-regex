@@ -19,7 +19,7 @@ import {
 } from '../../utils/attributeFingerprint';
 import type { FilterProperty } from '../../api/transactions';
 import { getAllTransactionTags, buildSortingProperties, parseSortOverride, type SortOverride } from '../../api/transactions';
-import { dataSetTypeFilter, DEFAULT_DATA_SET_TYPE, isSameDataSetFamily } from '../../constants/dataSetTypes';
+import { dataSetTypeFilter, dataSetTypeScopeValues, DEFAULT_DATA_SET_TYPE, isSameDataSetFamily } from '../../constants/dataSetTypes';
 import { libraryMatchesCheckout, identityKeySuffix, identityScopeFilters, isLedger } from '../../utils/libraryIdentity';
 import { translateFilters } from '../../utils/translateFilters';
 import { findTransactionTypeFilterDef } from '../../utils/transactionTypeFilterDef';
@@ -2397,7 +2397,13 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
           requestId: tepConfig.ttpRequestId,
         };
         // Ledger scopes by ClientCode/ErpCode; every other type by bank/side.
-        const filteringProperties: FilterProperty[] = identityScopeFilters(activeCheckout, 'EQ');
+        // Also scope by DataSetType so the matching-tags preview only counts
+        // this workspace's rows — MT940 sends its whole family (MT940 +
+        // TransactionsList), other types just themselves.
+        const filteringProperties: FilterProperty[] = [
+          ...identityScopeFilters(activeCheckout, 'EQ'),
+          dataSetTypeFilter(dataSetTypeScopeValues(activeCheckout.dataSetType ?? DEFAULT_DATA_SET_TYPE)),
+        ];
         const ids = await getAllTransactionTags(
           { FilteringProperties: filteringProperties },
           token,

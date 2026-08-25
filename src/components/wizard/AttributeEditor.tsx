@@ -1655,9 +1655,13 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
           </div>
         </div>
       ) : (
-        <div className="flex items-center justify-between gap-2 px-3 py-2 min-w-0">
+        // Wraps instead of clipping: on a narrow attributes column the action
+        // cluster (Mandatory + distinct/comment/view/clone/remove) flows onto a
+        // second line rather than overflowing the card. The summary keeps a
+        // readable min width so the attribute name never squishes to nothing.
+        <div className="flex flex-wrap items-center gap-2 px-3 py-2 min-w-0">
           <div
-            className="flex-1 min-w-0 cursor-pointer hover:bg-surface-hover rounded px-2 py-1.5 transition-colors flex items-center gap-1.5"
+            className="flex-1 min-w-48 cursor-pointer hover:bg-surface-hover rounded px-2 py-1.5 transition-colors flex items-center gap-1.5"
             onClick={() => { setSnapshot({ ...attribute }); setEditing(true); }}
           >
             <svg
@@ -1682,7 +1686,18 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
               )}
             </p>
           </div>
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex items-center gap-1 flex-wrap justify-end ml-auto">
+            {/* Mandatory toggle surfaced on the collapsed row so operators can
+                flip it without expanding the whole attribute editor. Writes
+                straight to the attribute \u2014 it's a saved flag, no snapshot
+                needed. Shown disabled (state still visible) in read-only. */}
+            <Toggle
+              label="Mandatory"
+              size="sm"
+              checked={attribute.isMandatory}
+              onChange={(checked) => onUpdate({ isMandatory: checked })}
+              disabled={readOnly}
+            />
             {validationSummary && (
               <span className={`text-xs font-medium flex gap-2 mx-2`}>
                 {validationSummary.passed > 0 && <span className='text-emerald-600'>{'\u2713'} {validationSummary.passed}</span>}

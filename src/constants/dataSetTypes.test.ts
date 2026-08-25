@@ -6,6 +6,7 @@ import {
   WORKSPACES,
   ALL_LIBRARY_DATA_SET_TYPES,
   dataSetTypeFilter,
+  dataSetTypeScopeValues,
   isSameDataSetFamily,
 } from './dataSetTypes';
 
@@ -62,6 +63,21 @@ describe('dataSetTypes', () => {
       expect(isSameDataSetFamily('Ledger', 'Ledger')).toBe(true);
       // Asymmetric on purpose: the FAMILY belongs to the workspace side.
       expect(isSameDataSetFamily('MT940', 'TransactionsList')).toBe(false);
+    });
+  });
+
+  describe('dataSetTypeScopeValues', () => {
+    it('expands MT940 to its family (MT940 + TransactionsList)', () => {
+      expect(dataSetTypeScopeValues('MT940')).toEqual(['MT940', 'TransactionsList']);
+      // Composes with dataSetTypeFilter into a pipe-joined IN value.
+      const f = dataSetTypeFilter(dataSetTypeScopeValues('MT940'));
+      expect('Value' in f && f.Value).toBe('MT940|TransactionsList');
+    });
+
+    it('maps every other type to just itself', () => {
+      expect(dataSetTypeScopeValues('MT942')).toEqual(['MT942']);
+      expect(dataSetTypeScopeValues('INTERIM_MT940')).toEqual(['INTERIM_MT940']);
+      expect(dataSetTypeScopeValues('Ledger')).toEqual(['Ledger']);
     });
   });
 });
