@@ -49,3 +49,78 @@ export function matchingMt940Defs(
   }
   return out;
 }
+
+export interface Mt940ConditionExplanation {
+  field: string;
+  regex: string;
+  prompt: string | null;
+  regexCompiles: boolean;
+  /** Condition on TransactionTypeCode/Name — stripped before matching. */
+  ignoredAsTransactionType: boolean;
+  rowValue: string;
+  /** null when the condition is ignored (transaction-type). */
+  pass: boolean | null;
+}
+
+export interface Mt940DefExplanation {
+  tag: string;
+  id: string;
+  matches: boolean;
+  /** Set when the def was rejected before rule evaluation. */
+  skipped?: string;
+  groups: Array<{ group: number; pass: boolean; conditions: Mt940ConditionExplanation[] }>;
+}
+
+/**
+ * DEBUG companion to matchingMt940Defs: same decision tree, but reports WHY
+ * each def did or did not match `row` — per-def skip reason (status / empty
+ * rules / validity window) and per-condition pass/fail with the row value the
+ * condition saw. Mirrors matchingMt940Defs exactly (evaluateRuleSet ANDs
+ * conditions independently, so evaluating them one at a time is equivalent).
+ * Only called for rows under investigation; never on the hot path.
+ */
+export function explainMt940Defs(
+  defs: TagSpecDefinition[],
+  row: TransactionRow,
+  todayISODate: string,
+): Mt940DefExplanation[] {
+  return defs.map((def) => {
+    let skipped: string | undefined;
+    if (def.StatusTag !== 'ACTIVE') skipped = `StatusTag=${def.StatusTag}`;
+    else if (def.TagRuleExpressions.length === 0) skipped = 'no rule expressions';
+    else if (def.Validity.StartDate && todayISODate < def.Validity.StartDate)
+      skipped = `not yet valid (StartDate=${def.Validity.StartDate}, today=${todayISODate})`;
+    else if (def.Validity.EndDate && todayISODate > def.Validity.EndDate)
+      skipped = `expired (EndDate=${def.Validity.EndDate}, today=${todayISODate})`;
+    const groups = def.TagRuleExpressions.map((group, i) => {
+      const conditions = group.map((c): Mt940ConditionExplanation => {
+        const ignored = TRANSACTION_TYPE_FIELDS.has(c.SourceField);
+        let regexCompiles = true;
+        try {
+          new RegExp(c.Regex);
+        } catch {
+          regexCompiles = false;
+        }
+        return {
+          field: c.SourceField,
+          regex: c.Regex,
+          prompt: c.ExpressionPrompt,
+          regexCompiles,
+          ignoredAsTransactionType: ignored,
+          rowValue: String(row[c.SourceField] ?? '<null>'),
+          pass: ignored ? null : evaluateRuleSet([c], row),
+        };
+      });
+      const nonType = conditions.filter((c) => !c.ignoredAsTransactionType);
+      const pass = nonType.length === 0 ? true : nonType.every((c) => c.pass === true);
+      return { group: i, pass, conditions };
+    });
+    return {
+      tag: def.Tag,
+      id: def.Id,
+      matches: !skipped && groups.some((g) => g.pass),
+      skipped,
+      groups,
+    };
+  });
+}

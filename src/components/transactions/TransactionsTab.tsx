@@ -29,7 +29,13 @@ import { useWizardForm, fromExistingDefinition } from '../../hooks/useWizardForm
 import type { TagSpecDefinition, TagSpecLibrary, AnalyzedTransaction, WizardFormState, RuleExpression, CheckoutState, TransactionRow, AndGroupFormValue } from '../../types';
 import type { WizardFormResult } from '../../hooks/useWizardForm';
 import { analyzeRow, buildAnalyzeScratch } from '../../utils/analyzeRow';
-import { matchingMt940Defs } from '../../utils/mt940Suggestions';
+import { explainMt940Defs, matchingMt940Defs } from '../../utils/mt940Suggestions';
+
+// TEMP prod debugging (2026-08-26): MT940 clone suggestions appear on QA but
+// not on prod for this narrative in Al Rajhi Bank – Credit / MT942. Rows whose
+// text contains this needle get a full [MT940-SUGG] per-condition dump in the
+// console. Remove together with the other [MT940-SUGG] logs once diagnosed.
+const MT940_SUGG_DEBUG_NEEDLE = '/PT/Transfer E-/FRACCT';
 import { evaluateRuleSet } from '../../utils/evaluateRuleSet';
 import { computeDefinitionVersions } from '../../utils/definitionVersions';
 import { getAllTagNameOptions, getAttributeSuggestionsForTag } from '../../utils/tagNameLookup';
@@ -1651,7 +1657,33 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // bank/side (already cloned — suggesting it again is noise).
   const mt940SuggestionDefs = useMemo(() => {
     const dst = activeCheckout?.dataSetType;
-    if (!isLiveMode || !activeCheckout || (dst !== 'MT942' && dst !== 'INTERIM_MT940')) return [];
+    if (!isLiveMode || !activeCheckout || (dst !== 'MT942' && dst !== 'INTERIM_MT940')) {
+      // TEMP prod debugging (MT940 suggestions missing on prod): surface WHY
+      // the gate rejected — e.g. prod serving an unexpected dataSetType label.
+      if (activeCheckout) {
+        console.log('[MT940-SUGG] gate rejected — no suggestions will compute', {
+          isLiveMode, dataSetType: dst, bank: activeCheckout.bank, side: activeCheckout.side,
+        });
+      }
+      return [];
+    }
+    // TEMP prod debugging: full library snapshot so a prod-vs-QA labeling or
+    // context mismatch is visible at a glance.
+    console.log('[MT940-SUGG] computing candidates', {
+      bank: activeCheckout.bank, side: activeCheckout.side, dataSetType: dst,
+      DEFAULT_DATA_SET_TYPE, libraryCount: libraries.length,
+    });
+    console.log('[MT940-SUGG] libraries', libraries.map((l) => ({
+      DataSetType: l.DataSetType,
+      bank: getContextValue(l.Context, 'BankSwiftCode'),
+      side: getContextValue(l.Context, 'Side'),
+      status: l.StatusTag,
+      version: l.Version,
+      defCount: l.TagSpecDefinitions.length,
+      isMt940Source: l.DataSetType === DEFAULT_DATA_SET_TYPE
+        && getContextValue(l.Context, 'BankSwiftCode') === activeCheckout.bank
+        && getContextValue(l.Context, 'Side') === activeCheckout.side,
+    })));
     const existingIntradayTags = new Set<string>();
     for (const lib of libraries) {
       if (lib.DataSetType !== dst) continue;
@@ -1659,6 +1691,9 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       if (getContextValue(lib.Context, 'Side') !== activeCheckout.side) continue;
       for (const def of lib.TagSpecDefinitions) existingIntradayTags.add(def.Tag);
     }
+    console.log('[MT940-SUGG] intraday tags already cloned (suggestions suppressed for these)',
+      Array.from(existingIntradayTags));
+    const defSkips: Array<{ tag: string; id: string; reason: string }> = [];
     const defById = new Map<string, { def: TagSpecDefinition; score: number }>();
     for (const lib of libraries) {
       if (lib.DataSetType !== DEFAULT_DATA_SET_TYPE) continue;
@@ -1666,14 +1701,26 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       if (getContextValue(lib.Context, 'Side') !== activeCheckout.side) continue;
       const score = (lib.StatusTag === 'INPROGRESS' ? 1_000_000 : 0) + (lib.Version ?? 0);
       for (const def of lib.TagSpecDefinitions) {
-        if (def.StatusTag !== 'ACTIVE' || def.TagRuleExpressions.length === 0) continue;
-        if (existingIntradayTags.has(def.Tag)) continue;
+        if (def.StatusTag !== 'ACTIVE' || def.TagRuleExpressions.length === 0) {
+          defSkips.push({
+            tag: def.Tag, id: def.Id,
+            reason: def.StatusTag !== 'ACTIVE' ? `StatusTag=${def.StatusTag}` : 'no rule expressions',
+          });
+          continue;
+        }
+        if (existingIntradayTags.has(def.Tag)) {
+          defSkips.push({ tag: def.Tag, id: def.Id, reason: 'tag already exists in intraday library' });
+          continue;
+        }
         const existing = defById.get(def.Id);
         if (existing && existing.score >= score) continue;
         defById.set(def.Id, { def, score });
       }
     }
-    return Array.from(defById.values(), (v) => v.def);
+    const result = Array.from(defById.values(), (v) => v.def);
+    console.log('[MT940-SUGG] def-level skips', defSkips);
+    console.log('[MT940-SUGG] final candidate defs', result.map((d) => d.Tag));
+    return result;
   }, [isLiveMode, activeCheckout, libraries]);
 
   // Step 2: an ON-DEMAND per-row lookup instead of a prebuilt map. A map keyed
@@ -1694,6 +1741,22 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       if (!matches) {
         matches = matchingMt940Defs(mt940SuggestionDefs, row, today);
         cache.set(row, matches);
+        // TEMP prod debugging: for the case under investigation, dump the full
+        // per-def / per-condition decision tree. Cache-miss-only, so this
+        // logs once per row object, never on scroll frames.
+        if (Object.values(row).some(
+          (v) => typeof v === 'string' && v.includes(MT940_SUGG_DEBUG_NEEDLE),
+        )) {
+          console.log('[MT940-SUGG] needle row seen', {
+            needle: MT940_SUGG_DEBUG_NEEDLE,
+            TransactionTypeCode: row['TransactionTypeCode'],
+            candidateDefs: mt940SuggestionDefs.length,
+            matched: matches.map((d) => d.Tag),
+            row,
+          });
+          console.log('[MT940-SUGG] needle row — per-def explanation',
+            explainMt940Defs(mt940SuggestionDefs, row, today));
+        }
       }
       return matches;
     };
