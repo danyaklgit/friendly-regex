@@ -292,40 +292,44 @@ export function SourceTagPickerModal({ open, libraries, onClose, onSelect, curre
               const metaParts = [entry.txnType, entry.bank, entry.side].filter(Boolean);
               return (
                 <li key={entry.def.Id}>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedId(entry.def.Id)}
-                    className={`w-full text-left px-4 py-3 flex items-center justify-between gap-3 cursor-pointer transition-colors
-                      ${isSelected ? 'bg-primary/15 hover:bg-primary/20' : 'hover:bg-surface-active'}`}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-baseline gap-2 min-w-0">
-                        <span
-                          className={`shrink-0 text-[10px] font-semibold rounded-full px-2 py-0.5 border ${
-                            entry.dataSetType === DEFAULT_DATA_SET_TYPE
-                              ? 'bg-primary/10 text-primary-dark dark:text-primary border-primary/30'
-                              : 'bg-surface-secondary text-muted border-border'
-                          }`}
-                        >
-                          {DATA_SET_TYPE_LABELS[entry.dataSetType as DataSetType] ?? entry.dataSetType}
-                        </span>
-                        <span className={`text-sm font-medium truncate ${isSelected ? 'text-primary' : 'text-heading'}`}>
-                          {entry.def.Tag}
-                        </span>
-                        <CopyableId id={entry.def.Id} />
-                      </div>
-                      {metaParts.length > 0 && (
-                        <div className="text-xs text-muted truncate">
-                          {metaParts.join(' · ')}
+                  {/* Tooltip wraps the WHOLE row (not just the count pill) so
+                      hovering anywhere on the entry previews its matching
+                      rules + attributes before picking it. Lazy content —
+                      only built when the tooltip actually opens. */}
+                  <Tooltip content={() => renderRulesAndAttributesTooltip(entry.def)} placement="left">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedId(entry.def.Id)}
+                      className={`w-full text-left px-4 py-3 flex items-center justify-between gap-3 cursor-pointer transition-colors
+                        ${isSelected ? 'bg-primary/15 hover:bg-primary/20' : 'hover:bg-surface-active'}`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline gap-2 min-w-0">
+                          <span
+                            className={`shrink-0 text-[10px] font-semibold rounded-full px-2 py-0.5 border ${
+                              entry.dataSetType === DEFAULT_DATA_SET_TYPE
+                                ? 'bg-primary/10 text-primary-dark dark:text-primary border-primary/30'
+                                : 'bg-surface-secondary text-muted border-border'
+                            }`}
+                          >
+                            {DATA_SET_TYPE_LABELS[entry.dataSetType as DataSetType] ?? entry.dataSetType}
+                          </span>
+                          <span className={`text-sm font-medium truncate ${isSelected ? 'text-primary' : 'text-heading'}`}>
+                            {entry.def.Tag}
+                          </span>
+                          <CopyableId id={entry.def.Id} />
                         </div>
-                      )}
-                    </div>
-                    <Tooltip content={renderRulesAndAttributesTooltip(entry.def)} placement="left">
+                        {metaParts.length > 0 && (
+                          <div className="text-xs text-muted truncate">
+                            {metaParts.join(' · ')}
+                          </div>
+                        )}
+                      </div>
                       <span className="shrink-0 text-xs font-medium text-body-secondary bg-surface-secondary border border-border rounded-full px-2.5 py-1 cursor-help">
                         {entry.def.TagRuleExpressions.length} rule {entry.def.TagRuleExpressions.length === 1 ? 'set' : 'sets'} · {entry.def.Attributes.length} {entry.def.Attributes.length === 1 ? 'attribute' : 'attributes'}
                       </span>
-                    </Tooltip>
-                  </button>
+                    </button>
+                  </Tooltip>
                 </li>
               );
             })}
