@@ -248,6 +248,24 @@ export function useLocalChanges(identity: IdentityInput | null | undefined) {
     return readLib(key(CURRENT_PREFIX, target));
   }, []);
 
+  /**
+   * True when a persisted draft exists for `target` and differs from its
+   * baseline — i.e. there are local edits the server may not have yet.
+   * Unlike the bound `hasChanges` state, this checks ANY identity, so
+   * Check-In / Release handlers (which can act on rows other than the active
+   * checkout) can decide whether a pre-save is needed at all: with no local
+   * changes the server already holds the newest list (the wizard saves on
+   * every change), and re-sending a possibly stale in-memory copy can only
+   * lose data, never add it.
+   */
+  const hasChangesFor = useCallback((target: IdentityInput): boolean => {
+    const currentRaw = localStorage.getItem(key(CURRENT_PREFIX, target));
+    if (!currentRaw) return false;
+    const baselineRaw = localStorage.getItem(key(BASELINE_PREFIX, target));
+    if (!baselineRaw) return true; // draft with no anchor — assume dirty
+    return baselineRaw !== currentRaw;
+  }, []);
+
   const hasLocalData = useCallback((target: IdentityInput): boolean => {
     return localStorage.getItem(key(CURRENT_PREFIX, target)) !== null;
   }, []);
@@ -259,5 +277,5 @@ export function useLocalChanges(identity: IdentityInput | null | undefined) {
     return computeChangeSummary(baselineLib, currentLib);
   }, []);
 
-  return { hasChanges, saveBaseline, updateCurrent, clearChanges, getLocalLib, hasLocalData, getChangeSummary };
+  return { hasChanges, hasChangesFor, saveBaseline, updateCurrent, clearChanges, getLocalLib, hasLocalData, getChangeSummary };
 }

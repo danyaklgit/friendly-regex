@@ -160,7 +160,7 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
   }, []);
 
   const { libraries, refetchLibraries, isPairBeingTagged } = useTagSpecs();
-  const { clearChanges, getChangeSummary, hasChanges } = useLocalChanges(activeCheckout);
+  const { clearChanges, getChangeSummary, hasChanges, hasChangesFor } = useLocalChanges(activeCheckout);
 
   // Resolve the identity fragment for a checkout. For Ledger, bank/side are
   // empty and the ClientCode/ErpCode are read from the (single) Ledger library
@@ -265,8 +265,14 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
     setHeaderActionLoading(true);
     setToast({ message: `Releasing ${label}…`, type: 'info', duration: 60_000 });
     try {
-      // Always save the current in-memory state (reflects adds, edits, and deletes)
-      await tagSpecLibrarySave(inProgressLib, authToken, tepHeaders);
+      // Pre-save only when there ARE local changes (adds, edits, deletes) the
+      // server may not have. With none, the wizard's per-change saves mean the
+      // server already holds the newest list — re-sending the in-memory copy
+      // can only lose definitions if it is stale (definition-lost-on-check-in
+      // bug, 2026-08-26), never add any.
+      if (hasChangesFor({ dataSetType, ...identityFromContext(inProgressLib) })) {
+        await tagSpecLibrarySave(inProgressLib, authToken, tepHeaders);
+      }
       await tagSpecLibraryRelease(inProgressLib.Id, authToken, tepHeaders);
       clearChanges({ dataSetType, ...identityFromContext(inProgressLib) });
       await refetchLibraries();
@@ -282,7 +288,7 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
     } finally {
       setHeaderActionLoading(false);
     }
-  }, [isAudit, authToken, tepHeaders, findInProgressLib, refetchLibraries, clearChanges]);
+  }, [isAudit, authToken, tepHeaders, findInProgressLib, refetchLibraries, clearChanges, hasChangesFor]);
 
   const handleCheckinWithSave = useCallback(async (bank: string, side: string, dataSetType: string) => {
     if (isAudit) return;
@@ -294,8 +300,10 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
     setHeaderActionLoading(true);
     setToast({ message: `Checking in ${label}…`, type: 'info', duration: 60_000 });
     try {
-      // Always save the current in-memory state (reflects adds, edits, and deletes)
-      await tagSpecLibrarySave(inProgressLib, authToken, tepHeaders);
+      // Pre-save only when there ARE local changes — see handleRelease above.
+      if (hasChangesFor({ dataSetType, ...identityFromContext(inProgressLib) })) {
+        await tagSpecLibrarySave(inProgressLib, authToken, tepHeaders);
+      }
       await tagSpecLibraryCheckIn(inProgressLib.Id, authToken, tepHeaders);
       clearChanges({ dataSetType, ...identityFromContext(inProgressLib) });
       await refetchLibraries();
@@ -311,7 +319,7 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
     } finally {
       setHeaderActionLoading(false);
     }
-  }, [isAudit, authToken, tepHeaders, findInProgressLib, refetchLibraries, clearChanges]);
+  }, [isAudit, authToken, tepHeaders, findInProgressLib, refetchLibraries, clearChanges, hasChangesFor]);
 
   const handleRequestUndo = useCallback((bank: string, side: string, dataSetType: string) => {
     if (isAudit) return;

@@ -50,15 +50,15 @@ interface TransactionTableProps {
   onFlagDeadEndWithComment?: (ids: string[], value: boolean, entries?: SetTransactionsCommentEntry[]) => Promise<void>;
   onSetComments?: (entries: SetTransactionsCommentEntry[]) => Promise<void>;
   onHideTagDefs?: (defIds: string[]) => void;
-  /** Intraday only: on-demand "which MT940 rules (same bank/side) match this
-   *  row" lookup, rendered as clickable "From MT940" suggestion pills in the
-   *  Tags cell. A FUNCTION (not a prebuilt map) so it can never go stale
-   *  against the rendered buffer — classic page nav replaces every row object,
-   *  and a snapshot map keyed by old references missed on pages > 1. Caller
-   *  memoizes per row internally. */
+  /** Non-MT940 workspaces: on-demand "which MT940 rules (same bank/side)
+   *  match this row" lookup, rendered as clickable "From MT940" suggestion
+   *  pills in the Tags cell. A FUNCTION (not a prebuilt map) so it can never
+   *  go stale against the rendered buffer — classic page nav replaces every
+   *  row object, and a snapshot map keyed by old references missed on pages
+   *  > 1. Caller memoizes per row internally. */
   getMt940Suggestions?: (row: TransactionRow) => TagSpecDefinition[];
-  /** Clicking a suggestion clones that MT940 rule into a new intraday tag.
-   *  Absent ⇒ suggestions aren't shown (e.g. read-only). */
+  /** Clicking a suggestion clones that MT940 rule into a new tag for the
+   *  current workspace. Absent ⇒ suggestions aren't shown (e.g. read-only). */
   onCloneMt940Suggestion?: (def: TagSpecDefinition) => void;
   showAttributes?: boolean;
   relaxedMode?: boolean;
@@ -1712,15 +1712,16 @@ const TableRow = memo(function TableRow({
                       null
                     )}
 
-                    {/* Intraday: MT940 rules (same bank/side) that match this
-                        row — click one to create an intraday tag cloned from
-                        it. Reads only from the row + ctx, so it doesn't touch
-                        the RowCtx memo contract (gotcha #23). */}
+                    {/* Non-MT940 workspaces: MT940 rules (same bank/side) that
+                        match this row — click one to create a tag in this
+                        workspace cloned from it. Reads only from the row +
+                        ctx, so it doesn't touch the RowCtx memo contract
+                        (gotcha #23). */}
                     {onCloneMt940Suggestion && (() => {
                       // Once the row is tagged AT ALL — even with a tag other
                       // than the suggestion — it's been handled, so hide the
                       // whole "Clone from MT940" section. Suggestions are a
-                      // starting point for still-untagged intraday rows only.
+                      // starting point for still-untagged rows only.
                       if (item.analysis.tags.length > 0) return null;
                       const suggestions = getMt940Suggestions?.(item.row);
                       if (!suggestions || suggestions.length === 0) return null;
@@ -1730,7 +1731,7 @@ const TableRow = memo(function TableRow({
                       const hasContentAbove = isDeadEnd || hasHints;
                       return (
                         <div className={`flex flex-col gap-1 ${hasContentAbove ? 'mt-1.5 pt-1.5 border-t border-dashed border-amber-300/40 dark:border-amber-500/25' : 'mt-1'}`}>
-                          <Tooltip content="MT940 rules whose conditions match this transaction. Click one to create an intraday tag cloned from it (you can adjust it before saving)." placement="top">
+                          <Tooltip content="MT940 rules whose conditions match this transaction. Click one to create a tag in this workspace cloned from it (you can adjust it before saving)." placement="top">
                             <span className="inline-flex items-center gap-1 self-start text-[9px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400/90 cursor-help">
                               <svg className="w-2.5 h-2.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                                 <rect x="9" y="9" width="11" height="11" rx="2" />

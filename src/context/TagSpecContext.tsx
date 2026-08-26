@@ -88,19 +88,20 @@ export function flattenDefinitions(libraries: TagSpecLibrary[]): TagSpecDefiniti
 // --- Actions ---
 
 export type TagSpecAction =
-  | { type: 'ADD'; payload: { parentContext: ContextEntry[]; definition: TagSpecDefinition } }
-  | { type: 'UPDATE'; payload: { parentContext: ContextEntry[]; definition: TagSpecDefinition } }
+  | { type: 'ADD'; payload: { parentContext: ContextEntry[]; dataSetType: string; definition: TagSpecDefinition } }
+  | { type: 'UPDATE'; payload: { parentContext: ContextEntry[]; dataSetType: string; definition: TagSpecDefinition } }
   | { type: 'DELETE'; payload: { definitionId: string } }
+  | { type: 'REPLACE_LIBRARY'; payload: TagSpecLibrary }
   | { type: 'IMPORT'; payload: TagSpecLibrary[] }
   | { type: 'REPLACE_ALL'; payload: TagSpecLibrary[] };
 
-function createEmptyLibrary(parentContext: ContextEntry[]): TagSpecLibrary {
+function createEmptyLibrary(parentContext: ContextEntry[], dataSetType: string): TagSpecLibrary {
   return {
     Id: crypto.randomUUID(),
     ActiveTagSpecLibId: null,
     OperatorId: '',
     StatusTag: 'ACTIVE',
-    DataSetType: 'MT940',
+    DataSetType: dataSetType,
     Version: 1,
     IsLatestVersion: true,
     VersionDate: new Date().toISOString().split('T')[0],
@@ -109,17 +110,29 @@ function createEmptyLibrary(parentContext: ContextEntry[]): TagSpecLibrary {
   };
 }
 
-function tagSpecReducer(
+/**
+ * A library's identity is (DataSetType, Context) TOGETHER. Context alone is
+ * ambiguous: the same bank/side routinely has INPROGRESS libraries in several
+ * workspaces at once (an MT940 draft AND an MT942/INTERIM_MT940 draft), and
+ * matching without DataSetType filed new definitions under whichever draft
+ * came first in state — the definition then vanished when the RIGHT library
+ * was saved on Check-In (definition-lost-on-check-in bug, 2026-08-26).
+ */
+function libraryMatchesParent(lib: TagSpecLibrary, dataSetType: string, parentContext: ContextEntry[]): boolean {
+  return lib.DataSetType === dataSetType && contextsMatch(lib.Context, parentContext);
+}
+
+export function tagSpecReducer(
   state: TagSpecLibrary[],
   action: TagSpecAction
 ): TagSpecLibrary[] {
   switch (action.type) {
     case 'ADD': {
-      const { parentContext, definition } = action.payload;
-      // Prefer INPROGRESS library when multiple share the same context (checked-out pair)
-      let existingIdx = state.findIndex((lib) => lib.StatusTag === 'INPROGRESS' && contextsMatch(lib.Context, parentContext));
+      const { parentContext, dataSetType, definition } = action.payload;
+      // Prefer INPROGRESS library when multiple share the same identity (checked-out pair)
+      let existingIdx = state.findIndex((lib) => lib.StatusTag === 'INPROGRESS' && libraryMatchesParent(lib, dataSetType, parentContext));
       if (existingIdx < 0) {
-        existingIdx = state.findIndex((lib) => contextsMatch(lib.Context, parentContext));
+        existingIdx = state.findIndex((lib) => libraryMatchesParent(lib, dataSetType, parentContext));
       }
 
       if (existingIdx >= 0) {
@@ -131,14 +144,14 @@ function tagSpecReducer(
         );
       } else {
         // Create a new library with this definition
-        const newLib = createEmptyLibrary(parentContext);
+        const newLib = createEmptyLibrary(parentContext, dataSetType);
         newLib.TagSpecDefinitions = [definition];
         return [...state, newLib];
       }
     }
 
     case 'UPDATE': {
-      const { parentContext, definition } = action.payload;
+      const { parentContext, dataSetType, definition } = action.payload;
 
       // Prefer INPROGRESS library when multiple contain the same definition ID (checked-out pair)
       let currentLibIdx = state.findIndex((lib) =>
@@ -153,7 +166,7 @@ function tagSpecReducer(
       if (currentLibIdx < 0) return state;
 
       const currentLib = state[currentLibIdx];
-      const sameParent = contextsMatch(currentLib.Context, parentContext);
+      const sameParent = libraryMatchesParent(currentLib, dataSetType, parentContext);
 
       if (sameParent) {
         // Update in place
@@ -175,13 +188,17 @@ function tagSpecReducer(
             : lib
         );
 
-        // Remove empty libraries
-        result = result.filter((lib) => lib.TagSpecDefinitions.length > 0);
+        // Drop the SOURCE library only if the move emptied it. Never drop
+        // other empty libraries — a freshly checked-out draft has zero
+        // definitions and may be the move's TARGET; removing it here would
+        // discard its server Id and recreate it as a synthetic library.
+        const sourceId = currentLib.Id;
+        result = result.filter((lib) => !(lib.Id === sourceId && lib.TagSpecDefinitions.length === 0));
 
         // Find or create target library (prefer INPROGRESS)
-        let targetIdx = result.findIndex((lib) => lib.StatusTag === 'INPROGRESS' && contextsMatch(lib.Context, parentContext));
+        let targetIdx = result.findIndex((lib) => lib.StatusTag === 'INPROGRESS' && libraryMatchesParent(lib, dataSetType, parentContext));
         if (targetIdx < 0) {
-          targetIdx = result.findIndex((lib) => contextsMatch(lib.Context, parentContext));
+          targetIdx = result.findIndex((lib) => libraryMatchesParent(lib, dataSetType, parentContext));
         }
         if (targetIdx >= 0) {
           result = result.map((lib, i) =>
@@ -190,13 +207,22 @@ function tagSpecReducer(
               : lib
           );
         } else {
-          const newLib = createEmptyLibrary(parentContext);
+          const newLib = createEmptyLibrary(parentContext, dataSetType);
           newLib.TagSpecDefinitions = [definition];
           result = [...result, newLib];
         }
 
         return result;
       }
+    }
+
+    case 'REPLACE_LIBRARY': {
+      // Swap one library wholesale (matched by Id). Used after a successful
+      // TagSpecLibrarySave so state carries EXACTLY the list that was
+      // persisted, instead of an ADD/UPDATE re-deriving the target library
+      // and possibly disagreeing with what the server now holds.
+      const saved = action.payload;
+      return state.map((lib) => (lib.Id === saved.Id ? saved : lib));
     }
 
     case 'DELETE': {
