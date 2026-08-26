@@ -90,4 +90,13 @@ describe('matchingMt940Defs', () => {
     const current = def('d3', 'T', { Validity: { StartDate: '2026-01-01', EndDate: '2026-12-31' } });
     expect(matchingMt940Defs([future, expired, current], row, TODAY).map((d) => d.Id)).toEqual(['d3']);
   });
+
+  it('treats C# DateTime.MinValue validity bounds as "no bound", not as expired', () => {
+    // Some backend serializers ship "0001-01-01T00:00:00" instead of null for
+    // an unset bound. A literal comparison reads that EndDate as "expired in
+    // year 1" and silently excludes every rule (prod-only data shape).
+    const minValueEnd = def('d1', 'T', { Validity: { StartDate: null, EndDate: '0001-01-01T00:00:00' } });
+    const minValueBoth = def('d2', 'T', { Validity: { StartDate: '0001-01-01T00:00:00', EndDate: '0001-01-01T00:00:00' } });
+    expect(matchingMt940Defs([minValueEnd, minValueBoth], row, TODAY).map((d) => d.Id)).toEqual(['d1', 'd2']);
+  });
 });
