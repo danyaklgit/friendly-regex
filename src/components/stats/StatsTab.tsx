@@ -69,11 +69,13 @@ interface StatsTabProps {
    *  you were working in rather than resetting to MT940. */
   preferredDataSetType?: string | null;
   /** Library (identityKeySuffix) whose stats are known-stale because a header
-   *  check-in / release just triggered a backend retag. The row shows a
-   *  loading skeleton instead of the pre-action numbers until the tagging
-   *  cycle refreshes the stats. Timestamped so an old marker from a previous
-   *  action doesn't re-arm the skeleton on later Backlog visits. */
-  pendingStatsAction?: { key: string; at: number } | null;
+   *  check-in just triggered a backend retag. The row shows a loading
+   *  skeleton instead of the pre-action numbers until the tagging cycle
+   *  refreshes the stats. Timestamped so an old marker from a previous action
+   *  doesn't re-arm the skeleton on later Backlog visits. `libIds` +
+   *  `prevJobIds` let the skeleton clear on a NEW COMPLETED tagging entry
+   *  (fast retags finish between polls without ever being seen IN_PROGRESS). */
+  pendingStatsAction?: { key: string; at: number; libIds: string[]; prevJobIds: string[] } | null;
 }
 
 const sideLabel: Record<string, string> = {
@@ -252,23 +254,30 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
   const [backlogStats, setBacklogStats] = useState<Map<string, BacklogStatEntry>>(new Map());
   const [statsLoading, setStatsLoading] = useState(false);
 
-  // Rows whose stats are known-stale: a check-in / release / rollback just
-  // triggered a backend retag, so the currently fetchable numbers are the
-  // PRE-action ones. Such rows render the stats skeleton until the tagging
-  // cycle completes and the post-job refetch lands (or the safety timeout
-  // fires for actions that never surface a visible tagging job). Keyed by
-  // identityKeySuffix, seeded from the header actions via pendingStatsAction
+  // Rows whose stats are known-stale: a check-in / rollback just triggered a
+  // backend retag, so the currently fetchable numbers are the PRE-action
+  // ones. (Release triggers NO retag and never seeds this.) Such rows render
+  // the stats skeleton until the retag job is seen finishing — either the
+  // IN_PROGRESS→gone transition, or a NEW COMPLETED entry for one of the
+  // row's library ids (fast jobs complete between polls and are never
+  // observed IN_PROGRESS; without the COMPLETED check the skeleton sat on
+  // correct numbers until the safety timeout — the "stats keep loading"
+  // report, 2026-08-26) — or the safety timeout fires. Keyed by
+  // identityKeySuffix, seeded from the header check-in via pendingStatsAction
   // and extended locally by the row-level check-in / rollback handlers.
-  const [pendingStatsKeys, setPendingStatsKeys] = useState<Set<string>>(() =>
+  interface PendingStatsEntry { libIds: string[]; prevJobIds: string[] }
+  const [pendingStats, setPendingStats] = useState<Map<string, PendingStatsEntry>>(() =>
     pendingStatsAction && Date.now() - pendingStatsAction.at < PENDING_STATS_MAX_AGE_MS
-      ? new Set([pendingStatsAction.key])
-      : new Set(),
+      ? new Map([[pendingStatsAction.key, { libIds: pendingStatsAction.libIds, prevJobIds: pendingStatsAction.prevJobIds }]])
+      : new Map(),
   );
   useEffect(() => {
     if (!pendingStatsAction) return;
     if (Date.now() - pendingStatsAction.at >= PENDING_STATS_MAX_AGE_MS) return;
-    setPendingStatsKeys((prev) =>
-      prev.has(pendingStatsAction.key) ? prev : new Set(prev).add(pendingStatsAction.key),
+    setPendingStats((prev) =>
+      prev.has(pendingStatsAction.key)
+        ? prev
+        : new Map(prev).set(pendingStatsAction.key, { libIds: pendingStatsAction.libIds, prevJobIds: pendingStatsAction.prevJobIds }),
     );
   }, [pendingStatsAction]);
 
@@ -290,13 +299,13 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
   // surfaces (or its completion signal is missed), refetch once and clear so
   // a row can't sit in the skeleton state forever.
   useEffect(() => {
-    if (pendingStatsKeys.size === 0) return;
+    if (pendingStats.size === 0) return;
     const t = setTimeout(() => {
       void refetchBacklogStats();
-      setPendingStatsKeys(new Set());
+      setPendingStats(new Map());
     }, PENDING_STATS_MAX_AGE_MS);
     return () => clearTimeout(t);
-  }, [pendingStatsKeys, refetchBacklogStats]);
+  }, [pendingStats, refetchBacklogStats]);
 
   // Refresh after a write action: pulls libraries + TaggingProgress (lightweight — no
   // hierarchy) and backlog stats once. The delayed retry at ~2.5s only pulls libraries
@@ -354,10 +363,35 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
   useEffect(() => {
     const hasActive = Object.values(taggingProgress).some((e) => e.Status === 'IN_PROGRESS');
     if (hadActiveTaggingRef.current && !hasActive) {
-      void refetchBacklogStats().then(() => setPendingStatsKeys(new Set()));
+      void refetchBacklogStats().then(() => setPendingStats(new Map()));
     }
     hadActiveTaggingRef.current = hasActive;
   }, [taggingProgress, refetchBacklogStats]);
+
+  // Fast retags complete between polls and are never observed IN_PROGRESS —
+  // the transition effect above then never fires. Detect them by a NEW
+  // COMPLETED entry (job id not present at action time) for one of the
+  // pending row's library ids: refetch stats (now the post-retag numbers)
+  // and release that row's skeleton.
+  useEffect(() => {
+    if (pendingStats.size === 0) return;
+    const done: string[] = [];
+    for (const [rowKey, p] of pendingStats) {
+      const finished = p.libIds.some((libId) => {
+        const e = taggingProgress[libId];
+        return e && e.Status === 'COMPLETED' && !p.prevJobIds.includes(e.Id);
+      });
+      if (finished) done.push(rowKey);
+    }
+    if (done.length === 0) return;
+    void refetchBacklogStats().then(() =>
+      setPendingStats((prev) => {
+        const next = new Map(prev);
+        for (const k of done) next.delete(k);
+        return next;
+      }),
+    );
+  }, [taggingProgress, pendingStats, refetchBacklogStats]);
 
   const rows = useMemo<DisplayRow[]>(() => {
     const referencedIds = new Set(
@@ -623,7 +657,14 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
       }
       await tagSpecLibraryCheckIn(row.inProgressLib.Id, authToken, tepHeaders);
       clearChanges(row);
-      setPendingStatsKeys((prev) => new Set(prev).add(identityKeySuffix(row)));
+      {
+        const libIds = [row.inProgressLib.Id, row.inProgressLib.ActiveTagSpecLibId, row.library.Id]
+          .filter((id): id is string => !!id);
+        setPendingStats((prev) => new Map(prev).set(identityKeySuffix(row), {
+          libIds,
+          prevJobIds: libIds.map((id) => taggingProgress[id]?.Id).filter((id): id is string => !!id),
+        }));
+      }
       refreshAfterTaggingTrigger();
       setToast({ message: `Checked in ${identityLabel(row)}`, type: 'success' });
     } catch (err) {
@@ -631,7 +672,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
     } finally {
       setActionLoading(null);
     }
-  }, [authToken, tepHeaders, refreshAfterTaggingTrigger, clearChanges, hasChangesFor]);
+  }, [authToken, tepHeaders, refreshAfterTaggingTrigger, clearChanges, hasChangesFor, taggingProgress]);
 
   const handleRollbackConfirm = useCallback(async () => {
     if (!authToken || !tepHeaders || !rollbackTarget?.inProgressLib?.Id) return;
@@ -640,7 +681,14 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
     try {
       await tagSpecLibraryRollback(rollbackTarget.inProgressLib.Id, authToken, tepHeaders);
       clearChanges(rollbackTarget);
-      setPendingStatsKeys((prev) => new Set(prev).add(identityKeySuffix(rollbackTarget)));
+      {
+        const libIds = [rollbackTarget.inProgressLib.Id, rollbackTarget.inProgressLib.ActiveTagSpecLibId, rollbackTarget.library.Id]
+          .filter((id): id is string => !!id);
+        setPendingStats((prev) => new Map(prev).set(identityKeySuffix(rollbackTarget), {
+          libIds,
+          prevJobIds: libIds.map((id) => taggingProgress[id]?.Id).filter((id): id is string => !!id),
+        }));
+      }
       refreshAfterTaggingTrigger();
       setToast({ message: `Rolled back ${identityLabel(rollbackTarget)}`, type: 'success' });
     } catch (err) {
@@ -649,7 +697,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
       setActionLoading(null);
       setRollbackTarget(null);
     }
-  }, [authToken, tepHeaders, rollbackTarget, refreshAfterTaggingTrigger, clearChanges]);
+  }, [authToken, tepHeaders, rollbackTarget, refreshAfterTaggingTrigger, clearChanges, taggingProgress]);
 
   // --- Tag rule CRUD ---
 
@@ -884,7 +932,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                                 />
                               );
                             })()
-                          ) : statsLoading || pendingStatsKeys.has(rowKey) ? (
+                          ) : statsLoading || pendingStats.has(rowKey) ? (
                             <div className="space-y-1.5">
                               <div className="h-2 w-full rounded-full bg-surface-tertiary animate-pulse" />
                               <div className="flex gap-3">
