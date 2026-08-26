@@ -29,7 +29,7 @@ import { useWizardForm, fromExistingDefinition } from '../../hooks/useWizardForm
 import type { TagSpecDefinition, TagSpecLibrary, AnalyzedTransaction, WizardFormState, RuleExpression, CheckoutState, TransactionRow, AndGroupFormValue } from '../../types';
 import type { WizardFormResult } from '../../hooks/useWizardForm';
 import { analyzeRow, buildAnalyzeScratch } from '../../utils/analyzeRow';
-import { explainMt940Defs, matchingMt940Defs } from '../../utils/mt940Suggestions';
+import { explainMt940Defs, matchingMt940Defs, mt940CloneRuleFingerprint } from '../../utils/mt940Suggestions';
 
 // TEMP prod debugging (2026-08-26): MT940 clone suggestions appear on QA but
 // not on prod for this narrative in Al Rajhi Bank – Credit / MT942. Rows whose
@@ -1653,8 +1653,12 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // workspaces — MT940 itself needs no suggestions, and Ledger shares no rules
   // with MT940. Dedupe by def.Id, keeping the most-current source (INPROGRESS
   // draft over ACTIVE release, then higher Version) — mirrors the picker.
-  // Excludes defs whose Tag already exists in the intraday library for this
-  // bank/side (already cloned — suggesting it again is noise).
+  // Excludes defs already cloned into the intraday library for this bank/side
+  // — matched by Tag + rule fingerprint (type conditions stripped), NOT by tag
+  // name alone: a tag can carry several defs with different rules (version
+  // overlays), and suppressing the whole name hid every suggestion once ONE
+  // variant was cloned (the prod Al Rajhi /PT/Transfer case, 2026-08-26).
+  // Only the exact already-cloned rule set is noise; the others still show.
   const mt940SuggestionDefs = useMemo(() => {
     const dst = activeCheckout?.dataSetType;
     if (!isLiveMode || !activeCheckout || (dst !== 'MT942' && dst !== 'INTERIM_MT940')) {
@@ -1684,15 +1688,19 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         && getContextValue(l.Context, 'BankSwiftCode') === activeCheckout.bank
         && getContextValue(l.Context, 'Side') === activeCheckout.side,
     })));
-    const existingIntradayTags = new Set<string>();
+    // Tag + rule fingerprint of every def already in the intraday library:
+    // exactly these clones are suppressed as suggestions.
+    const existingIntradayClones = new Set<string>();
     for (const lib of libraries) {
       if (lib.DataSetType !== dst) continue;
       if (getContextValue(lib.Context, 'BankSwiftCode') !== activeCheckout.bank) continue;
       if (getContextValue(lib.Context, 'Side') !== activeCheckout.side) continue;
-      for (const def of lib.TagSpecDefinitions) existingIntradayTags.add(def.Tag);
+      for (const def of lib.TagSpecDefinitions) {
+        existingIntradayClones.add(`${def.Tag}␝${mt940CloneRuleFingerprint(def)}`);
+      }
     }
-    console.log('[MT940-SUGG] intraday tags already cloned (suggestions suppressed for these)',
-      Array.from(existingIntradayTags));
+    console.log('[MT940-SUGG] intraday defs already cloned (tag␝rule-fingerprint; suggestions suppressed for exact matches)',
+      Array.from(existingIntradayClones));
     const defSkips: Array<{ tag: string; id: string; reason: string }> = [];
     const defById = new Map<string, { def: TagSpecDefinition; score: number }>();
     for (const lib of libraries) {
@@ -1708,8 +1716,8 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
           });
           continue;
         }
-        if (existingIntradayTags.has(def.Tag)) {
-          defSkips.push({ tag: def.Tag, id: def.Id, reason: 'tag already exists in intraday library' });
+        if (existingIntradayClones.has(`${def.Tag}␝${mt940CloneRuleFingerprint(def)}`)) {
+          defSkips.push({ tag: def.Tag, id: def.Id, reason: 'same tag + same rules already cloned into intraday library' });
           continue;
         }
         const existing = defById.get(def.Id);

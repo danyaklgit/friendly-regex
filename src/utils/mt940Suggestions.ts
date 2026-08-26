@@ -50,6 +50,30 @@ export function matchingMt940Defs(
   return out;
 }
 
+/**
+ * Order-independent fingerprint of a saved def's rule expressions, with
+ * transaction-type conditions STRIPPED — the same normalization
+ * matchingMt940Defs matches with. Used to decide whether an MT940 def was
+ * already cloned into the intraday library: the clone flow copies rules
+ * verbatim but the operator adapts transaction-type codes (MT940 and MT942
+ * codes differ for the same logical transaction), so type conditions must not
+ * differentiate. Two defs sharing a tag name but carrying different rules
+ * fingerprint differently — only the exact already-cloned rule set is
+ * suppressed as a suggestion, the others still show.
+ */
+export function mt940CloneRuleFingerprint(def: TagSpecDefinition): string {
+  return def.TagRuleExpressions
+    .map((group) =>
+      group
+        .filter((c) => !TRANSACTION_TYPE_FIELDS.has(c.SourceField))
+        .map((c) => `${c.SourceField}␟${c.Regex}`)
+        .sort()
+        .join('␞'),
+    )
+    .sort()
+    .join('␝');
+}
+
 export interface Mt940ConditionExplanation {
   field: string;
   regex: string;
