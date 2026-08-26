@@ -1642,10 +1642,13 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     return [tempDefinition, ...tagDefinitions];
   }, [tagDefinitions, tempDefinition, editingDef]);
 
-  // Intraday helper, step 1: the candidate MT940 defs (same bank + side) an
-  // operator tagging MT942 / INTERIM_MT940 may clone. Gated to intraday
-  // workspaces — MT940 itself needs no suggestions, and Ledger shares no rules
-  // with MT940. Dedupe by def.Id, keeping the most-current source (INPROGRESS
+  // Clone-suggestions helper, step 1: the candidate MT940 defs (same bank +
+  // side) an operator may clone into the current workspace. EVERY non-MT940
+  // workspace is eligible (MT942, INTERIM_MT940, and any future type) — MT940
+  // itself needs no suggestions from its own library. Ledger passes the gate
+  // but naturally yields zero candidates: its identity is (ClientCode,
+  // ErpCode), so no MT940 bank/side library matches it. Dedupe by def.Id,
+  // keeping the most-current source (INPROGRESS
   // draft over ACTIVE release, then higher Version) — mirrors the picker.
   // Excludes defs already cloned into the intraday library for this bank/side
   // — matched by Tag + rule fingerprint (type conditions stripped), NOT by tag
@@ -1655,7 +1658,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // Only the exact already-cloned rule set is noise; the others still show.
   const mt940SuggestionDefs = useMemo(() => {
     const dst = activeCheckout?.dataSetType;
-    if (!isLiveMode || !activeCheckout || (dst !== 'MT942' && dst !== 'INTERIM_MT940')) return [];
+    if (!isLiveMode || !activeCheckout || !dst || dst === DEFAULT_DATA_SET_TYPE) return [];
     // Tag + rule fingerprint of every def already in the intraday library:
     // exactly these clones are suppressed as suggestions.
     const existingIntradayClones = new Set<string>();

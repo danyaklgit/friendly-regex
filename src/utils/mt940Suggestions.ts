@@ -10,9 +10,9 @@ const TRANSACTION_TYPE_FIELDS = new Set(['TransactionTypeCode', 'TransactionType
 /**
  * Which of `defs` (the MT940 rules for a bank/side) match `row`.
  *
- * Used to suggest, on an INTRADAY (MT942 / INTERIM_MT940) transaction, the
- * MT940 rules that already describe it — so the operator can clone one into an
- * intraday tag.
+ * Used to suggest, on a transaction in any NON-MT940 workspace (MT942,
+ * INTERIM_MT940, …), the MT940 rules that already describe it — so the
+ * operator can clone one into a tag for that workspace.
  *
  * TRANSACTION TYPE IS DELIBERATELY IGNORED — both the def's child Context AND
  * any TransactionTypeCode / TransactionTypeName CONDITION inside the rule
