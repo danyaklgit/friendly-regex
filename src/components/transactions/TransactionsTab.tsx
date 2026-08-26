@@ -1642,30 +1642,16 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     return [tempDefinition, ...tagDefinitions];
   }, [tagDefinitions, tempDefinition, editingDef]);
 
-  // Intraday helper: which MT940 rules (same bank + side) match each loaded
-  // row. Shown as clickable suggestions in the Tags cell so an operator
-  // tagging MT942 / INTERIM_MT940 can clone the MT940 rule that already
-  // describes the transaction. Gated to intraday workspaces — MT940 itself
-  // needs no suggestions, and the per-row × per-def evaluation should not run
-  // on the (large) end-of-day datasets. Keyed by row REFERENCE; the memo
-  // recomputes whenever `transactions` changes (every page/refill), so each
-  // page's rows are covered and `item.row` (same reference) resolves.
-  const mt940SuggestionsByRow = useMemo(() => {
-    const map = new Map<TransactionRow, TagSpecDefinition[]>();
+  // Intraday helper, step 1: the candidate MT940 defs (same bank + side) an
+  // operator tagging MT942 / INTERIM_MT940 may clone. Gated to intraday
+  // workspaces — MT940 itself needs no suggestions, and Ledger shares no rules
+  // with MT940. Dedupe by def.Id, keeping the most-current source (INPROGRESS
+  // draft over ACTIVE release, then higher Version) — mirrors the picker.
+  // Excludes defs whose Tag already exists in the intraday library for this
+  // bank/side (already cloned — suggesting it again is noise).
+  const mt940SuggestionDefs = useMemo(() => {
     const dst = activeCheckout?.dataSetType;
-    // Only the intraday workspaces clone from MT940. Gate explicitly (not
-    // "anything but MT940") so Ledger — which shares no rules with MT940 —
-    // never shows clone-from-MT940 pills.
-    if (!isLiveMode || !activeCheckout || (dst !== 'MT942' && dst !== 'INTERIM_MT940')) return map;
-    // Gather candidate MT940 defs for the EXACT same bank + side as the
-    // intraday checkout (only). Dedupe by def.Id, keeping the most-current
-    // source (INPROGRESS draft over ACTIVE release, then higher Version) —
-    // mirrors the picker.
-    // Tags the operator has ALREADY created in this intraday (checked-out)
-    // library — a rule whose tag is already here shouldn't be suggested for
-    // cloning again. Collected across every intraday lib for this bank/side
-    // (released + in-progress), so a tag disappears from the suggestions the
-    // moment its intraday version is saved.
+    if (!isLiveMode || !activeCheckout || (dst !== 'MT942' && dst !== 'INTERIM_MT940')) return [];
     const existingIntradayTags = new Set<string>();
     for (const lib of libraries) {
       if (lib.DataSetType !== dst) continue;
@@ -1687,15 +1673,31 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         defById.set(def.Id, { def, score });
       }
     }
-    if (defById.size === 0) return map;
-    const defs = Array.from(defById.values(), (v) => v.def);
+    return Array.from(defById.values(), (v) => v.def);
+  }, [isLiveMode, activeCheckout, libraries]);
+
+  // Step 2: an ON-DEMAND per-row lookup instead of a prebuilt map. A map keyed
+  // by row reference (or id) is built from ONE buffer snapshot and silently
+  // misses when the table renders rows from a NEWER buffer (classic page nav /
+  // refills replace every row object — the "suggestions only on the first
+  // page" bug). Computing at render time for exactly the row object being
+  // rendered cannot go stale. A WeakMap memoizes per row object so the
+  // per-row × per-def evaluation runs once per row, not on every scroll
+  // frame; the cache (and the function identity, which busts rowCtx) resets
+  // whenever the candidate defs change.
+  const getMt940Suggestions = useMemo(() => {
+    if (mt940SuggestionDefs.length === 0) return undefined;
+    const cache = new WeakMap<TransactionRow, TagSpecDefinition[]>();
     const today = new Date().toISOString().split('T')[0];
-    for (const row of transactions) {
-      const matches = matchingMt940Defs(defs, row, today);
-      if (matches.length > 0) map.set(row, matches);
-    }
-    return map;
-  }, [isLiveMode, activeCheckout, libraries, transactions]);
+    return (row: TransactionRow): TagSpecDefinition[] => {
+      let matches = cache.get(row);
+      if (!matches) {
+        matches = matchingMt940Defs(mt940SuggestionDefs, row, today);
+        cache.set(row, matches);
+      }
+      return matches;
+    };
+  }, [mt940SuggestionDefs]);
 
   // Clone a suggested MT940 rule into a NEW intraday tag: open the Rule
   // Builder in create mode (for the current intraday checkout), pre-fill the
@@ -1710,17 +1712,19 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     // MSC). The ref suppresses the on-open single-value-chip TTC seed so this
     // value wins for the one open.
     let ttc = '';
-    for (const row of transactions) {
-      const sugg = mt940SuggestionsByRow.get(row);
-      if (sugg && sugg.some((d) => d.Id === def.Id)) {
-        ttc = String(row['TransactionTypeCode'] ?? '');
-        break;
+    if (getMt940Suggestions) {
+      for (const row of transactions) {
+        const sugg = getMt940Suggestions(row);
+        if (sugg.some((d) => d.Id === def.Id)) {
+          ttc = String(row['TransactionTypeCode'] ?? '');
+          break;
+        }
       }
     }
     builder.updateBasicInfo({ tag: def.Tag, transactionTypeCode: ttc });
     cloneMt940SkipTtcRef.current = true;
     setBuilderOpen(true);
-  }, [builder, transactions, mt940SuggestionsByRow]);
+  }, [builder, transactions, getMt940Suggestions]);
 
   // Map definition ID → source label for tag tooltip
   const definitionSourceMap = useMemo(() => {
@@ -3954,7 +3958,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         onFlagDeadEndWithComment={!isReadOnly && !tagClickState?.showingAll && !tagClickState?.rulesetApplied ? flagDeadEndWithComment : undefined}
         onSetComments={!isReadOnly && !tagClickState?.showingAll && !tagClickState?.rulesetApplied ? setComments : undefined}
         onHideTagDefs={!isReadOnly && !tagClickState?.showingAll && !tagClickState?.rulesetApplied ? hideTagDefs : undefined}
-        mt940SuggestionsByRow={mt940SuggestionsByRow}
+        getMt940Suggestions={getMt940Suggestions}
         onCloneMt940Suggestion={!isReadOnly ? handleCloneMt940Suggestion : undefined}
         showAttributes={showAttributes}
         relaxedMode={relaxedMode}

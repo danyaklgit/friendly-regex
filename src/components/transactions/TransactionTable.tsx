@@ -50,10 +50,13 @@ interface TransactionTableProps {
   onFlagDeadEndWithComment?: (ids: string[], value: boolean, entries?: SetTransactionsCommentEntry[]) => Promise<void>;
   onSetComments?: (entries: SetTransactionsCommentEntry[]) => Promise<void>;
   onHideTagDefs?: (defIds: string[]) => void;
-  /** Intraday only: MT940 rules (same bank/side) that match each row, keyed by
-   *  row reference. Rendered as clickable "From MT940" suggestion pills in the
-   *  Tags cell so the operator can clone one into an intraday tag. */
-  mt940SuggestionsByRow?: Map<TransactionRow, TagSpecDefinition[]>;
+  /** Intraday only: on-demand "which MT940 rules (same bank/side) match this
+   *  row" lookup, rendered as clickable "From MT940" suggestion pills in the
+   *  Tags cell. A FUNCTION (not a prebuilt map) so it can never go stale
+   *  against the rendered buffer — classic page nav replaces every row object,
+   *  and a snapshot map keyed by old references missed on pages > 1. Caller
+   *  memoizes per row internally. */
+  getMt940Suggestions?: (row: TransactionRow) => TagSpecDefinition[];
   /** Clicking a suggestion clones that MT940 rule into a new intraday tag.
    *  Absent ⇒ suggestions aren't shown (e.g. read-only). */
   onCloneMt940Suggestion?: (def: TagSpecDefinition) => void;
@@ -1252,7 +1255,7 @@ interface RowCtx {
   definitionVersions?: Map<string, DefinitionVersionInfo>;
   onTagClick?: (tagName: string, definitionId?: string) => void;
   onRowContextMenu?: TransactionTableProps['onRowContextMenu'];
-  mt940SuggestionsByRow?: Map<TransactionRow, TagSpecDefinition[]>;
+  getMt940Suggestions?: (row: TransactionRow) => TagSpecDefinition[];
   onCloneMt940Suggestion?: (def: TagSpecDefinition) => void;
   txnTypeDescriptions: Map<string, string>;
   toggleSelect: (id: string) => void;
@@ -1304,7 +1307,7 @@ const TableRow = memo(function TableRow({
     interactiveCellHint, attrValidationMap, attrLovTagMap, lovLookup,
     activeDefinitionId, tagDefinitions, originalEditingDef,
     originalDefinitionIds, definitionSourceMap, definitionVersions,
-    onTagClick, onRowContextMenu, mt940SuggestionsByRow, onCloneMt940Suggestion,
+    onTagClick, onRowContextMenu, getMt940Suggestions, onCloneMt940Suggestion,
     txnTypeDescriptions,
     toggleSelect, setHighlightSource,
     highlightTimerRef,
@@ -1719,7 +1722,7 @@ const TableRow = memo(function TableRow({
                       // whole "Clone from MT940" section. Suggestions are a
                       // starting point for still-untagged intraday rows only.
                       if (item.analysis.tags.length > 0) return null;
-                      const suggestions = mt940SuggestionsByRow?.get(item.row);
+                      const suggestions = getMt940Suggestions?.(item.row);
                       if (!suggestions || suggestions.length === 0) return null;
                       // Divider from other content above (dead-end / hints) when
                       // present; on a bare untagged row the suggestions stand
@@ -1783,7 +1786,7 @@ const TableRow = memo(function TableRow({
   );
 });
 
-export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, definitionSourceMap, definitionVersions, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, onFlagDeadEndWithComment, onSetComments, onHideTagDefs, mt940SuggestionsByRow, onCloneMt940Suggestion, showAttributes = true, relaxedMode = false, charViewColumns = EMPTY_CHAR_VIEW_COLUMNS, hiddenColumns = EMPTY_HIDDEN_COLUMNS, columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, forceSkeleton = false, accentHue = 190, onRowContextMenu, onCellDoubleClick, interactiveCellFields, interactiveCellHint, originalEditingDef, activeDefinitionId, sortOverride = null, onSortChange, columnWidths, onColumnWidthChange, dataSetType, journalBanding = false }: TransactionTableProps) {
+export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, definitionSourceMap, definitionVersions, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, onFlagDeadEndWithComment, onSetComments, onHideTagDefs, getMt940Suggestions, onCloneMt940Suggestion, showAttributes = true, relaxedMode = false, charViewColumns = EMPTY_CHAR_VIEW_COLUMNS, hiddenColumns = EMPTY_HIDDEN_COLUMNS, columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, forceSkeleton = false, accentHue = 190, onRowContextMenu, onCellDoubleClick, interactiveCellFields, interactiveCellHint, originalEditingDef, activeDefinitionId, sortOverride = null, onSortChange, columnWidths, onColumnWidthChange, dataSetType, journalBanding = false }: TransactionTableProps) {
   // Resolve the effective width for a column: explicit override wins,
   // otherwise the catalog default, otherwise undefined (browser
   // auto-layout). Width overrides are intentionally scoped to non-compact
@@ -2783,7 +2786,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     definitionVersions,
     onTagClick,
     onRowContextMenu,
-    mt940SuggestionsByRow,
+    getMt940Suggestions,
     onCloneMt940Suggestion,
     txnTypeDescriptions,
     toggleSelect,
@@ -2796,7 +2799,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     interactiveCellHint, attrValidationMap, attrLovTagMap, lovLookup,
     activeDefinitionId, tagDefinitions, originalEditingDef,
     originalDefinitionIds, definitionSourceMap, definitionVersions,
-    onTagClick, onRowContextMenu, mt940SuggestionsByRow, onCloneMt940Suggestion, txnTypeDescriptions, toggleSelect,
+    onTagClick, onRowContextMenu, getMt940Suggestions, onCloneMt940Suggestion, txnTypeDescriptions, toggleSelect,
   ]);
 
   const cellPy = relaxedMode ? 'py-1' : 'py-2';
