@@ -103,8 +103,12 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
   // release just triggered a backend retag. Passed to StatsTab (which
   // remounts on tab switches, so this must live here) so the row shows a
   // loading skeleton instead of the pre-action numbers. The timestamp lets
-  // StatsTab ignore stale markers on later visits.
-  const [pendingStatsAction, setPendingStatsAction] = useState<{ key: string; at: number } | null>(null);
+  // StatsTab ignore stale markers on later visits. `libIds` are the library
+  // ids the retag job may be keyed under and `prevJobIds` the job ids already
+  // present for them at action time — StatsTab clears the skeleton as soon as
+  // a NEW COMPLETED job appears for one of the libIds (fast retags can finish
+  // between polls without ever being observed IN_PROGRESS).
+  const [pendingStatsAction, setPendingStatsAction] = useState<{ key: string; at: number; libIds: string[]; prevJobIds: string[] } | null>(null);
   // Transient extra filters propagated from a Backlog pill click (Clean,
   // Untagged, etc). Lives at the app level so the navigation outlives the
   // tab switch; TransactionsTab consumes it on mount and clears via
@@ -159,7 +163,7 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
     }
   }, []);
 
-  const { libraries, refetchLibraries, isPairBeingTagged } = useTagSpecs();
+  const { libraries, refetchLibraries, isPairBeingTagged, taggingProgress } = useTagSpecs();
   const { clearChanges, getChangeSummary, hasChanges, hasChangesFor } = useLocalChanges(activeCheckout);
 
   // Resolve the identity fragment for a checkout. For Ledger, bank/side are
@@ -281,7 +285,10 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
       );
       setToast({ message: `Saved and released ${label}`, type: 'success' });
       setLastCheckoutDataSetType(dataSetType);
-      setPendingStatsAction({ key: identityKeySuffix({ dataSetType, ...identityFromContext(inProgressLib) }), at: Date.now() });
+      // No pendingStatsAction here: release triggers NO backend retag, so the
+      // fetchable stats are still the valid ones — a skeleton would just sit
+      // on correct numbers until the safety timeout (the "stats keep loading
+      // after release" report, 2026-08-26).
       setActiveTab(0);
     } catch (err) {
       setToast({ message: err instanceof Error ? err.message : 'Release failed', type: 'error' });
@@ -312,14 +319,22 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
       );
       setToast({ message: `Saved and checked in ${label}`, type: 'success' });
       setLastCheckoutDataSetType(dataSetType);
-      setPendingStatsAction({ key: identityKeySuffix({ dataSetType, ...identityFromContext(inProgressLib) }), at: Date.now() });
+      {
+        const libIds = [inProgressLib.Id, inProgressLib.ActiveTagSpecLibId].filter((id): id is string => !!id);
+        setPendingStatsAction({
+          key: identityKeySuffix({ dataSetType, ...identityFromContext(inProgressLib) }),
+          at: Date.now(),
+          libIds,
+          prevJobIds: libIds.map((id) => taggingProgress[id]?.Id).filter((id): id is string => !!id),
+        });
+      }
       setActiveTab(0);
     } catch (err) {
       setToast({ message: err instanceof Error ? err.message : 'Check-in failed', type: 'error' });
     } finally {
       setHeaderActionLoading(false);
     }
-  }, [isAudit, authToken, tepHeaders, findInProgressLib, refetchLibraries, clearChanges, hasChangesFor]);
+  }, [isAudit, authToken, tepHeaders, findInProgressLib, refetchLibraries, clearChanges, hasChangesFor, taggingProgress]);
 
   const handleRequestUndo = useCallback((bank: string, side: string, dataSetType: string) => {
     if (isAudit) return;
