@@ -7,13 +7,6 @@ import { evaluateRuleSet } from './evaluateRuleSet';
  */
 const TRANSACTION_TYPE_FIELDS = new Set(['TransactionTypeCode', 'TransactionTypeName']);
 
-/** A validity bound that actually constrains: non-null and not a pre-epoch
- *  serializer sentinel (C# DateTime.MinValue → "0001-01-01T00:00:00"). */
-function meaningfulDate(d: string | null | undefined): string | null {
-  if (!d) return null;
-  return d >= '1970' ? d : null;
-}
-
 /**
  * Which of `defs` (the MT940 rules for a bank/side) match `row`.
  *
@@ -42,14 +35,8 @@ export function matchingMt940Defs(
   for (const def of defs) {
     if (def.StatusTag !== 'ACTIVE') continue;
     if (def.TagRuleExpressions.length === 0) continue;
-    // Sentinel-tolerant validity: some backend serializers ship C#'s
-    // DateTime.MinValue ("0001-01-01T00:00:00") instead of null for an unset
-    // bound. Taken literally, a MinValue EndDate is always in the past and
-    // would exclude EVERY rule. Treat clearly-pre-epoch dates as "no bound".
-    const start = meaningfulDate(def.Validity.StartDate);
-    const end = meaningfulDate(def.Validity.EndDate);
-    if (start && todayISODate < start) continue;
-    if (end && todayISODate > end) continue;
+    if (def.Validity.StartDate && todayISODate < def.Validity.StartDate) continue;
+    if (def.Validity.EndDate && todayISODate > def.Validity.EndDate) continue;
     const matches = def.TagRuleExpressions.some((group) => {
       const nonTypeConditions = group.filter((c) => !TRANSACTION_TYPE_FIELDS.has(c.SourceField));
       // Group was purely a transaction-type constraint → nothing left to check

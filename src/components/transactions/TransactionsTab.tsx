@@ -1661,14 +1661,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     }
     const defById = new Map<string, { def: TagSpecDefinition; score: number }>();
     for (const lib of libraries) {
-      // FAMILY match, not exact: PROD serves MT940-family items labeled
-      // `TransactionsList` (the same aliasing that once froze the grid — see
-      // isSameDataSetFamily / the stale-buffer gotcha). An exact 'MT940'
-      // comparison finds ZERO candidate libraries on prod, so intraday
-      // recommendations silently never appear there while QA (labeled
-      // 'MT940') works. Family-aware admits both labels; QA behavior is
-      // unchanged.
-      if (!isSameDataSetFamily(lib.DataSetType, DEFAULT_DATA_SET_TYPE)) continue;
+      if (lib.DataSetType !== DEFAULT_DATA_SET_TYPE) continue;
       if (getContextValue(lib.Context, 'BankSwiftCode') !== activeCheckout.bank) continue;
       if (getContextValue(lib.Context, 'Side') !== activeCheckout.side) continue;
       const score = (lib.StatusTag === 'INPROGRESS' ? 1_000_000 : 0) + (lib.Version ?? 0);

@@ -7,7 +7,7 @@ import { Modal } from '../shared/Modal';
 import { Button } from '../shared/Button';
 import { Tooltip } from '../shared/Tooltip';
 import { CopyableId } from '../shared/CopyableId';
-import { DATA_SET_TYPE_LABELS, DEFAULT_DATA_SET_TYPE, isSameDataSetFamily, type DataSetType } from '../../constants/dataSetTypes';
+import { DATA_SET_TYPE_LABELS, DEFAULT_DATA_SET_TYPE, type DataSetType } from '../../constants/dataSetTypes';
 import { isLedger } from '../../utils/libraryIdentity';
 
 interface SourceTagPickerModalProps {
@@ -153,9 +153,7 @@ export function SourceTagPickerModal({ open, libraries, onClose, onSelect, curre
       let r = 0;
       if (currentBank && e.bank === currentBank) r += 8;
       if (currentSide && e.side === currentSide) r += 4;
-      // Family-aware: prod serves MT940-family libraries labeled
-      // TransactionsList; they must keep the "MT940 rules first" boost.
-      if (isSameDataSetFamily(e.dataSetType, DEFAULT_DATA_SET_TYPE)) r += 2;
+      if (e.dataSetType === DEFAULT_DATA_SET_TYPE) r += 2;
       return r;
     };
     result.sort((a, b) => {
@@ -309,7 +307,7 @@ export function SourceTagPickerModal({ open, libraries, onClose, onSelect, curre
                         <div className="flex items-baseline gap-2 min-w-0">
                           <span
                             className={`shrink-0 text-[10px] font-semibold rounded-full px-2 py-0.5 border ${
-                              isSameDataSetFamily(entry.dataSetType, DEFAULT_DATA_SET_TYPE)
+                              entry.dataSetType === DEFAULT_DATA_SET_TYPE
                                 ? 'bg-primary/10 text-primary-dark dark:text-primary border-primary/30'
                                 : 'bg-surface-secondary text-muted border-border'
                             }`}
