@@ -195,7 +195,7 @@ interface DisplayRow {
 export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckoutComplete, onRelease, authToken, tepHeaders, navigation, onNavigationConsumed, onNavigateToBacklog, preferredDataSetType, pendingStatsAction }: StatsTabProps) {
   const { libraries, tagDefinitions, loading, refetchTagSpecs, refetchLibraries, dispatch, taggingProgress, isPairBeingTagged, getTaggingFirstSeen } = useTagSpecs();
   const { usersMap, useDummyData, userId, isAudit } = useAuth();
-  const { clearChanges } = useLocalChanges(null);
+  const { clearChanges, hasChangesFor } = useLocalChanges(null);
   const { filterDefinitions, filterDefinitionsLoading, fetchFilterDefinitions, isLiveMode } = useTransactionData();
 
   // Fetch filter definitions on mount so bank names are available even when starting on Backlog
@@ -613,7 +613,14 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
     setActionLoading(row.library.Id!);
     setToast({ message: `Checking in ${identityLabel(row)}…`, type: 'info', duration: 60_000 });
     try {
-      await tagSpecLibrarySave(row.inProgressLib, authToken, tepHeaders);
+      // Pre-save only when there ARE local changes the server may not have.
+      // With none, the wizard's per-change saves mean the server already
+      // holds the newest list — re-sending a possibly stale in-memory copy
+      // can only lose definitions (definition-lost-on-check-in bug,
+      // 2026-08-26), never add any.
+      if (hasChangesFor(row)) {
+        await tagSpecLibrarySave(row.inProgressLib, authToken, tepHeaders);
+      }
       await tagSpecLibraryCheckIn(row.inProgressLib.Id, authToken, tepHeaders);
       clearChanges(row);
       setPendingStatsKeys((prev) => new Set(prev).add(identityKeySuffix(row)));
@@ -624,7 +631,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
     } finally {
       setActionLoading(null);
     }
-  }, [authToken, tepHeaders, refreshAfterTaggingTrigger, clearChanges]);
+  }, [authToken, tepHeaders, refreshAfterTaggingTrigger, clearChanges, hasChangesFor]);
 
   const handleRollbackConfirm = useCallback(async () => {
     if (!authToken || !tepHeaders || !rollbackTarget?.inProgressLib?.Id) return;

@@ -2727,6 +2727,11 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     // filter reset only after the save ensures the refetch (triggered by
     // setFilters below, or the explicit fetchPage when there's no filter
     // change to piggyback on) hits a backend that already has the new rule.
+    // When the server save ran, this is the exact library object that was
+    // persisted — state must take it verbatim (REPLACE_LIBRARY below) rather
+    // than letting an ADD/UPDATE re-derive the target library and risk filing
+    // the definition elsewhere.
+    let savedLib: TagSpecLibrary | null = null;
     if (activeCheckout) {
       setSavingTagSpec(true);
       try {
@@ -2745,13 +2750,28 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
           const currentLib = libraries.find(
             (l) => l.StatusTag === 'INPROGRESS' && libraryMatchesCheckout(l, activeCheckout)
           );
-          if (currentLib) {
+          if (!currentLib) {
+            // No INPROGRESS library matches the checkout. Nothing was sent to
+            // the server, and dispatching locally would file the definition
+            // under some OTHER library (or an ACTIVE one that is never saved)
+            // — a silent "Tag created" whose rule is gone on the next
+            // refetch. Surface it instead.
+            console.error('handleWizardSave: no INPROGRESS library matches the checkout', activeCheckout);
+            setToast({
+              message: `Tag '${result.definition.Tag}' was NOT saved — no checked-out library found for this workspace. Refresh and try again.`,
+              type: 'error',
+            });
+            setSavingTagSpec(false);
+            return; // Keep the wizard open so the operator's work isn't lost.
+          }
+          {
             const isEditing = !!editingDef;
             const updatedDefs = isEditing
               ? currentLib.TagSpecDefinitions.map((d) => d.Id === result.definition.Id ? result.definition : d)
               : [...currentLib.TagSpecDefinitions, result.definition];
             const libToSave = { ...currentLib, TagSpecDefinitions: updatedDefs };
             await tagSpecLibrarySave(libToSave, token, tepHeaders);
+            savedLib = libToSave;
             // Re-baseline the local cache so baseline + current both reflect
             // what's now on the server, preventing stale draft state from
             // overriding fresh API responses on future fetches.
@@ -2796,7 +2816,13 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     }
 
     // Save succeeded — now safe to flip the local state.
-    if (editingDef) {
+    if (savedLib) {
+      // Server save ran: state takes the persisted library verbatim, so
+      // state, the localStorage baseline, and the server agree by
+      // construction (no ADD/UPDATE re-derivation of the target library).
+      dispatch({ type: 'REPLACE_LIBRARY', payload: savedLib });
+      setToast({ message: `Tag '${result.definition.Tag}' ${editingDef ? 'updated' : 'created'}`, type: 'success' });
+    } else if (editingDef) {
       dispatch({ type: 'UPDATE', payload: result });
       setToast({ message: `Tag '${result.definition.Tag}' updated`, type: 'success' });
     } else {

@@ -120,6 +120,15 @@ export function fromExistingDefinition(
 
 export interface WizardFormResult {
   parentContext: ContextEntry[];
+  /**
+   * The workspace the definition belongs to. Part of the target library's
+   * identity: (DataSetType, parentContext) TOGETHER identify a library — the
+   * same bank/side can have INPROGRESS libraries in several workspaces at
+   * once (MT940 + MT942), so filing a definition by context alone can land it
+   * in the wrong library and lose it on the next save (see the
+   * definition-lost-on-check-in bug, 2026-08-26).
+   */
+  dataSetType: string;
   definition: TagSpecDefinition;
   /**
    * Maps wizard form-level UUIDs (`condition.id`, `attribute.id`) to the
@@ -653,7 +662,7 @@ export function useWizardForm(
       ? buildCommentTargetByFormKey(formState, libraryId, id)
       : new Map<string, TagSpecCommentTarget>();
 
-    return { parentContext, definition, commentTargetByFormKey };
+    return { parentContext, dataSetType: formState.dataSetType, definition, commentTargetByFormKey };
   }, [formState, existingDef]);
 
   return {
