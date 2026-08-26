@@ -7,13 +7,6 @@ import { evaluateRuleSet } from './evaluateRuleSet';
  */
 const TRANSACTION_TYPE_FIELDS = new Set(['TransactionTypeCode', 'TransactionTypeName']);
 
-/** A validity bound that actually constrains: non-null and not a pre-epoch
- *  serializer sentinel (C# DateTime.MinValue → "0001-01-01T00:00:00"). */
-function meaningfulDate(d: string | null | undefined): string | null {
-  if (!d) return null;
-  return d >= '1970' ? d : null;
-}
-
 /**
  * Which of `defs` (the MT940 rules for a bank/side) match `row`.
  *
@@ -42,14 +35,8 @@ export function matchingMt940Defs(
   for (const def of defs) {
     if (def.StatusTag !== 'ACTIVE') continue;
     if (def.TagRuleExpressions.length === 0) continue;
-    // Sentinel-tolerant validity: some backend serializers ship C#'s
-    // DateTime.MinValue ("0001-01-01T00:00:00") instead of null for an unset
-    // bound. Taken literally, a MinValue EndDate is always in the past and
-    // would exclude EVERY rule. Treat clearly-pre-epoch dates as "no bound".
-    const start = meaningfulDate(def.Validity.StartDate);
-    const end = meaningfulDate(def.Validity.EndDate);
-    if (start && todayISODate < start) continue;
-    if (end && todayISODate > end) continue;
+    if (def.Validity.StartDate && todayISODate < def.Validity.StartDate) continue;
+    if (def.Validity.EndDate && todayISODate > def.Validity.EndDate) continue;
     const matches = def.TagRuleExpressions.some((group) => {
       const nonTypeConditions = group.filter((c) => !TRANSACTION_TYPE_FIELDS.has(c.SourceField));
       // Group was purely a transaction-type constraint → nothing left to check
@@ -61,4 +48,79 @@ export function matchingMt940Defs(
     if (matches) out.push(def);
   }
   return out;
+}
+
+export interface Mt940ConditionExplanation {
+  field: string;
+  regex: string;
+  prompt: string | null;
+  regexCompiles: boolean;
+  /** Condition on TransactionTypeCode/Name — stripped before matching. */
+  ignoredAsTransactionType: boolean;
+  rowValue: string;
+  /** null when the condition is ignored (transaction-type). */
+  pass: boolean | null;
+}
+
+export interface Mt940DefExplanation {
+  tag: string;
+  id: string;
+  matches: boolean;
+  /** Set when the def was rejected before rule evaluation. */
+  skipped?: string;
+  groups: Array<{ group: number; pass: boolean; conditions: Mt940ConditionExplanation[] }>;
+}
+
+/**
+ * DEBUG companion to matchingMt940Defs: same decision tree, but reports WHY
+ * each def did or did not match `row` — per-def skip reason (status / empty
+ * rules / validity window) and per-condition pass/fail with the row value the
+ * condition saw. Mirrors matchingMt940Defs exactly (evaluateRuleSet ANDs
+ * conditions independently, so evaluating them one at a time is equivalent).
+ * Only called for rows under investigation; never on the hot path.
+ */
+export function explainMt940Defs(
+  defs: TagSpecDefinition[],
+  row: TransactionRow,
+  todayISODate: string,
+): Mt940DefExplanation[] {
+  return defs.map((def) => {
+    let skipped: string | undefined;
+    if (def.StatusTag !== 'ACTIVE') skipped = `StatusTag=${def.StatusTag}`;
+    else if (def.TagRuleExpressions.length === 0) skipped = 'no rule expressions';
+    else if (def.Validity.StartDate && todayISODate < def.Validity.StartDate)
+      skipped = `not yet valid (StartDate=${def.Validity.StartDate}, today=${todayISODate})`;
+    else if (def.Validity.EndDate && todayISODate > def.Validity.EndDate)
+      skipped = `expired (EndDate=${def.Validity.EndDate}, today=${todayISODate})`;
+    const groups = def.TagRuleExpressions.map((group, i) => {
+      const conditions = group.map((c): Mt940ConditionExplanation => {
+        const ignored = TRANSACTION_TYPE_FIELDS.has(c.SourceField);
+        let regexCompiles = true;
+        try {
+          new RegExp(c.Regex);
+        } catch {
+          regexCompiles = false;
+        }
+        return {
+          field: c.SourceField,
+          regex: c.Regex,
+          prompt: c.ExpressionPrompt,
+          regexCompiles,
+          ignoredAsTransactionType: ignored,
+          rowValue: String(row[c.SourceField] ?? '<null>'),
+          pass: ignored ? null : evaluateRuleSet([c], row),
+        };
+      });
+      const nonType = conditions.filter((c) => !c.ignoredAsTransactionType);
+      const pass = nonType.length === 0 ? true : nonType.every((c) => c.pass === true);
+      return { group: i, pass, conditions };
+    });
+    return {
+      tag: def.Tag,
+      id: def.Id,
+      matches: !skipped && groups.some((g) => g.pass),
+      skipped,
+      groups,
+    };
+  });
 }
