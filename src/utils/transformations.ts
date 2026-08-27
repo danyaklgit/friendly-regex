@@ -1,4 +1,4 @@
-import type { TransformationFormValue } from '../types';
+﻿import type { TransformationFormValue } from '../types';
 import { isCompleteTransformation } from './attributeFingerprint';
 
 export function applyTransformation(
@@ -185,13 +185,13 @@ export function applyTransformation(
       return value.slice(0, limit);
     }
 
-    // Collapses a value that is two byte-identical uppercase-alphanumeric
-    // halves into one — used to clean fields like "ABC123ABC123" → "ABC123"
-    // where the source data accidentally double-prints the same identifier.
-    // No-op when the value isn't a perfect doubled pair, so it composes
-    // cleanly with longer pipelines on rows that don't carry duplicates.
+    // Collapses a value that is one phrase repeated two or more times into a
+    // single copy — "ABC123ABC123" → "ABC123", "Potato is GreatPotato is
+    // Great" → "Potato is Great", ×3 with spaces → one copy. Mirror of the
+    // backend's DedupeRepeatedValue (actual code, not regex — see the helper
+    // below); keep the two byte-compatible (gotcha #28).
     case 'dedupe':
-      return value.replace(/^([A-Z0-9]+)\1$/, '$1');
+      return dedupeRepeatedValue(value);
 
     // Strips leading zero padding from a numeric string, keeping at least
     // one digit so "0000" → "0" (rather than empty). Useful for account
@@ -231,6 +231,49 @@ export function applyTransformationPipeline(
     steps.push({ index: i, method: t.method, label: t.method, result: current });
   }
   return steps;
+}
+
+/**
+ * Line-for-line mirror of the backend's `DedupeRepeatedValue` (TxTEP, C# —
+ * actual code, not regex). Semantics, all inherited from the backend and
+ * deliberately NOT "improved" here (gotcha #28 byte-compatibility):
+ * - Whitespace-only input is returned unchanged; otherwise the value is
+ *   TRIMMED first, and on success the trimmed segment is returned (so
+ *   leading/trailing whitespace is dropped). On failure the ORIGINAL
+ *   untrimmed value is returned.
+ * - Candidate segments are tried LARGEST first (n/2 down to 1), so the
+ *   LONGEST repeating unit wins: "AAAA" → "AA", and a phrase repeated ×4
+ *   collapses to the doubled phrase (×2), not to a single copy — the double
+ *   is itself a clean repetition and is found first. Odd counts (×3, ×5)
+ *   collapse fully.
+ * - ANY whitespace run may separate repeats (spaces, tabs, newlines).
+ * - Comparison is ordinal (case-sensitive, byte-identical repeats only).
+ * - A trailing partial echo invalidates the whole candidate (repeats reset
+ *   to 0), so partial repetitions stay untouched.
+ */
+// Built via the RegExp constructor from escape sequences so no literal
+// irregular-whitespace character lives in this file (no-irregular-whitespace;
+// the same trap bidi.ts once hit with a smuggled U+FEFF).
+const WHITESPACE_BETWEEN_REPEATS = new RegExp('[\\s\\u0085]');
+function dedupeRepeatedValue(value: string): string {
+  if (value.trim().length === 0) return value;
+  const s = value.trim();
+  for (let len = Math.floor(s.length / 2); len >= 1; len--) { // largest candidate segment first
+    const segment = s.slice(0, len);
+    let pos = len;
+    let repeats = 1;
+    while (pos < s.length) {
+      // Whitespace runs between repeats are OK. U+0085 (NEL) is whitespace to
+      // .NET char.IsWhiteSpace but not to JS \s - included for exact parity.
+      while (pos < s.length && WHITESPACE_BETWEEN_REPEATS.test(s[pos])) pos++;
+      if (pos >= s.length) break;
+      if (pos + len > s.length || !s.startsWith(segment, pos)) { repeats = 0; break; }
+      pos += len;
+      repeats++;
+    }
+    if (repeats >= 2) return segment; // clean repetition → one copy
+  }
+  return value; // not a repetition → untouched
 }
 
 /** Simple date reformatting for common patterns (MM/DD/YYYY <-> DD/MM/YYYY etc.) */

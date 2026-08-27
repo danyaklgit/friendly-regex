@@ -29,7 +29,7 @@ import { useWizardForm, fromExistingDefinition } from '../../hooks/useWizardForm
 import type { TagSpecDefinition, TagSpecLibrary, AnalyzedTransaction, WizardFormState, RuleExpression, CheckoutState, TransactionRow, AndGroupFormValue } from '../../types';
 import type { WizardFormResult } from '../../hooks/useWizardForm';
 import { analyzeRow, buildAnalyzeScratch } from '../../utils/analyzeRow';
-import { matchingMt940Defs, mt940CloneRuleFingerprint } from '../../utils/mt940Suggestions';
+import { matchingMt940Defs } from '../../utils/mt940Suggestions';
 import { evaluateRuleSet } from '../../utils/evaluateRuleSet';
 import { computeDefinitionVersions } from '../../utils/definitionVersions';
 import { getAllTagNameOptions, getAttributeSuggestionsForTag } from '../../utils/tagNameLookup';
@@ -1648,28 +1648,21 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // itself needs no suggestions from its own library. Ledger passes the gate
   // but naturally yields zero candidates: its identity is (ClientCode,
   // ErpCode), so no MT940 bank/side library matches it. Dedupe by def.Id,
-  // keeping the most-current source (INPROGRESS
-  // draft over ACTIVE release, then higher Version) — mirrors the picker.
-  // Excludes defs already cloned into the intraday library for this bank/side
-  // — matched by Tag + rule fingerprint (type conditions stripped), NOT by tag
-  // name alone: a tag can carry several defs with different rules (version
-  // overlays), and suppressing the whole name hid every suggestion once ONE
-  // variant was cloned (the prod Al Rajhi /PT/Transfer case, 2026-08-26).
-  // Only the exact already-cloned rule set is noise; the others still show.
+  // keeping the most-current source (INPROGRESS draft over ACTIVE release,
+  // then higher Version) — mirrors the picker.
+  //
+  // NO "already cloned" filtering. Two earlier attempts suppressed defs the
+  // intraday library already held — first by tag NAME (hid every variant once
+  // one was cloned: the prod Al Rajhi /PT/Transfer case, 2026-08-26), then by
+  // tag + rule fingerprint with type conditions stripped (hid sibling defs
+  // that share the same rules and differ only by Transaction Type,
+  // 2026-08-27). Both were wrong for the same reason: the section only ever
+  // renders on UNTAGGED rows, and an untagged row is proof the cloned rules
+  // did NOT cover it — so every MT940 rule that matches is useful, and the
+  // operator decides. Scan them all.
   const mt940SuggestionDefs = useMemo(() => {
     const dst = activeCheckout?.dataSetType;
     if (!isLiveMode || !activeCheckout || !dst || dst === DEFAULT_DATA_SET_TYPE) return [];
-    // Tag + rule fingerprint of every def already in the intraday library:
-    // exactly these clones are suppressed as suggestions.
-    const existingIntradayClones = new Set<string>();
-    for (const lib of libraries) {
-      if (lib.DataSetType !== dst) continue;
-      if (getContextValue(lib.Context, 'BankSwiftCode') !== activeCheckout.bank) continue;
-      if (getContextValue(lib.Context, 'Side') !== activeCheckout.side) continue;
-      for (const def of lib.TagSpecDefinitions) {
-        existingIntradayClones.add(`${def.Tag}␝${mt940CloneRuleFingerprint(def)}`);
-      }
-    }
     const defById = new Map<string, { def: TagSpecDefinition; score: number }>();
     for (const lib of libraries) {
       if (lib.DataSetType !== DEFAULT_DATA_SET_TYPE) continue;
@@ -1678,7 +1671,6 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       const score = (lib.StatusTag === 'INPROGRESS' ? 1_000_000 : 0) + (lib.Version ?? 0);
       for (const def of lib.TagSpecDefinitions) {
         if (def.StatusTag !== 'ACTIVE' || def.TagRuleExpressions.length === 0) continue;
-        if (existingIntradayClones.has(`${def.Tag}␝${mt940CloneRuleFingerprint(def)}`)) continue;
         const existing = defById.get(def.Id);
         if (existing && existing.score >= score) continue;
         defById.set(def.Id, { def, score });

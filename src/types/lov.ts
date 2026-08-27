@@ -1,4 +1,7 @@
 export interface LOVListItem {
+  /** Central item id (LOV Management, 2026-08-27). UpdateLOVListItem and
+   *  ChangeLOVListItemStatus address items by it. Absent on older payloads. */
+  Id?: number;
   StatusTag: string | null;
   StatusName: string | null;
   Value: string;
@@ -11,6 +14,15 @@ export interface LOVList {
   Tag: string;
   Name: string;
   Items: LOVListItem[];
+}
+
+/** One entry of the manageable-lists catalog (`GetLOVLists`). Never includes
+ *  ATTRIBUTES / EXTRACTIONS / DEMO_USER_COMPS. */
+export interface LOVCatalogEntry {
+  Tag: string;
+  Name: string;
+  IsUserCreated: boolean;
+  ItemsCount: number;
 }
 
 export interface ValidationClass {
