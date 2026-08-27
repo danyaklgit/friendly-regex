@@ -5,6 +5,7 @@ import { SearchableSelect } from '../shared/SearchableSelect';
 import { Toggle } from '../shared/Toggle';
 import { Button } from '../shared/Button';
 import { Tooltip } from '../shared/Tooltip';
+import { Select } from '../shared/Select';
 import { VALIDATION_RULE_TAG_OPTIONS, LEDGER_SOURCE_FIELDS } from '../../constants/fields';
 import { useLovAttributes } from '../../context/LovAttributesContext';
 import { useTransactionData } from '../../hooks/useTransactionData';
@@ -240,6 +241,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
       (attribute.verifyValue ?? '') !== (snapshot.verifyValue ?? '') ||
       (attribute.lovTag ?? '') !== (snapshot.lovTag ?? '') ||
       (attribute.isLovBased ?? false) !== (snapshot.isLovBased ?? false) ||
+      (attribute.lovMissBehavior ?? 'KEEP_TEXT') !== (snapshot.lovMissBehavior ?? 'KEEP_TEXT') ||
       (attribute.numChars ?? 0) !== (snapshot.numChars ?? 0) ||
       (attribute.toStr ?? '') !== (snapshot.toStr ?? '') ||
       (attribute.occurrence ?? 0) !== (snapshot.occurrence ?? 0) ||
@@ -287,6 +289,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
       constantValue: snapshot.constantValue,
       isLovBased: snapshot.isLovBased ?? false,
       lovTag: snapshot.lovTag ?? null,
+      lovMissBehavior: snapshot.lovMissBehavior ?? null,
       preExtractionTransformations: snapshot.preExtractionTransformations ?? [],
       transformations: snapshot.transformations ?? [],
       _originalRegex: snapshot._originalRegex,
@@ -1067,6 +1070,38 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
               </div>
             )}
           </div>
+
+          {/* ── LOV miss behavior: what the engine does when the extracted text
+                 is NOT an item tag of the LOV. Default keeps legacy semantics
+                 (text kept, attribute marked invalid); CLEAR_TEXT empties the
+                 value so the missing-mandatory/optional flags apply instead. ── */}
+          {attribute.isLovBased && (
+            <div className="flex flex-wrap items-center gap-2 pl-1">
+              <span className="text-xs text-body-secondary">If the value is not in the list:</span>
+              <Select
+                value={attribute.lovMissBehavior === 'CLEAR_TEXT' ? 'CLEAR_TEXT' : 'KEEP_TEXT'}
+                onChange={(e) => onUpdate({ lovMissBehavior: e.target.value === 'CLEAR_TEXT' ? 'CLEAR_TEXT' : null })}
+                options={[
+                  { value: 'KEEP_TEXT', label: 'Keep the extracted text (marked invalid)' },
+                  { value: 'CLEAR_TEXT', label: 'Clear the value (set as empty)' },
+                ]}
+                disabled={readOnly}
+                className="text-xs"
+              />
+              <Tooltip
+                placement="top"
+                content={
+                  <div className="max-w-xs text-xs space-y-1">
+                    <p><span className="font-semibold">Keep</span>: today's behavior — the text stays and the attribute is flagged invalid.</p>
+                    <p><span className="font-semibold">Clear</span>: the attribute comes out empty; on a mandatory attribute the transaction shows as "missing mandatory attributes" instead of "contains invalid attributes".</p>
+                    <p className="text-faint">A transient LOV-service fault always keeps the text. Takes effect on the next retag (check-in / release / preview).</p>
+                  </div>
+                }
+              >
+                <span className="inline-flex items-center justify-center w-4 h-4 rounded-full border border-border text-[10px] text-muted cursor-help select-none">?</span>
+              </Tooltip>
+            </div>
+          )}
 
           {/* ── Constant Value (alternative to Extraction/Transformations/Validations) ── */}
           {attribute.isConstant && (

@@ -139,6 +139,46 @@ describe('cloneRulesAndAttributesFrom', () => {
     expect(new Set(attrIds).size).toBe(attrIds.length);
   });
 
+  it('round-trips the LOV miss behavior (CLEAR_TEXT kept, absent → null = KEEP_TEXT default)', () => {
+    const def = makeDefinition({
+      Attributes: [
+        {
+          AttributeTag: 'BILLER',
+          IsMandatory: true,
+          LOVTag: 'SADAD_BILLERS',
+          LOVMissBehavior: 'CLEAR_TEXT',
+          ValidationRuleTag: 'STRING',
+          AttributeRuleExpression: {
+            SourceField: 'AdditionalInformation',
+            ExpressionPrompt: null,
+            ExpressionId: null,
+            Regex: regexifyExtraction('extract_between', { prefix: 'BILLER:', suffix: ';' }),
+            RegexDetails: [],
+          },
+          Transformations: [],
+        },
+        {
+          AttributeTag: 'BANK',
+          IsMandatory: false,
+          LOVTag: 'BANKS',
+          ValidationRuleTag: 'STRING',
+          AttributeRuleExpression: {
+            SourceField: 'AdditionalInformation',
+            ExpressionPrompt: null,
+            ExpressionId: null,
+            Regex: regexifyExtraction('extract_between', { prefix: 'BANK:', suffix: ';' }),
+            RegexDetails: [],
+          },
+          Transformations: [],
+        },
+      ],
+    });
+    const { attributes } = cloneRulesAndAttributesFrom(def);
+    expect(attributes[0].isLovBased).toBe(true);
+    expect(attributes[0].lovMissBehavior).toBe('CLEAR_TEXT');
+    expect(attributes[1].lovMissBehavior).toBeNull();
+  });
+
   it('preserves rule-group and condition ordering', () => {
     const def = makeDefinition({
       TagRuleExpressions: [

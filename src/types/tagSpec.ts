@@ -67,10 +67,19 @@ export interface TransformationRule {
 
 // --- Tag Attributes ---
 
+/** Engine behavior on a CONFIRMED LOV miss (extracted text is not an item
+ *  tag of the LOV). null / KEEP_TEXT = keep the text and mark the attribute
+ *  invalid (legacy behavior); CLEAR_TEXT = drop the text so the attribute
+ *  comes out empty and the missing-mandatory/optional flags apply instead.
+ *  A transient LOV-service fault always behaves like KEEP_TEXT. */
+export type LOVMissBehavior = 'KEEP_TEXT' | 'CLEAR_TEXT';
+
 export interface TagAttribute {
   AttributeTag: string;
   IsMandatory: boolean;
   LOVTag: string | null;
+  /** Optional; omitted/null = KEEP_TEXT. Only meaningful with an LOVTag. */
+  LOVMissBehavior?: LOVMissBehavior | null;
   ValidationRuleTag: string;
   /**
    * Fixed literal value mode. When non-null, this attribute emits `Constant` as
