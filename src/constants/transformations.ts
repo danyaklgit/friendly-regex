@@ -252,12 +252,14 @@ export const TRANSFORMATION_METHODS: TransformationMethodDef[] = [
     ],
   },
   {
-    // Backend regex: ^([A-Z0-9]+)\1$ → $1
-    // Collapses a doubled identifier on itself ("ABC123ABC123" -> "ABC123").
-    // No args, no-op when the value isn't a perfect doubled pair.
+    // Backend: DedupeRepeatedValue (actual code, not regex) — mirrored
+    // line-for-line in src/utils/transformations.ts. Collapses a value that
+    // is one phrase repeated 2+ times (back-to-back or whitespace-separated)
+    // into a single copy; longest repeating unit wins. No args, no-op when
+    // the value isn't a clean repetition.
     key: 'dedupe',
     label: 'Dedupe',
-    description: 'No args. Example: "ABC123ABC123" -> "ABC123"',
+    description: 'No args. Examples: "ABC123ABC123" -> "ABC123"; "Potato is Great Potato is Great" -> "Potato is Great"',
     category: 'Find/Replace',
     args: [],
   },

@@ -396,19 +396,53 @@ describe('applyTransformation', () => {
     expect(applyTransformation('dedupe', {}, 'ACMEACME')).toBe('ACME');
   });
 
-  it('dedupe is a no-op when the value is not a perfect doubled pair', () => {
+  it('dedupe collapses a back-to-back repeated phrase (spaces and lowercase inside the phrase)', () => {
+    expect(applyTransformation('dedupe', {}, 'Potato is GreatPotato is Great')).toBe('Potato is Great');
+  });
+
+  it('dedupe collapses a space-separated repeated phrase', () => {
+    expect(applyTransformation('dedupe', {}, 'Potato is Great Potato is Great')).toBe('Potato is Great');
+  });
+
+  it('dedupe collapses an odd repetition count to a single copy', () => {
+    expect(applyTransformation('dedupe', {}, 'Potato is Great Potato is Great Potato is Great')).toBe('Potato is Great');
+  });
+
+  it('dedupe picks the LARGEST repeating unit (backend iterates n/2 down)', () => {
+    // Mirrors the backend's DedupeRepeatedValue exactly: a ×4 phrase is first
+    // seen as a clean ×2 of the DOUBLED phrase, so it collapses to ×2, not
+    // ×1. Degenerate runs behave the same ("AAAA" → "AA").
+    expect(applyTransformation('dedupe', {}, 'Ref 91 Ref 91 Ref 91 Ref 91')).toBe('Ref 91 Ref 91');
+    expect(applyTransformation('dedupe', {}, 'AAAA')).toBe('AA');
+  });
+
+  it('dedupe allows ANY whitespace run between repeats (backend skips whitespace)', () => {
+    expect(applyTransformation('dedupe', {}, 'AB  AB')).toBe('AB');
+    expect(applyTransformation('dedupe', {}, 'ABC123\tABC123')).toBe('ABC123');
+    expect(applyTransformation('dedupe', {}, 'ABC123\nABC123')).toBe('ABC123');
+  });
+
+  it('dedupe trims the value first and returns the trimmed segment on success', () => {
+    expect(applyTransformation('dedupe', {}, '  ABC123ABC123  ')).toBe('ABC123');
+  });
+
+  it('dedupe is a no-op when the value is not a perfect repetition', () => {
     expect(applyTransformation('dedupe', {}, 'ABC123ABC124')).toBe('ABC123ABC124');
     expect(applyTransformation('dedupe', {}, 'ABC')).toBe('ABC');
+    // Trailing partial echo invalidates the candidate — untouched, and the
+    // ORIGINAL (untrimmed) value comes back on failure.
+    expect(applyTransformation('dedupe', {}, 'Potato is Great Potato is Great!')).toBe('Potato is Great Potato is Great!');
+    expect(applyTransformation('dedupe', {}, ' ABC ')).toBe(' ABC ');
   });
 
-  it('dedupe is case-sensitive — lowercase halves do not collapse', () => {
-    // The pattern intentionally restricts to [A-Z0-9] so mixed-case ids
-    // (which usually carry meaning) are never silently dedup'd.
-    expect(applyTransformation('dedupe', {}, 'abc123abc123')).toBe('abc123abc123');
+  it('dedupe is case-sensitive — repeats must be byte-identical', () => {
+    expect(applyTransformation('dedupe', {}, 'abc123ABC123')).toBe('abc123ABC123');
+    expect(applyTransformation('dedupe', {}, 'abc123abc123')).toBe('abc123');
   });
 
-  it('dedupe leaves the empty string unchanged', () => {
+  it('dedupe leaves empty and whitespace-only strings unchanged', () => {
     expect(applyTransformation('dedupe', {}, '')).toBe('');
+    expect(applyTransformation('dedupe', {}, '   ')).toBe('   ');
   });
 
   // --- Remove Leading Zeros ---
