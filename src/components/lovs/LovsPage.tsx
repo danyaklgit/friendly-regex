@@ -6,6 +6,7 @@ import type { TepHeaders } from '../../api/transactions';
 import { getListsByTags } from '../../api/lovAttributes';
 import {
   getLOVLists,
+  getLOVListItems,
   createLOVList,
   createLOVListItem,
   updateLOVListItem,
@@ -113,10 +114,22 @@ export function LovsPage() {
     setItemsLoading(true);
     try {
       const token = await getToken();
-      const lists = await getListsByTags(token, tepHeaders, controller.signal, [tag]);
+      const name = sidebarLists.find((l) => l.Tag === tag)?.Name ?? tag;
+      let items: LOVListItem[];
+      try {
+        // Management read: GetLOVListItems returns DISABLED + DELETED rows
+        // (with statuses and every language row). GetListsByTags is
+        // ACTIVE-only — fine for the wizard, useless for re-enabling.
+        items = await getLOVListItems(tag, token, tepHeaders, controller.signal);
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        // Pre-deploy backend: degrade to the ACTIVE-only read.
+        const lists = await getListsByTags(token, tepHeaders, controller.signal, [tag]);
+        items = lists.find((l) => l.Tag === tag)?.Items ?? [];
+        void err;
+      }
       if (controller.signal.aborted) return;
-      const list = lists.find((l) => l.Tag === tag) ?? null;
-      setSelectedList(list ?? { Tag: tag, Name: sidebarLists.find((l) => l.Tag === tag)?.Name ?? tag, Items: [] });
+      setSelectedList({ Tag: tag, Name: name, Items: items });
     } catch (err) {
       if (controller.signal.aborted) return;
       // Fall back to whatever the wizard context already holds for this tag.

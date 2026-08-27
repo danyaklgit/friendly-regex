@@ -1,5 +1,5 @@
 import type { TepHeaders } from './transactions';
-import type { AttributeDetail, LOVCatalogEntry } from '../types/lov';
+import type { AttributeDetail, LOVCatalogEntry, LOVListItem } from '../types/lov';
 import { buildHeaders } from './checkout';
 import { throwIfNotOk } from './apiError';
 import { extractSfmMessage } from './lovAttributes';
@@ -48,6 +48,31 @@ export async function getLOVLists(
   await throwIfNotOk(res, 'Failed to load the LOV catalog');
   const json = await res.json();
   return (json.Lists ?? []) as LOVCatalogEntry[];
+}
+
+/**
+ * Items of ONE list INCLUDING DISABLED and DELETED rows with their statuses
+ * and every language row in `Details` (delta 2026-08-27). `GetListsByTags`
+ * returns ACTIVE items only (correct for the wizard pickers — disabling an
+ * item genuinely retires it from tagging), so the management pane must read
+ * through this endpoint or the operator can never see, let alone re-enable,
+ * a disabled row.
+ */
+export async function getLOVListItems(
+  listTag: string,
+  token: string,
+  tepHeaders: TepHeaders,
+  signal?: AbortSignal,
+): Promise<LOVListItem[]> {
+  const res = await fetch(`${BASE}/GetLOVListItems`, {
+    method: 'POST',
+    headers: buildHeaders(token, tepHeaders, 'GetLOVListItems'),
+    body: JSON.stringify({ ListTag: listTag }),
+    signal,
+  });
+  await throwIfNotOk(res, 'Failed to load list items');
+  const json = await res.json();
+  return (json.Items ?? []) as LOVListItem[];
 }
 
 export async function createLOVList(

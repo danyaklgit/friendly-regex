@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi, type MockInstance } fr
 import {
   normalizeLovListTag,
   getLOVLists,
+  getLOVListItems,
   createLOVList,
   createLOVListItem,
   updateLOVListItem,
@@ -51,6 +52,20 @@ describe('lovManagement API', () => {
     const { url, init } = lastCall();
     expect(url).toBe(`${BASE}/GetLOVLists`);
     expect((init.headers as Record<string, string>).ActivityTag).toBe('GetLOVLists');
+  });
+
+  it('GetLOVListItems reads one list by ListTag, including non-ACTIVE rows and every language row', async () => {
+    const items = [
+      { Id: 1, Value: '001', Name: 'STC', Description: '', Tags: ['001'], StatusTag: 'ACTIVE', Details: [{ LanguageCode: 'en', Name: 'STC', ShortDescription: '' }, { LanguageCode: 'ar', Name: 'الاتصالات', ShortDescription: '' }] },
+      { Id: 2, Value: '002', Name: 'Old', Description: '', Tags: ['002'], StatusTag: 'DISABLED', Details: [] },
+    ];
+    fetchSpy.mockResolvedValueOnce(jsonResponse({ Items: items, ...SFM_OK }));
+    const result = await getLOVListItems('SADAD_BILLERS', TOKEN, tepHeaders);
+    expect(result).toEqual(items);
+    const { url, init, body } = lastCall();
+    expect(url).toBe(`${BASE}/GetLOVListItems`);
+    expect((init.headers as Record<string, string>).ActivityTag).toBe('GetLOVListItems');
+    expect(body).toEqual({ ListTag: 'SADAD_BILLERS' });
   });
 
   it('CreateLOVList posts Tag + Details and surfaces the SFM message', async () => {
