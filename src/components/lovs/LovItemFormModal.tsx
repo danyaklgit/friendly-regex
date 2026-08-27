@@ -51,15 +51,21 @@ export function LovItemFormModal({ open, onClose, listTag, listName, item, exist
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // (Re)seed from the target item on every open.
+  // (Re)seed from the target item on every open. EVERY language is prefilled
+  // from `item.Details`: the central update replaces an item's details
+  // wholesale, so an edit that sent English only used to DELETE the stored
+  // Arabic row ("Arabic never saves"). Name/Description are the fallback for
+  // payloads without Details (pre-delta GetListsByTags).
   useEffect(() => {
     if (!open) return;
+    const en = item?.Details?.find((d) => d.LanguageCode === 'en');
+    const ar = item?.Details?.find((d) => d.LanguageCode === 'ar');
     setValue(item?.Value ?? '');
     setTagsText((item?.Tags ?? []).join(', '));
-    setNameEn(item?.Name ?? '');
-    setDescEn(item?.Description ?? '');
-    setNameAr('');
-    setDescAr('');
+    setNameEn(en?.Name ?? item?.Name ?? '');
+    setDescEn(en?.ShortDescription ?? item?.Description ?? '');
+    setNameAr(ar?.Name ?? '');
+    setDescAr(ar?.ShortDescription ?? '');
     setError(null);
     setSaving(false);
   }, [open, item]);
@@ -176,7 +182,10 @@ export function LovItemFormModal({ open, onClose, listTag, listName, item, exist
             <Input label="Description" value={descEn} onChange={(e) => setDescEn(e.target.value)} placeholder="Optional short description" />
           </div>
           <div className="flex flex-col gap-3">
-            <div className="text-xs font-semibold uppercase tracking-wide text-body-secondary">Arabic (optional)</div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-body-secondary">
+              Arabic (optional)
+              {item && <span className="ml-1.5 normal-case tracking-normal font-normal text-muted">— clear both fields to remove the Arabic texts</span>}
+            </div>
             <Input label="Name" dir="auto" value={nameAr} onChange={(e) => setNameAr(e.target.value)} placeholder="Arabic name" />
             <Input label="Description" dir="auto" value={descAr} onChange={(e) => setDescAr(e.target.value)} placeholder="Arabic description" />
           </div>

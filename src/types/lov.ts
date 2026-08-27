@@ -8,6 +8,11 @@ export interface LOVListItem {
   Name: string;
   Description?: string;
   Tags: string[];
+  /** Every stored language row (GetLOVListItems only, 2026-08-27 delta #2).
+   *  Name/Description above are the caller-language projection; the edit form
+   *  prefills EVERY language from here so an edit never wipes the Arabic row
+   *  (the central update replaces details wholesale). */
+  Details?: AttributeDetail[];
 }
 
 export interface LOVList {
