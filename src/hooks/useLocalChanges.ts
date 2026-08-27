@@ -1,10 +1,47 @@
 import { useState, useCallback, useEffect } from 'react';
 import type { TagSpecLibrary, TagSpecDefinition } from '../types';
 import { getRegexDescription } from '../types/tagSpec';
-import { identityKeySuffix, hasCompleteIdentity, type IdentityInput } from '../utils/libraryIdentity';
+import { identityKeySuffix, hasCompleteIdentity, identityFromContext, type IdentityInput } from '../utils/libraryIdentity';
 
 const BASELINE_PREFIX = 'tep:baseline:';
 const CURRENT_PREFIX = 'tep:current:';
+
+/** Window event fired after a draft write made OUTSIDE a mounted hook
+ *  instance (the provider-level sync), so every mounted `useLocalChanges`
+ *  recomputes its `hasChanges` state. */
+export const LOCAL_CHANGES_EVENT = 'tep:local-changes';
+
+/**
+ * Mirror every INPROGRESS library into its `tep:current` draft (seeding the
+ * baseline when absent). Called by TagSpecProvider on EVERY libraries change
+ * so `hasChangesFor` sees mutations from ANY tab — TabContainer mounts only
+ * the active tab, so the Transactions-tab-local sync missed edits made from
+ * the Backlog (expanded row → delete rule → Check In from the same row: the
+ * delete never reached localStorage, the pre-save was skipped, and the
+ * "deleted" rule came back after refetch). Returns true when anything was
+ * written. Pure over localStorage; no React.
+ */
+export function syncInProgressDrafts(libraries: TagSpecLibrary[]): boolean {
+  let wrote = false;
+  for (const lib of libraries) {
+    if (lib.StatusTag !== 'INPROGRESS') continue;
+    const identity: IdentityInput = { dataSetType: lib.DataSetType, ...identityFromContext(lib) };
+    if (!hasCompleteIdentity(identity)) continue;
+    const serialized = JSON.stringify(lib);
+    try {
+      const baselineKey = key(BASELINE_PREFIX, identity);
+      const currentKey = key(CURRENT_PREFIX, identity);
+      if (localStorage.getItem(baselineKey) === null) {
+        localStorage.setItem(baselineKey, serialized);
+      }
+      if (localStorage.getItem(currentKey) !== serialized) {
+        localStorage.setItem(currentKey, serialized);
+        wrote = true;
+      }
+    } catch { /* ignore storage failures */ }
+  }
+  return wrote;
+}
 
 // Keys are namespaced by identity so a checked-out MT942 draft for a bank/side
 // never collides with the MT940 draft for the SAME bank/side, and a Ledger
@@ -221,6 +258,14 @@ export function useLocalChanges(identity: IdentityInput | null | undefined) {
   }, [suffix]);
 
   useEffect(() => { recompute(); }, [recompute]);
+
+  // Drafts can also be written by the provider-level sync (Backlog edits) —
+  // recompute when it announces a write.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.addEventListener(LOCAL_CHANGES_EVENT, recompute);
+    return () => window.removeEventListener(LOCAL_CHANGES_EVENT, recompute);
+  }, [recompute]);
 
   const saveBaseline = useCallback((lib: TagSpecLibrary) => {
     if (!bound) return;

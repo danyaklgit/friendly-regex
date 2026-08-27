@@ -8,6 +8,7 @@ import { getContextValue } from '../types/tagSpec';
 import { ALL_LIBRARY_DATA_SET_TYPES } from '../constants/dataSetTypes';
 import { useAuth } from './AuthContext';
 import { loadSampleTagData, loadSampleHierarchy } from '../data/loadSampleData';
+import { syncInProgressDrafts, LOCAL_CHANGES_EVENT } from '../hooks/useLocalChanges';
 
 // --- Helpers ---
 
@@ -347,6 +348,19 @@ export function TagSpecProvider({ children, useDummyData, tepHeaders }: TagSpecP
   const { getAuthHeaders } = useAuth();
   const [libraries, dispatch] = useReducer(tagSpecReducer, [] as TagSpecLibrary[]);
   const tagDefinitions = useMemo(() => flattenDefinitions(libraries), [libraries]);
+  // Keep the `tep:current` drafts in step with EVERY reducer mutation of an
+  // INPROGRESS library, regardless of which tab made it (Backlog deletes
+  // included). Check-In / Release pre-save only when hasChangesFor() reports
+  // local edits, and that reads these drafts — a tab-local sync silently
+  // skipped the pre-save for edits made while the Transactions tab was
+  // unmounted (review of 964c5b4). Skipped in sample mode (no server to
+  // reconcile against).
+  useEffect(() => {
+    if (useDummyData) return;
+    if (syncInProgressDrafts(libraries)) {
+      window.dispatchEvent(new Event(LOCAL_CHANGES_EVENT));
+    }
+  }, [libraries, useDummyData]);
   const [loading, setLoading] = useState(!useDummyData);
   const [tagsHierarchyLoading, setTagsHierarchyLoading] = useState(!useDummyData);
   const [taggingProgress, setTaggingProgress] = useState<TaggingProgressMap>({});
