@@ -27,6 +27,10 @@ function isDeleted(item: LOVListItem): boolean {
 function isDisabled(item: LOVListItem): boolean {
   return item.StatusTag === 'DISABLED';
 }
+/** Arabic display name from the per-language Details (GetLOVListItems only). */
+function arabicName(item: LOVListItem): string {
+  return item.Details?.find((d) => d.LanguageCode === 'ar')?.Name?.trim() ?? '';
+}
 
 export function LovItemsPane({ list, onRefresh, refreshing, loading, management }: LovItemsPaneProps) {
   const [search, setSearch] = useState('');
@@ -41,6 +45,10 @@ export function LovItemsPane({ list, onRefresh, refreshing, loading, management 
     () => (showDeleted ? allItems : allItems.filter((it) => !isDeleted(it))),
     [allItems, showDeleted],
   );
+  // Arabic names column: shown only when at least one item carries one, so
+  // lists without Arabic (or ACTIVE-only fallback payloads without Details)
+  // keep the compact single-Name layout.
+  const hasArabic = useMemo(() => allItems.some((it) => arabicName(it).length > 0), [allItems]);
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -49,6 +57,7 @@ export function LovItemsPane({ list, onRefresh, refreshing, loading, management 
       return (
         item.Value.toLowerCase().includes(term) ||
         item.Name.toLowerCase().includes(term) ||
+        arabicName(item).toLowerCase().includes(term) ||
         (item.Description ?? '').toLowerCase().includes(term) ||
         (item.Tags ?? []).some((t) => t.toLowerCase().includes(term))
       );
@@ -61,10 +70,12 @@ export function LovItemsPane({ list, onRefresh, refreshing, loading, management 
     const rows = filtered.map((item) => [
       item.Value,
       item.Name,
+      ...(hasArabic ? [arabicName(item)] : []),
       item.Description ?? '',
       (item.Tags ?? []).join('; '),
     ]);
-    downloadCsv(`lov_${list.Tag}_${new Date().toISOString().slice(0, 10)}.csv`, ['Value', 'Name', 'Description', 'Tags'], rows);
+    const headers = ['Value', hasArabic ? 'Name (en)' : 'Name', ...(hasArabic ? ['Name (ar)'] : []), 'Description', 'Tags'];
+    downloadCsv(`lov_${list.Tag}_${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
   };
 
   if (!list) {
@@ -160,7 +171,10 @@ export function LovItemsPane({ list, onRefresh, refreshing, loading, management 
             <thead className="bg-surface-secondary sticky top-0 z-10">
               <tr>
                 <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Value</th>
-                <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Name</th>
+                <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary">{hasArabic ? 'Name (en)' : 'Name'}</th>
+                {hasArabic && (
+                  <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Name (ar)</th>
+                )}
                 <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Description</th>
                 <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-body-secondary">Tags</th>
                 {canManage && (
@@ -181,6 +195,11 @@ export function LovItemsPane({ list, onRefresh, refreshing, loading, management 
                   <tr key={`${list.Tag}-${item.Id ?? item.Value}-${i}`} className={`hover:bg-surface-hover transition-colors ${deleted ? 'opacity-55' : ''}`}>
                     <td className={`px-4 py-2.5 text-xs font-mono text-body-secondary ${deleted ? 'line-through' : ''}`}>{item.Value}</td>
                     <td className="px-4 py-2.5 text-xs font-medium text-heading">{item.Name}</td>
+                    {hasArabic && (
+                      <td className="px-4 py-2.5 text-xs font-medium text-heading" dir="auto">
+                        {arabicName(item) || <span className="text-faint">—</span>}
+                      </td>
+                    )}
                     <td className="px-4 py-2.5 text-xs text-body-secondary">{item.Description ?? '—'}</td>
                     <td className="px-4 py-2.5 text-xs">
                       {tags.length === 0 ? (
