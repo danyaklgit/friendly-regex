@@ -17,15 +17,21 @@ export function extractSfmMessage(json: any): string | null {
   return en?.ShortDescription ?? null;
 }
 
+/**
+ * Fetch LOV lists by tag. Defaults to the wizard-facing catalog (LOV_TAGS);
+ * the LOVs management page passes the single selected tag instead so
+ * runtime-created lists (not in LOV_TAGS) load too.
+ */
 export async function getListsByTags(
   token: string,
   tepHeaders: TepHeaders,
   signal?: AbortSignal,
+  tags: readonly string[] = LOV_TAGS,
 ): Promise<LOVList[]> {
   const res = await fetch(`${BASE}/GetListsByTags`, {
     method: 'POST',
     headers: buildHeaders(token, tepHeaders, 'GetListsByTags'),
-    body: JSON.stringify({ Tags: [...LOV_TAGS] }),
+    body: JSON.stringify({ Tags: [...tags] }),
     signal,
   });
   await throwIfNotOk(res, 'Failed to fetch LOV lists');

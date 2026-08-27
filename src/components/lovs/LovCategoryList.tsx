@@ -1,20 +1,36 @@
 import { useMemo, useState } from 'react';
-import type { LOVList } from '../../types/lov';
+import type { LOVListItem } from '../../types/lov';
 import { humanizeLovTag } from '../../utils/humanizeLovTag';
 
-interface LovCategoryListProps {
-  lists: LOVList[];
-  selectedTag: string | null;
-  onSelect: (tag: string) => void;
+/**
+ * Structural shape accepted by the sidebar: a full `LOVList` (items loaded —
+ * the wizard's LovBrowserDrawer) OR a `LOVCatalogEntry` from `GetLOVLists`
+ * (counts only — the Settings page). Count comes from whichever is present.
+ */
+export interface LovCategoryLike {
+  Tag: string;
+  Name: string;
+  Items?: LOVListItem[];
+  ItemsCount?: number;
+  IsUserCreated?: boolean;
 }
 
-export function LovCategoryList({ lists, selectedTag, onSelect }: LovCategoryListProps) {
+interface LovCategoryListProps {
+  lists: LovCategoryLike[];
+  selectedTag: string | null;
+  onSelect: (tag: string) => void;
+  /** When provided, renders the "+ New list" action (management surface only). */
+  onNewList?: () => void;
+}
+
+export function LovCategoryList({ lists, selectedTag, onSelect, onNewList }: LovCategoryListProps) {
   const [filter, setFilter] = useState('');
 
   // Prefer the backend-supplied Name (preserves correct acronym casing like
   // "ARNBSARI IPS Rejection Codes") and fall back to humanizing the Tag for
   // legacy payloads where Name is missing or empty.
-  const labelFor = (l: LOVList) => l.Name?.trim() || humanizeLovTag(l.Tag);
+  const labelFor = (l: LovCategoryLike) => l.Name?.trim() || humanizeLovTag(l.Tag);
+  const countFor = (l: LovCategoryLike) => l.ItemsCount ?? l.Items?.length ?? 0;
 
   const visible = useMemo(() => {
     const term = filter.trim().toLowerCase();
@@ -23,12 +39,11 @@ export function LovCategoryList({ lists, selectedTag, onSelect }: LovCategoryLis
       const label = labelFor(l).toLowerCase();
       return l.Tag.toLowerCase().includes(term) || label.includes(term);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lists, filter]);
 
   return (
     <div data-tour="lov-category-list" className="w-56 shrink-0 border-r border-border bg-surface-secondary/30 py-2 px-1.5 flex flex-col gap-2">
-      <div className="px-1">
+      <div className="px-1 flex flex-col gap-2">
         <div className="relative">
           <svg
             className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted"
@@ -44,6 +59,18 @@ export function LovCategoryList({ lists, selectedTag, onSelect }: LovCategoryLis
             className="w-full pl-8 pr-3 py-1.5 text-xs rounded-md border border-input-border bg-input-bg text-heading placeholder:text-placeholder focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors"
           />
         </div>
+        {onNewList && (
+          <button
+            type="button"
+            onClick={onNewList}
+            className="w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md border border-dashed border-primary/40 text-xs font-medium text-primary hover:bg-primary/10 transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            New list
+          </button>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto custom-scrollbar">
@@ -63,7 +90,17 @@ export function LovCategoryList({ lists, selectedTag, onSelect }: LovCategoryLis
                     : 'text-body-secondary hover:bg-surface-hover'
                   }`}
               >
-                <span className="text-left break-words">{labelFor(list)}</span>
+                <span className="text-left break-words min-w-0">
+                  {labelFor(list)}
+                  {list.IsUserCreated && (
+                    <span
+                      className="ml-1.5 inline-block align-middle text-[9px] font-semibold uppercase tracking-wide rounded px-1 py-px border border-amber-300 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700"
+                      title="Created by an operator"
+                    >
+                      custom
+                    </span>
+                  )}
+                </span>
                 <span
                   className={`shrink-0 text-[10px] font-medium rounded-full px-2 py-0.5 border
                     ${isActive
@@ -71,7 +108,7 @@ export function LovCategoryList({ lists, selectedTag, onSelect }: LovCategoryLis
                       : 'bg-surface-secondary border-border text-body-secondary'
                     }`}
                 >
-                  {list.Items.length}
+                  {countFor(list)}
                 </span>
               </button>
             );
