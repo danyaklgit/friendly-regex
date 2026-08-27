@@ -78,6 +78,8 @@ export interface AttributeFormValue {
   verifyValue?: string;
   lovTag?: string | null;
   isLovBased?: boolean;
+  /** What the engine does on a confirmed LOV miss; null/undefined = KEEP_TEXT (default). */
+  lovMissBehavior?: 'KEEP_TEXT' | 'CLEAR_TEXT' | null;
   numChars?: number;
   toStr?: string;
   occurrence?: number;

@@ -63,6 +63,7 @@ export function cloneAttributeFromBackend(
       extractionOperation: 'extract_full_field' as ExtractionOperation,
       lovTag: attr.LOVTag ?? null,
       isLovBased: !!attr.LOVTag,
+      lovMissBehavior: attr.LOVMissBehavior ?? null,
       preExtractionTransformations: (attr.PreExtractionTransformations ?? []).map((t) => ({
         id: crypto.randomUUID(),
         method: t.Method,
@@ -118,6 +119,7 @@ export function cloneAttributeFromBackend(
     verifyValue: expr.VerifyValue,
     lovTag: attr.LOVTag ?? null,
     isLovBased: !!attr.LOVTag,
+    lovMissBehavior: attr.LOVMissBehavior ?? null,
     preExtractionTransformations: (attr.PreExtractionTransformations ?? []).map((t) => ({
       id: crypto.randomUUID(),
       method: t.Method,

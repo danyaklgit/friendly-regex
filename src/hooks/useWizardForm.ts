@@ -623,6 +623,9 @@ export function useWizardForm(
           AttributeTag: attr.attributeTag,
           IsMandatory: attr.isMandatory,
           LOVTag: attr.isLovBased ? (attr.lovTag ?? null) : null,
+          // Default (KEEP_TEXT) is the absent field so every existing rule
+          // round-trips byte-identical; only the opt-in CLEAR_TEXT travels.
+          ...(attr.isLovBased && attr.lovMissBehavior === 'CLEAR_TEXT' ? { LOVMissBehavior: 'CLEAR_TEXT' as const } : {}),
           ValidationRuleTag: attr.validationRuleTag,
           AttributeRuleExpression: {
             SourceField: attr.sourceField,
