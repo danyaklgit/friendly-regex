@@ -2653,20 +2653,21 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     setWizardOpen(true);
   }, [builder.formState, activeCheckout, editingDef]);
 
-  // Open the wizard in create mode, pre-filled from a pasted JSON payload. The
-  // imported identity (bank/side/txn-type/…) is authoritative — we don't force
-  // the active checkout's context over it; the operator reviews on Basic Info
-  // and saves through the normal flow. `parentLib` at save falls back to the
-  // in-progress checkout library (same as any create-mode save).
+  // Load a pasted JSON payload into the inline Rule Builder (not straight into
+  // the Create/Save wizard) so the operator can validate the conditions and the
+  // extracted attribute values against live rows before saving. Mirrors the
+  // "Create a Rule" reset — clear show-only + matching-rule filters — then
+  // replaces the builder's whole form state with the imported rule. Save still
+  // goes through the wizard via the normal Create flow.
   const handleImportRule = useCallback((state: WizardFormState) => {
-    setEditingDef(undefined);
-    setEditingParentLib(undefined);
-    setWizardInitialState(state);
-    setWizardFromCheckout(false);
-    setWizardInitialStep(undefined);
-    setWizardOpen(true);
+    setShowOnlyUntagged(false);
+    setShowOnlyMultiTagged(false);
+    setMatchingRulesFilter([]);
+    builder.resetForm();
+    builder.setFormState(() => state);
+    setBuilderOpen(true);
     setImportOpen(false);
-  }, []);
+  }, [builder]);
 
   const handleApplyRules = useCallback((formStateOverride?: WizardFormState) => {
     if (!tagClickState) return;
