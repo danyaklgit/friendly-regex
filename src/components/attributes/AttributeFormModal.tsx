@@ -4,6 +4,7 @@ import { Input } from '../shared/Input';
 import { Select } from '../shared/Select';
 import { Button } from '../shared/Button';
 import { useLovAttributes } from '../../context/LovAttributesContext';
+import { parseAttributeImport } from '../../utils/importAttributeJson';
 import type { BackendAttribute } from '../../types/lov';
 
 interface AttributeFormModalProps {
@@ -47,6 +48,41 @@ export function AttributeFormModal({ open, onClose, onSave, onValidationError, e
   );
   const [possibleLovTag, setPossibleLovTag] = useState(() => existing?.PossibleLOVTag ?? '');
   const [saving, setSaving] = useState(false);
+
+  // Paste-JSON import: fills the form fields from a pasted attribute payload.
+  const [importOpen, setImportOpen] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [importErrors, setImportErrors] = useState<string[]>([]);
+  const [importWarnings, setImportWarnings] = useState<string[]>([]);
+
+  const handleJsonLoad = () => {
+    const result = parseAttributeImport(importText);
+    if (!result.ok) {
+      setImportErrors(result.errors);
+      setImportWarnings([]);
+      return;
+    }
+    const f = result.fields;
+    setNameEn(f.nameEn);
+    setShortDescEn(f.shortDescEn);
+    setNameAr(f.nameAr);
+    setShortDescAr(f.shortDescAr);
+    const warnings = [...result.warnings];
+    if (f.possibleLovTag) {
+      if (lovOptions.some((o) => o.value === f.possibleLovTag)) {
+        setPossibleLovTag(f.possibleLovTag);
+      } else {
+        setPossibleLovTag('');
+        warnings.push(`Suggested LOV "${f.possibleLovTag}" is not a known LOV — left as None.`);
+      }
+    } else {
+      setPossibleLovTag('');
+    }
+    setImportErrors([]);
+    setImportWarnings(warnings);
+    setImportOpen(false);
+    setImportText('');
+  };
 
   const computedValue = useMemo(() => {
     if (isEdit) return existing!.Value;
@@ -150,6 +186,11 @@ export function AttributeFormModal({ open, onClose, onSave, onValidationError, e
       open={open}
       onClose={onClose}
       title={isEdit ? 'Edit Attribute' : 'Create New Attribute'}
+      headerAction={
+        <Button variant="secondary" size="xs" onClick={() => { setImportOpen((v) => !v); setImportErrors([]); }}>
+          {importOpen ? 'Hide JSON' : 'Import JSON'}
+        </Button>
+      }
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={saving} data-tour="attribute-form-cancel">Cancel</Button>
@@ -160,6 +201,35 @@ export function AttributeFormModal({ open, onClose, onSave, onValidationError, e
       }
     >
       <div className="space-y-4" data-tour="attribute-form">
+        {importOpen && (
+          <div className="rounded-lg border border-border bg-surface-secondary p-3 space-y-2">
+            <p className="text-xs text-body-secondary">
+              Paste an attribute JSON payload to fill the fields below (Value is still auto-derived from the English name).
+            </p>
+            <textarea
+              value={importText}
+              onChange={(e) => { setImportText(e.target.value); if (importErrors.length) setImportErrors([]); }}
+              placeholder={'{\n  "nameEn": "Terminal ID",\n  "shortDescEn": "POS terminal identifier",\n  "nameAr": "…",\n  "shortDescAr": "…",\n  "possibleLovTag": ""\n}'}
+              rows={7}
+              spellCheck={false}
+              className="w-full rounded-md border border-input-border bg-input-bg px-3 py-2 font-mono text-xs text-heading placeholder:text-placeholder focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors"
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" size="xs" onClick={() => { setImportOpen(false); setImportErrors([]); }}>Cancel</Button>
+              <Button variant="primary" size="xs" onClick={handleJsonLoad} disabled={importText.trim().length === 0}>Load</Button>
+            </div>
+            {importErrors.length > 0 && (
+              <ul className="list-disc pl-4 space-y-0.5 text-xs text-red-600 dark:text-rose-300">
+                {importErrors.map((e, i) => <li key={i}>{e}</li>)}
+              </ul>
+            )}
+          </div>
+        )}
+        {importWarnings.length > 0 && (
+          <ul className="list-disc pl-4 space-y-0.5 text-xs text-amber-600 dark:text-amber-300">
+            {importWarnings.map((w, i) => <li key={i}>{w}</li>)}
+          </ul>
+        )}
         <div className="grid grid-cols-2 gap-4">
           {/* Auto-derived Value tile picks up the red treatment whenever
               any duplicate is detected so the operator gets a visible

@@ -6,6 +6,7 @@ import { Select } from '../shared/Select';
 import { Button } from '../shared/Button';
 import { GroupPillSelector, type GroupPillOption } from '../shared/GroupPillSelector';
 import { getNodeName } from '../../utils/tagHierarchyNode';
+import { parseTagImport } from '../../utils/importTagJson';
 
 interface TagEditModalProps {
   open: boolean;
@@ -35,6 +36,12 @@ export function TagEditModal({ open, onClose, editingNode, allNodes, onSave }: T
   const [parentSearch, setParentSearch] = useState('');
   const [parentDropdownOpen, setParentDropdownOpen] = useState(false);
   const parentRef = useRef<HTMLDivElement>(null);
+
+  // Paste-JSON import: fills the form fields from a pasted tag payload.
+  const [importOpen, setImportOpen] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [importErrors, setImportErrors] = useState<string[]>([]);
+  const [importWarnings, setImportWarnings] = useState<string[]>([]);
 
   // Reset form state when modal opens or editingNode changes
   useEffect(() => {
@@ -101,6 +108,53 @@ export function TagEditModal({ open, onClose, editingNode, allNodes, onSave }: T
     setParentDropdownOpen(false);
   };
 
+  const handleJsonLoad = () => {
+    const result = parseTagImport(importText);
+    if (!result.ok) {
+      setImportErrors(result.errors);
+      setImportWarnings([]);
+      return;
+    }
+    const f = result.fields;
+    const warnings = [...result.warnings];
+    setTag(f.tag);
+    setName(f.nameEn);
+    setDescription(f.descriptionEn);
+    setNameAr(f.nameAr);
+    setDescriptionAr(f.descriptionAr);
+    setLevel(f.level);
+
+    // Resolve groups against the known groups (accept a Tag Code or a display name).
+    if (f.level === 'T' && f.groups.length > 0) {
+      const resolved = new Set<string>();
+      const unknown: string[] = [];
+      for (const g of f.groups) {
+        const match =
+          groupOptions.find((o) => o.tag === g) ??
+          groupOptions.find((o) => o.tag.toLowerCase() === g.toLowerCase() || o.name.toLowerCase() === g.toLowerCase());
+        if (match) resolved.add(match.tag);
+        else unknown.push(g);
+      }
+      setSelectedGroups(resolved);
+      if (unknown.length > 0) warnings.push(`Unknown group(s) ignored: ${unknown.join(', ')}.`);
+    } else {
+      setSelectedGroups(new Set());
+    }
+
+    // Parent: set as given; warn if it isn't a known tag.
+    if (f.level === 'T' && f.parentTag) {
+      setParentTag(f.parentTag);
+      if (!tagLeaves.some((l) => l.Tag === f.parentTag)) warnings.push(`Parent tag "${f.parentTag}" is not a known tag.`);
+    } else {
+      setParentTag('');
+    }
+
+    setImportErrors([]);
+    setImportWarnings(warnings);
+    setImportOpen(false);
+    setImportText('');
+  };
+
   const handleSave = () => {
     if (!canSave) return;
     // Build Details with both languages. The `en` entry is always present
@@ -142,6 +196,11 @@ export function TagEditModal({ open, onClose, editingNode, allNodes, onSave }: T
       open={open}
       onClose={onClose}
       title={isCreate ? 'Create New Tag' : `Edit ${editingNode!.Tag}`}
+      headerAction={
+        <Button variant="secondary" size="xs" onClick={() => { setImportOpen((v) => !v); setImportErrors([]); }}>
+          {importOpen ? 'Hide JSON' : 'Import JSON'}
+        </Button>
+      }
       footer={
         <>
           <Button data-tour="tag-edit-cancel" variant="ghost" onClick={onClose}>Cancel</Button>
@@ -152,6 +211,33 @@ export function TagEditModal({ open, onClose, editingNode, allNodes, onSave }: T
       }
     >
       <div data-tour="tag-edit-form" className="flex flex-col gap-4">
+        {importOpen && (
+          <div className="rounded-lg border border-border bg-surface-secondary p-3 flex flex-col gap-2">
+            <p className="text-xs text-body-secondary">Paste a tag JSON payload to fill the fields below.</p>
+            <textarea
+              value={importText}
+              onChange={(e) => { setImportText(e.target.value); if (importErrors.length) setImportErrors([]); }}
+              placeholder={'{\n  "tag": "TransferOut",\n  "level": "T",\n  "nameEn": "Outbound Transfer",\n  "descriptionEn": "…",\n  "groups": ["OUTBOUND"]\n}'}
+              rows={7}
+              spellCheck={false}
+              className="w-full rounded-md border border-input-border bg-input-bg px-3 py-2 font-mono text-xs text-heading placeholder:text-placeholder focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors"
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" size="xs" onClick={() => { setImportOpen(false); setImportErrors([]); }}>Cancel</Button>
+              <Button variant="primary" size="xs" onClick={handleJsonLoad} disabled={importText.trim().length === 0}>Load</Button>
+            </div>
+            {importErrors.length > 0 && (
+              <ul className="list-disc pl-4 space-y-0.5 text-xs text-red-500 dark:text-rose-300">
+                {importErrors.map((e, i) => <li key={i}>{e}</li>)}
+              </ul>
+            )}
+          </div>
+        )}
+        {importWarnings.length > 0 && (
+          <ul className="list-disc pl-4 space-y-0.5 text-xs text-amber-600 dark:text-amber-300">
+            {importWarnings.map((w, i) => <li key={i}>{w}</li>)}
+          </ul>
+        )}
         {isCreate && (
           <Select
             label="Type"

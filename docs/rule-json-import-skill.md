@@ -245,8 +245,72 @@ End of skill prompt.
 
 ---
 
+## Companion schema: Attribute JSON (Create Attribute modal)
+
+The **Create New Attribute** modal (Settings, Attributes, and the wizard's "+ Create New Attribute") has an **Import JSON** button. It fills the form fields from this payload (the attribute `Value` is auto-derived as PascalCase of the English name, so it is NOT in the payload). All four name/description fields are required to save; missing ones are warnings.
+
+```
+{
+  "nameEn": string,          // English name, e.g. "Terminal ID". Value auto-derives to "TerminalID".
+  "shortDescEn": string,     // English short description.
+  "nameAr": string,          // Arabic name.
+  "shortDescAr": string,     // Arabic short description.
+  "possibleLovTag": string   // Optional. A known LOV tag (e.g. "BANKS"); unknown values fall back to None with a warning.
+}
+```
+
+A backend-shaped alternative is also accepted: `{ "PossibleLOVTag": "...", "Details": [ { "LanguageCode": "en", "Name": "...", "ShortDescription": "..." }, { "LanguageCode": "ar", ... } ] }`.
+
+Example:
+
+```json
+{
+  "nameEn": "Terminal ID",
+  "shortDescEn": "POS terminal identifier extracted from the narrative",
+  "nameAr": "معرف الجهاز",
+  "shortDescAr": "معرف جهاز نقاط البيع المستخرج من النص",
+  "possibleLovTag": ""
+}
+```
+
+## Companion schema: Tag JSON (Create New Tag modal)
+
+The **Create New Tag** modal (Settings, Tags Hierarchy) has an **Import JSON** button. Only `tag` (the Tag Code) is required to save; everything else is optional. `parentTag` and `groups` apply only to a tag (`level: "T"`), not a group (`level: "G"`). `groups` accepts group Tag Codes or their display names (resolved against the known groups; unknowns are dropped with a warning).
+
+```
+{
+  "tag": string,             // REQUIRED. Tag Code, e.g. "TransferOut".
+  "level": "T" | "G",        // Optional, default "T". T = tag, G = group.
+  "nameEn": string,          // English display name.
+  "descriptionEn": string,   // English description.
+  "nameAr": string,          // Arabic name.
+  "descriptionAr": string,   // Arabic description.
+  "parentTag": string,       // Optional (level T). A parent leaf's Tag Code.
+  "groups": [ string, ... ]  // Optional (level T). Group Tag Codes (or display names).
+}
+```
+
+A backend-shaped `Details: [{ LanguageCode, Name, Description }, …]` array is also accepted in place of the flat name/description fields, and `GroupTags` is accepted as an alias for `groups`.
+
+Example:
+
+```json
+{
+  "tag": "TransferOut",
+  "level": "T",
+  "nameEn": "Outbound Transfer",
+  "descriptionEn": "Funds leaving the account via transfer",
+  "nameAr": "تحويل صادر",
+  "descriptionAr": "أموال تغادر الحساب عبر التحويل",
+  "parentTag": "",
+  "groups": ["Outbound Transfers"]
+}
+```
+
 ## Maintenance notes (not part of the skill prompt)
 
-- Parser: [src/utils/importRuleJson.ts](../src/utils/importRuleJson.ts) (+ tests). The paste UI: [src/components/wizard/ImportRuleJsonModal.tsx](../src/components/wizard/ImportRuleJsonModal.tsx), wired into the Transactions tab toolbar ("Import JSON" next to "Create a Rule").
+- Rule parser: [src/utils/importRuleJson.ts](../src/utils/importRuleJson.ts) (+ tests). The paste UI: [src/components/wizard/ImportRuleJsonModal.tsx](../src/components/wizard/ImportRuleJsonModal.tsx), wired into the Transactions tab toolbar ("Import JSON" next to "Create a Rule"); import loads into the inline Rule Builder for validation.
+- Attribute parser: [src/utils/importAttributeJson.ts](../src/utils/importAttributeJson.ts) (+ tests), wired into [src/components/attributes/AttributeFormModal.tsx](../src/components/attributes/AttributeFormModal.tsx) ("Import JSON" in the modal header) — covers both Settings, Attributes and the wizard's "+ Create New Attribute".
+- Tag parser: [src/utils/importTagJson.ts](../src/utils/importTagJson.ts) (+ tests), wired into [src/components/tagsHierarchy/TagEditModal.tsx](../src/components/tagsHierarchy/TagEditModal.tsx) ("Import JSON" in the modal header).
 - The enum lists, operations, extraction operations and transformation methods above are sourced from `src/constants/operations.ts`, `src/constants/transformations.ts`, `src/constants/dataSetTypes.ts`, `src/constants/fields.ts`, and `src/types/wizard.ts`. When those change, regenerate the tables here and in the skill.
 - The importer generates fresh ids for groups/conditions/attributes/transformations, so the payload never carries ids. It tolerates raw regex (`match_regex` / `extract_matching`), coerces numeric params, and stringifies transformation args.
