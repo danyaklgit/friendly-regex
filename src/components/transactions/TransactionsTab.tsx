@@ -45,6 +45,7 @@ import { TagBadge } from './TagBadge';
 import { StepRuleExpressions } from '../wizard/StepRuleExpressions';
 import { StepAttributes } from '../wizard/StepAttributes';
 import { TagWizardModal } from '../wizard/TagWizardModal';
+import { ImportRuleJsonModal } from '../wizard/ImportRuleJsonModal';
 import { ValidityEditor } from '../wizard/ValidityEditor';
 import { DuplicateRulesButton } from '../wizard/DuplicateRulesButton';
 import { LovBrowserDrawer } from '../lovs/LovBrowserDrawer';
@@ -1448,6 +1449,9 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const [wizardInitialState, setWizardInitialState] = useState<WizardFormState | undefined>(undefined);
   const [editingDef, setEditingDef] = useState<TagSpecDefinition | undefined>(undefined);
   const [editingParentLib, setEditingParentLib] = useState<TagSpecLibrary | undefined>(undefined);
+  // Paste-JSON import: opens the wizard in create mode pre-filled from a pasted
+  // rule payload (see ImportRuleJsonModal / importRuleJson).
+  const [importOpen, setImportOpen] = useState(false);
 
   // When the Rule Builder is open editing an existing definition, the
   // Detected Tag Specs picker locks to that definition: the entry is
@@ -2649,6 +2653,21 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     setWizardOpen(true);
   }, [builder.formState, activeCheckout, editingDef]);
 
+  // Open the wizard in create mode, pre-filled from a pasted JSON payload. The
+  // imported identity (bank/side/txn-type/…) is authoritative — we don't force
+  // the active checkout's context over it; the operator reviews on Basic Info
+  // and saves through the normal flow. `parentLib` at save falls back to the
+  // in-progress checkout library (same as any create-mode save).
+  const handleImportRule = useCallback((state: WizardFormState) => {
+    setEditingDef(undefined);
+    setEditingParentLib(undefined);
+    setWizardInitialState(state);
+    setWizardFromCheckout(false);
+    setWizardInitialStep(undefined);
+    setWizardOpen(true);
+    setImportOpen(false);
+  }, []);
+
   const handleApplyRules = useCallback((formStateOverride?: WizardFormState) => {
     if (!tagClickState) return;
     const rulesetFilters = buildRulesetFilters(formStateOverride ?? builder.formState);
@@ -3120,6 +3139,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
           })()}
           {!builderOpen && !isAudit && (
             activeCheckout && !isReadOnly ? (
+              <>
               <Button
                 data-tour="open-rule-builder"
                 variant="secondary"
@@ -3153,6 +3173,16 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
               >
                 Create a Rule
               </Button>
+              <Button
+                variant="secondary"
+                size="xs"
+                className="whitespace-nowrap"
+                title="Paste a rule JSON payload to pre-fill the rule builder"
+                onClick={() => setImportOpen(true)}
+              >
+                Import JSON
+              </Button>
+              </>
             ) : (
               <Tooltip content={isReadOnly && ownerName ? `Checked out by ${ownerName} — read-only` : 'You need to check out a bank/side combination from the Stats page first'} placement="bottom">
                 <span>
@@ -4204,6 +4234,12 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
           saving={savingTagSpec}
         />
       )}
+
+      <ImportRuleJsonModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImport={handleImportRule}
+      />
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
