@@ -348,6 +348,84 @@ export async function getBacklogStats(
   return data.BacklogStats;
 }
 
+// --- Tag rule coverage (GetTagRuleCoverage, backend 2026-09-02) --------------
+// Per-library, per-rule match counts + date ranges for the Backlog screen.
+// Matches are attributed by TAG NAME (definition ids are not persisted
+// server-side) — the UI joins Rules[] to its own definitions by Tag.
+
+export interface TagRuleCoverageRule {
+  Tag: string;
+  /** How many rule variants currently define this tag. 0 = transactions still
+   *  carry a tag the current library no longer defines (stale tag). */
+  DefinitionCount: number;
+  MatchedCount: number;
+  /** The multi-tag-candidate subset of MatchedCount. */
+  MultiTagCount: number;
+  /** Saudi-calendar days, yyyy-MM-dd — render as-is. Null when no matches. */
+  FromDate: string | null;
+  ToDate: string | null;
+}
+
+export interface TagRuleLibraryCoverage {
+  TagSpecLibraryId: string;
+  DataSetType: string;
+  BankSwiftCode?: string | null;
+  Side?: string | null;
+  ClientCode?: string | null;
+  ErpCode?: string | null;
+  /** DISTINCT matched transactions (a multi-tag row counts once) — NOT the
+   *  sum of the rule counts. */
+  MatchedTransactionsCount: number;
+  Rules: TagRuleCoverageRule[];
+}
+
+export interface TagRuleTypeTotal {
+  DataSetType: string;
+  /** Backlog convention: an MT940 total includes the TransactionsList rows
+   *  its libraries govern — never sum a TL total on top. */
+  MatchedTransactionsCount?: number;
+  MatchedCount?: number;
+}
+
+interface GetTagRuleCoverageResponse {
+  Coverage?: {
+    Libraries?: TagRuleLibraryCoverage[];
+    TypeTotals?: TagRuleTypeTotal[];
+  };
+}
+
+/** Freshness matches GetBacklogStats (20s server-side cache) — refresh the
+ *  two together. */
+export async function getTagRuleCoverage(
+  dataSetTypes: string[],
+  authToken: string,
+  tepHeaders: TepHeaders,
+  signal?: AbortSignal,
+): Promise<{ libraries: TagRuleLibraryCoverage[]; typeTotals: TagRuleTypeTotal[] }> {
+  const res = await fetch(`${BASE}/GetTagRuleCoverage`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      Authorization: `Bearer ${authToken}`,
+      ActivityTag: 'GetTagRuleCoverage',
+      LanguageCode: tepHeaders.languageCode,
+      TTPUserId: tepHeaders.userId,
+      TTPTenantCode: tepHeaders.tenantCode,
+      TTPRequestId: tepHeaders.requestId,
+      TimeZone: tepHeaders.timeZone,
+    },
+    body: JSON.stringify({ DataSetTypes: dataSetTypes }),
+    signal,
+  });
+  await throwIfNotOk(res, 'Failed to fetch tag rule coverage');
+  const data: GetTagRuleCoverageResponse = await res.json();
+  return {
+    libraries: data.Coverage?.Libraries ?? [],
+    typeTotals: data.Coverage?.TypeTotals ?? [],
+  };
+}
+
 // --- GetAllTransactionTags (live preview of matching tags during rule authoring) ---
 
 export interface GetAllTransactionTagsRequest {

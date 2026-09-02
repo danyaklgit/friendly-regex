@@ -22,7 +22,7 @@ import { CommentIconButton } from '../comments/CommentIconButton';
 import { CommentSearchTrigger } from '../comments/CommentSearchTrigger';
 import { CommentSearchPanel } from '../comments/CommentSearchPanel';
 import type { TepHeaders, BacklogStatEntry, FilterProperty } from '../../api/transactions';
-import { getBacklogStats } from '../../api/transactions';
+import { getBacklogStats, getTagRuleCoverage, type TagRuleLibraryCoverage, type TagRuleTypeTotal } from '../../api/transactions';
 import { ALL_LIBRARY_DATA_SET_TYPES, DATA_SET_TYPES, DATA_SET_TYPE_LABELS, DEFAULT_DATA_SET_TYPE, type DataSetType } from '../../constants/dataSetTypes';
 import { identityFromContext, identityKeySuffix, libraryContextSummary, libraryMatchesCheckout, isLedger, type IdentityInput } from '../../utils/libraryIdentity';
 import type { TagSpecLibrary, TagSpecDefinition } from '../../types';
@@ -253,6 +253,11 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
 
   const [backlogStats, setBacklogStats] = useState<Map<string, BacklogStatEntry>>(new Map());
   const [statsLoading, setStatsLoading] = useState(false);
+  // Per-rule coverage (GetTagRuleCoverage), keyed by TagSpecLibraryId.
+  // Failure-tolerant: an unavailable endpoint (pre-deploy backend) simply
+  // hides the coverage panel + totals line, never blocks the screen.
+  const [coverage, setCoverage] = useState<Map<string, TagRuleLibraryCoverage>>(new Map());
+  const [coverageTotals, setCoverageTotals] = useState<TagRuleTypeTotal[]>([]);
 
   // Rows whose stats are known-stale: a check-in / rollback just triggered a
   // backend retag, so the currently fetchable numbers are the PRE-action
@@ -281,8 +286,24 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
     );
   }, [pendingStatsAction]);
 
+  const refetchCoverage = useCallback(async () => {
+    if (!authToken || !tepHeaders) return;
+    try {
+      const { libraries: covLibs, typeTotals } = await getTagRuleCoverage(ALL_LIBRARY_DATA_SET_TYPES, authToken, tepHeaders);
+      const map = new Map<string, TagRuleLibraryCoverage>();
+      for (const c of covLibs) map.set(c.TagSpecLibraryId, c);
+      setCoverage(map);
+      setCoverageTotals(typeTotals);
+    } catch {
+      // Pre-deploy backend / transient failure — keep whatever we had.
+    }
+  }, [authToken, tepHeaders]);
+
   const refetchBacklogStats = useCallback(async () => {
     if (!authToken || !tepHeaders) return;
+    // Same freshness window as the stats (20s server cache) — refresh both
+    // together, but never let a coverage failure break the stats.
+    void refetchCoverage();
     try {
       // One call for all workspaces (DataSetTypes array); each entry is keyed
       // by its own TagSpecLibraryId.
@@ -293,7 +314,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
     } catch (err) {
       console.error('Failed to refetch backlog stats:', err);
     }
-  }, [authToken, tepHeaders]);
+  }, [authToken, tepHeaders, refetchCoverage]);
 
   // Safety valve for the pending-stats skeleton: if no tagging job ever
   // surfaces (or its completion signal is missed), refetch once and clear so
@@ -343,6 +364,7 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
     if (authToken && tepHeaders) {
       let cancelled = false;
       setStatsLoading(true);
+      void refetchCoverage();
       getBacklogStats(ALL_LIBRARY_DATA_SET_TYPES, authToken, tepHeaders).then((stats) => {
         if (cancelled) return;
         const map = new Map<string, BacklogStatEntry>();
@@ -768,6 +790,12 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
     return backlogStats.get(row.library.Id!) ?? (row.inProgressLib?.Id ? backlogStats.get(row.inProgressLib.Id) : undefined);
   }, [backlogStats]);
 
+  // Coverage lookup mirrors statsFor: the ACTIVE library id first, then the
+  // INPROGRESS one.
+  const coverageFor = useCallback((row: { library: { Id?: string | null }; inProgressLib?: { Id?: string | null } | null }) => {
+    return coverage.get(row.library.Id ?? '') ?? (row.inProgressLib?.Id ? coverage.get(row.inProgressLib.Id) : undefined);
+  }, [coverage]);
+
   const canAct = !useDummyData && !!authToken && !!tepHeaders;
 
   // Show loading skeleton only on initial load (no data yet)
@@ -845,6 +873,17 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
               );
             })}
           </div>
+        )}
+        {coverageTotals.length > 0 && (
+          <p className="text-xs text-body-secondary mb-2">
+            <span className="font-semibold text-heading">Rule coverage totals:</span>{' '}
+            {coverageTotals.map((t, i) => (
+              <span key={t.DataSetType}>
+                {i > 0 && ' · '}
+                {t.DataSetType}: {(t.MatchedTransactionsCount ?? t.MatchedCount ?? 0).toLocaleString()} matched
+              </span>
+            ))}
+          </p>
         )}
         <div data-tour="backlog-table" className="overflow-x-auto overflow-y-clip border border-border rounded-lg custom-scrollbar">
           <table className="min-w-full divide-y divide-divide">
@@ -1229,8 +1268,63 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                           if (tagCmp !== 0) return tagCmp;
                           return (a.Id ?? '').localeCompare(b.Id ?? '');
                         });
+                        const cov = coverageFor(row);
+                        // Join coverage rules (attributed by TAG NAME — the
+                        // backend does not persist definition ids) to the ids
+                        // this library actually holds.
+                        const idsByTag = new Map<string, string[]>();
+                        for (const d of definitions) {
+                          const arr = idsByTag.get(d.Tag) ?? [];
+                          arr.push(d.Id);
+                          idsByTag.set(d.Tag, arr);
+                        }
+                        const covRules = cov
+                          ? [...cov.Rules].sort((a, b) => (b.MatchedCount - a.MatchedCount) || a.Tag.localeCompare(b.Tag))
+                          : [];
                         return (
                           <div className="border-t border-border-subtle bg-surface-secondary/50 px-6 py-4">
+                            {cov && covRules.length > 0 && (
+                              <div className="mb-4 rounded-lg border border-border bg-surface px-4 py-3">
+                                <div className="flex items-baseline justify-between gap-3 mb-2">
+                                  <p className="text-xs font-semibold uppercase tracking-wide text-body-secondary">Rule coverage</p>
+                                  <p className="text-[11px] text-muted">
+                                    {cov.MatchedTransactionsCount.toLocaleString()} distinct matched transaction{cov.MatchedTransactionsCount === 1 ? '' : 's'}
+                                  </p>
+                                </div>
+                                <div className="space-y-1">
+                                  {covRules.map((rule) => {
+                                    const ids = idsByTag.get(rule.Tag) ?? [];
+                                    const idLabel = ids.map((id) => (id.length > 13 ? `${id.slice(0, 12)}…` : id)).join(', ');
+                                    const isGap = rule.MatchedCount === 0 && rule.DefinitionCount > 0;
+                                    const isStale = rule.DefinitionCount === 0;
+                                    return (
+                                      <div key={rule.Tag} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs">
+                                        <span className="font-medium text-heading">{rule.Tag}</span>
+                                        {idLabel && (
+                                          <span className="font-mono text-[10px] text-faint" title={ids.join(', ')}>({idLabel})</span>
+                                        )}
+                                        <span className={isGap ? 'text-amber-700 dark:text-amber-300' : 'text-body-secondary'}>
+                                          {rule.MatchedCount > 0 && rule.FromDate && rule.ToDate
+                                            ? `Found ${rule.MatchedCount.toLocaleString()} transaction${rule.MatchedCount === 1 ? '' : 's'} from ${rule.FromDate} to ${rule.ToDate}`
+                                            : rule.MatchedCount > 0
+                                              ? `Found ${rule.MatchedCount.toLocaleString()} transaction${rule.MatchedCount === 1 ? '' : 's'}`
+                                              : 'Found 0 transactions'}
+                                        </span>
+                                        {rule.MultiTagCount > 0 && (
+                                          <span className="text-[10px] text-muted">· {rule.MultiTagCount.toLocaleString()} multi-tag</span>
+                                        )}
+                                        {isGap && (
+                                          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide border border-amber-200 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700">coverage gap</span>
+                                        )}
+                                        {isStale && (
+                                          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide border border-red-200 bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-300 dark:border-red-800" title="Transactions still carry this tag, but no rule in the current library defines it.">stale tag</span>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
                             {sorted.length === 0 ? (
                               <p className="text-sm text-faint text-center py-4">No tag definitions in this library.</p>
                             ) : (
