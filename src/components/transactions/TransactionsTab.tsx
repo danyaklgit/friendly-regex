@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useTransactionData } from '../../hooks/useTransactionData';
 import { useLovAttributes } from '../../context/LovAttributesContext';
 import { useMatchingTagIds } from '../../hooks/useMatchingTagIds';
-import { buildRulesetFilters, buildRegexFilterFromRuleGroups } from '../../utils/buildRulesetFilters';
+import { buildRulesetFilters, buildRuleFilterProperties } from '../../utils/buildRulesetFilters';
 import { MatchingRulesFilterButton } from './MatchingRulesFilterButton';
 import {
   hasDuplicateGroups,
@@ -748,8 +748,10 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     // forward the REGEX entry from buildRulesetFilters.
     if (builderOpen) {
       const ruleset = buildRulesetFilters(builder.formState);
-      const regex = ruleset.find((f) => 'Operand' in f && f.Operand === 'REGEX');
-      if (regex) extra.push(regex);
+      // Forward the rule-derived entries only (REGEX + the lifted blank
+      // operands) - bank/side/TransactionTypeCode are already wired above.
+      extra.push(...ruleset.filter((f) =>
+        'Operand' in f && (f.Operand === 'REGEX' || f.Operand === 'ISBLANK' || f.Operand === 'ISNOTBLANK')));
     }
     // Pill-scope filters AND with everything else — they're plain server
     // flag filters (OpsIsUntagged, OpsIsDeadEnd, OpsContainsInvalidAttributes,
@@ -761,8 +763,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     // server payload shapes. When the builder ALSO has a REGEX in flight
     // we send both entries; the backend ANDs FilterProperty[] at the top
     // level, which is what the operator expects from stacking two filters.
-    const manualRegex = buildRegexFilterFromRuleGroups(matchingRulesFilter);
-    if (manualRegex) extra.push(manualRegex);
+    extra.push(...buildRuleFilterProperties(matchingRulesFilter));
     return withHidden(extra);
     // NOTE: hiddenDefIds is intentionally NOT in the dep list — see the
     // comment at the top of this memo for why the server-side hidden
@@ -3246,7 +3247,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         extraActiveFilterCount={
           currentTagFilterIds.size
           + (activePillFilters.length > 0 ? 1 : 0)
-          + (buildRegexFilterFromRuleGroups(matchingRulesFilter) ? 1 : 0)
+          + (buildRuleFilterProperties(matchingRulesFilter).length > 0 ? 1 : 0)
         }
         onClearExtraFilters={() => {
           setCurrentTagFilterIds(new Set());

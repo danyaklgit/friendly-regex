@@ -70,14 +70,11 @@ describe('buildRulesetFilters', () => {
     });
   });
 
-  it('skips nullary conditions (is_blank_or_empty) from the server payload', () => {
-    // Nullary blank ops are evaluated client-side (see TransactionsTab's
-    // filteredData post-filter and evaluateRuleSet's nullary handling). A
-    // SQL regex can't match a NULL column, so emitting the regex here
-    // would silently drop every row whose column is NULL — the opposite
-    // of the operator's intent. Dropping the condition lets the backend
-    // return the broader set, then the client narrows down using
-    // null-aware semantics.
+  it('lifts a single-group is_blank_or_empty as a top-level ISBLANK filter (2026-09-02)', () => {
+    // The backend accepts ISBLANK/ISNOTBLANK server-side (blank = null,
+    // empty, whitespace-only or dash-only - the evaluateRuleSet
+    // convention), so with ONE rule group the blank condition is sent
+    // instead of dropped: paging and counts finally run on the exact set.
     const filters = buildRulesetFilters(makeFormState({
       ruleGroups: [{
         id: 'g1',
@@ -86,12 +83,12 @@ describe('buildRulesetFilters', () => {
         ],
       }],
     }));
-    // The group becomes empty after dropping the only nullary condition,
-    // so no REGEX block is emitted at all.
+    expect(filters).toContainEqual({ ColumnName: 'AdditionalInformation', Value: '', Operand: 'ISBLANK' });
+    // No conditions remain for the REGEX block.
     expect(filters.find((f) => f.Operand === 'REGEX')).toBeUndefined();
   });
 
-  it('skips nullary conditions (is_not_blank_or_empty) from the server payload', () => {
+  it('lifts is_not_blank_or_empty as ISNOTBLANK', () => {
     const filters = buildRulesetFilters(makeFormState({
       ruleGroups: [{
         id: 'g1',
@@ -100,14 +97,13 @@ describe('buildRulesetFilters', () => {
         ],
       }],
     }));
+    expect(filters).toContainEqual({ ColumnName: 'AdditionalInformation', Value: '', Operand: 'ISNOTBLANK' });
     expect(filters.find((f) => f.Operand === 'REGEX')).toBeUndefined();
   });
 
-  it('still emits a REGEX block for non-nullary siblings of a nullary condition', () => {
-    // Mixed-group case: the non-blank condition stays in the wire
-    // payload while the nullary blank is dropped (and applied client
-    // side). Server narrows by non-blank, client narrows further by
-    // blank.
+  it('lifts the blank condition and keeps non-blank siblings in the REGEX block', () => {
+    // Single group: top-level filters AND with the REGEX entry, exactly
+    // the group's own AND semantics.
     const filters = buildRulesetFilters(makeFormState({
       ruleGroups: [{
         id: 'g1',
@@ -117,7 +113,37 @@ describe('buildRulesetFilters', () => {
         ],
       }],
     }));
+    expect(filters).toContainEqual({ ColumnName: 'AdditionalInformation', Value: '', Operand: 'ISBLANK' });
     const r = regexBlock(filters);
+    expect(r?.Regex[0]).toHaveLength(1);
+    expect(r?.Regex[0][0].ColumnName).toBe('Description1');
+  });
+
+  it('does NOT lift blank conditions when several OR groups are filled (legacy drop + client narrow)', () => {
+    // Top-level FilterProperties AND with everything else, which would
+    // corrupt OR-of-groups semantics - so the multi-group case keeps the
+    // old behavior: the blank condition drops from the payload and the
+    // client-side post-filter narrows the loaded rows.
+    const filters = buildRulesetFilters(makeFormState({
+      ruleGroups: [
+        {
+          id: 'g1',
+          conditions: [
+            { id: 'c1', sourceField: 'Description1', operation: 'contains', value: 'SALARY' },
+            { id: 'c2', sourceField: 'AdditionalInformation', operation: 'is_blank_or_empty', value: '' },
+          ],
+        },
+        {
+          id: 'g2',
+          conditions: [
+            { id: 'c3', sourceField: 'Description2', operation: 'contains', value: 'NET' },
+          ],
+        },
+      ],
+    }));
+    expect(filters.find((f) => 'Operand' in f && (f.Operand === 'ISBLANK' || f.Operand === 'ISNOTBLANK'))).toBeUndefined();
+    const r = regexBlock(filters);
+    expect(r?.Regex).toHaveLength(2);
     expect(r?.Regex[0]).toHaveLength(1);
     expect(r?.Regex[0][0].ColumnName).toBe('Description1');
   });
