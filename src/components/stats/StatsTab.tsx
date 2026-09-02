@@ -23,7 +23,7 @@ import { CommentSearchTrigger } from '../comments/CommentSearchTrigger';
 import { CommentSearchPanel } from '../comments/CommentSearchPanel';
 import type { TepHeaders, BacklogStatEntry, FilterProperty } from '../../api/transactions';
 import { getBacklogStats, getTagRuleCoverage, type TagRuleLibraryCoverage, type TagRuleTypeTotal } from '../../api/transactions';
-import { ALL_LIBRARY_DATA_SET_TYPES, DATA_SET_TYPES, DATA_SET_TYPE_LABELS, DEFAULT_DATA_SET_TYPE, type DataSetType } from '../../constants/dataSetTypes';
+import { isSameDataSetFamily, ALL_LIBRARY_DATA_SET_TYPES, DATA_SET_TYPES, DATA_SET_TYPE_LABELS, DEFAULT_DATA_SET_TYPE, type DataSetType } from '../../constants/dataSetTypes';
 import { identityFromContext, identityKeySuffix, libraryContextSummary, libraryMatchesCheckout, isLedger, type IdentityInput } from '../../utils/libraryIdentity';
 import type { TagSpecLibrary, TagSpecDefinition } from '../../types';
 import type { TagSpecCommentTarget } from '../../types/comments';
@@ -874,17 +874,26 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
             })}
           </div>
         )}
-        {coverageTotals.length > 0 && (
-          <p className="text-xs text-body-secondary mb-2">
-            <span className="font-semibold text-heading">Rule coverage totals:</span>{' '}
-            {coverageTotals.map((t, i) => (
-              <span key={t.DataSetType}>
-                {i > 0 && ' · '}
-                {t.DataSetType}: {(t.MatchedTransactionsCount ?? t.MatchedCount ?? 0).toLocaleString()} matched
-              </span>
-            ))}
-          </p>
-        )}
+        {(() => {
+          // Scope the totals line to the ACTIVE workspace tab only (an MT940
+          // total already includes the TransactionsList rows its libraries
+          // govern, hence the family match rather than strict equality).
+          const activeTotals = activeDataSetType
+            ? coverageTotals.filter((t) => isSameDataSetFamily(t.DataSetType, activeDataSetType))
+            : coverageTotals;
+          if (activeTotals.length === 0) return null;
+          return (
+            <p className="text-xs text-body-secondary mb-2">
+              <span className="font-semibold text-heading">Rule coverage total:</span>{' '}
+              {activeTotals.map((t, i) => (
+                <span key={t.DataSetType}>
+                  {i > 0 && ' · '}
+                  {(t.MatchedTransactionsCount ?? t.MatchedCount ?? 0).toLocaleString()} matched
+                </span>
+              ))}
+            </p>
+          );
+        })()}
         <div data-tour="backlog-table" className="overflow-x-auto overflow-y-clip border border-border rounded-lg custom-scrollbar">
           <table className="min-w-full divide-y divide-divide">
             <thead className="bg-surface-secondary sticky top-0 z-20">
