@@ -355,9 +355,15 @@ export async function getBacklogStats(
 
 export interface TagRuleCoverageRule {
   Tag: string;
-  /** How many rule variants currently define this tag. 0 = transactions still
-   *  carry a tag the current library no longer defines (stale tag). */
-  DefinitionCount: number;
+  /** 1-based position of this rule VARIANT among the library's definitions
+   *  carrying this Tag, in stored order (join to a definition BY POSITION —
+   *  definition ids are not stable server-side). 0 = the leftover bucket:
+   *  rows no current variant matches (tag removed / rules edited after the
+   *  rows were tagged). One row per variant since the 2026-09-02 delta. */
+  VariantIndex: number;
+  /** Compact label of the variant's first rule set (<= 200 chars, render
+   *  as-is), e.g. "Equals 'COL'" or "(context-only rule)". */
+  RuleSummary: string;
   MatchedCount: number;
   /** The multi-tag-candidate subset of MatchedCount. */
   MultiTagCount: number;

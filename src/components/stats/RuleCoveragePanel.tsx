@@ -14,15 +14,33 @@ interface RuleCoveragePanelProps {
  * Per-rule coverage panel inside an expanded Backlog card. Three columns:
  * rule name + its definition id(s), the match count (multi-tag subset
  * beneath), and a shared month-scale timeline where each rule's bar spans
- * its matched date range with day precision. Rules sort alphabetically;
- * zero-match rules sit inline with a "coverage gap" badge instead of a bar,
- * stale tags (no current definition) carry a red marker.
+ * its matched date range with day precision. One row per RULE VARIANT
+ * (2026-09-02 delta): rows sort alphabetically by tag then VariantIndex,
+ * a vN chip separates same-tag variants and RuleSummary subtitles them.
+ * Zero-match variants sit inline with a "coverage gap" badge instead of a
+ * bar; the VariantIndex 0 leftover bucket (rows no current variant matches)
+ * carries a red "no longer matched" marker.
  */
 export function RuleCoveragePanel({ coverage, idsByTag }: RuleCoveragePanelProps) {
   const rules = useMemo(
-    () => [...coverage.Rules].sort((a, b) => a.Tag.localeCompare(b.Tag, undefined, { sensitivity: 'base' })),
+    () =>
+      [...coverage.Rules].sort(
+        (a, b) =>
+          a.Tag.localeCompare(b.Tag, undefined, { sensitivity: 'base' }) ||
+          a.VariantIndex - b.VariantIndex,
+      ),
     [coverage.Rules],
   );
+  // Variants per tag (excluding the VariantIndex 0 leftover bucket) — drives
+  // the vN chip and the sum-caveat tooltip on multi-variant tags.
+  const variantCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const r of coverage.Rules) {
+      if (r.VariantIndex === 0) continue;
+      counts.set(r.Tag, (counts.get(r.Tag) ?? 0) + 1);
+    }
+    return counts;
+  }, [coverage.Rules]);
 
   const timeline = useMemo(
     () => buildCoverageTimeline(rules.filter((r) => r.MatchedCount > 0).map((r) => ({ from: r.FromDate, to: r.ToDate }))),
@@ -59,31 +77,45 @@ export function RuleCoveragePanel({ coverage, idsByTag }: RuleCoveragePanelProps
         </div>
 
         {rules.map((rule) => {
-          const ids = idsByTag.get(rule.Tag) ?? [];
-          const idLabel = ids.map((id) => (id.length > 11 ? `${id.slice(0, 10)}…` : id)).join(', ');
-          const isGap = rule.MatchedCount === 0 && rule.DefinitionCount > 0;
-          const isStale = rule.DefinitionCount === 0;
+          // Join BY POSITION: VariantIndex is 1-based within this tag's
+          // definitions in stored order (ids are not stable server-side).
+          const id = rule.VariantIndex > 0 ? (idsByTag.get(rule.Tag) ?? [])[rule.VariantIndex - 1] : undefined;
+          const idLabel = id ? (id.length > 11 ? `${id.slice(0, 10)}…` : id) : '';
+          const isLeftover = rule.VariantIndex === 0;
+          const isGap = rule.MatchedCount === 0 && !isLeftover;
+          const multiVariant = (variantCounts.get(rule.Tag) ?? 0) > 1;
           const bar = rule.MatchedCount > 0 && rule.FromDate && rule.ToDate && timeline
             ? timeline.barFor(rule.FromDate, rule.ToDate)
             : null;
           return (
             // Fragment-per-row inside one grid keeps the three columns aligned.
-            <div key={rule.Tag} className="contents">
+            <div key={`${rule.Tag}#${rule.VariantIndex}`} className="contents">
               <div className="min-w-0 py-0.5">
-                <span className="text-xs font-medium text-heading">{rule.Tag}</span>
-                {idLabel && (
-                  <span className="ml-1.5 font-mono text-[10px] text-faint" title={ids.join(', ')}>({idLabel})</span>
-                )}
-                {isStale && (
-                  <span
-                    className="ml-1.5 inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide border border-red-200 bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-300 dark:border-red-800"
-                    title="Transactions still carry this tag, but no rule in the current library defines it."
-                  >
-                    stale tag
-                  </span>
+                <div className="flex items-baseline gap-1.5 flex-wrap">
+                  <span className="text-xs font-medium text-heading">{rule.Tag}</span>
+                  {multiVariant && rule.VariantIndex > 0 && (
+                    <span className="inline-flex items-center rounded px-1 py-px text-[9px] font-semibold border border-border bg-surface-secondary text-body-secondary">v{rule.VariantIndex}</span>
+                  )}
+                  {idLabel && (
+                    <span className="font-mono text-[10px] text-faint" title={id}>({idLabel})</span>
+                  )}
+                  {isLeftover && (
+                    <span
+                      className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide border border-red-200 bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-300 dark:border-red-800"
+                      title="Rows no current rule variant matches — the tag was removed from the library, or its rules were edited after these rows were tagged."
+                    >
+                      no longer matched
+                    </span>
+                  )}
+                </div>
+                {rule.RuleSummary && (
+                  <div className="text-[10px] text-muted leading-tight truncate" title={rule.RuleSummary}>{rule.RuleSummary}</div>
                 )}
               </div>
-              <div className="text-right py-0.5">
+              <div
+                className="text-right py-0.5"
+                title={multiVariant ? 'A row matching several variants of this tag counts in each of them, so the variant counts can sum past the distinct total.' : undefined}
+              >
                 <span className={`text-xs font-semibold tabular-nums ${isGap ? 'text-amber-700 dark:text-amber-300' : 'text-heading'}`}>
                   {rule.MatchedCount.toLocaleString()}
                 </span>
