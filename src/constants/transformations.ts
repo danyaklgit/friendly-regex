@@ -2,8 +2,13 @@ export interface TransformationArgDef {
   key: string;
   label: string;
   placeholder: string;
-  type: 'text' | 'number' | 'checkbox';
+  type: 'text' | 'number' | 'checkbox' | 'select';
   required: boolean;
+  /** For type 'select': the fixed choices. The stored arg value is the
+   *  option's `value` token (a stable key, not the display char — e.g. the
+   *  thousand separator travels as 'comma'/'space', never ',' vs ' ',
+   *  which would be ambiguous in the {Key, Value} wire format). */
+  options?: { value: string; label: string }[];
   /** When true, an empty string ("") counts as a valid value for this
    *  required arg. Used by `replaceWith` so operators can DELETE matched
    *  text — leaving the replacement blank is meaningful intent, not a
@@ -169,6 +174,29 @@ export const TRANSFORMATION_METHODS: TransformationMethodDef[] = [
     category: 'Formatting',
     args: [
       { key: 'text', label: 'Text', placeholder: 'e.g., -X (blank = no-op)', type: 'text', required: true, allowEmpty: true },
+    ],
+  },
+
+  {
+    key: 'format_amount',
+    label: 'Amount Formatting',
+    description: 'Formats a numeric value with a thousand separator and a fixed number of decimals. Example: "1234567.8" -> "1,234,567.80". Non-numeric values pass through unchanged.',
+    category: 'Formatting',
+    args: [
+      {
+        key: 'thousandSeparator',
+        label: 'Thousand Separator',
+        placeholder: 'Select…',
+        type: 'select',
+        required: true,
+        options: [
+          { value: 'comma', label: 'Comma (,)' },
+          { value: 'space', label: 'Space' },
+          { value: 'apostrophe', label: "Apostrophe (')" },
+          { value: 'none', label: 'None' },
+        ],
+      },
+      { key: 'decimals', label: '# of Decimals', placeholder: 'e.g. 2', type: 'number', required: true },
     ],
   },
 

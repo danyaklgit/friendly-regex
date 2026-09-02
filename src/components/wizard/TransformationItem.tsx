@@ -6,6 +6,7 @@ import type { TransformationMethodDef } from '../../constants/transformations';
 import { TRANSFORMATION_METHOD_MAP, TRANSFORMATION_CATEGORIES } from '../../constants/transformations';
 import { SearchableSelect } from '../shared/SearchableSelect';
 import { Input } from '../shared/Input';
+import { Select } from '../shared/Select';
 import { Button } from '../shared/Button';
 
 interface TransformationItemProps {
@@ -173,6 +174,18 @@ export function TransformationItem({
                       </span>
                     </button>
                   </div>
+                ) : argDef.type === 'select' ? (
+                  <Select
+                    label={argDef.label}
+                    placeholder={argDef.placeholder || 'Select…'}
+                    options={argDef.options ?? []}
+                    value={transformation.args[argDef.key] ?? ''}
+                    disabled={readOnly}
+                    required={showAsRequired}
+                    onChange={(e) =>
+                      onUpdate({ args: { ...transformation.args, [argDef.key]: e.target.value } })
+                    }
+                  />
                 ) : (
                   <Input
                     label={argDef.label}

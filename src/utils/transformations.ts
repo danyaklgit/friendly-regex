@@ -36,6 +36,38 @@ export function applyTransformation(
     case 'collapse_spaces':
       return value.replace(/ {2,}/g, ' ');
 
+    // Formatting — amounts
+    case 'format_amount': {
+      // Wire contract (mirror on the backend byte-for-byte):
+      //   Args: thousandSeparator = 'comma' | 'space' | 'apostrophe' | 'none'
+      //         decimals          = non-negative integer as string
+      // Behavior:
+      //   1. Strip existing grouping (spaces, commas, apostrophes) from the
+      //      trimmed input.
+      //   2. If the remainder is not a plain decimal number (optional minus,
+      //      digits, optional fraction), return the input UNCHANGED — a
+      //      formatting step must never destroy non-numeric text.
+      //   3. Round to `decimals` fraction digits (half-up via toFixed), group
+      //      the integer part in 3s with the chosen separator, keep '.' as
+      //      the decimal point.
+      const sepToken = args['thousandSeparator'] ?? 'comma';
+      const sep = sepToken === 'comma' ? ','
+        : sepToken === 'space' ? ' '
+        : sepToken === 'apostrophe' ? "'"
+        : sepToken === 'none' ? ''
+        : null;
+      const decimals = Number.parseInt(args['decimals'] ?? '', 10);
+      if (sep === null || !Number.isInteger(decimals) || decimals < 0 || decimals > 8) return value;
+      const cleaned = value.trim().replace(/[ ,']/g, '');
+      if (!/^-?\d+(\.\d+)?$/.test(cleaned)) return value;
+      const num = Number(cleaned);
+      if (!Number.isFinite(num)) return value;
+      const fixed = Math.abs(num).toFixed(decimals);
+      const [intPart, fracPart] = fixed.split('.');
+      const grouped = sep ? intPart.replace(/\B(?=(\d{3})+(?!\d))/g, sep) : intPart;
+      return `${num < 0 ? '-' : ''}${grouped}${fracPart ? `.${fracPart}` : ''}`;
+    }
+
     // Removal
     case 'remove_alpha':
       return value.replace(/[a-zA-Z]/g, '');

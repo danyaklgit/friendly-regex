@@ -643,3 +643,41 @@ describe('applyTransformationPipeline', () => {
     expect(steps[1].result).toBe('HELLO');
   });
 });
+
+describe('format_amount', () => {
+  const fmt = (value: string, sep = 'comma', decimals = '2') =>
+    applyTransformation('format_amount', { thousandSeparator: sep, decimals }, value);
+
+  it('groups thousands and fixes decimals', () => {
+    expect(fmt('1234567.8')).toBe('1,234,567.80');
+    expect(fmt('1000')).toBe('1,000.00');
+    expect(fmt('12')).toBe('12.00');
+  });
+
+  it('supports space / apostrophe / none separators', () => {
+    expect(fmt('1234567.8', 'space')).toBe('1 234 567.80');
+    expect(fmt('1234567.8', 'apostrophe')).toBe("1'234'567.80");
+    expect(fmt('1234567.8', 'none')).toBe('1234567.80');
+  });
+
+  it('honors the decimals count, including 0, with half-up rounding', () => {
+    expect(fmt('1234.567', 'comma', '0')).toBe('1,235');
+    expect(fmt('1234.5', 'comma', '3')).toBe('1,234.500');
+    expect(fmt('99.995', 'comma', '2')).toBe('100.00');
+  });
+
+  it('re-formats values that already carry grouping, and keeps negatives', () => {
+    expect(fmt('1,234,567.8', 'space')).toBe('1 234 567.80');
+    expect(fmt("-1'000", 'comma')).toBe('-1,000.00');
+    expect(fmt('  2500  ')).toBe('2,500.00');
+  });
+
+  it('passes non-numeric input and invalid config through unchanged', () => {
+    expect(fmt('N/A')).toBe('N/A');
+    expect(fmt('12.3.4')).toBe('12.3.4');
+    expect(fmt('AMT 500')).toBe('AMT 500');
+    expect(applyTransformation('format_amount', { thousandSeparator: 'comma' }, '1234')).toBe('1234');
+    expect(applyTransformation('format_amount', { thousandSeparator: 'weird', decimals: '2' }, '1234')).toBe('1234');
+    expect(applyTransformation('format_amount', { thousandSeparator: 'comma', decimals: '-1' }, '1234')).toBe('1234');
+  });
+});
