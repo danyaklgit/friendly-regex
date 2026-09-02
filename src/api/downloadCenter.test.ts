@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi, type MockInstance } from 'vitest';
 import {
   exportTepTransactions,
+  exportConfiguration,
   getDownloadCenterFiles,
   downloadTepTransactions,
   deleteDownloadCenterFile,
@@ -80,6 +81,55 @@ describe('downloadCenter API helpers', () => {
       await expect(
         exportTepTransactions({}, TOKEN, tepHeaders),
       ).rejects.toThrow();
+    });
+  });
+
+  describe('exportConfiguration', () => {
+    it('POSTs the topic selection with the paired ActivityTag and returns FileId', async () => {
+      fetchSpy.mockResolvedValueOnce(jsonResponse({ FileId: 'cfg-1' }));
+      const result = await exportConfiguration(
+        { Topics: ['TagSpecLibraries', 'LOVs'], TagSpecLibraryIds: ['lib-1'], AsZip: true },
+        TOKEN,
+        tepHeaders,
+      );
+      expect(result.FileId).toBe('cfg-1');
+      const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe(`${BASE}/ExportConfiguration`);
+      expect((init.headers as Record<string, string>).ActivityTag).toBe('ExportConfiguration');
+      const body = JSON.parse(init.body as string);
+      expect(body.Topics).toEqual(['TagSpecLibraries', 'LOVs']);
+      expect(body.TagSpecLibraryIds).toEqual(['lib-1']);
+      expect(body.AsZip).toBe(true);
+    });
+
+    it('throws when the server omits FileId', async () => {
+      fetchSpy.mockResolvedValueOnce(jsonResponse({}));
+      await expect(exportConfiguration({}, TOKEN, tepHeaders)).rejects.toThrow(/FileId/i);
+    });
+  });
+
+  describe('downloadTepTransactions — non-csv ready files', () => {
+    it('treats an application/zip stream as a ready file with a zip fallback name', async () => {
+      fetchSpy.mockResolvedValueOnce(new Response(new Blob(['PK']), { status: 200, headers: { 'Content-Type': 'application/zip' } }));
+      const result = await downloadTepTransactions('cfg-1', TOKEN, tepHeaders);
+      expect(result.kind).toBe('ready');
+      if (result.kind === 'ready') expect(result.suggestedFilename).toBe('TEP_Export_cfg-1.zip');
+    });
+
+    it('treats JSON WITH a filename disposition as a ready file (single-file export), not an SFM envelope', async () => {
+      fetchSpy.mockResolvedValueOnce(new Response('{"Application":"TEP"}', {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', 'Content-Disposition': 'attachment; filename="TEP_Export_20260902_120000.json"' },
+      }));
+      const result = await downloadTepTransactions('cfg-2', TOKEN, tepHeaders);
+      expect(result.kind).toBe('ready');
+      if (result.kind === 'ready') expect(result.suggestedFilename).toBe('TEP_Export_20260902_120000.json');
+    });
+
+    it('still routes a dispositionless JSON envelope through the SFM branch', async () => {
+      fetchSpy.mockResolvedValueOnce(jsonResponse({ SFM: { Constant: 'SFM_EXPORT_STILL_IN_PROGRESS' } }));
+      const result = await downloadTepTransactions('cfg-3', TOKEN, tepHeaders);
+      expect(result.kind).toBe('in_progress');
     });
   });
 

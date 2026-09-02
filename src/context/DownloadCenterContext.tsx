@@ -14,10 +14,12 @@ import type { TepHeaders, FilterProperty, SortProperty } from '../api/transactio
 import type { DownloadCenterFile } from '../types/downloadCenter';
 import {
   exportTepTransactions,
+  exportConfiguration,
   getDownloadCenterFiles,
   downloadTepTransactions,
   deleteDownloadCenterFile,
   clearDownloadCenterFiles,
+  type ExportConfigurationRequest,
 } from '../api/downloadCenter';
 import { downloadBlob } from '../utils/downloadBlob';
 import { settingsStore } from '../utils/settingsStore';
@@ -46,6 +48,8 @@ export interface DownloadCenterApi {
     filters: FilterProperty[],
     sortingProps: SortProperty[],
   ) => Promise<string>;
+  /** Central export (ExportConfiguration) — same Download Center lifecycle. */
+  triggerConfigurationExport: (req: ExportConfigurationRequest) => Promise<string>;
   downloadFile: (fileId: string) => Promise<DownloadAttemptResult>;
   deleteFile: (fileId: string) => Promise<void>;
   clearAll: () => Promise<void>;
@@ -196,6 +200,19 @@ export function DownloadCenterProvider({ children }: DownloadCenterProviderProps
     [getToken, tepHeaders, refresh],
   );
 
+  const triggerConfigurationExport = useCallback(
+    async (req: ExportConfigurationRequest): Promise<string> => {
+      if (!tepHeaders) throw new Error('Not authenticated');
+      const token = await getToken();
+      if (!token) throw new Error('Not authenticated');
+      const { FileId } = await exportConfiguration(req, token, tepHeaders);
+      // Same as triggerExport: surface the INPROGRESS row immediately.
+      void refresh();
+      return FileId;
+    },
+    [getToken, tepHeaders, refresh],
+  );
+
   const downloadFile = useCallback(
     async (fileId: string): Promise<DownloadAttemptResult> => {
       if (!tepHeaders) return { kind: 'error', message: 'Not authenticated' };
@@ -310,6 +327,7 @@ export function DownloadCenterProvider({ children }: DownloadCenterProviderProps
       closeModal,
       refresh,
       triggerExport,
+      triggerConfigurationExport,
       downloadFile,
       deleteFile,
       clearAll,
@@ -326,6 +344,7 @@ export function DownloadCenterProvider({ children }: DownloadCenterProviderProps
       closeModal,
       refresh,
       triggerExport,
+      triggerConfigurationExport,
       downloadFile,
       deleteFile,
       clearAll,

@@ -42,6 +42,51 @@ export async function exportTepTransactions(
   return { FileId: json.FileId };
 }
 
+// --- ExportConfiguration (central export, backend 2026-09-02) -------------
+// Same lifecycle as ExportTEPTransactions: returns a FileId, the record shows
+// up in GetDownloadCenterFiles (FileType CONFIGURATION_EXPORT), EXPORT_READY /
+// EXPORT_FAILED notifications fire, and the file downloads via
+// DownloadTEPTransactions. Empty request = everything as a zip.
+
+/** Topic tokens follow the export file naming (TEP_<Topic>_<stamp>.json). */
+export const EXPORT_TOPICS = [
+  'TagSpecLibraries',
+  'LOVs',
+  'VIPCustomers',
+  'Extractions',
+  'Attributes',
+  'TagsHierarchy',
+] as const;
+export type ExportTopic = (typeof EXPORT_TOPICS)[number];
+
+export interface ExportConfigurationRequest {
+  Topics?: ExportTopic[];
+  /** Narrow the TagSpecLibraries topic; ids from GetTagSpecLibraries. */
+  TagSpecLibraryIds?: string[];
+  /** Narrow the LOVs topic; tags from GetLOVLists. */
+  LOVTags?: string[];
+  /** false = one TEP_Export_<stamp>.json; true/omitted = zip per topic + manifest. */
+  AsZip?: boolean;
+}
+
+export async function exportConfiguration(
+  req: ExportConfigurationRequest,
+  token: string,
+  tepHeaders: TepHeaders,
+  signal?: AbortSignal,
+): Promise<{ FileId: string }> {
+  const res = await fetch(`${BASE}/ExportConfiguration`, {
+    method: 'POST',
+    headers: buildHeaders(token, tepHeaders, 'ExportConfiguration'),
+    body: JSON.stringify(req),
+    signal,
+  });
+  await throwIfNotOk(res, 'Failed to queue configuration export');
+  const json = (await res.json()) as ExportResponse;
+  if (!json.FileId) throw new Error('Server did not return a FileId for the queued export.');
+  return { FileId: json.FileId };
+}
+
 // --- GetDownloadCenterFiles --------------------------------------------------
 
 interface GetFilesResponse extends SfmEnvelope {
@@ -124,14 +169,29 @@ export async function downloadTepTransactions(
     body: JSON.stringify({ FileId: fileId }),
     signal,
   });
-  const contentType = res.headers.get('Content-Type') ?? '';
+  const contentType = (res.headers.get('Content-Type') ?? '').toLowerCase();
+  const disposition = res.headers.get('Content-Disposition') ?? '';
 
-  if (contentType.toLowerCase().includes('text/csv')) {
+  // A READY file streams back as csv (transactions), zip or a single JSON
+  // file (configuration export). The in-progress/failed states come back as
+  // a JSON SFM envelope WITHOUT a Content-Disposition — so an attachment
+  // header also marks a ready file even when the content type is JSON.
+  const isReadyFile =
+    contentType.includes('text/csv') ||
+    contentType.includes('application/zip') ||
+    contentType.includes('octet-stream') ||
+    /filename/i.test(disposition);
+  if (isReadyFile) {
     if (!res.ok) {
       await throwIfNotOk(res, 'Download failed');
     }
     const blob = await res.blob();
-    const suggestedFilename = parseFilename(res, `MT940_Export_${fileId}.csv`);
+    const fallback = contentType.includes('zip')
+      ? `TEP_Export_${fileId}.zip`
+      : contentType.includes('csv')
+        ? `MT940_Export_${fileId}.csv`
+        : `TEP_Export_${fileId}.json`;
+    const suggestedFilename = parseFilename(res, fallback);
     return { kind: 'ready', blob, suggestedFilename };
   }
 

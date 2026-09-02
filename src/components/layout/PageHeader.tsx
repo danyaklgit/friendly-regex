@@ -7,6 +7,7 @@ import { Button } from '../shared/Button';
 import { Badge } from '../shared/Badge';
 import { NotificationsButton } from '../notifications/NotificationsButton';
 import { DownloadCenterButton } from '../downloadCenter/DownloadCenterButton';
+import { CentralExportButton } from '../downloadCenter/CentralExportButton';
 import type { TagSpecCommentTarget } from '../../types/comments';
 import { DATA_SET_TYPE_LABELS, type DataSetType } from '../../constants/dataSetTypes';
 import { isLedger } from '../../utils/libraryIdentity';
@@ -169,6 +170,7 @@ export function PageHeader({ tabs, activeIndex, onTabChange, checkout, onOpenOnb
               </button>
             </Tooltip>
           )}
+          <CentralExportButton />
           <DownloadCenterButton />
           <NotificationsButton onNavigateToBacklog={onNavigateToBacklog} />
           {onOpenOnboarding && (
