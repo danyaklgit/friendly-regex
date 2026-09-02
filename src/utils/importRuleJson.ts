@@ -204,8 +204,11 @@ function convAttribute(
       extractionOperation: '' as ExtractionOperation,
       isConstant: true,
       constantValue,
-      isLovBased: false,
-      lovTag: null,
+      // Constant-LOV: accept lovTag alongside the constant (the constant is
+      // the LOV item tag). Whether the tag exists in the list is checked by
+      // the editor after load (marked "not in list"), not by the parser.
+      isLovBased: rec.lovTag != null && rec.lovTag !== '',
+      lovTag: rec.lovTag != null && rec.lovTag !== '' ? String(rec.lovTag) : null,
       preExtractionTransformations: [],
       transformations: [],
     };

@@ -38,6 +38,20 @@ const ALLOWED_SOURCE_FIELDS = new Set([
   ...LEDGER_SOURCE_FIELDS,
 ]);
 
+/** All ACTIVE item tags of a list (absent Tags default to the Value). */
+function collectLovItemTags(
+  lists: { Tag: string; Items: { StatusTag: string | null; Value: string; Tags: string[] }[] }[],
+  lovTag: string | null,
+): Set<string> {
+  const tags = new Set<string>();
+  const list = lists.find((l) => l.Tag === lovTag);
+  for (const item of list?.Items ?? []) {
+    if (item.StatusTag && item.StatusTag !== 'ACTIVE') continue;
+    for (const tag of (item.Tags && item.Tags.length > 0) ? item.Tags : [item.Value]) tags.add(tag);
+  }
+  return tags;
+}
+
 const FILTERED_EXTRACTION_OPERATIONS = EXTRACTION_OPERATIONS.filter(
   (op) => op.key !== 'predefined:ksa_iban' && op.key !== 'extract_between_and_verify'
 );
@@ -152,7 +166,7 @@ function BoundaryHintIcon({
 
 export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transactions, startCollapsed, readOnly, isDuplicateName, suggestedAttributeNames, suggestedTagName, libraryId, definitionId, tagSpecKind, onEditingChange, configSuggestions, characterView = false }: AttributeEditorProps) {
   const { fieldMeta } = useTransactionData();
-  const { activeAttributes, validationClasses, validationOptions, lovOptions, lovDescriptionLookup, createNewAttribute, transformationMethods, extractionMethods } = useLovAttributes();
+  const { activeAttributes, validationClasses, validationOptions, lovOptions, lovLists, lovDescriptionLookup, createNewAttribute, transformationMethods, extractionMethods } = useLovAttributes();
   const [showDistinct, setShowDistinct] = useState(false);
   // Separate state for the backend-sourced "all distinct values" popup that
   // opens from inside the in-memory modal. Keeping it independent means
@@ -298,6 +312,38 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
     setSnapshot({ ...snapshot });
   }, [snapshot, onUpdate]);
 
+  // Constant-LOV dropdown: one entry per ACTIVE item tag of the selected
+  // list (an item's Tags are the lookup keys; absent Tags default to the
+  // Value server-side). Label pairs the raw tag with the item's display name.
+  // A stored constant that is NOT among the current tags stays selectable
+  // (marked) instead of being silently cleared.
+  const constantLovTagOptions = useMemo(() => {
+    const options: { value: string; label: string }[] = [];
+    const seen = new Set<string>();
+    const list = lovLists.find((l) => l.Tag === attribute.lovTag);
+    for (const item of list?.Items ?? []) {
+      if (item.StatusTag && item.StatusTag !== 'ACTIVE') continue;
+      const tags = (item.Tags && item.Tags.length > 0) ? item.Tags : [item.Value];
+      for (const tag of tags) {
+        if (!tag || seen.has(tag)) continue;
+        seen.add(tag);
+        options.push({ value: tag, label: item.Name && item.Name !== tag ? `${tag} — ${item.Name}` : tag });
+      }
+    }
+    const current = attribute.constantValue ?? '';
+    if (current && !seen.has(current)) {
+      options.unshift({ value: current, label: `${current} — not in list` });
+    }
+    return options;
+  }, [lovLists, attribute.lovTag, attribute.constantValue]);
+  const constantTagNotInList = useMemo(() => {
+    const current = (attribute.constantValue ?? '').trim();
+    if (!current || !attribute.isLovBased || !attribute.lovTag) return false;
+    const list = lovLists.find((l) => l.Tag === attribute.lovTag);
+    if (!list) return false;
+    return !collectLovItemTags(lovLists, attribute.lovTag).has(current);
+  }, [lovLists, attribute.lovTag, attribute.isLovBased, attribute.constantValue]);
+
   const selectedOp = EXTRACTION_OPERATIONS.find((op) => op.key === attribute.extractionOperation);
   const filteredOp = FILTERED_EXTRACTION_OPERATIONS.find((op) => op.key === attribute.extractionOperation);
 
@@ -308,6 +354,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
     // Constant-mode attributes hide the extraction / transformation / validation
     // sections entirely — only the literal value is required.
     if (attribute.isConstant) {
+      if (attribute.isLovBased && !attribute.lovTag) missing.push('LOV list');
       if ((attribute.constantValue ?? '').trim().length === 0) missing.push('Constant Value');
       return missing;
     }
@@ -363,6 +410,8 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
     return missing;
   }, [
     attribute.attributeTag,
+    attribute.isLovBased,
+    attribute.lovTag,
     attribute.sourceField,
     attribute.extractionOperation,
     attribute.prefix,
@@ -1034,8 +1083,9 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
                 if (checked) {
                   const backend = activeAttributes.find((a) => a.Value === attribute.attributeTag);
                   const suggestedLov = backend?.PossibleLOVTag ?? null;
-                  // Mutex: turning on LOV mode clears constant mode.
-                  onUpdate({ isLovBased: true, lovTag: attribute.lovTag || suggestedLov, isConstant: false });
+                  // Constant + LOV is a valid combination (2026-09-02): the
+                  // constant becomes the LOV ITEM TAG picked from a dropdown.
+                  onUpdate({ isLovBased: true, lovTag: attribute.lovTag || suggestedLov });
                 } else {
                   onUpdate({ isLovBased: false, lovTag: null });
                 }
@@ -1048,10 +1098,11 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
               checked={attribute.isConstant ?? false}
               onChange={(checked) => {
                 if (checked) {
-                  // Mutex: turning on constant mode clears LOV mode (and its tag).
-                  // Don't auto-clear constantValue when turning off, so the user
-                  // can flip back and forth without losing the value.
-                  onUpdate({ isConstant: true, isLovBased: false, lovTag: null });
+                  // LOV mode may stay on: a constant-LOV attribute stamps the
+                  // chosen ITEM TAG verbatim. Don't auto-clear constantValue
+                  // when turning off, so the user can flip back and forth
+                  // without losing the value.
+                  onUpdate({ isConstant: true });
                 } else {
                   onUpdate({ isConstant: false });
                 }
@@ -1062,7 +1113,17 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
               <div className="flex-1">
                 <SearchableSelect
                   value={attribute.lovTag ?? ''}
-                  onChange={(val) => onUpdate({ lovTag: val || null })}
+                  onChange={(val) => {
+                    const updates: Partial<AttributeFormValue> = { lovTag: val || null };
+                    // Constant-LOV: a chosen item tag that is not in the newly
+                    // selected list is meaningless — clear it so the dropdown
+                    // starts fresh instead of carrying a stale tag over.
+                    if (attribute.isConstant && (attribute.constantValue ?? '') !== '') {
+                      const nextTags = collectLovItemTags(lovLists, val || null);
+                      if (!nextTags.has(attribute.constantValue ?? '')) updates.constantValue = undefined;
+                    }
+                    onUpdate(updates);
+                  }}
                   options={lovOptions}
                   placeholder="Select LOV…"
                   disabled={readOnly}
@@ -1075,7 +1136,7 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
                  is NOT an item tag of the LOV. Default keeps legacy semantics
                  (text kept, attribute marked invalid); CLEAR_TEXT empties the
                  value so the missing-mandatory/optional flags apply instead. ── */}
-          {attribute.isLovBased && (
+          {attribute.isLovBased && !attribute.isConstant && (
             <div className="flex flex-wrap items-center gap-2 pl-1">
               <span className="text-xs text-body-secondary">If the value is not in the list:</span>
               <Select
@@ -1110,15 +1171,35 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
               <p className="text-xs text-body-secondary">
                 The text below will be set as this attribute&apos;s value on every matching transaction. No extraction or transformation is performed.
               </p>
-              <Input
-                label="Value"
-                placeholder={readOnly ? '' : 'Required'}
-                required={!readOnly}
-                error={!readOnly && (attribute.constantValue ?? '').trim().length === 0}
-                value={attribute.constantValue ?? ''}
-                onChange={(e) => onUpdate({ constantValue: e.target.value })}
-                disabled={readOnly}
-              />
+              {attribute.isLovBased ? (
+                <div className="space-y-1">
+                  <SearchableSelect
+                    value={attribute.constantValue ?? ''}
+                    onChange={(val) => onUpdate({ constantValue: val || undefined })}
+                    options={constantLovTagOptions}
+                    placeholder={attribute.lovTag ? 'Pick an item tag…' : 'Select an LOV first…'}
+                    disabled={readOnly || !attribute.lovTag}
+                  />
+                  <p className="text-[11px] text-muted">
+                    The saved value is the ITEM TAG (language-neutral key); consumers resolve the item&apos;s display names from the list.
+                  </p>
+                  {constantTagNotInList && (
+                    <p className="text-[11px] text-amber-600 dark:text-amber-300">
+                      &quot;{attribute.constantValue}&quot; is not among this list&apos;s current item tags — it will be saved as-is.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <Input
+                  label="Value"
+                  placeholder={readOnly ? '' : 'Required'}
+                  required={!readOnly}
+                  error={!readOnly && (attribute.constantValue ?? '').trim().length === 0}
+                  value={attribute.constantValue ?? ''}
+                  onChange={(e) => onUpdate({ constantValue: e.target.value })}
+                  disabled={readOnly}
+                />
+              )}
             </div>
           )}
 

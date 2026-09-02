@@ -43,8 +43,10 @@ export function cloneAttributeFromBackend(
       extractionOperation: '' as ExtractionOperation,
       isConstant: true,
       constantValue: attr.Constant,
-      isLovBased: false,
-      lovTag: null,
+      // Constant-LOV: both toggles light up and the tag preselects.
+      isLovBased: !!attr.LOVTag,
+      lovTag: attr.LOVTag ?? null,
+      lovMissBehavior: null,
       preExtractionTransformations: [],
       transformations: [],
     };

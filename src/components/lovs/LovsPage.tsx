@@ -14,6 +14,7 @@ import {
   type LOVItemStatus,
 } from '../../api/lovManagement';
 import type { LOVList, LOVListItem, LOVCatalogEntry, AttributeDetail } from '../../types/lov';
+import type { LovImportItem } from '../../utils/importLovJson';
 import { LOV_TAGS } from '../../constants/lov';
 import { LovCategoryList, type LovCategoryLike } from './LovCategoryList';
 import { LovItemsPane, type LovItemsManagement } from './LovItemsPane';
@@ -207,14 +208,46 @@ export function LovsPage() {
     };
   }, [canManage, changeStatus]);
 
-  const handleCreateList = useCallback(async (payload: { Tag: string; Details: AttributeDetail[] }) => {
+  const handleCreateList = useCallback(async (payload: { Tag: string; Details: AttributeDetail[]; items?: LovImportItem[] }) => {
     if (!tepHeaders) return;
     const token = await getToken();
-    const sfm = await createLOVList(payload, token, tepHeaders);
-    setToast({ message: sfm ?? `List ${payload.Tag} created`, type: 'success' });
+    await createLOVList({ Tag: payload.Tag, Details: payload.Details }, token, tepHeaders);
+    // Bulk-create imported items sequentially (the backend invalidates its
+    // cache per write, and sequencing keeps failure attribution per value).
+    // One bad item must not abort the rest — collect and report.
+    const failed: string[] = [];
+    let created = 0;
+    for (const item of payload.items ?? []) {
+      const details: AttributeDetail[] = [];
+      if (item.nameEn || item.descEn) details.push({ LanguageCode: 'en', Name: item.nameEn || item.value, ShortDescription: item.descEn });
+      if (item.nameAr || item.descAr) details.push({ LanguageCode: 'ar', Name: item.nameAr || item.nameEn || item.value, ShortDescription: item.descAr });
+      try {
+        await createLOVListItem(
+          {
+            ListTag: payload.Tag,
+            Value: item.value,
+            ...(item.tags.length > 0 ? { Tags: item.tags } : {}),
+            ...(details.length > 0 ? { Details: details } : {}),
+          },
+          token,
+          tepHeaders,
+        );
+        created++;
+      } catch {
+        failed.push(item.value);
+      }
+    }
+    const itemNote = (payload.items?.length ?? 0) > 0
+      ? failed.length > 0
+        ? `, ${created} item${created === 1 ? '' : 's'} added, ${failed.length} failed (${failed.slice(0, 5).join(', ')}${failed.length > 5 ? ', …' : ''})`
+        : `, ${created} item${created === 1 ? '' : 's'} added`
+      : '';
+    setToast({ message: `List ${payload.Tag} created${itemNote}`, type: failed.length > 0 ? 'error' : 'success' });
     await loadCatalog();
     setSelectedTag(payload.Tag);
-  }, [tepHeaders, getToken, loadCatalog]);
+    // Imported lists the wizard consumes should refresh its pickers too.
+    if (WIZARD_TAGS.has(payload.Tag)) void refetchAll();
+  }, [tepHeaders, getToken, loadCatalog, refetchAll]);
 
   // --- Render ----------------------------------------------------------------
   const initialLoading = (catalogLoading && catalog === null && !catalogUnavailable) || (catalogUnavailable && lovLoading && lovLists.length === 0);

@@ -587,10 +587,13 @@ export function useWizardForm(
         // all null per the backend contract. No regex, no prompt, no
         // transformation pipeline applies.
         if (attr.isConstant) {
+          // Constant-LOV (2026-09-02): the Constant is the LOV ITEM TAG and
+          // LOVTag names the list. LOVMissBehavior is never sent for
+          // constants — the engine stamps the tag verbatim, no lookup.
           return {
             AttributeTag: attr.attributeTag,
             IsMandatory: attr.isMandatory,
-            LOVTag: null,
+            LOVTag: attr.isLovBased ? (attr.lovTag ?? null) : null,
             ValidationRuleTag: '',
             Constant: attr.constantValue ?? '',
             AttributeRuleExpression: null,

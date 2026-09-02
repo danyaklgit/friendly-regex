@@ -179,6 +179,27 @@ describe('cloneRulesAndAttributesFrom', () => {
     expect(attributes[1].lovMissBehavior).toBeNull();
   });
 
+  it('round-trips a constant-LOV attribute (both toggles light, tag preselected)', () => {
+    const def = makeDefinition({
+      Attributes: [
+        {
+          AttributeTag: 'Biller',
+          IsMandatory: false,
+          LOVTag: 'SADAD_BILLERS',
+          ValidationRuleTag: '',
+          Constant: 'STC',
+          AttributeRuleExpression: null,
+          Transformations: null,
+        },
+      ],
+    });
+    const { attributes } = cloneRulesAndAttributesFrom(def);
+    expect(attributes[0].isConstant).toBe(true);
+    expect(attributes[0].constantValue).toBe('STC');
+    expect(attributes[0].isLovBased).toBe(true);
+    expect(attributes[0].lovTag).toBe('SADAD_BILLERS');
+  });
+
   it('preserves rule-group and condition ordering', () => {
     const def = makeDefinition({
       TagRuleExpressions: [
