@@ -16,6 +16,7 @@ import { LibraryTableModal } from './LibraryTableModal';
 import { RollbackConfirmDialog } from './RollbackConfirmDialog';
 import { OverflowMenu } from '../shared/OverflowMenu';
 import { TaggingStatsCell } from './TaggingStatsCell';
+import { RuleCoveragePanel } from './RuleCoveragePanel';
 import { TagRuleCard } from '../tagRules/TagRuleCard';
 import { CommentsProvider } from '../../context/CommentsContext';
 import { CommentIconButton } from '../comments/CommentIconButton';
@@ -1287,53 +1288,9 @@ export function StatsTab({ onViewTransactions, onViewAllTransactions, onCheckout
                           arr.push(d.Id);
                           idsByTag.set(d.Tag, arr);
                         }
-                        const covRules = cov
-                          ? [...cov.Rules].sort((a, b) => (b.MatchedCount - a.MatchedCount) || a.Tag.localeCompare(b.Tag))
-                          : [];
                         return (
                           <div className="border-t border-border-subtle bg-surface-secondary/50 px-6 py-4">
-                            {cov && covRules.length > 0 && (
-                              <div className="mb-4 rounded-lg border border-border bg-surface px-4 py-3">
-                                <div className="flex items-baseline justify-between gap-3 mb-2">
-                                  <p className="text-xs font-semibold uppercase tracking-wide text-body-secondary">Rule coverage</p>
-                                  <p className="text-[11px] text-muted">
-                                    {cov.MatchedTransactionsCount.toLocaleString()} distinct matched transaction{cov.MatchedTransactionsCount === 1 ? '' : 's'}
-                                  </p>
-                                </div>
-                                <div className="space-y-1">
-                                  {covRules.map((rule) => {
-                                    const ids = idsByTag.get(rule.Tag) ?? [];
-                                    const idLabel = ids.map((id) => (id.length > 13 ? `${id.slice(0, 12)}…` : id)).join(', ');
-                                    const isGap = rule.MatchedCount === 0 && rule.DefinitionCount > 0;
-                                    const isStale = rule.DefinitionCount === 0;
-                                    return (
-                                      <div key={rule.Tag} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs">
-                                        <span className="font-medium text-heading">{rule.Tag}</span>
-                                        {idLabel && (
-                                          <span className="font-mono text-[10px] text-faint" title={ids.join(', ')}>({idLabel})</span>
-                                        )}
-                                        <span className={isGap ? 'text-amber-700 dark:text-amber-300' : 'text-body-secondary'}>
-                                          {rule.MatchedCount > 0 && rule.FromDate && rule.ToDate
-                                            ? `Found ${rule.MatchedCount.toLocaleString()} transaction${rule.MatchedCount === 1 ? '' : 's'} from ${rule.FromDate} to ${rule.ToDate}`
-                                            : rule.MatchedCount > 0
-                                              ? `Found ${rule.MatchedCount.toLocaleString()} transaction${rule.MatchedCount === 1 ? '' : 's'}`
-                                              : 'Found 0 transactions'}
-                                        </span>
-                                        {rule.MultiTagCount > 0 && (
-                                          <span className="text-[10px] text-muted">· {rule.MultiTagCount.toLocaleString()} multi-tag</span>
-                                        )}
-                                        {isGap && (
-                                          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide border border-amber-200 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700">coverage gap</span>
-                                        )}
-                                        {isStale && (
-                                          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide border border-red-200 bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-300 dark:border-red-800" title="Transactions still carry this tag, but no rule in the current library defines it.">stale tag</span>
-                                        )}
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
+                            {cov && <RuleCoveragePanel coverage={cov} idsByTag={idsByTag} />}
                             {sorted.length === 0 ? (
                               <p className="text-sm text-faint text-center py-4">No tag definitions in this library.</p>
                             ) : (
