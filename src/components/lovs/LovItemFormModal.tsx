@@ -140,7 +140,28 @@ export function LovItemFormModal({ open, onClose, listTag, listName, item, exist
             <Select
               label="Value (engine method) *"
               value={value}
-              onChange={(e) => setValue(e.target.value)}
+              onChange={(e) => {
+                const key = e.target.value;
+                setValue(key);
+                // Prefill the display fields from the transformation catalog
+                // (same conventions the existing items follow: label as the
+                // English name, args + example as the description, uppercase
+                // method as the lookup tag). Only fills what is still empty
+                // so an operator's own text is never overwritten.
+                const method = TRANSFORMATION_METHODS.find((m) => m.key === key);
+                if (method) {
+                  setNameEn((prev) => (prev.trim() ? prev : method.label));
+                  setDescEn((prev) => {
+                    if (prev.trim()) return prev;
+                    if (method.description) return method.description;
+                    const argsLine = method.args.length > 0
+                      ? `Args: ${method.args.map((a) => `${a.key}${a.required ? ' (required)' : ''}`).join(', ')}.`
+                      : 'No args.';
+                    return argsLine;
+                  });
+                  setTagsText((prev) => (prev.trim() ? prev : key.toUpperCase()));
+                }
+              }}
               options={methodOptions}
               placeholder="Pick a transformation method…"
               error={duplicate}
