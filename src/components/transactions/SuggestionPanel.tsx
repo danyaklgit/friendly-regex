@@ -153,6 +153,26 @@ export function SuggestionPanel({ suggestion, onClose, onAccept, onReject, canAc
                 </section>
               )}
 
+              {!isConflict && (s.SuggestedDefinition?.Attributes?.length ?? 0) > 0 && (
+                <section>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-faint mb-1.5">Extracts</p>
+                  <div className="space-y-1">
+                    {(s.SuggestedDefinition?.Attributes ?? []).map((a) => (
+                      <p key={a.AttributeTag} className="text-xs text-body">
+                        <span className="font-medium text-heading">{a.AttributeTag}</span>
+                        {a.LOVTag && <span className="text-body-secondary"> · via LOV={a.LOVTag}</span>}
+                        {a.Constant != null
+                          ? <span className="text-body-secondary"> · constant "{a.Constant}"</span>
+                          : a.AttributeRuleExpression?.SourceField
+                            ? <span className="text-body-secondary"> · from {a.AttributeRuleExpression.SourceField}</span>
+                            : null}
+                        {a.IsMandatory && <span className="text-red-500 ml-0.5" title="Mandatory">*</span>}
+                      </p>
+                    ))}
+                  </div>
+                </section>
+              )}
+
               {warnings.length > 0 && (
                 <section className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700 px-3 py-2 space-y-1">
                   {warnings.map((w, i) => (

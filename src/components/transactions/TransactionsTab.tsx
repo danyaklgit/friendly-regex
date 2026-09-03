@@ -499,6 +499,8 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
    *  Resample button's disabled/spinner state via a 5s status poll). */
   const [samplingRunning, setSamplingRunning] = useState(false);
   const [resampleBusy, setResampleBusy] = useState(false);
+  /** CompletedAtUtc of the workspace's latest finished sampling run. */
+  const [lastSampledAt, setLastSampledAt] = useState<string | null>(null);
   const [charViewCols, setCharViewCols] = useState<Set<string>>(() => {
     try {
       const stored = settingsStore.getItem('tep:charViewCols');
@@ -1577,6 +1579,33 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     return () => controller.abort();
   }, [curatedActive, activeCheckout?.bank, activeCheckout?.side, suggestionsReloadKey, getTepAuth]);
 
+  // One status read when the curated view opens (and after each suggestions
+  // reload): picks up a run the backend started on its own — the Resample
+  // button reads "Refreshing…" instead of failing with already-running — and
+  // the "sampled <time>" stamp for the status line.
+  useEffect(() => {
+    if (!curatedActive) { setLastSampledAt(null); return; }
+    let cancelled = false;
+    const bank = activeCheckout?.bank || undefined;
+    const side = activeCheckout?.side || undefined;
+    (async () => {
+      try {
+        const { token, headers } = await getTepAuth();
+        if (!token || cancelled) return;
+        const states = await getSamplingStatus({ BankSwiftCode: bank, Side: side }, token, headers);
+        if (cancelled) return;
+        if (states.some((st) => st.Status === 'Running')) setSamplingRunning(true);
+        const latest = states
+          .map((st) => st.CompletedAtUtc)
+          .filter((d): d is string => !!d)
+          .sort()
+          .pop();
+        if (latest) setLastSampledAt(latest);
+      } catch { /* status is advisory — the view works without it */ }
+    })();
+    return () => { cancelled = true; };
+  }, [curatedActive, activeCheckout?.bank, activeCheckout?.side, suggestionsReloadKey, getTepAuth]);
+
   // While a sampling run is live, poll its status (~5s). On completion:
   // toast, refetch suggestions, and nudge the standard filter-change refetch
   // so the grid re-reads the fresh sample (a run REPLACES the sample
@@ -1594,6 +1623,12 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         if (cancelled) return;
         if (!states.some((st) => st.Status === 'Running')) {
           setSamplingRunning(false);
+          const latest = states
+            .map((st) => st.CompletedAtUtc)
+            .filter((d): d is string => !!d)
+            .sort()
+            .pop();
+          if (latest) setLastSampledAt(latest);
           setToast({ message: 'Curated sample refreshed', type: 'success' });
           setSuggestionsReloadKey((k) => k + 1);
           setFilters((prev) => ({ ...prev }));
@@ -3269,11 +3304,16 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
             <span className="flex items-center gap-2 mr-4 shrink-0">
               <span className="inline-flex items-center gap-1.5 text-xs text-primary-dark whitespace-nowrap" title="Curated view: each work row represents a whole group of look-alike transactions; reference rows show tags that already work.">
                 <span className="w-1.5 h-1.5 rounded-full bg-primary inline-block" aria-hidden />
-                Curated view
+                {displayCounts.totalNow.toLocaleString()} representatives
                 {curatedStats && (
                   <span className="text-body-secondary">
-                    · {curatedStats.needRule.toLocaleString()} need a rule
-                    {curatedStats.covering > 0 && <> · covering ~{curatedStats.covering.toLocaleString()}</>}
+                    {curatedStats.covering > 0 && <> covering ~{curatedStats.covering.toLocaleString()} transactions</>}
+                    {' '}· {curatedStats.needRule.toLocaleString()} still need a rule
+                  </span>
+                )}
+                {lastSampledAt && (
+                  <span className="text-faint">
+                    · sampled {new Date(lastSampledAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                   </span>
                 )}
               </span>

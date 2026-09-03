@@ -1325,7 +1325,15 @@ const TableRow = memo(function TableRow({
   } = ctx;
 
   const cellPy = relaxedMode ? 'py-1' : 'py-2';
-  const getCellStyle = (colIdx: number) => getCellStyleFor(colIdx, false, stickyLefts, stickyRights);
+  // Curated View: the row's colored left edge lives on the FIRST cell as an
+  // inset shadow — it survives sticky cells' opaque backgrounds, which would
+  // paint over a tr-level border.
+  const getCellStyle = (colIdx: number) => {
+    const base = getCellStyleFor(colIdx, false, stickyLefts, stickyRights);
+    return colIdx === 0 && curatedEdgeColor
+      ? { ...base, boxShadow: `inset 3px 0 0 ${curatedEdgeColor}` }
+      : base;
+  };
   const stickyEdgeShadow = (colIdx: number) => stickyEdgeShadowFor(colIdx, lastLeftIdx, firstRightIdx);
   const renderCellContent = (field: string, value: string | number | boolean | null) =>
     renderCellContentFor(field, value, highlightMap, searchHighlightMap);
@@ -1352,12 +1360,23 @@ const TableRow = memo(function TableRow({
     curated && curated !== 'reference'
       ? ctx.curatedSuggestions?.get(String(item.row['SimilarSetId'] ?? ''))
       : undefined;
+  // Storyboard palette: red = untagged work, purple = multi-tag conflict,
+  // teal = reference. The 3px edge is the primary kind signal; the tint on
+  // work rows is a soft echo (reference rows stay quiet).
   const curatedTint =
     curated === 'work-untagged'
-      ? 'bg-amber-50/70 dark:bg-amber-900/10'
+      ? 'bg-red-50/50 dark:bg-red-950/10'
       : curated === 'work-conflict'
-        ? 'bg-red-50/70 dark:bg-red-950/15'
+        ? 'bg-violet-50/60 dark:bg-violet-950/15'
         : '';
+  const curatedEdgeColor =
+    curated === 'work-untagged'
+      ? '#ef4444'
+      : curated === 'work-conflict'
+        ? '#8b5cf6'
+        : curated === 'reference'
+          ? '#14b8a6'
+          : null;
 
   return (
     <tr
