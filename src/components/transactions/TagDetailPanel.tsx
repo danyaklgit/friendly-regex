@@ -106,6 +106,11 @@ export function TagDetailPanel({
                   </div>
                   <h2 className="font-mono text-[19px] font-semibold text-heading leading-tight break-words">
                     {definition.Tag}
+                    {definition.Nickname && (
+                      <span className="ml-2 align-middle inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 font-sans text-[11px] font-medium text-primary-dark dark:text-primary">
+                        {definition.Nickname}
+                      </span>
+                    )}
                   </h2>
                   <div className="mt-1 flex items-center gap-1.5">
                     <span className="text-[10px] font-semibold uppercase tracking-wider text-faint">

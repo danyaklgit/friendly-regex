@@ -285,3 +285,42 @@ describe('toTagSpecDefinition — PreExtractionTransformations round-trip', () =
     ]);
   });
 });
+
+describe('Nickname round-trip (rebuild-from-form-state must not drop it)', () => {
+  it('prefills nickname from an existing definition and re-emits it on save', () => {
+    const def = mkDef({ Nickname: 'Internal deposits' });
+    const { result } = renderHook(() => useWizardForm(def, undefined, undefined, mkLib()));
+    expect(result.current.formState.nickname).toBe('Internal deposits');
+    // Edit an UNRELATED field, then save: the nickname must survive.
+    act(() => {
+      result.current.updateBasicInfo({ certaintyLevelTag: 'MEDIUM' });
+    });
+    const { definition } = result.current.toTagSpecDefinition('lib-1');
+    expect(definition.Nickname).toBe('Internal deposits');
+  });
+
+  it('omits Nickname from the wire when unset (pre-nickname rules stay byte-identical)', () => {
+    const { result } = renderHook(() => useWizardForm(mkDef(), undefined, undefined, mkLib()));
+    const { definition } = result.current.toTagSpecDefinition('lib-1');
+    expect('Nickname' in definition).toBe(false);
+  });
+
+  it('omits Nickname when the operator clears it on edit', () => {
+    const def = mkDef({ Nickname: 'Outward clearing' });
+    const { result } = renderHook(() => useWizardForm(def, undefined, undefined, mkLib()));
+    act(() => {
+      result.current.updateBasicInfo({ nickname: '   ' });
+    });
+    const { definition } = result.current.toTagSpecDefinition('lib-1');
+    expect('Nickname' in definition).toBe(false);
+  });
+
+  it('trims and emits a newly entered nickname', () => {
+    const { result } = renderHook(() => useWizardForm(undefined, undefined, undefined, mkLib()));
+    act(() => {
+      result.current.updateBasicInfo({ tag: 'CheckIn', transactionTypeCode: '101', nickname: '  ATM deposits ' });
+    });
+    const { definition } = result.current.toTagSpecDefinition('lib-1');
+    expect(definition.Nickname).toBe('ATM deposits');
+  });
+});

@@ -186,7 +186,7 @@ export function CurrentTagsDropdown({ entries, selectedIds, onChange, loading = 
           }`}
         />
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          <TagBadge tag={tagName} certainty={certainty} version={version} />
+          <TagBadge tag={tagName} certainty={certainty} version={version} nickname={def?.Nickname ?? undefined} />
           {unresolved && (
             <span className="text-[10px] text-muted italic truncate">
               Not in current library

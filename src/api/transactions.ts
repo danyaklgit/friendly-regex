@@ -364,6 +364,9 @@ export interface TagRuleCoverageRule {
   /** Compact label of the variant's first rule set (<= 200 chars, render
    *  as-is), e.g. "Equals 'COL'" or "(context-only rule)". */
   RuleSummary: string;
+  /** Operator nickname of the variant (null when unset) — preferred over
+   *  RuleSummary in the coverage display. */
+  Nickname?: string | null;
   MatchedCount: number;
   /** The multi-tag-candidate subset of MatchedCount. */
   MultiTagCount: number;

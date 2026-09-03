@@ -137,6 +137,9 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
   return {
     Id: id,
     Tag: 'Preview',
+    // Mirror the save path (toTagSpecDefinition): the two are known to
+    // diverge, and a field absent here disappears from live previews.
+    ...(formState.nickname.trim() ? { Nickname: formState.nickname.trim() } : {}),
     Context: [], // Empty context — matches all rows for preview
     StatusTag: 'ACTIVE',
     CertaintyLevelTag: 'MEDIUM',
@@ -3548,6 +3551,19 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                   triggerClassName="!py-1 !text-xs"
                 />
               </div>
+              <label className="text-xs font-medium text-primary-dark whitespace-nowrap ml-2">
+                Nickname
+              </label>
+              <input
+                type="text"
+                value={builder.formState.nickname}
+                onChange={(e) => builder.updateBasicInfo({ nickname: e.target.value })}
+                maxLength={40}
+                placeholder="optional"
+                disabled={isReadOnly}
+                title="Optional label distinguishing same-tag rule variants — shown as a pill next to the tag"
+                className="w-[130px] px-2 py-1 text-xs rounded-lg border border-input-border bg-input-bg text-heading placeholder:text-placeholder focus:border-primary focus:ring-1 focus:ring-primary outline-none disabled:opacity-50"
+              />
             </div>
             <div className="flex flex-col md:flex-row items-center gap-2 shrink-0 whitespace-nowrap">
               {!isReadOnly && !editingDef && (
@@ -3857,6 +3873,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                           <span>
                             <TagBadge
                               tag={def.Tag}
+                              nickname={def.Nickname ?? undefined}
                               certainty={def.CertaintyLevelTag ?? 'HIGH'}
                               isUserCreated={isUserCreated}
                               version={versionInfo?.version}

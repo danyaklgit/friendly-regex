@@ -5,6 +5,7 @@ import type { WizardFormState } from '../types';
 function makeFormState(overrides: Partial<WizardFormState> = {}): WizardFormState {
   return {
     tag: '',
+    nickname: '',
     side: 'CR',
     bankSwiftCode: 'ARNBSARI',
     dataSetType: 'MT940',

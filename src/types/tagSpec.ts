@@ -116,6 +116,11 @@ export interface TagSpecDefinition {
   Id: string;
   Context: ContextEntry[];
   Tag: string;
+  /** Optional operator-chosen label distinguishing same-tag rule variants
+   *  (2026-09-02). Omitted from the wire when unset; absent on every
+   *  pre-nickname rule. Rendered as a pill next to the tag wherever
+   *  definitions are shown. */
+  Nickname?: string | null;
   StatusTag: StatusTag;
   CertaintyLevelTag: CertaintyLevelTag;
   Validity: TagValidity;

@@ -225,3 +225,17 @@ describe('parseRuleImport — skill doc worked examples import cleanly', () => {
     if (r.ok) expect(r.formState.tag).toBe(payload.tag);
   });
 });
+
+describe('parseRuleImport — nickname', () => {
+  it('carries an optional nickname into the form state', () => {
+    const res = parseRuleImport(JSON.stringify({ tag: 'CheckIn', nickname: 'Internal deposits', transactionTypeCode: '101' }));
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.formState.nickname).toBe('Internal deposits');
+  });
+
+  it('defaults nickname to empty when absent', () => {
+    const res = parseRuleImport(JSON.stringify({ tag: 'CheckIn', transactionTypeCode: '101' }));
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.formState.nickname).toBe('');
+  });
+});

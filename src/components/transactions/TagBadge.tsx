@@ -20,6 +20,9 @@ interface TagBadgeProps {
   onExclude?: () => void;
   /** Title (native tooltip) on the exclude × button. */
   excludeTitle?: string;
+  /** Operator-chosen nickname of the definition — rendered as an inner pill
+   *  after the tag so same-tag variants read apart at a glance. */
+  nickname?: string;
 }
 
 // Certainty palette:
@@ -43,7 +46,7 @@ const userCreatedColors: Record<CertaintyLevelTag, string> = {
   LOW: 'bg-red-100 text-red-800 border-red-300 dark:bg-red-900/40 dark:text-red-200 dark:border-red-700/60',
 };
 
-export function TagBadge({ tag, certainty = 'HIGH', isUserCreated = false, version, onClick, onExclude, excludeTitle }: TagBadgeProps) {
+export function TagBadge({ tag, certainty = 'HIGH', isUserCreated = false, version, onClick, onExclude, excludeTitle, nickname }: TagBadgeProps) {
   const colors = isUserCreated ? userCreatedColors[certainty] : certaintyColors[certainty];
   const showVersion = version != null;
   const handleExcludeClick = (e: ReactMouseEvent) => {
@@ -63,6 +66,14 @@ export function TagBadge({ tag, certainty = 'HIGH', isUserCreated = false, versi
       onClick={onClick}
     >
       <span>{tag}</span>
+      {nickname && (
+        <span
+          className="max-w-[120px] truncate rounded-full bg-white/60 dark:bg-black/25 px-1.5 py-px text-[9px] font-medium leading-tight"
+          title={nickname}
+        >
+          {nickname}
+        </span>
+      )}
       {onExclude && (
         // Inline × button. Visually nested inside the badge so a row
         // of matching tags reads as a tight chip cluster rather than

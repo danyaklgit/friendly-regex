@@ -41,6 +41,7 @@ const mockedGetAllTransactionTags = vi.mocked(getAllTransactionTags);
 function makeFormState(overrides: Partial<WizardFormState> = {}): WizardFormState {
   return {
     tag: '',
+    nickname: '',
     side: 'CR',
     bankSwiftCode: 'ARNBSARI',
     dataSetType: 'MT940',

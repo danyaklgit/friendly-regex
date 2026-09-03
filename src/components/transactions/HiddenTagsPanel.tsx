@@ -119,6 +119,7 @@ export function HiddenTagsPanel({
                 const badge = (
                   <TagBadge
                     tag={item.name}
+                    nickname={def?.Nickname ?? undefined}
                     certainty={certainty}
                     isUserCreated={isUserCreated}
                     version={versionInfo?.version}

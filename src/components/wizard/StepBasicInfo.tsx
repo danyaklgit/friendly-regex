@@ -13,7 +13,7 @@ import { ValidityEditor } from './ValidityEditor';
 
 interface StepBasicInfoProps {
   formState: WizardFormState;
-  onUpdate: (updates: Partial<Pick<WizardFormState, 'tag' | 'side' | 'bankSwiftCode' | 'transactionTypeCode' | 'statusTag' | 'certaintyLevelTag' | 'validity'>>) => void;
+  onUpdate: (updates: Partial<Pick<WizardFormState, 'tag' | 'nickname' | 'side' | 'bankSwiftCode' | 'transactionTypeCode' | 'statusTag' | 'certaintyLevelTag' | 'validity'>>) => void;
   fromCheckoutContext?: boolean;
   /** Read-only flag for the entire step. When true, all writable controls
    *  are disabled and the +Add / Remove / per-picker × affordances on the
@@ -59,6 +59,20 @@ export function StepBasicInfo({
               required
               error={isTagError}
               collapseOnSelect
+            />
+          </div>
+          <div className="flex flex-col gap-1 w-56 shrink-0">
+            <label className="text-xs font-medium text-body pl-1">
+              Nickname <span className="text-faint font-normal">(optional)</span>
+            </label>
+            <input
+              type="text"
+              value={formState.nickname}
+              onChange={(e) => onUpdate({ nickname: e.target.value })}
+              maxLength={40}
+              placeholder="e.g. ATM deposits"
+              title="Distinguishes same-tag rule variants — shown as a pill next to the tag"
+              className="rounded-lg border border-input-border bg-input-bg px-3 py-2 text-sm text-heading placeholder:text-placeholder focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors"
             />
           </div>
           {libraryIdForComments && (

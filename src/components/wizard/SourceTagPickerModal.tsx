@@ -317,6 +317,14 @@ export function SourceTagPickerModal({ open, libraries, onClose, onSelect, curre
                           <span className={`text-sm font-medium truncate ${isSelected ? 'text-primary' : 'text-heading'}`}>
                             {entry.def.Tag}
                           </span>
+                          {entry.def.Nickname && (
+                            <span
+                              className="shrink-0 max-w-[140px] truncate rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary-dark dark:text-primary"
+                              title={entry.def.Nickname}
+                            >
+                              {entry.def.Nickname}
+                            </span>
+                          )}
                           <CopyableId id={entry.def.Id} />
                         </div>
                         {metaParts.length > 0 && (

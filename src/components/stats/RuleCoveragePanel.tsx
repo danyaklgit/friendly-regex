@@ -96,6 +96,14 @@ export function RuleCoveragePanel({ coverage, idsByTag }: RuleCoveragePanelProps
                   {multiVariant && rule.VariantIndex > 0 && (
                     <span className="inline-flex items-center rounded px-1 py-px text-[9px] font-semibold border border-border bg-surface-secondary text-body-secondary">v{rule.VariantIndex}</span>
                   )}
+                  {rule.Nickname && (
+                    <span
+                      className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-1.5 py-px text-[9px] font-medium text-primary-dark dark:text-primary max-w-[140px] truncate"
+                      title={rule.RuleSummary || rule.Nickname}
+                    >
+                      {rule.Nickname}
+                    </span>
+                  )}
                   {idLabel && (
                     <span className="font-mono text-[10px] text-faint" title={id}>({idLabel})</span>
                   )}
@@ -108,7 +116,11 @@ export function RuleCoveragePanel({ coverage, idsByTag }: RuleCoveragePanelProps
                     </span>
                   )}
                 </div>
-                {rule.RuleSummary && (
+                {/* Nickname is the preferred variant label (2026-09-02): when
+                    present it renders as the pill above and the RuleSummary
+                    moves to its hover title; unnamed variants keep the
+                    RuleSummary subtitle. */}
+                {!rule.Nickname && rule.RuleSummary && (
                   <div className="text-[10px] text-muted leading-tight truncate" title={rule.RuleSummary}>{rule.RuleSummary}</div>
                 )}
               </div>

@@ -101,6 +101,9 @@ export function fromExistingDefinition(
   const parentIdentity = parentLib ? identityFromContext(parentLib) : null;
   return {
     tag: def.Tag,
+    // CRITICAL: toTagSpecDefinition REBUILDS the definition from form state —
+    // a field missing here is silently deleted on save (Arabic-names class).
+    nickname: def.Nickname ?? '',
     side: parentLib ? (getContextValue(parentLib.Context, 'Side') ?? 'CR') : 'CR',
     bankSwiftCode: parentLib ? (getContextValue(parentLib.Context, 'BankSwiftCode') ?? '') : '',
     dataSetType: parentLib?.DataSetType ?? DEFAULT_DATA_SET_TYPE,
@@ -229,6 +232,7 @@ export function useWizardForm(
   function createInitialState(): WizardFormState {
     return {
       tag: '',
+      nickname: '',
       side: 'CR',
       bankSwiftCode: 'ARNBSARI',
       dataSetType: DEFAULT_DATA_SET_TYPE,
@@ -275,7 +279,7 @@ export function useWizardForm(
 
   // --- Basic info updates ---
   const updateBasicInfo = useCallback(
-    (updates: Partial<Pick<WizardFormState, 'tag' | 'side' | 'bankSwiftCode' | 'transactionTypeCode' | 'statusTag' | 'certaintyLevelTag' | 'validity'>>) => {
+    (updates: Partial<Pick<WizardFormState, 'tag' | 'nickname' | 'side' | 'bankSwiftCode' | 'transactionTypeCode' | 'statusTag' | 'certaintyLevelTag' | 'validity'>>) => {
       setFormState((prev) => ({ ...prev, ...updates }));
     },
     []
@@ -556,6 +560,10 @@ export function useWizardForm(
     const definition: TagSpecDefinition = {
       Id: id,
       Tag: formState.tag,
+      // Emit only when set: '' (cleared or never entered) omits the field so
+      // pre-nickname rules round-trip byte-identical and a cleared nickname
+      // is deleted server-side.
+      ...(formState.nickname.trim() ? { Nickname: formState.nickname.trim() } : {}),
       Context: childContext,
       StatusTag: formState.statusTag,
       CertaintyLevelTag: formState.certaintyLevelTag,

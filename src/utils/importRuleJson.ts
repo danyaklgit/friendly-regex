@@ -310,6 +310,7 @@ export function parseRuleImport(text: string): RuleImportResult {
 
   const formState: WizardFormState = {
     tag,
+    nickname: asString(p.nickname),
     side,
     bankSwiftCode: asString(p.bankSwiftCode),
     dataSetType,

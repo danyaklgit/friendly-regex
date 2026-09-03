@@ -123,6 +123,9 @@ export interface AttributeFormValue {
 
 export interface WizardFormState {
   tag: string;
+  /** Optional operator-chosen nickname distinguishing same-tag rule variants
+   *  (kept ~40 chars by the inputs). '' = unset — omitted from the wire. */
+  nickname: string;
   side: string;
   bankSwiftCode: string;
   /** DataSetType of the workspace the rule is authored in. Drives the parent

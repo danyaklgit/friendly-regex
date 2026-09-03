@@ -39,6 +39,14 @@ export function TagRuleCard({ definition, parentLib, onEdit, onDelete, onExport,
       >
         <div className="flex items-center gap-3">
           <span className="text-sm font-semibold text-heading">{definition.Tag}</span>
+          {definition.Nickname && (
+            <span
+              className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary-dark dark:text-primary max-w-[180px] truncate"
+              title={definition.Nickname}
+            >
+              {definition.Nickname}
+            </span>
+          )}
           <TagMetaBadges definition={definition} parentContext={parentLib?.Context} size="xs" />
           <CopyableId id={definition.Id} />
           {parentLib?.Id && definition.Id && (

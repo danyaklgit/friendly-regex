@@ -1662,6 +1662,7 @@ const TableRow = memo(function TableRow({
                           const badge = (
                             <TagBadge
                               tag={tag}
+                              nickname={matchedDef?.Nickname ?? undefined}
                               // Prefer the definition the row actually matched; only
                               // fall back to name-lookup when no matched def is
                               // available. Two definitions can share a Tag name with
