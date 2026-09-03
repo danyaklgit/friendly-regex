@@ -169,7 +169,11 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
           return {
             AttributeTag: attr.attributeTag,
             IsMandatory: attr.isMandatory,
-            LOVTag: null,
+            // Constant-LOV: carry the list tag exactly like the save path
+            // (useWizardForm.toTagSpecDefinition) — the table's attribute
+            // cells resolve the friendly LOV name via attrLovTagMap, and a
+            // null here made constant-LOV previews show the raw item tag.
+            LOVTag: attr.isLovBased ? (attr.lovTag ?? null) : null,
             ValidationRuleTag: '',
             Constant: attr.constantValue ?? '',
             AttributeRuleExpression: null,
