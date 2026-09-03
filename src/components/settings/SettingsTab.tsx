@@ -13,11 +13,18 @@ const SUB_TABS = [
   { key: 'vip', label: 'VIP Customers', icon: 'M11.48 3.5l2.09 4.24 4.68.68-3.39 3.3.8 4.66-4.18-2.2-4.18 2.2.8-4.66-3.39-3.3 4.68-.68z', tour: 'settings-subtab-vip' },
 ] as const;
 
-export function SettingsTab() {
+interface SettingsTabProps {
+  /** Height of the settings surface. The main-menu tab fills the viewport
+   *  under the header; the rule builder's Settings modal passes "h-full" so
+   *  the modal controls the size. */
+  heightClass?: string;
+}
+
+export function SettingsTab({ heightClass = 'h-[calc(100vh-3.5rem)]' }: SettingsTabProps) {
   const [activeSubTab, setActiveSubTab] = useState(0);
 
   return (
-    <div className="flex gap-0 h-[calc(100vh-3.5rem)]">
+    <div className={`flex gap-0 ${heightClass}`}>
       {/* Sidebar */}
       <div className="w-44 shrink-0 border-r border-border bg-surface-secondary/50 py-2 px-1.5">
         <p className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted mb-1">Settings</p>

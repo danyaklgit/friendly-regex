@@ -55,10 +55,10 @@ export function CentralExportModal({ open, onClose }: CentralExportModalProps) {
   const [topics, setTopics] = useState<Set<ExportTopic>>(new Set(EXPORT_TOPICS));
   const [libraryIds, setLibraryIds] = useState<Set<string>>(new Set());
   const [lovTags, setLovTags] = useState<Set<string>>(new Set());
-  const [asZip, setAsZip] = useState(true);
+  // Default OFF (2026-09-03): a single JSON file; zip-per-topic is opt-in.
+  const [asZip, setAsZip] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [queued, setQueued] = useState(false);
 
   // LOV catalog for the narrowing pick — fetched on open; unavailable
   // (pre-deploy) just disables narrowing, exporting all LOVs still works.
@@ -69,10 +69,9 @@ export function CentralExportModal({ open, onClose }: CentralExportModalProps) {
     setTopics(new Set(EXPORT_TOPICS));
     setLibraryIds(new Set());
     setLovTags(new Set());
-    setAsZip(true);
+    setAsZip(false);
     setSubmitting(false);
     setError(null);
-    setQueued(false);
     if (!tepHeaders) return;
     let cancelled = false;
     (async () => {
@@ -131,7 +130,10 @@ export function CentralExportModal({ open, onClose }: CentralExportModalProps) {
         ...(topics.has('LOVs') && lovTags.size > 0 ? { LOVTags: [...lovTags] } : {}),
         AsZip: asZip,
       });
-      setQueued(true);
+      // Straight to the Download Center (2026-09-03): the queued file's
+      // lifecycle is visible there, no intermediate confirmation screen.
+      onClose();
+      downloadCenter.openModal();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Export failed to queue');
     } finally {
@@ -150,35 +152,15 @@ export function CentralExportModal({ open, onClose }: CentralExportModalProps) {
       widthClass="max-w-2xl"
       zClass="z-[70]"
       footer={
-        queued ? (
-          <>
-            <Button
-              variant="secondary"
-              onClick={() => { onClose(); downloadCenter?.openModal(); }}
-            >
-              Open Download Center
-            </Button>
-            <Button variant="primary" onClick={onClose}>Done</Button>
-          </>
-        ) : (
-          <>
-            <Button variant="secondary" onClick={onClose} disabled={submitting}>Cancel</Button>
-            <Button variant="primary" onClick={handleExport} disabled={!canExport} loading={submitting}>
-              Export
-            </Button>
-          </>
-        )
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={submitting}>Cancel</Button>
+          <Button variant="primary" onClick={handleExport} disabled={!canExport} loading={submitting}>
+            Export
+          </Button>
+        </>
       }
     >
-      {queued ? (
-        <div className="py-6 text-center space-y-2">
-          <p className="text-sm font-medium text-heading">Export queued</p>
-          <p className="text-xs text-body-secondary">
-            The file is being built — it will appear in the Download Center with its status, same as a transactions export.
-          </p>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4">
           <p className="text-xs text-body-secondary">
             Everything is selected by default. Narrow the topics — and, for Tag Spec Libraries and LOVs, the specific entries — then Export. The build lands in the Download Center.
           </p>
@@ -277,8 +259,7 @@ export function CentralExportModal({ open, onClose }: CentralExportModalProps) {
           </div>
 
           {error && <p className="text-xs text-red-600 dark:text-rose-400">{error}</p>}
-        </div>
-      )}
+      </div>
     </Modal>
   );
 }

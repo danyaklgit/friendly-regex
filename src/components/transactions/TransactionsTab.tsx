@@ -48,8 +48,9 @@ import { TagWizardModal } from '../wizard/TagWizardModal';
 import { ImportRuleJsonModal } from '../wizard/ImportRuleJsonModal';
 import { ValidityEditor } from '../wizard/ValidityEditor';
 import { DuplicateRulesButton } from '../wizard/DuplicateRulesButton';
-import { LovBrowserDrawer } from '../lovs/LovBrowserDrawer';
+import { SettingsTab } from '../settings/SettingsTab';
 import { Button } from '../shared/Button';
+import { Modal } from '../shared/Modal';
 import { CopyableId } from '../shared/CopyableId';
 import { Toast } from '../shared/Toast';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
@@ -431,7 +432,11 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // picker, action buttons) so the operator can hand the rest of the screen
   // over to the transactions table without closing the builder entirely.
   const [builderCollapsed, setBuilderCollapsed] = useState(false);
-  const [lovBrowserOpen, setLovBrowserOpen] = useState(false);
+  // Full Settings surface (same component as the main-menu tab) hosted in a
+  // near-fullscreen modal so operators can manage LOVs / attributes /
+  // extractions / hierarchy without leaving the rule builder. Hierarchy state
+  // lives in TagSpecContext, so closing the modal never loses unsynced edits.
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchPanelOpen, setSearchPanelOpen] = useState(false);
   const builderRef = useRef<HTMLDivElement>(null);
   const [builderHeight, setBuilderHeight] = useState(0);
@@ -3582,11 +3587,11 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
               <Button
                 variant="ghost"
                 size="xs"
-                onClick={() => setLovBrowserOpen(true)}
+                onClick={() => setSettingsOpen(true)}
                 className="whitespace-nowrap"
-                title="Browse LOV reference data without leaving the rule builder"
+                title="Open the TEP settings (Tags Hierarchy, Attributes, Extractions, LOVs, VIP Customers) without leaving the rule builder"
               >
-                Browse LOVs
+                Settings
               </Button>
               <Button variant="ghost" size="xs" onClick={handleDiscard} className="whitespace-nowrap">
                 {isReadOnly ? 'Close' : 'Discard'}
@@ -4355,10 +4360,19 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         onClose={() => setPreviewDef(null)}
       />
 
-      <LovBrowserDrawer
-        open={lovBrowserOpen}
-        onClose={() => setLovBrowserOpen(false)}
-      />
+      <Modal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        title="Settings"
+        widthClass="max-w-[96vw]"
+        fullHeight
+        zClass="z-[70]"
+        bodyClass="overflow-hidden p-0"
+      >
+        {/* Mounted only while open so the settings pages' fetches don't run
+            behind the transactions grid. */}
+        {settingsOpen && <SettingsTab heightClass="h-full" />}
+      </Modal>
 
       <HiddenTagsPanel
         open={hiddenTagsPanelOpen}

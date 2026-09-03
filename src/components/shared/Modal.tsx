@@ -15,9 +15,12 @@ interface ModalProps {
   /** Override the default max-width (default: "max-w-3xl"). Use e.g. "max-w-full" or
    *  "max-w-[1400px]" for surfaces that need to render wide tables. */
   widthClass?: string;
+  /** Override the body wrapper classes (default: "overflow-y-auto custom-scrollbar px-6 py-4").
+   *  Use e.g. "overflow-hidden p-0" for full-bleed surfaces that manage their own scroll. */
+  bodyClass?: string;
 }
 
-export function Modal({ open, onClose, title, children, footer, fullHeight, headerAction, zClass = 'z-50', widthClass = 'max-w-3xl' }: ModalProps) {
+export function Modal({ open, onClose, title, children, footer, fullHeight, headerAction, zClass = 'z-50', widthClass = 'max-w-3xl', bodyClass = 'overflow-y-auto custom-scrollbar px-6 py-4' }: ModalProps) {
   useEffect(() => {
     if (open) {
       document.body.style.overflow = 'hidden';
@@ -49,7 +52,7 @@ export function Modal({ open, onClose, title, children, footer, fullHeight, head
             </button>
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-4">{children}</div>
+        <div className={`flex-1 ${bodyClass}`}>{children}</div>
         {footer && (
           <div className="px-6 py-4 border-t border-border flex justify-end gap-3">
             {footer}
