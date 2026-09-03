@@ -15,7 +15,6 @@ import {
 } from '../../api/lovManagement';
 import type { LOVList, LOVListItem, LOVCatalogEntry, AttributeDetail } from '../../types/lov';
 import type { LovImportItem } from '../../utils/importLovJson';
-import { LOV_TAGS } from '../../constants/lov';
 import { LovCategoryList, type LovCategoryLike } from './LovCategoryList';
 import { LovItemsPane, type LovItemsManagement } from './LovItemsPane';
 import { LovItemFormModal, type LovItemFormPayload } from './LovItemFormModal';
@@ -30,17 +29,15 @@ import { Toast } from '../shared/Toast';
 // manageable now — it only stays hidden in the degraded, read-only mode.
 const FALLBACK_HIDDEN_LOV_TAGS = new Set(['ATTRIBUTES', 'ATTRIBUTE_TRANSFORMATON', 'EXTRACTIONS', 'DEMO_USER_COMPS']);
 
-const WIZARD_TAGS = new Set<string>(LOV_TAGS);
-
 /**
  * Settings → LOVs. The sidebar is driven by the manageable-lists catalog
  * (`GetLOVLists`) so operator-created lists appear with no front-end build;
  * the selected list's items load via a targeted `GetListsByTags`. Item CRUD
- * + New list are hidden for the audit role. Writes to a list the wizard
- * consumes (LOV_TAGS) also refresh LovAttributesContext so pickers update.
+ * + New list are hidden for the audit role. Every write also refreshes
+ * LovAttributesContext's LOV lists so the wizard/attribute pickers update.
  */
 export function LovsPage() {
-  const { lovLists, lovLoading, refetchAll } = useLovAttributes();
+  const { lovLists, lovLoading, refetchLov } = useLovAttributes();
   const { isAudit, getAuthHeaders, refreshIfNeeded, userId } = useAuth();
   const tepConfig = useTepConfig();
 
@@ -157,12 +154,15 @@ export function LovsPage() {
     }
   };
 
-  /** After any write: reload the list + catalog counts; refresh the wizard
-   *  context when the list is one the wizard consumes. */
+  /** After any write: reload the list + catalog counts + the wizard context's
+   *  LOV lists. */
   const afterWrite = useCallback(async (tag: string) => {
     await Promise.all([loadItems(tag), loadCatalog()]);
-    if (WIZARD_TAGS.has(tag)) void refetchAll();
-  }, [loadItems, loadCatalog, refetchAll]);
+    // ALWAYS refresh the wizard context's LOV lists — custom lists are not in
+    // the hardcoded LOV_TAGS, and the gated refetch left the attribute
+    // screens' LOV picker stale until a full portal reload (bug 2026-09-03).
+    void refetchLov();
+  }, [loadItems, loadCatalog, refetchLov]);
 
   // --- Mutations -------------------------------------------------------------
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -245,9 +245,11 @@ export function LovsPage() {
     setToast({ message: `List ${payload.Tag} created${itemNote}`, type: failed.length > 0 ? 'error' : 'success' });
     await loadCatalog();
     setSelectedTag(payload.Tag);
-    // Imported lists the wizard consumes should refresh its pickers too.
-    if (WIZARD_TAGS.has(payload.Tag)) void refetchAll();
-  }, [tepHeaders, getToken, loadCatalog, refetchAll]);
+    // A fresh list must reach the attribute screens' LOV picker immediately —
+    // the context fetch returns runtime-created lists (backend 2026-09-01),
+    // it just has to be re-run.
+    void refetchLov();
+  }, [tepHeaders, getToken, loadCatalog, refetchLov]);
 
   // --- Render ----------------------------------------------------------------
   const initialLoading = (catalogLoading && catalog === null && !catalogUnavailable) || (catalogUnavailable && lovLoading && lovLists.length === 0);

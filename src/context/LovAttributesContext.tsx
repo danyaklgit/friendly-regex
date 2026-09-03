@@ -48,6 +48,9 @@ interface LovAttributesContextValue {
 
   // Actions
   refetchAll: () => Promise<void>;
+  /** LOV lists only — cheap refresh after Settings → LOVs writes so the
+   *  attribute/wizard pickers see new lists and items without a reload. */
+  refetchLov: () => Promise<void>;
   refetchAttributes: () => Promise<void>;
   refetchExtractions: () => Promise<void>;
   createNewAttribute: (payload: { Value: string; PossibleLOVTag?: string | null; Details: AttributeDetail[] }) => Promise<string | null>;
@@ -161,6 +164,10 @@ export function LovAttributesProvider({ tepHeaders, children }: LovAttributesPro
   const refetchAll = useCallback(async () => {
     await Promise.all([fetchLov(), fetchValidation(), fetchAttrs(), fetchExtractions()]);
   }, [fetchLov, fetchValidation, fetchAttrs, fetchExtractions]);
+
+  const refetchLov = useCallback(async () => {
+    await fetchLov();
+  }, [fetchLov]);
 
   const refetchAttributes = useCallback(async () => {
     await fetchAttrs();
@@ -407,6 +414,7 @@ export function LovAttributesProvider({ tepHeaders, children }: LovAttributesPro
     transformationMethods,
     extractionMethods,
     refetchAll,
+    refetchLov,
     refetchAttributes,
     refetchExtractions,
     createNewAttribute,
@@ -420,7 +428,7 @@ export function LovAttributesProvider({ tepHeaders, children }: LovAttributesPro
     lovLists, validationClasses, backendAttributes, backendExtractions,
     lovLoading, attributesLoading, validationLoading, extractionsLoading,
     lovLookup, lovDescriptionLookup, lovOptions, activeAttributes, activeExtractions, validationOptions, transformationMethods, extractionMethods,
-    refetchAll, refetchAttributes, refetchExtractions,
+    refetchAll, refetchLov, refetchAttributes, refetchExtractions,
     createNewAttribute, updateExistingAttribute, toggleAttributeStatus, deleteExistingAttribute,
     createNewExtraction, updateExistingExtraction, deleteExistingExtraction,
   ]);
