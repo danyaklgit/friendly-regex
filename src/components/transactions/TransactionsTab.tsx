@@ -49,6 +49,16 @@ import { ImportRuleJsonModal } from '../wizard/ImportRuleJsonModal';
 import { ValidityEditor } from '../wizard/ValidityEditor';
 import { DuplicateRulesButton } from '../wizard/DuplicateRulesButton';
 import { SettingsTab } from '../settings/SettingsTab';
+import { SuggestionPanel } from './SuggestionPanel';
+import {
+  getSuggestedTagSpecs,
+  getSamplingStatus,
+  resample,
+  acceptSuggestion,
+  rejectSuggestion,
+  type SuggestedTagSpec,
+} from '../../api/sampling';
+import { suggestionsBySetId, curatedPendingStats } from '../../utils/curatedView';
 import { Button } from '../shared/Button';
 import { Modal } from '../shared/Modal';
 import { CopyableId } from '../shared/CopyableId';
@@ -474,6 +484,21 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const [charViewEnabled, setCharViewEnabled] = useState(() => {
     try { return settingsStore.getItem('tep:charView') === 'true'; } catch { return false; }
   });
+  // Curated View (Smart Sampling Engine, 2026-09-03): the grid shows only the
+  // backend-built curated sample — one representative per group of look-alike
+  // transactions plus reference examples. Per-user like the other toggles.
+  const [curatedView, setCuratedView] = useState(() => {
+    try { return settingsStore.getItem('tep:curatedView') === 'true'; } catch { return false; }
+  });
+  /** Pending rule suggestions for the active workspace (null until loaded). */
+  const [suggestions, setSuggestions] = useState<SuggestedTagSpec[] | null>(null);
+  const [suggestionsReloadKey, setSuggestionsReloadKey] = useState(0);
+  const [activeSuggestion, setActiveSuggestion] = useState<SuggestedTagSpec | null>(null);
+  const [suggestionActionBusy, setSuggestionActionBusy] = useState(false);
+  /** True while a sampling run is live for this workspace (drives the
+   *  Resample button's disabled/spinner state via a 5s status poll). */
+  const [samplingRunning, setSamplingRunning] = useState(false);
+  const [resampleBusy, setResampleBusy] = useState(false);
   const [charViewCols, setCharViewCols] = useState<Set<string>>(() => {
     try {
       const stored = settingsStore.getItem('tep:charViewCols');
@@ -672,6 +697,23 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const tagClickRulesetApplied = tagClickState?.rulesetApplied ?? false;
   const tagClickShowingAll = tagClickState?.showingAll ?? false;
   const tagClickRulesetFilters = tagClickState?.rulesetFilters;
+  // Curated View gating: MT940-family workspaces only in v1 (never intraday
+  // or Ledger — the scope guarantee in the hand-off doc). Off = the untouched
+  // full backlog, exactly as today.
+  const curatedAvailable = isLiveMode && isSameDataSetFamily(activeCheckout?.dataSetType ?? DEFAULT_DATA_SET_TYPE, 'MT940');
+  const curatedActive = curatedAvailable && curatedView;
+  const curatedSuggestionsMap = useMemo(() => suggestionsBySetId(suggestions), [suggestions]);
+  const curatedStats = useMemo(() => curatedPendingStats(suggestions), [suggestions]);
+
+  const filterDefinitionsForBar = useMemo(() => {
+    if (!filterDefinitions) return filterDefinitions;
+    return filterDefinitions.map((f) =>
+      f.Values?.some((v) => v.Column === 'IsCuratedSample')
+        ? { ...f, Values: f.Values.filter((v) => v.Column !== 'IsCuratedSample') }
+        : f,
+    );
+  }, [filterDefinitions]);
+
   const activeExtraFilters: FilterProperty[] = useMemo(() => {
     // Hidden tag specs are intentionally NOT pushed as a server-side `NI`
     // filter anymore. The previous behavior wrapped the hide set in a
@@ -705,6 +747,12 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         ? identityScopeFilters(activeCheckout, 'EQ')
         : []),
     ];
+    // Curated View: one standard FilteringProperty on the normal read — it
+    // flows into the grid fetch, the hidden-tags dual query, and the CSV
+    // export with no extra plumbing (backend §6.5b).
+    if (curatedActive) {
+      scopePrefix.push({ ColumnName: 'IsCuratedSample', Value: 'true', Operand: 'EQ' });
+    }
 
     if (tagClickDefinitionId != null) {
       // After "Apply Rules": use REGEX-based filters (Call 3)
@@ -782,7 +830,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     // filter was removed. Hiding a tag spec is a pure client-side
     // re-filter via `filteredData`; nothing in this memo's body reads
     // hiddenDefIds anymore.
-  }, [activeCheckout, tagClickDefinitionId, tagClickRulesetApplied, tagClickShowingAll, tagClickRulesetFilters, builderOpen, builder.formState, currentTagFilterIds, activePillFilters, matchingRulesFilter]);
+  }, [activeCheckout, tagClickDefinitionId, tagClickRulesetApplied, tagClickShowingAll, tagClickRulesetFilters, builderOpen, builder.formState, currentTagFilterIds, activePillFilters, matchingRulesFilter, curatedActive]);
 
   // Forward the UI filter state as-is. Earlier this hook stripped bank/side
   // when a TagSpecDefinitionId scope was active, on the theory that the
@@ -805,6 +853,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const ledgerAnchor = isLedger(columnPrefsDst) && showFullTransactions ? 'TransactionId' : null;
   useEffect(() => { setAnchorColumn(ledgerAnchor); }, [ledgerAnchor, setAnchorColumn]);
   useEffect(() => { try { settingsStore.setItem('tep:charView', String(charViewEnabled)); } catch { /* ignore */ } }, [charViewEnabled]);
+  useEffect(() => { try { settingsStore.setItem('tep:curatedView', String(curatedView)); } catch { /* ignore */ } }, [curatedView]);
   useEffect(() => { try { settingsStore.setItem('tep:charViewCols', JSON.stringify([...charViewCols])); } catch { /* ignore */ } }, [charViewCols]);
   // Effective char-view columns passed to the table: empty (stable identity)
   // when the toggle is off so it never alters rendering, otherwise the picked
@@ -1487,6 +1536,151 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   }, [detectedTagsLockedToId]);
   const [wizardInitialStep, setWizardInitialStep] = useState<1 | 2 | 3 | 4 | undefined>(undefined);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  // --- Curated View: sampling engine wiring -------------------------------
+  const getTepAuth = useCallback(async () => {
+    await refreshIfNeeded();
+    const authHeader = getAuthHeaders().Authorization ?? '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : '';
+    const headers: TepHeaders = {
+      userId: userId ?? '',
+      tenantCode: tepConfig.ttpTenantCode,
+      languageCode: tepConfig.languageCode,
+      timeZone: tepConfig.timeZone,
+      requestId: tepConfig.ttpRequestId,
+    };
+    return { token, headers };
+  }, [refreshIfNeeded, getAuthHeaders, userId, tepConfig]);
+
+  // Pending suggestions for the active workspace. Re-fires after every rule
+  // sync (suggestionsReloadKey) — the backend resamples itself, the UI only
+  // refetches. Without a checkout there is no (bank, side) to ask for, so the
+  // curated grid still works but rows carry no suggestion badges.
+  useEffect(() => {
+    if (!curatedActive || !activeCheckout?.bank || !activeCheckout?.side) {
+      setSuggestions(null);
+      return;
+    }
+    const controller = new AbortController();
+    const bank = activeCheckout.bank;
+    const side = activeCheckout.side;
+    (async () => {
+      try {
+        const { token, headers } = await getTepAuth();
+        if (!token || controller.signal.aborted) return;
+        const list = await getSuggestedTagSpecs({ BankSwiftCode: bank, Side: side }, token, headers, controller.signal);
+        if (!controller.signal.aborted) setSuggestions(list);
+      } catch (err) {
+        if ((err as Error).name !== 'AbortError') console.error('Failed to fetch rule suggestions:', err);
+      }
+    })();
+    return () => controller.abort();
+  }, [curatedActive, activeCheckout?.bank, activeCheckout?.side, suggestionsReloadKey, getTepAuth]);
+
+  // While a sampling run is live, poll its status (~5s). On completion:
+  // toast, refetch suggestions, and nudge the standard filter-change refetch
+  // so the grid re-reads the fresh sample (a run REPLACES the sample
+  // atomically per workspace, so mid-run reads are never half-updated).
+  useEffect(() => {
+    if (!samplingRunning || !curatedActive) return;
+    let cancelled = false;
+    const bank = activeCheckout?.bank || undefined;
+    const side = activeCheckout?.side || undefined;
+    const tick = async () => {
+      try {
+        const { token, headers } = await getTepAuth();
+        if (!token || cancelled) return;
+        const states = await getSamplingStatus({ BankSwiftCode: bank, Side: side }, token, headers);
+        if (cancelled) return;
+        if (!states.some((st) => st.Status === 'Running')) {
+          setSamplingRunning(false);
+          setToast({ message: 'Curated sample refreshed', type: 'success' });
+          setSuggestionsReloadKey((k) => k + 1);
+          setFilters((prev) => ({ ...prev }));
+        }
+      } catch { /* transient poll failure — keep polling */ }
+    };
+    const id = setInterval(() => { void tick(); }, 5000);
+    void tick();
+    return () => { cancelled = true; clearInterval(id); };
+  }, [samplingRunning, curatedActive, activeCheckout?.bank, activeCheckout?.side, getTepAuth]);
+
+  const handleResample = useCallback(async () => {
+    setResampleBusy(true);
+    try {
+      const { token, headers } = await getTepAuth();
+      if (!token) throw new Error('Not authenticated');
+      const res = await resample(
+        { BankSwiftCode: activeCheckout?.bank || undefined, Side: activeCheckout?.side || undefined },
+        token, headers,
+      );
+      // "Already refreshing" is a normal state, never an error (409-family
+      // SFM_EXPORT_STILL_IN_PROGRESS per the hand-off acceptance).
+      setToast({
+        message: res.alreadyRunning ? 'Already refreshing — a sampling run is live for this workspace.' : 'Resample started',
+        type: 'success',
+      });
+      setSamplingRunning(true);
+    } catch (err) {
+      setToast({ message: err instanceof Error ? err.message : 'Failed to start resample', type: 'error' });
+    } finally {
+      setResampleBusy(false);
+    }
+  }, [getTepAuth, activeCheckout?.bank, activeCheckout?.side]);
+
+  // Accept: mark Accepted server-side, then open the inline Rule Builder
+  // pre-filled from the draft. applyTemplate clones rules + attributes with
+  // fresh ids (same path as Duplicate Rules — no Srv* stamps survive), and
+  // the save goes through the NORMAL TagSpecLibrarySave.
+  // Destructured so the callback can depend on the stable hook methods rather
+  // than the per-render `builder` object.
+  const { resetForm: builderResetForm, applyTemplate: builderApplyTemplate, updateBasicInfo: builderUpdateBasicInfo } = builder;
+  const handleAcceptSuggestion = useCallback(async (sug: SuggestedTagSpec) => {
+    setSuggestionActionBusy(true);
+    try {
+      const { token, headers } = await getTepAuth();
+      if (!token) throw new Error('Not authenticated');
+      const accepted = await acceptSuggestion(sug.Id, token, headers);
+      const def = accepted?.SuggestedDefinition ?? sug.SuggestedDefinition;
+      if (def) {
+        builderResetForm();
+        builderApplyTemplate(def);
+        builderUpdateBasicInfo({
+          // Tag stays empty for novel sets; BaseTag proposes one for Extend.
+          tag: def.Tag || sug.BaseTag || '',
+          nickname: def.Nickname ?? '',
+          certaintyLevelTag: def.CertaintyLevelTag ?? 'HIGH',
+          transactionTypeCode: getContextValue(def.Context ?? [], 'TransactionTypeCode') ?? '',
+        });
+        setEditingDef(undefined);
+        setEditingParentLib(undefined);
+        setBuilderOpen(true);
+      }
+      setSuggestions((prev) => (prev ? prev.filter((x) => x.Id !== sug.Id) : prev));
+      setActiveSuggestion(null);
+      setToast({ message: 'Draft loaded into the Rule Builder — review, adjust, and save to apply.', type: 'success' });
+    } catch (err) {
+      setToast({ message: err instanceof Error ? err.message : 'Failed to accept the suggestion', type: 'error' });
+    } finally {
+      setSuggestionActionBusy(false);
+    }
+  }, [getTepAuth, builderResetForm, builderApplyTemplate, builderUpdateBasicInfo]);
+
+  const handleRejectSuggestion = useCallback(async (sug: SuggestedTagSpec) => {
+    setSuggestionActionBusy(true);
+    try {
+      const { token, headers } = await getTepAuth();
+      if (!token) throw new Error('Not authenticated');
+      await rejectSuggestion(sug.Id, token, headers);
+      setSuggestions((prev) => (prev ? prev.filter((x) => x.Id !== sug.Id) : prev));
+      setActiveSuggestion(null);
+      setToast({ message: 'Suggestion rejected', type: 'success' });
+    } catch (err) {
+      setToast({ message: err instanceof Error ? err.message : 'Failed to reject the suggestion', type: 'error' });
+    } finally {
+      setSuggestionActionBusy(false);
+    }
+  }, [getTepAuth]);
   const [wizardFromCheckout, setWizardFromCheckout] = useState(false);
 
   // Download Center wiring. Optional because tests / preview mounts may
@@ -2800,6 +2994,10 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
             const libToSave = { ...currentLib, TagSpecDefinitions: updatedDefs };
             await tagSpecLibrarySave(libToSave, token, tepHeaders);
             savedLib = libToSave;
+            // Curated View: the backend resamples the workspace after every
+            // rule save/retag — refetch suggestions so covered sets leave the
+            // work list on the next refresh.
+            setSuggestionsReloadKey((k) => k + 1);
             // Re-baseline the local cache so baseline + current both reflect
             // what's now on the server, preventing stale draft state from
             // overriding fresh API responses on future fetches.
@@ -3067,6 +3265,32 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
               </span>
             );
           })()}
+          {curatedActive && (
+            <span className="flex items-center gap-2 mr-4 shrink-0">
+              <span className="inline-flex items-center gap-1.5 text-xs text-primary-dark whitespace-nowrap" title="Curated view: each work row represents a whole group of look-alike transactions; reference rows show tags that already work.">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary inline-block" aria-hidden />
+                Curated view
+                {curatedStats && (
+                  <span className="text-body-secondary">
+                    · {curatedStats.needRule.toLocaleString()} need a rule
+                    {curatedStats.covering > 0 && <> · covering ~{curatedStats.covering.toLocaleString()}</>}
+                  </span>
+                )}
+              </span>
+              <button
+                type="button"
+                onClick={() => { void handleResample(); }}
+                disabled={samplingRunning || resampleBusy}
+                title={samplingRunning ? 'A sampling run is live for this workspace — already refreshing.' : 'Rebuild the curated sample for this workspace from scratch. Day to day this is automatic after ingest and rule saves.'}
+                className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg border bg-surface border-border-strong text-body hover:bg-surface-hover transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 whitespace-nowrap"
+              >
+                <svg className={`w-3 h-3 ${samplingRunning || resampleBusy ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582M20 20v-5h-.581M5.062 9A8.001 8.001 0 0119.418 7M18.938 15A8.001 8.001 0 014.582 17" />
+                </svg>
+                {samplingRunning ? 'Refreshing…' : 'Resample'}
+              </button>
+            </span>
+          )}
           <div className="flex items-center gap-4">
             <Toggle label="Compact mode" checked={relaxedMode} onChange={setRelaxedMode} />
             <Toggle label="Incremental pagination" checked={incrementalPagination} onChange={(v) => {
@@ -3217,6 +3441,9 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       </div>
 
       {/* {!builderOpen && ( */}
+      {/* The backend advertises a "Curated Sample" Show-Only value in GetFilters
+          as a stopgap; the toolbar toggle replaces that affordance, so strip it
+          to avoid two controls for the same filter. */}
       <DynamicFilters
         data={analyzedData}
         fieldMeta={fieldMeta}
@@ -3231,7 +3458,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         onShowOnlyDeadEndChange={setShowOnlyDeadEnd}
         baseFilters={baseFilters}
         isLiveMode={isLiveMode}
-        filterDefinitions={filterDefinitions}
+        filterDefinitions={filterDefinitionsForBar}
         filterDefinitionsLoading={filterDefinitionsLoading}
         decimalMaxValues={decimalMaxValues}
         disabledFilterTags={tagClickState?.showingAll && tagClickState.tagFilterKey ? new Set([tagClickState.tagFilterKey]) : undefined}
@@ -3323,6 +3550,28 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
             )}
             {isLiveMode && inProgressLib?.Id && (
               <CommentSearchTrigger onClick={() => setSearchPanelOpen(true)} title="Search comments" size="sm" />
+            )}
+            {/* Curated view: the sampling engine's toggle. One click flips it;
+                the status line + Resample live in the header while it is on.
+                MT940-family workspaces only (v1 scope guarantee). */}
+            {curatedAvailable && (
+              <button
+                type="button"
+                onClick={() => setCuratedView((v) => !v)}
+                aria-pressed={curatedActive}
+                title="Curated view: show one representative row per group of look-alike transactions plus reference examples, instead of the full backlog"
+                className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-colors whitespace-nowrap ${
+                  curatedActive
+                    ? 'bg-primary/10 border-primary/30 text-primary-dark dark:text-primary shadow-sm'
+                    : 'bg-surface border-border-strong text-body hover:bg-surface-hover'
+                }`}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2m0 14v2m9-9h-2M5 12H3m13.657-6.343-1.414 1.414M8.757 15.243l-1.414 1.414m9.9 0-1.414-1.414M8.757 8.757 7.343 7.343" />
+                  <circle cx="12" cy="12" r="3.25" />
+                </svg>
+                <span className="hidden lg:inline">Curated view</span>
+              </button>
             )}
             {/* Character view: compact button next to Columns (a sibling
                 column-display control). Its on/off switch + per-column picker
@@ -4047,6 +4296,8 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         onHideTagDefs={!isReadOnly && !tagClickState?.showingAll && !tagClickState?.rulesetApplied ? hideTagDefs : undefined}
         getMt940Suggestions={getMt940Suggestions}
         onCloneMt940Suggestion={!isReadOnly ? handleCloneMt940Suggestion : undefined}
+        curatedSuggestions={curatedActive ? curatedSuggestionsMap : null}
+        onOpenSuggestion={curatedActive ? setActiveSuggestion : undefined}
         showAttributes={showAttributes}
         relaxedMode={relaxedMode}
         charViewColumns={effectiveCharViewCols}
@@ -4358,6 +4609,22 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         source={previewDef ? definitionSourceMap.get(previewDef.Id) ?? 'Backend' : 'Backend'}
         isUserCreated={previewDef ? !originalDefinitionIds?.has(previewDef.Id) : false}
         onClose={() => setPreviewDef(null)}
+      />
+
+      <SuggestionPanel
+        suggestion={activeSuggestion}
+        onClose={() => setActiveSuggestion(null)}
+        onAccept={(sug) => { void handleAcceptSuggestion(sug); }}
+        onReject={(sug) => { void handleRejectSuggestion(sug); }}
+        canAccept={!!activeCheckout && !isReadOnly}
+        acceptDisabledReason={
+          !activeCheckout
+            ? 'Check out this workspace to accept a draft rule.'
+            : isReadOnly
+              ? 'This workspace is checked out by someone else — read-only.'
+              : undefined
+        }
+        busy={suggestionActionBusy}
       />
 
       <Modal

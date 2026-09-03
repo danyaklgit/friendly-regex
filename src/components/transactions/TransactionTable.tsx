@@ -11,6 +11,8 @@ import { Badge } from '../shared/Badge';
 import { Tooltip } from '../shared/Tooltip';
 import { getHints } from '../../utils/getHints';
 import { containsRtl } from '../../utils/bidi';
+import type { SuggestedTagSpec } from '../../api/sampling';
+import { curatedRowKind, CONFIDENCE_DISPLAY, confidenceChipClass } from '../../utils/curatedView';
 import { SegmentedRtlText } from '../shared/CharacterBreakdown';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
 import { decomposeExtractionRegex, engregxify } from '../../utils/engregxify';
@@ -38,6 +40,11 @@ import { AmountText, LEDGER_AMOUNT_FIELDS } from '../shared/AmountText';
 const COLUMN_MANAGER_DIRECT_THRESHOLD = 40;
 
 interface TransactionTableProps {
+  /** Curated View (sampling engine): pending suggestions keyed by
+   *  SimilarSetId. Non-null only while curated mode is on — turns on the
+   *  row-kind tint + suggestion badges. */
+  curatedSuggestions?: Map<string, SuggestedTagSpec> | null;
+  onOpenSuggestion?: (s: SuggestedTagSpec) => void;
   data: AnalyzedTransaction[];
   tagDefinitions: TagSpecDefinition[];
   originalDefinitionIds?: Set<string>;
@@ -1261,6 +1268,10 @@ interface RowCtx {
   toggleSelect: (id: string) => void;
   setHighlightSource: React.Dispatch<React.SetStateAction<RowHighlight | null>>;
   highlightTimerRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>;
+  /** Curated View: non-null only while curated mode is on (see gotcha #23 —
+   *  travels through the single memoized ctx object, never a fresh closure). */
+  curatedSuggestions: Map<string, SuggestedTagSpec> | null;
+  onOpenSuggestion?: (s: SuggestedTagSpec) => void;
 }
 
 /**
@@ -1333,11 +1344,26 @@ const TableRow = memo(function TableRow({
     item.row['IsBank'] === true ||
     String(item.row['AccountType'] ?? '').toLowerCase() === 'bank';
 
+  // Curated View: classify the row (work-untagged / work-conflict /
+  // reference) from its own OPS fields, and join it to the pending
+  // suggestion for its similar set. Null map = curated mode off — inert.
+  const curated = ctx.curatedSuggestions ? curatedRowKind(item.row) : null;
+  const curatedSuggestion =
+    curated && curated !== 'reference'
+      ? ctx.curatedSuggestions?.get(String(item.row['SimilarSetId'] ?? ''))
+      : undefined;
+  const curatedTint =
+    curated === 'work-untagged'
+      ? 'bg-amber-50/70 dark:bg-amber-900/10'
+      : curated === 'work-conflict'
+        ? 'bg-red-50/70 dark:bg-red-950/15'
+        : '';
+
   return (
     <tr
       data-index={index}
       ref={measureRef}
-      className={`group transition-colors ${isBankRow ? 'font-bold' : ''} ${isDeadEnd ? 'bg-red-100/60 dark:bg-red-950/30 text-red-400 dark:text-red-500/70' : `${band ? 'bg-row-band' : ''} hover:bg-surface-hover`} ${isSelected ? 'bg-primary/10!' : ''} ${isStale ? 'opacity-55' : ''}`}
+      className={`group transition-colors ${isBankRow ? 'font-bold' : ''} ${isDeadEnd ? 'bg-red-100/60 dark:bg-red-950/30 text-red-400 dark:text-red-500/70' : `${!isSelected && curatedTint ? curatedTint : band ? 'bg-row-band' : ''} hover:bg-surface-hover`} ${isSelected ? 'bg-primary/10!' : ''} ${isStale ? 'opacity-55' : ''}`}
       onContextMenu={onRowContextMenu ? (e) => {
         e.preventDefault();
         // Which data column was right-clicked (from the cell's data-field) so
@@ -1713,6 +1739,58 @@ const TableRow = memo(function TableRow({
                       null
                     )}
 
+                    {/* Curated View badges: work rows carry "represents N" +
+                        the draft-confidence chip (click opens the suggestion
+                        panel); reference rows read quieter. Row + ctx only —
+                        the RowCtx memo contract holds (gotcha #23). */}
+                    {curated && (() => {
+                      const hasContentAbove = item.analysis.tags.length > 0 || isDeadEnd || hasHints;
+                      if (curated === 'reference') {
+                        return (
+                          <div className={hasContentAbove ? 'mt-1' : ''}>
+                            <span
+                              className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide border border-border bg-surface-secondary text-faint"
+                              title="Already-tagged example included for comparison — no action needed."
+                            >
+                              reference
+                            </span>
+                          </div>
+                        );
+                      }
+                      const sug = curatedSuggestion;
+                      return (
+                        <div className={`flex items-center gap-1.5 flex-wrap ${hasContentAbove ? 'mt-1' : ''}`}>
+                          {curated === 'work-conflict' && (
+                            <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide border border-red-200 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800">
+                              rule conflict
+                            </span>
+                          )}
+                          {sug ? (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); ctx.onOpenSuggestion?.(sug); }}
+                              title="This row stands for a whole group of look-alikes. Click to review the suggested rule."
+                              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-2 py-0.5 text-[10px] font-medium cursor-pointer hover:ring-2 hover:ring-primary/30 transition-shadow"
+                            >
+                              {sug.Confidence !== 'UNUSABLE' && (
+                                <span className={`inline-flex items-center rounded-full border px-1.5 py-px text-[9px] font-semibold ${confidenceChipClass(sug.Confidence)}`}>
+                                  {CONFIDENCE_DISPLAY[sug.Confidence]}
+                                </span>
+                              )}
+                              <span className="text-body-secondary whitespace-nowrap">represents {sug.CoverageCount.toLocaleString()}</span>
+                            </button>
+                          ) : curated === 'work-untagged' ? (
+                            <span
+                              className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide border border-amber-200 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700"
+                              title="This row represents a group of look-alike transactions that still needs a rule."
+                            >
+                              needs a rule
+                            </span>
+                          ) : null}
+                        </div>
+                      );
+                    })()}
+
                     {/* Non-MT940 workspaces: MT940 rules (same bank/side) that
                         match this row — click one to create a tag in this
                         workspace cloned from it. Reads only from the row +
@@ -1788,7 +1866,7 @@ const TableRow = memo(function TableRow({
   );
 });
 
-export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, definitionSourceMap, definitionVersions, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, onFlagDeadEndWithComment, onSetComments, onHideTagDefs, getMt940Suggestions, onCloneMt940Suggestion, showAttributes = true, relaxedMode = false, charViewColumns = EMPTY_CHAR_VIEW_COLUMNS, hiddenColumns = EMPTY_HIDDEN_COLUMNS, columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, forceSkeleton = false, accentHue = 190, onRowContextMenu, onCellDoubleClick, interactiveCellFields, interactiveCellHint, originalEditingDef, activeDefinitionId, sortOverride = null, onSortChange, columnWidths, onColumnWidthChange, dataSetType, journalBanding = false }: TransactionTableProps) {
+export function TransactionTable({ curatedSuggestions = null, onOpenSuggestion, data, tagDefinitions, originalDefinitionIds, definitionSourceMap, definitionVersions, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, onFlagDeadEndWithComment, onSetComments, onHideTagDefs, getMt940Suggestions, onCloneMt940Suggestion, showAttributes = true, relaxedMode = false, charViewColumns = EMPTY_CHAR_VIEW_COLUMNS, hiddenColumns = EMPTY_HIDDEN_COLUMNS, columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, forceSkeleton = false, accentHue = 190, onRowContextMenu, onCellDoubleClick, interactiveCellFields, interactiveCellHint, originalEditingDef, activeDefinitionId, sortOverride = null, onSortChange, columnWidths, onColumnWidthChange, dataSetType, journalBanding = false }: TransactionTableProps) {
   // Resolve the effective width for a column: explicit override wins,
   // otherwise the catalog default, otherwise undefined (browser
   // auto-layout). Width overrides are intentionally scoped to non-compact
@@ -2794,6 +2872,8 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     toggleSelect,
     setHighlightSource,
     highlightTimerRef,
+    curatedSuggestions,
+    onOpenSuggestion,
   }), [
     visibleColumns, stickyLefts, stickyRights, lastLeftIdx, firstRightIdx,
     relaxedMode, charViewColumns, loading, onFlagDeadEnd, resolveColumnWidth, highlightMap,
@@ -2802,6 +2882,7 @@ export function TransactionTable({ data, tagDefinitions, originalDefinitionIds, 
     activeDefinitionId, tagDefinitions, originalEditingDef,
     originalDefinitionIds, definitionSourceMap, definitionVersions,
     onTagClick, onRowContextMenu, getMt940Suggestions, onCloneMt940Suggestion, txnTypeDescriptions, toggleSelect,
+    curatedSuggestions, onOpenSuggestion,
   ]);
 
   const cellPy = relaxedMode ? 'py-1' : 'py-2';
