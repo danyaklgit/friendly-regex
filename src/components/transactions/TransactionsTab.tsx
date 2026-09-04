@@ -18,7 +18,7 @@ import {
   hasIncompleteAttribute,
 } from '../../utils/attributeFingerprint';
 import type { FilterProperty } from '../../api/transactions';
-import { getAllTransactionTags, buildSortingProperties, parseSortOverride, type SortOverride } from '../../api/transactions';
+import { getAllTransactionTags, getTransactions, getDefaultSorting, buildSortingProperties, parseSortOverride, type SortOverride } from '../../api/transactions';
 import { dataSetTypeFilter, dataSetTypeScopeValues, DEFAULT_DATA_SET_TYPE, isSameDataSetFamily } from '../../constants/dataSetTypes';
 import { libraryMatchesCheckout, identityKeySuffix, identityScopeFilters, isLedger } from '../../utils/libraryIdentity';
 import { translateFilters } from '../../utils/translateFilters';
@@ -1665,6 +1665,58 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     return () => { cancelled = true; clearInterval(id); };
   }, [samplingRunning, curatedActive, activeCheckout?.bank, activeCheckout?.side, getTepAuth]);
 
+  // Extra look-alike rows per SimilarSetId, fetched on demand when an
+  // expanded group's curated sample holds fewer rows than the display tiers
+  // want (min 3 on expand, max 10 behind "Show more"). Cached per set; a
+  // failed fetch caches [] so the request-effect can't loop.
+  const [extraCuratedRows, setExtraCuratedRows] = useState<Map<string, TransactionRow[]>>(new Map());
+  const [extraCuratedLoading, setExtraCuratedLoading] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    setExtraCuratedRows(new Map());
+    setExtraCuratedLoading(new Set());
+  }, [curatedActive, suggestionsReloadKey]);
+
+  const handleNeedSetRows = useCallback(async (setId: string) => {
+    setExtraCuratedLoading((prev) => {
+      if (prev.has(setId)) return prev;
+      const next = new Set(prev);
+      next.add(setId);
+      return next;
+    });
+    try {
+      const { token, headers } = await getTepAuth();
+      if (!token) throw new Error('Not authenticated');
+      const dst = activeCheckout?.dataSetType ?? DEFAULT_DATA_SET_TYPE;
+      const res = await getTransactions(
+        {
+          FilteringProperties: [
+            dataSetTypeFilter(dst),
+            // The set's real backlog rows; dead-end rows are excluded the
+            // same way the sampler excludes them from the curated sample.
+            { ColumnName: 'SimilarSetId', Value: setId, Operand: 'EQ' },
+            { ColumnName: 'OpsIsDeadEnd', Value: 'false', Operand: 'EQ' },
+          ],
+          SortingProperties: getDefaultSorting(dst),
+          // 12 leaves dedupe headroom over the 10-row display cap (the
+          // sample's own representatives come back in this read too).
+          Pagination: { PageIndex: 0, PageSize: 12 },
+        },
+        token,
+        headers,
+      );
+      setExtraCuratedRows((prev) => new Map(prev).set(setId, res.Transactions ?? []));
+    } catch (err) {
+      console.error('Failed to fetch look-alike examples:', err);
+      setExtraCuratedRows((prev) => (prev.has(setId) ? prev : new Map(prev).set(setId, [])));
+    } finally {
+      setExtraCuratedLoading((prev) => {
+        const next = new Set(prev);
+        next.delete(setId);
+        return next;
+      });
+    }
+  }, [getTepAuth, activeCheckout?.dataSetType]);
+
   const handleResample = useCallback(async () => {
     setResampleBusy(true);
     try {
@@ -3299,37 +3351,6 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
               </span>
             );
           })()}
-          {curatedActive && (
-            <span className="flex items-center gap-2 mr-4 shrink-0">
-              <span className="inline-flex items-center gap-1.5 text-xs text-primary-dark whitespace-nowrap" title="Curated view: each work row represents a whole group of look-alike transactions; reference rows show tags that already work.">
-                <span className="w-1.5 h-1.5 rounded-full bg-primary inline-block" aria-hidden />
-                {displayCounts.totalNow.toLocaleString()} representatives
-                {curatedStats && (
-                  <span className="text-body-secondary">
-                    {curatedStats.covering > 0 && <> covering ~{curatedStats.covering.toLocaleString()} transactions</>}
-                    {' '}· {curatedStats.needRule.toLocaleString()} still need a rule
-                  </span>
-                )}
-                {lastSampledAt && (
-                  <span className="text-faint">
-                    · sampled {new Date(lastSampledAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                )}
-              </span>
-              <button
-                type="button"
-                onClick={() => { void handleResample(); }}
-                disabled={samplingRunning || resampleBusy}
-                title={samplingRunning ? 'A sampling run is live for this workspace — already refreshing.' : 'Rebuild the curated sample for this workspace from scratch. Day to day this is automatic after ingest and rule saves.'}
-                className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg border bg-surface border-border-strong text-body hover:bg-surface-hover transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 whitespace-nowrap"
-              >
-                <svg className={`w-3 h-3 ${samplingRunning || resampleBusy ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582M20 20v-5h-.581M5.062 9A8.001 8.001 0 0119.418 7M18.938 15A8.001 8.001 0 014.582 17" />
-                </svg>
-                {samplingRunning ? 'Refreshing…' : 'Resample'}
-              </button>
-            </span>
-          )}
           <div className="flex items-center gap-4">
             <Toggle label="Compact mode" checked={relaxedMode} onChange={setRelaxedMode} />
             <Toggle label="Incremental pagination" checked={incrementalPagination} onChange={(v) => {
@@ -3478,6 +3499,41 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
           )}
         </div>
       </div>
+
+      {/* Curated View status line: its own row under the header (the header
+          row is already full — inlining this caused page-wide horizontal
+          overflow). Wraps freely on narrow viewports. */}
+      {curatedActive && (
+        <div className="flex items-center gap-x-3 gap-y-1 flex-wrap mb-2 min-w-0">
+          <span className="inline-flex items-center gap-1.5 text-xs text-primary-dark min-w-0" title="Curated view: each work row represents a whole group of look-alike transactions; reference rows show tags that already work.">
+            <span className="w-1.5 h-1.5 rounded-full bg-primary inline-block shrink-0" aria-hidden />
+            <span className="font-medium whitespace-nowrap">{displayCounts.totalNow.toLocaleString()} representatives</span>
+            {curatedStats && (
+              <span className="text-body-secondary truncate">
+                {curatedStats.covering > 0 && <> covering ~{curatedStats.covering.toLocaleString()} transactions</>}
+                {' '}· {curatedStats.needRule.toLocaleString()} still need a rule
+              </span>
+            )}
+            {lastSampledAt && (
+              <span className="text-faint whitespace-nowrap hidden sm:inline">
+                · sampled {new Date(lastSampledAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </span>
+            )}
+          </span>
+          <button
+            type="button"
+            onClick={() => { void handleResample(); }}
+            disabled={samplingRunning || resampleBusy}
+            title={samplingRunning ? 'A sampling run is live for this workspace — already refreshing.' : 'Rebuild the curated sample for this workspace from scratch. Day to day this is automatic after ingest and rule saves.'}
+            className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg border bg-surface border-border-strong text-body hover:bg-surface-hover transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 whitespace-nowrap shrink-0"
+          >
+            <svg className={`w-3 h-3 ${samplingRunning || resampleBusy ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582M20 20v-5h-.581M5.062 9A8.001 8.001 0 0119.418 7M18.938 15A8.001 8.001 0 014.582 17" />
+            </svg>
+            {samplingRunning ? 'Refreshing…' : 'Resample'}
+          </button>
+        </div>
+      )}
 
       {/* {!builderOpen && ( */}
       {/* The backend advertises a "Curated Sample" Show-Only value in GetFilters
@@ -4338,6 +4394,9 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         curatedSuggestions={curatedActive ? curatedSuggestionsMap : null}
         onOpenSuggestion={curatedActive ? setActiveSuggestion : undefined}
         onOpenSuggestionInBuilder={curatedActive && activeCheckout && !isReadOnly ? handleOpenSuggestionInBuilder : undefined}
+        extraCuratedRows={curatedActive ? extraCuratedRows : null}
+        extraCuratedLoading={extraCuratedLoading}
+        onNeedSetRows={curatedActive ? handleNeedSetRows : undefined}
         showAttributes={showAttributes}
         relaxedMode={relaxedMode}
         charViewColumns={effectiveCharViewCols}

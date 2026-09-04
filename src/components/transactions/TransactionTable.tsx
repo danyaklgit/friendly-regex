@@ -49,6 +49,11 @@ interface TransactionTableProps {
    *  Absent when the workspace isn't checked out / is read-only — headers
    *  then fall back to opening the review panel. */
   onOpenSuggestionInBuilder?: (s: SuggestedTagSpec) => void;
+  /** Curated groups, extra look-alike rows per SimilarSetId (fetched by the
+   *  parent when a group's sample holds fewer rows than the display tiers). */
+  extraCuratedRows?: Map<string, TransactionRow[]> | null;
+  extraCuratedLoading?: ReadonlySet<string>;
+  onNeedSetRows?: (setId: string) => void;
   data: AnalyzedTransaction[];
   tagDefinitions: TagSpecDefinition[];
   originalDefinitionIds?: Set<string>;
@@ -1254,7 +1259,15 @@ interface CuratedGroup {
 }
 type CuratedDisplayEntry =
   | { kind: 'group'; group: CuratedGroup }
-  | { kind: 'row'; dataIndex: number };
+  | { kind: 'row'; dataIndex: number }
+  | { kind: 'extra'; item: AnalyzedTransaction }
+  | { kind: 'note'; id: string; text: string }
+  | { kind: 'more'; groupKey: string; remaining: number };
+/** Display tiers: an expanded group shows up to MIN rows (or what exists);
+ *  "Show more" lifts it to MAX. Extras beyond the curated sample are fetched
+ *  per SimilarSetId by the parent. */
+const CURATED_GROUP_MIN_ROWS = 3;
+const CURATED_GROUP_MAX_ROWS = 10;
 const CURATED_GROUP_DOT: Record<CuratedGroup['type'], string> = {
   work: 'bg-red-500',
   conflict: 'bg-violet-500',
@@ -1908,7 +1921,7 @@ const TableRow = memo(function TableRow({
   );
 });
 
-export function TransactionTable({ curatedSuggestions = null, onOpenSuggestion, onOpenSuggestionInBuilder, data, tagDefinitions, originalDefinitionIds, definitionSourceMap, definitionVersions, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, onFlagDeadEndWithComment, onSetComments, onHideTagDefs, getMt940Suggestions, onCloneMt940Suggestion, showAttributes = true, relaxedMode = false, charViewColumns = EMPTY_CHAR_VIEW_COLUMNS, hiddenColumns = EMPTY_HIDDEN_COLUMNS, columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, forceSkeleton = false, accentHue = 190, onRowContextMenu, onCellDoubleClick, interactiveCellFields, interactiveCellHint, originalEditingDef, activeDefinitionId, sortOverride = null, onSortChange, columnWidths, onColumnWidthChange, dataSetType, journalBanding = false }: TransactionTableProps) {
+export function TransactionTable({ curatedSuggestions = null, onOpenSuggestion, onOpenSuggestionInBuilder, extraCuratedRows = null, extraCuratedLoading, onNeedSetRows, data, tagDefinitions, originalDefinitionIds, definitionSourceMap, definitionVersions, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, onFlagDeadEndWithComment, onSetComments, onHideTagDefs, getMt940Suggestions, onCloneMt940Suggestion, showAttributes = true, relaxedMode = false, charViewColumns = EMPTY_CHAR_VIEW_COLUMNS, hiddenColumns = EMPTY_HIDDEN_COLUMNS, columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, forceSkeleton = false, accentHue = 190, onRowContextMenu, onCellDoubleClick, interactiveCellFields, interactiveCellHint, originalEditingDef, activeDefinitionId, sortOverride = null, onSortChange, columnWidths, onColumnWidthChange, dataSetType, journalBanding = false }: TransactionTableProps) {
   // Resolve the effective width for a column: explicit override wins,
   // otherwise the catalog default, otherwise undefined (browser
   // auto-layout). Width overrides are intentionally scoped to non-compact
@@ -2804,11 +2817,11 @@ export function TransactionTable({ curatedSuggestions = null, onOpenSuggestion, 
   }, []);
 
   // Resolve the column under the cursor by HIT-TESTING the rendered minimap
-  // blocks, not by cumulative `widthPct`. The blocks carry a `minWidth: 35px`
-  // floor, so once enough columns are shown the narrow ones stop tracking
-  // their proportional widths and a widthPct-based lookup lands on the wrong
-  // column (the reported "wrong column highlighted/scrolled"). The DOM rects
-  // are the source of truth for what the operator actually sees.
+  // blocks, not by cumulative `widthPct`. Rendered block widths (flex-grow
+  // proportional with a small floor) never exactly match a widthPct lookup,
+  // which used to land on the wrong column ("wrong column highlighted /
+  // scrolled"). The DOM rects are the source of truth for what the operator
+  // actually sees.
   const getColumnAtMinimapX = useCallback((clientX: number): number => {
     const bar = minimapBarRef.current;
     if (!bar) return 0;
@@ -3040,19 +3053,82 @@ export function TransactionTable({ curatedSuggestions = null, onOpenSuggestion, 
     });
   }, []);
 
+  // "Show more" tier per group: absent = the min tier (3 rows).
+  const [fullyShownGroups, setFullyShownGroups] = useState<Set<string>>(new Set());
+
+  // Fetched look-alikes per group, deduped against the sample rows already in
+  // the buffer and stubbed with an empty analysis (extras are raw backlog
+  // rows — the tags cell just shows their curated badge, which reads the row
+  // fields directly). Capped so sample + extras never exceed the max tier.
+  const curatedExtrasByKey = useMemo(() => {
+    if (!curatedGroups || !extraCuratedRows) return null;
+    const map = new Map<string, AnalyzedTransaction[]>();
+    for (const g of curatedGroups) {
+      if (!g.suggestion) continue;
+      const fetched = extraCuratedRows.get(g.suggestion.SimilarSetId);
+      if (!fetched || fetched.length === 0) continue;
+      const seen = new Set(g.rowIdxs.map((i) => getRowId(data[i].row)));
+      const extras: AnalyzedTransaction[] = [];
+      for (const row of fetched) {
+        const id = getRowId(row);
+        if (seen.has(id)) continue;
+        seen.add(id);
+        extras.push({ row, analysis: { tags: [], attributes: {}, matchedDefinitions: [] } });
+        if (g.rowIdxs.length + extras.length >= CURATED_GROUP_MAX_ROWS) break;
+      }
+      if (extras.length > 0) map.set(g.key, extras);
+    }
+    return map;
+  }, [curatedGroups, extraCuratedRows, data, getRowId]);
+
+  // Ask the parent for a set's look-alikes the first time its group expands
+  // with fewer sample rows than the max tier. Failed fetches cache [], so
+  // this can't loop.
+  useEffect(() => {
+    if (!curatedGroups || !onNeedSetRows) return;
+    for (const g of curatedGroups) {
+      if (!g.suggestion || !expandedGroups.has(g.key)) continue;
+      if (g.rowIdxs.length >= CURATED_GROUP_MAX_ROWS) continue;
+      const setId = g.suggestion.SimilarSetId;
+      if (extraCuratedRows?.has(setId) || extraCuratedLoading?.has(setId)) continue;
+      onNeedSetRows(setId);
+    }
+  }, [curatedGroups, expandedGroups, extraCuratedRows, extraCuratedLoading, onNeedSetRows]);
+
   // Flattened list the virtualizer walks in curated mode: a header entry per
-  // group, followed by its row entries when expanded. Null = normal mode.
+  // group, then (when expanded) its rows up to the active tier, a loading
+  // note while look-alikes are being fetched, and a "Show more" row when
+  // more rows exist beyond the tier. Null = normal mode.
   const displayList = useMemo<CuratedDisplayEntry[] | null>(() => {
     if (!curatedGroups) return null;
     const out: CuratedDisplayEntry[] = [];
     for (const g of curatedGroups) {
       out.push({ kind: 'group', group: g });
-      if (expandedGroups.has(g.key)) {
-        for (const i of g.rowIdxs) out.push({ kind: 'row', dataIndex: i });
+      if (!expandedGroups.has(g.key)) continue;
+      const extras = curatedExtrasByKey?.get(g.key) ?? [];
+      const total = Math.min(g.rowIdxs.length + extras.length, CURATED_GROUP_MAX_ROWS);
+      const tier = fullyShownGroups.has(g.key) ? CURATED_GROUP_MAX_ROWS : CURATED_GROUP_MIN_ROWS;
+      const showN = Math.min(total, tier);
+      let emitted = 0;
+      for (const i of g.rowIdxs) {
+        if (emitted >= showN) break;
+        out.push({ kind: 'row', dataIndex: i });
+        emitted += 1;
       }
+      for (const ex of extras) {
+        if (emitted >= showN) break;
+        out.push({ kind: 'extra', item: ex });
+        emitted += 1;
+      }
+      const stillFetching =
+        !!g.suggestion &&
+        g.rowIdxs.length + extras.length < CURATED_GROUP_MIN_ROWS &&
+        (extraCuratedLoading?.has(g.suggestion.SimilarSetId) || !extraCuratedRows?.has(g.suggestion.SimilarSetId));
+      if (stillFetching) out.push({ kind: 'note', id: g.key, text: 'Fetching look-alike examples…' });
+      if (total > showN) out.push({ kind: 'more', groupKey: g.key, remaining: total - showN });
     }
     return out;
-  }, [curatedGroups, expandedGroups]);
+  }, [curatedGroups, expandedGroups, fullyShownGroups, curatedExtrasByKey, extraCuratedRows, extraCuratedLoading]);
   const displayLen = displayList ? displayList.length : -1;
 
   // --- Column Search spotlight (press "/") ---
@@ -3168,7 +3244,13 @@ export function TransactionTable({ curatedSuggestions = null, onOpenSuggestion, 
     getItemKey: (index) => {
       if (displayList) {
         const entry = displayList[index];
-        return entry.kind === 'group' ? `grp:${entry.group.key}` : getRowId(data[entry.dataIndex].row);
+        switch (entry.kind) {
+          case 'group': return `grp:${entry.group.key}`;
+          case 'extra': return `x:${getRowId(entry.item.row)}`;
+          case 'note': return `note:${entry.id}`;
+          case 'more': return `more:${entry.groupKey}`;
+          default: return getRowId(data[entry.dataIndex].row);
+        }
       }
       return getRowId(data[index].row);
     },
@@ -3491,7 +3573,7 @@ export function TransactionTable({ curatedSuggestions = null, onOpenSuggestion, 
       {(hasOverflow || (loading && data.length === 0)) && (
         <div
           ref={minimapBarRef}
-          className="sticky top-0 z-20 h-5 bg-surface border-b border-border-subtle cursor-pointer select-none flex shrink-0"
+          className="sticky top-0 z-20 h-5 bg-surface border-b border-border-subtle cursor-pointer select-none flex shrink-0 min-w-0 overflow-hidden"
           onPointerDown={handleMinimapPointerDown}
           onPointerMove={handleMinimapPointerMove}
         >
@@ -3502,7 +3584,17 @@ export function TransactionTable({ curatedSuggestions = null, onOpenSuggestion, 
               <div
                 data-minimap-idx={block.origIdx}
                 className="h-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors overflow-hidden flex items-center px-px"
-                style={{ width: `${block.widthPct}%`, minWidth: 35, borderRight: '1px solid white', borderBottom: `3px solid ${getMinimapBorderColor(block.col.type) ?? columnAccentColors.get(block.col.key)}` }}
+                // Proportional flex-grow sizing: blocks always EXACTLY fill the
+                // bar. The old `width: pct%` + `minWidth: 35px` pair overflowed
+                // it — with enough columns the 35px floors summed past the bar
+                // and, with no overflow containment, spilled out of the card
+                // and forced PAGE-level horizontal scroll (hit in the curated
+                // view's collapsed state, 2026-09-04). A tiny 6px floor keeps
+                // every block hit-testable; initials on very narrow blocks
+                // clip (each block is overflow-hidden), and the pointer
+                // mapping already hit-tests real DOM rects, so accuracy holds
+                // for any widths.
+                style={{ flexGrow: Math.max(block.widthPct, 0.001), flexShrink: 1, flexBasis: 0, minWidth: 6, borderRight: '1px solid white', borderBottom: `3px solid ${getMinimapBorderColor(block.col.type) ?? columnAccentColors.get(block.col.key)}` }}
               >
                 <span className={`text-[9px] pl-2 leading-none font-medium whitespace-nowrap ${getMinimapColor(block.col.type)}`}>
                   {getColumnInitials(block.col)}
@@ -3725,7 +3817,11 @@ export function TransactionTable({ curatedSuggestions = null, onOpenSuggestion, 
                               </span>
                             )}
                             <span className="text-[11px] text-body-secondary whitespace-nowrap shrink-0 tabular-nums">
-                              {g.rowIdxs.length} shown{g.coverage > 0 ? ` · covers ${g.coverage.toLocaleString()}` : ''}
+                              {(() => {
+                                const extraN = curatedExtrasByKey?.get(g.key)?.length ?? 0;
+                                const avail = Math.min(g.rowIdxs.length + extraN, CURATED_GROUP_MAX_ROWS);
+                                return `${avail} example${avail === 1 ? '' : 's'}`;
+                              })()}{g.coverage > 0 ? ` · covers ${g.coverage.toLocaleString()}` : ''}
                             </span>
                             {g.suggestion && (
                               g.type === 'work' && onOpenSuggestionInBuilder ? (
@@ -3753,8 +3849,36 @@ export function TransactionTable({ curatedSuggestions = null, onOpenSuggestion, 
                       </tr>
                     );
                   }
-                  const i = entry ? entry.dataIndex : vIdx;
-                  const item = data[i];
+                  if (entry && entry.kind === 'note') {
+                    return (
+                      <tr key={virtualRow.key} data-index={vIdx} ref={rowVirtualizer.measureElement}>
+                        <td colSpan={visibleColumns.length} className="border-b border-border">
+                          <span className="sticky left-0 inline-block px-9 py-1.5 text-[11px] italic text-faint animate-pulse">{entry.text}</span>
+                        </td>
+                      </tr>
+                    );
+                  }
+                  if (entry && entry.kind === 'more') {
+                    return (
+                      <tr key={virtualRow.key} data-index={vIdx} ref={rowVirtualizer.measureElement}>
+                        <td colSpan={visibleColumns.length} className="p-0 border-b border-border">
+                          <button
+                            type="button"
+                            onClick={() => setFullyShownGroups((prev) => new Set(prev).add(entry.groupKey))}
+                            className="sticky left-0 flex items-center gap-1.5 px-9 py-1 text-[11px] font-medium text-primary hover:underline cursor-pointer"
+                          >
+                            <svg className="w-2.5 h-2.5" viewBox="0 0 10 10" fill="none" aria-hidden>
+                              <path d="M1 3l4 4 4-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                            </svg>
+                            Show {entry.remaining.toLocaleString()} more
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  }
+                  const isExtra = entry?.kind === 'extra';
+                  const i = entry && entry.kind === 'row' ? entry.dataIndex : vIdx;
+                  const item = isExtra && entry.kind === 'extra' ? entry.item : data[i];
                   const rowId = getRowId(item.row);
                   return (
                     <TableRow
@@ -3764,7 +3888,7 @@ export function TransactionTable({ curatedSuggestions = null, onOpenSuggestion, 
                       rowId={rowId}
                       isSelected={selectedIds.has(rowId)}
                       isDeadEnd={item.row['IsDeadEnd'] === true}
-                      band={ledgerBands?.[i] ?? false}
+                      band={!isExtra && (ledgerBands?.[i] ?? false)}
                       rowHighlight={highlightSource?.rowIdx === vIdx ? highlightSource : null}
                       measureRef={rowVirtualizer.measureElement}
                       ctx={rowCtx}
