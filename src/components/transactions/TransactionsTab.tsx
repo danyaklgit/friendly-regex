@@ -865,7 +865,9 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       // character typed into an input must never flip the dev gate.
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-      if (e.ctrlKey && e.altKey && !e.shiftKey && (e.key === 'c' || e.key === 'C')) {
+      // Match the PHYSICAL key (e.code): on macOS, Option+C composes 'ç' so
+      // e.key would never equal 'c' — Ctrl+Option+C must still work there.
+      if (e.ctrlKey && e.altKey && !e.shiftKey && e.code === 'KeyC') {
         e.preventDefault();
         setCuratedDevUnlocked((v) => {
           const next = !v;
