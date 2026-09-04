@@ -1,20 +1,17 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import type { SuggestedTagSpec } from '../../api/sampling';
 import { CONFIDENCE_DISPLAY, confidenceChipClass } from '../../utils/curatedView';
 import { Button } from '../shared/Button';
-import { ConfirmDialog } from '../shared/ConfirmDialog';
 
 interface SuggestionPanelProps {
   /** The suggestion to show; null closes the drawer. */
   suggestion: SuggestedTagSpec | null;
   onClose: () => void;
-  /** Accept the draft: marks it Accepted server-side and opens the rule
-   *  builder pre-filled. Disabled (with reason) when saving isn't possible. */
-  onAccept: (s: SuggestedTagSpec) => void;
-  onReject: (s: SuggestedTagSpec) => void;
-  canAccept: boolean;
-  acceptDisabledReason?: string;
-  busy?: boolean;
+  /** Open the draft pre-filled in the inline Rule Builder. Purely local —
+   *  nothing is written server-side until the operator saves the rule. */
+  onOpenInBuilder: (s: SuggestedTagSpec) => void;
+  canOpen: boolean;
+  openDisabledReason?: string;
 }
 
 /**
@@ -22,13 +19,14 @@ interface SuggestionPanelProps {
  * Engine, 2026-09-03). Modeled on TagDetailPanel's shell. Shows the draft
  * rule, the confidence wording, "represents N", real example texts (verbatim
  * whitespace — gotcha #29 — and dir="auto" for Arabic narratives), warnings,
- * and for multi-tag sets the conflicting tags instead of a draft. Reject asks
- * for confirmation; UNUSABLE suggestions never reach this panel.
+ * and for multi-tag sets the conflicting tags instead of a draft. The single
+ * action opens the draft in the inline Rule Builder (no server write — the
+ * normal save is the only write path); UNUSABLE suggestions never reach this
+ * panel.
  */
-export function SuggestionPanel({ suggestion, onClose, onAccept, onReject, canAccept, acceptDisabledReason, busy }: SuggestionPanelProps) {
+export function SuggestionPanel({ suggestion, onClose, onOpenInBuilder, canOpen, openDisabledReason }: SuggestionPanelProps) {
   const open = !!suggestion;
   const closeBtnRef = useRef<HTMLButtonElement>(null);
-  const [confirmReject, setConfirmReject] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -39,9 +37,6 @@ export function SuggestionPanel({ suggestion, onClose, onAccept, onReject, canAc
     closeBtnRef.current?.focus();
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
-
-  // Reset the pending confirm when the target suggestion changes/closes.
-  useEffect(() => { setConfirmReject(false); }, [suggestion?.Id]);
 
   const s = suggestion;
   const isConflict = s?.MatchKind === 'MultiTag';
@@ -210,27 +205,15 @@ export function SuggestionPanel({ suggestion, onClose, onAccept, onReject, canAc
             </div>
 
             <footer className="border-t border-border px-6 py-4 flex items-center justify-end gap-3 bg-surface-elevated">
-              <Button variant="outline" onClick={() => setConfirmReject(true)} disabled={busy}>
-                Reject
-              </Button>
+              <Button variant="outline" onClick={onClose}>Close</Button>
               {!isConflict && (
-                <span title={!canAccept ? (acceptDisabledReason ?? 'Check out this workspace to accept a draft rule.') : undefined}>
-                  <Button variant="primary" onClick={() => onAccept(s)} disabled={!canAccept || busy} loading={busy}>
-                    Accept — open in Rule Builder
+                <span title={!canOpen ? (openDisabledReason ?? 'Check out this workspace to work on a draft rule.') : undefined}>
+                  <Button variant="primary" onClick={() => onOpenInBuilder(s)} disabled={!canOpen}>
+                    Open in Rule Builder
                   </Button>
                 </span>
               )}
             </footer>
-
-            <ConfirmDialog
-              open={confirmReject}
-              onClose={() => setConfirmReject(false)}
-              onConfirm={() => { setConfirmReject(false); onReject(s); }}
-              title="Reject this suggestion?"
-              message={`The draft covering ${s.CoverageCount.toLocaleString()} transaction${s.CoverageCount === 1 ? '' : 's'} will be marked rejected and leave the pending list. The transactions themselves are not touched.`}
-              confirmLabel="Reject suggestion"
-              variant="danger"
-            />
           </>
         )}
       </aside>

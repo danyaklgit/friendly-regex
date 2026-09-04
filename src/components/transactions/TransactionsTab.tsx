@@ -54,8 +54,6 @@ import {
   getSuggestedTagSpecs,
   getSamplingStatus,
   resample,
-  acceptSuggestion,
-  rejectSuggestion,
   type SuggestedTagSpec,
 } from '../../api/sampling';
 import { suggestionsBySetId, curatedPendingStats } from '../../utils/curatedView';
@@ -490,11 +488,16 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const [curatedView, setCuratedView] = useState(() => {
     try { return settingsStore.getItem('tep:curatedView') === 'true'; } catch { return false; }
   });
+  // Dev-only gate (2026-09-04): the Curated View controls stay hidden from
+  // operators until the feature is cleared for release. Ctrl+Alt+C toggles
+  // them; session-scoped so a reload of a shared machine re-hides.
+  const [curatedDevUnlocked, setCuratedDevUnlocked] = useState(() => {
+    try { return sessionStorage.getItem('tep:curatedDevUnlock') === 'true'; } catch { return false; }
+  });
   /** Pending rule suggestions for the active workspace (null until loaded). */
   const [suggestions, setSuggestions] = useState<SuggestedTagSpec[] | null>(null);
   const [suggestionsReloadKey, setSuggestionsReloadKey] = useState(0);
   const [activeSuggestion, setActiveSuggestion] = useState<SuggestedTagSpec | null>(null);
-  const [suggestionActionBusy, setSuggestionActionBusy] = useState(false);
   /** True while a sampling run is live for this workspace (drives the
    *  Resample button's disabled/spinner state via a 5s status poll). */
   const [samplingRunning, setSamplingRunning] = useState(false);
@@ -702,7 +705,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // Curated View gating: MT940-family workspaces only in v1 (never intraday
   // or Ledger — the scope guarantee in the hand-off doc). Off = the untouched
   // full backlog, exactly as today.
-  const curatedAvailable = isLiveMode && isSameDataSetFamily(activeCheckout?.dataSetType ?? DEFAULT_DATA_SET_TYPE, 'MT940');
+  const curatedAvailable = curatedDevUnlocked && isLiveMode && isSameDataSetFamily(activeCheckout?.dataSetType ?? DEFAULT_DATA_SET_TYPE, 'MT940');
   const curatedActive = curatedAvailable && curatedView;
   const curatedSuggestionsMap = useMemo(() => suggestionsBySetId(suggestions), [suggestions]);
   const curatedStats = useMemo(() => curatedPendingStats(suggestions), [suggestions]);
@@ -856,6 +859,28 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   useEffect(() => { setAnchorColumn(ledgerAnchor); }, [ledgerAnchor, setAnchorColumn]);
   useEffect(() => { try { settingsStore.setItem('tep:charView', String(charViewEnabled)); } catch { /* ignore */ } }, [charViewEnabled]);
   useEffect(() => { try { settingsStore.setItem('tep:curatedView', String(curatedView)); } catch { /* ignore */ } }, [curatedView]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      // Skip while typing: AltGr sends Ctrl+Alt on some layouts, so a
+      // character typed into an input must never flip the dev gate.
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      if (e.ctrlKey && e.altKey && !e.shiftKey && (e.key === 'c' || e.key === 'C')) {
+        e.preventDefault();
+        setCuratedDevUnlocked((v) => {
+          const next = !v;
+          try { sessionStorage.setItem('tep:curatedDevUnlock', String(next)); } catch { /* ignore */ }
+          setToast({
+            message: next ? 'Curated view controls enabled (dev)' : 'Curated view controls hidden',
+            type: 'success',
+          });
+          return next;
+        });
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   useEffect(() => { try { settingsStore.setItem('tep:charViewCols', JSON.stringify([...charViewCols])); } catch { /* ignore */ } }, [charViewCols]);
   // Effective char-view columns passed to the table: empty (stable identity)
   // when the toggle is off so it never alters rendering, otherwise the picked
@@ -1663,59 +1688,33 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     }
   }, [getTepAuth, activeCheckout?.bank, activeCheckout?.side]);
 
-  // Accept: mark Accepted server-side, then open the inline Rule Builder
-  // pre-filled from the draft. applyTemplate clones rules + attributes with
-  // fresh ids (same path as Duplicate Rules — no Srv* stamps survive), and
-  // the save goes through the NORMAL TagSpecLibrarySave.
+  // Open the draft pre-filled in the inline Rule Builder. Purely local (no
+  // Accept/Reject server calls — the suggestion stays pending until the
+  // backend's own resample clears the covered set after a rule save).
+  // applyTemplate clones rules + attributes with fresh ids (same path as
+  // Duplicate Rules — no Srv* stamps survive), and the save goes through the
+  // NORMAL TagSpecLibrarySave.
   // Destructured so the callback can depend on the stable hook methods rather
   // than the per-render `builder` object.
   const { resetForm: builderResetForm, applyTemplate: builderApplyTemplate, updateBasicInfo: builderUpdateBasicInfo } = builder;
-  const handleAcceptSuggestion = useCallback(async (sug: SuggestedTagSpec) => {
-    setSuggestionActionBusy(true);
-    try {
-      const { token, headers } = await getTepAuth();
-      if (!token) throw new Error('Not authenticated');
-      const accepted = await acceptSuggestion(sug.Id, token, headers);
-      const def = accepted?.SuggestedDefinition ?? sug.SuggestedDefinition;
-      if (def) {
-        builderResetForm();
-        builderApplyTemplate(def);
-        builderUpdateBasicInfo({
-          // Tag stays empty for novel sets; BaseTag proposes one for Extend.
-          tag: def.Tag || sug.BaseTag || '',
-          nickname: def.Nickname ?? '',
-          certaintyLevelTag: def.CertaintyLevelTag ?? 'HIGH',
-          transactionTypeCode: getContextValue(def.Context ?? [], 'TransactionTypeCode') ?? '',
-        });
-        setEditingDef(undefined);
-        setEditingParentLib(undefined);
-        setBuilderOpen(true);
-      }
-      setSuggestions((prev) => (prev ? prev.filter((x) => x.Id !== sug.Id) : prev));
-      setActiveSuggestion(null);
-      setToast({ message: 'Draft loaded into the Rule Builder — review, adjust, and save to apply.', type: 'success' });
-    } catch (err) {
-      setToast({ message: err instanceof Error ? err.message : 'Failed to accept the suggestion', type: 'error' });
-    } finally {
-      setSuggestionActionBusy(false);
-    }
-  }, [getTepAuth, builderResetForm, builderApplyTemplate, builderUpdateBasicInfo]);
-
-  const handleRejectSuggestion = useCallback(async (sug: SuggestedTagSpec) => {
-    setSuggestionActionBusy(true);
-    try {
-      const { token, headers } = await getTepAuth();
-      if (!token) throw new Error('Not authenticated');
-      await rejectSuggestion(sug.Id, token, headers);
-      setSuggestions((prev) => (prev ? prev.filter((x) => x.Id !== sug.Id) : prev));
-      setActiveSuggestion(null);
-      setToast({ message: 'Suggestion rejected', type: 'success' });
-    } catch (err) {
-      setToast({ message: err instanceof Error ? err.message : 'Failed to reject the suggestion', type: 'error' });
-    } finally {
-      setSuggestionActionBusy(false);
-    }
-  }, [getTepAuth]);
+  const handleOpenSuggestionInBuilder = useCallback((sug: SuggestedTagSpec) => {
+    const def = sug.SuggestedDefinition;
+    if (!def) return;
+    builderResetForm();
+    builderApplyTemplate(def);
+    builderUpdateBasicInfo({
+      // Tag stays empty for novel sets; BaseTag proposes one for Extend.
+      tag: def.Tag || sug.BaseTag || '',
+      nickname: def.Nickname ?? '',
+      certaintyLevelTag: def.CertaintyLevelTag ?? 'HIGH',
+      transactionTypeCode: getContextValue(def.Context ?? [], 'TransactionTypeCode') ?? '',
+    });
+    setEditingDef(undefined);
+    setEditingParentLib(undefined);
+    setBuilderOpen(true);
+    setActiveSuggestion(null);
+    setToast({ message: 'Draft loaded into the Rule Builder — review, adjust, and save to apply.', type: 'success' });
+  }, [builderResetForm, builderApplyTemplate, builderUpdateBasicInfo]);
   const [wizardFromCheckout, setWizardFromCheckout] = useState(false);
 
   // Download Center wiring. Optional because tests / preview mounts may
@@ -4338,6 +4337,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         onCloneMt940Suggestion={!isReadOnly ? handleCloneMt940Suggestion : undefined}
         curatedSuggestions={curatedActive ? curatedSuggestionsMap : null}
         onOpenSuggestion={curatedActive ? setActiveSuggestion : undefined}
+        onOpenSuggestionInBuilder={curatedActive && activeCheckout && !isReadOnly ? handleOpenSuggestionInBuilder : undefined}
         showAttributes={showAttributes}
         relaxedMode={relaxedMode}
         charViewColumns={effectiveCharViewCols}
@@ -4654,17 +4654,15 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       <SuggestionPanel
         suggestion={activeSuggestion}
         onClose={() => setActiveSuggestion(null)}
-        onAccept={(sug) => { void handleAcceptSuggestion(sug); }}
-        onReject={(sug) => { void handleRejectSuggestion(sug); }}
-        canAccept={!!activeCheckout && !isReadOnly}
-        acceptDisabledReason={
+        onOpenInBuilder={handleOpenSuggestionInBuilder}
+        canOpen={!!activeCheckout && !isReadOnly}
+        openDisabledReason={
           !activeCheckout
-            ? 'Check out this workspace to accept a draft rule.'
+            ? 'Check out this workspace to work on a draft rule.'
             : isReadOnly
               ? 'This workspace is checked out by someone else — read-only.'
               : undefined
         }
-        busy={suggestionActionBusy}
       />
 
       <Modal

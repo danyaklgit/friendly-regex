@@ -72,3 +72,42 @@ export function curatedPendingStats(
   }
   return { needRule, covering };
 }
+
+const ANCHOR_MAX_LEN = 70;
+
+function truncateLabel(text: string): string {
+  return text.length > ANCHOR_MAX_LEN ? `${text.slice(0, ANCHOR_MAX_LEN - 1).trimEnd()}\u2026` : text;
+}
+
+/**
+ * Turn a StructuralAnchor (a regex-ish skeleton like
+ * `^TRANSFER\ TO\ VENDORN\ SAUDI`) into a non-technical group label:
+ * `Starts with "TRANSFER TO VENDORN SAUDI"`. Regex escapes are unwrapped,
+ * numeric/whitespace classes become plain placeholders, and leftover regex
+ * metacharacters are dropped. Falls back to the set's first example text.
+ */
+export function humanizeAnchor(
+  anchor: string | null | undefined,
+  fallbackExample?: string | null,
+): string {
+  const raw = (anchor ?? '').trim();
+  if (!raw) {
+    const ex = (fallbackExample ?? '').trim();
+    return ex ? `Transactions like "${truncateLabel(ex)}"` : 'Similar transactions';
+  }
+  const anchored = raw.startsWith('^');
+  let text = raw.replace(/^\^/, '').replace(/\$$/, '');
+  text = text
+    .replace(/\(\?i\)/g, '')
+    .replace(/\\d\+?/g, '#')
+    .replace(/\\s\+?/g, ' ')
+    .replace(/\.\*|\.\+/g, '\u2026')
+    // Unwrap remaining escapes (`\ ` -> space, `\/` -> /, `\.` -> .).
+    .replace(/\\(.)/g, '$1')
+    // Drop leftover regex structure characters that survived.
+    .replace(/[()[\]{}?*+|]/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+  if (!text) return humanizeAnchor(null, fallbackExample);
+  return anchored ? `Starts with "${truncateLabel(text)}"` : `Contains "${truncateLabel(text)}"`;
+}

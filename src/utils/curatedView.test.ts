@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  humanizeAnchor,
   curatedRowKind,
   suggestionsBySetId,
   curatedPendingStats,
@@ -80,5 +81,27 @@ describe('CONFIDENCE_DISPLAY', () => {
     expect(CONFIDENCE_DISPLAY.MED).toContain('check examples');
     expect(CONFIDENCE_DISPLAY.LOW).toBe('Weak draft');
     expect(CONFIDENCE_DISPLAY.REVIEW).toContain('name');
+  });
+});
+
+describe('humanizeAnchor', () => {
+  it('unwraps escaped-space anchors into a Starts-with label', () => {
+    expect(humanizeAnchor('^TRANSFER\\ TO\\ VENDORN\\ SAUDI')).toBe('Starts with "TRANSFER TO VENDORN SAUDI"');
+  });
+  it('keeps slashes and unanchored patterns readable', () => {
+    expect(humanizeAnchor('REMITTANCE\\/FAMILY\\ MAINTENANCE')).toBe('Contains "REMITTANCE/FAMILY MAINTENANCE"');
+  });
+  it('replaces numeric classes and wildcards with plain placeholders', () => {
+    expect(humanizeAnchor('^POS\\ PURCHASE\\ \\d+.*')).toBe('Starts with "POS PURCHASE #\u2026"');
+  });
+  it('falls back to the first example text when the anchor is empty', () => {
+    expect(humanizeAnchor(null, 'CASH DEPOSIT - ATM 1234')).toBe('Transactions like "CASH DEPOSIT - ATM 1234"');
+    expect(humanizeAnchor('', '')).toBe('Similar transactions');
+  });
+  it('truncates very long anchors', () => {
+    const long = '^' + 'A'.repeat(120);
+    const label = humanizeAnchor(long);
+    expect(label.length).toBeLessThan(90);
+    expect(label.endsWith('\u2026"')).toBe(true);
   });
 });

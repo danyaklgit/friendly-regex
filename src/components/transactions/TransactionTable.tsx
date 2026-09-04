@@ -12,7 +12,7 @@ import { Tooltip } from '../shared/Tooltip';
 import { getHints } from '../../utils/getHints';
 import { containsRtl } from '../../utils/bidi';
 import type { SuggestedTagSpec } from '../../api/sampling';
-import { curatedRowKind, CONFIDENCE_DISPLAY, confidenceChipClass } from '../../utils/curatedView';
+import { curatedRowKind, humanizeAnchor, CONFIDENCE_DISPLAY, confidenceChipClass } from '../../utils/curatedView';
 import { SegmentedRtlText } from '../shared/CharacterBreakdown';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
 import { decomposeExtractionRegex, engregxify } from '../../utils/engregxify';
@@ -45,6 +45,10 @@ interface TransactionTableProps {
    *  row-kind tint + suggestion badges. */
   curatedSuggestions?: Map<string, SuggestedTagSpec> | null;
   onOpenSuggestion?: (s: SuggestedTagSpec) => void;
+  /** Open a draft directly in the inline Rule Builder (group-header action).
+   *  Absent when the workspace isn't checked out / is read-only — headers
+   *  then fall back to opening the review panel. */
+  onOpenSuggestionInBuilder?: (s: SuggestedTagSpec) => void;
   data: AnalyzedTransaction[];
   tagDefinitions: TagSpecDefinition[];
   originalDefinitionIds?: Set<string>;
@@ -1235,6 +1239,29 @@ function isAttributeFromConstant(item: AnalyzedTransaction, attrName: string): b
  * re-rendering entirely — the per-frame cost is just mounting the few rows
  * that newly enter the overscan window.
  */
+/** Curated View, Option A: one collapsible section per RULE — work rows group
+ *  under their proposed rule (the similar set's structural anchor, worded
+ *  plainly), reference rows under the existing tag that caught them. */
+interface CuratedGroup {
+  key: string;
+  type: 'work' | 'conflict' | 'other' | 'ref';
+  label: string;
+  nickname: string | null;
+  suggestion: SuggestedTagSpec | null;
+  conflictTags: string[] | null;
+  rowIdxs: number[];
+  coverage: number;
+}
+type CuratedDisplayEntry =
+  | { kind: 'group'; group: CuratedGroup }
+  | { kind: 'row'; dataIndex: number };
+const CURATED_GROUP_DOT: Record<CuratedGroup['type'], string> = {
+  work: 'bg-red-500',
+  conflict: 'bg-violet-500',
+  other: 'bg-amber-500',
+  ref: 'bg-teal-500',
+};
+
 interface RowCtx {
   visibleColumns: ColumnDef[];
   stickyLefts: Map<number, number>;
@@ -1778,29 +1805,25 @@ const TableRow = memo(function TableRow({
                       }
                       const sug = curatedSuggestion;
                       return (
-                        <div className={`flex items-center gap-1.5 flex-wrap ${hasContentAbove ? 'mt-1' : ''}`}>
+                        <div className={`flex items-center gap-1 flex-nowrap min-w-0 overflow-hidden ${hasContentAbove ? 'mt-1' : ''}`}>
                           {curated === 'work-conflict' && (
-                            <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide border border-red-200 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800">
-                              rule conflict
+                            <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide whitespace-nowrap shrink-0 border border-red-200 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800">
+                              conflict
                             </span>
                           )}
                           {sug ? (
                             <button
                               type="button"
                               onClick={(e) => { e.stopPropagation(); ctx.onOpenSuggestion?.(sug); }}
-                              title="This row stands for a whole group of look-alikes. Click to review the suggested rule."
-                              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-2 py-0.5 text-[10px] font-medium cursor-pointer hover:ring-2 hover:ring-primary/30 transition-shadow"
+                              title={`This row stands for ${sug.CoverageCount.toLocaleString()} look-alike transaction${sug.CoverageCount === 1 ? '' : 's'}. Click to review the suggested rule.`}
+                              className={`inline-flex min-w-0 max-w-full items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold leading-4 whitespace-nowrap cursor-pointer hover:ring-2 hover:ring-primary/30 transition-shadow ${confidenceChipClass(sug.Confidence)}`}
                             >
-                              {sug.Confidence !== 'UNUSABLE' && (
-                                <span className={`inline-flex items-center rounded-full border px-1.5 py-px text-[9px] font-semibold ${confidenceChipClass(sug.Confidence)}`}>
-                                  {CONFIDENCE_DISPLAY[sug.Confidence]}
-                                </span>
-                              )}
-                              <span className="text-body-secondary whitespace-nowrap">represents {sug.CoverageCount.toLocaleString()}</span>
+                              <span className="truncate">{sug.Confidence !== 'UNUSABLE' ? CONFIDENCE_DISPLAY[sug.Confidence] : 'Draft'}</span>
+                              <span className="font-normal opacity-75 shrink-0">· {sug.CoverageCount.toLocaleString()}</span>
                             </button>
                           ) : curated === 'work-untagged' ? (
                             <span
-                              className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide border border-amber-200 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700"
+                              className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide whitespace-nowrap shrink-0 border border-amber-200 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700"
                               title="This row represents a group of look-alike transactions that still needs a rule."
                             >
                               needs a rule
@@ -1885,7 +1908,7 @@ const TableRow = memo(function TableRow({
   );
 });
 
-export function TransactionTable({ curatedSuggestions = null, onOpenSuggestion, data, tagDefinitions, originalDefinitionIds, definitionSourceMap, definitionVersions, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, onFlagDeadEndWithComment, onSetComments, onHideTagDefs, getMt940Suggestions, onCloneMt940Suggestion, showAttributes = true, relaxedMode = false, charViewColumns = EMPTY_CHAR_VIEW_COLUMNS, hiddenColumns = EMPTY_HIDDEN_COLUMNS, columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, forceSkeleton = false, accentHue = 190, onRowContextMenu, onCellDoubleClick, interactiveCellFields, interactiveCellHint, originalEditingDef, activeDefinitionId, sortOverride = null, onSortChange, columnWidths, onColumnWidthChange, dataSetType, journalBanding = false }: TransactionTableProps) {
+export function TransactionTable({ curatedSuggestions = null, onOpenSuggestion, onOpenSuggestionInBuilder, data, tagDefinitions, originalDefinitionIds, definitionSourceMap, definitionVersions, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, onFlagDeadEndWithComment, onSetComments, onHideTagDefs, getMt940Suggestions, onCloneMt940Suggestion, showAttributes = true, relaxedMode = false, charViewColumns = EMPTY_CHAR_VIEW_COLUMNS, hiddenColumns = EMPTY_HIDDEN_COLUMNS, columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, forceSkeleton = false, accentHue = 190, onRowContextMenu, onCellDoubleClick, interactiveCellFields, interactiveCellHint, originalEditingDef, activeDefinitionId, sortOverride = null, onSortChange, columnWidths, onColumnWidthChange, dataSetType, journalBanding = false }: TransactionTableProps) {
   // Resolve the effective width for a column: explicit override wins,
   // otherwise the catalog default, otherwise undefined (browser
   // auto-layout). Width overrides are intentionally scoped to non-compact
@@ -2937,6 +2960,101 @@ export function TransactionTable({ curatedSuggestions = null, onOpenSuggestion, 
     });
   }, [data, dataSetType, sortOverride, journalBanding]);
 
+  // --- Curated View grouping (Option A, 2026-09-04) -------------------------
+  // Non-null only in curated mode. Groups the loaded rows by governing rule:
+  // suggestion sets keyed by SimilarSetId (label = plain-language anchor),
+  // reference rows keyed by their OpsTag, plus a no-draft bucket. Sections
+  // start collapsed; ordering is impact-first (coverage desc), then the
+  // no-draft bucket, then reference sections alphabetically.
+  const curatedDefById = useMemo(() => {
+    if (!curatedSuggestions) return null;
+    return new Map(tagDefinitions.map((d) => [d.Id, d]));
+  }, [curatedSuggestions, tagDefinitions]);
+
+  const curatedGroups = useMemo<CuratedGroup[] | null>(() => {
+    if (!curatedSuggestions) return null;
+    const byKey = new Map<string, CuratedGroup>();
+    data.forEach((item, i) => {
+      const kind = curatedRowKind(item.row);
+      let g: CuratedGroup | undefined;
+      if (kind === 'reference') {
+        const tag = String(item.row['OpsTag'] ?? '').trim() || 'Tagged';
+        const key = `ref:${tag}`;
+        g = byKey.get(key);
+        if (!g) {
+          const defId = String(item.row['OpsTagSpecDefinitionId'] ?? '');
+          const nickname = (defId ? curatedDefById?.get(defId)?.Nickname : null) ?? null;
+          g = { key, type: 'ref', label: tag, nickname, suggestion: null, conflictTags: null, rowIdxs: [], coverage: 0 };
+          byKey.set(key, g);
+        }
+      } else {
+        const setId = String(item.row['SimilarSetId'] ?? '');
+        const sug = setId ? curatedSuggestions.get(setId) : undefined;
+        if (sug) {
+          const key = `s:${sug.SimilarSetId}`;
+          g = byKey.get(key);
+          if (!g) {
+            g = {
+              key,
+              type: sug.MatchKind === 'MultiTag' ? 'conflict' : 'work',
+              label: humanizeAnchor(sug.StructuralAnchor, sug.ExampleTexts?.[0]),
+              nickname: null,
+              suggestion: sug,
+              conflictTags: sug.ConflictingTags ?? null,
+              rowIdxs: [],
+              coverage: sug.CoverageCount > 0 ? sug.CoverageCount : 0,
+            };
+            byKey.set(key, g);
+          }
+        } else {
+          const key = '__other';
+          g = byKey.get(key);
+          if (!g) {
+            g = { key, type: 'other', label: 'Needs review — no draft available', nickname: null, suggestion: null, conflictTags: null, rowIdxs: [], coverage: 0 };
+            byKey.set(key, g);
+          }
+        }
+      }
+      g.rowIdxs.push(i);
+    });
+    const groups = [...byKey.values()];
+    const rank = (g: CuratedGroup) => (g.type === 'ref' ? 2 : g.type === 'other' ? 1 : 0);
+    groups.sort(
+      (a, b) =>
+        rank(a) - rank(b) ||
+        b.coverage - a.coverage ||
+        a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }),
+    );
+    return groups;
+  }, [data, curatedSuggestions, curatedDefById]);
+
+  // Collapsed by default: the first paint is the rule overview. Stale keys
+  // from a previous dataset are harmless (they just don't match any group).
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const toggleCuratedGroup = useCallback((key: string) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
+  // Flattened list the virtualizer walks in curated mode: a header entry per
+  // group, followed by its row entries when expanded. Null = normal mode.
+  const displayList = useMemo<CuratedDisplayEntry[] | null>(() => {
+    if (!curatedGroups) return null;
+    const out: CuratedDisplayEntry[] = [];
+    for (const g of curatedGroups) {
+      out.push({ kind: 'group', group: g });
+      if (expandedGroups.has(g.key)) {
+        for (const i of g.rowIdxs) out.push({ kind: 'row', dataIndex: i });
+      }
+    }
+    return out;
+  }, [curatedGroups, expandedGroups]);
+  const displayLen = displayList ? displayList.length : -1;
+
   // --- Column Search spotlight (press "/") ---
   const [columnSearchOpen, setColumnSearchOpen] = useState(false);
   const [columnSearchQuery, setColumnSearchQuery] = useState('');
@@ -3038,14 +3156,22 @@ export function TransactionTable({ curatedSuggestions = null, onOpenSuggestion, 
   // virtual only manages vertical, so sticky headers / sticky
   // columns / horizontal scroll all keep working untouched.
   const rowVirtualizer = useVirtualizer({
-    count: data.length,
+    // Curated mode virtualizes the flattened group+row list; normal mode the
+    // raw rows. Group keys can never collide with row ids ("grp:" prefix).
+    count: displayList ? displayList.length : data.length,
     getScrollElement: () => scrollContainerRef.current,
     estimateSize: () => 30.4,
     overscan: 24,
     // Stable per-row key so React can match measured heights across
     // re-renders when the underlying data shifts (filter change,
-    // hide / unhide, +N append, etc.).
-    getItemKey: (index) => getRowId(data[index].row),
+    // hide / unhide, +N append, group expand/collapse, etc.).
+    getItemKey: (index) => {
+      if (displayList) {
+        const entry = displayList[index];
+        return entry.kind === 'group' ? `grp:${entry.group.key}` : getRowId(data[entry.dataIndex].row);
+      }
+      return getRowId(data[index].row);
+    },
   });
   const virtualRows = rowVirtualizer.getVirtualItems();
 
@@ -3076,9 +3202,10 @@ export function TransactionTable({ curatedSuggestions = null, onOpenSuggestion, 
       prevFirstRowIdRef.current = firstRowId;
     }
     rowVirtualizer.measure();
-    // Keyed by the row-set signature; rowVirtualizer identity is stable.
+    // Keyed by the row-set signature (plus the curated display length so a
+    // group expand/collapse re-measures); rowVirtualizer identity is stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data.length, firstRowId, lastRowId]);
+  }, [data.length, firstRowId, lastRowId, displayLen]);
 
   // Mirror tanstack-virtual's `isScrolling` into the global scrolling
   // signal. Tooltip reads it at event time (no subscription): rows
@@ -3390,6 +3517,29 @@ export function TransactionTable({ curatedSuggestions = null, onOpenSuggestion, 
         </div>
       )}
 
+      {/* Curated View: rule-group overview controls. */}
+      {curatedGroups && curatedGroups.length > 0 && (
+        <div className="flex items-center gap-3 px-3 py-1.5 border-b border-border bg-surface-secondary/60 text-[11px] text-body-secondary">
+          <span className="font-medium text-body tabular-nums">
+            {curatedGroups.length} rule group{curatedGroups.length === 1 ? '' : 's'}
+          </span>
+          <button
+            type="button"
+            className="text-primary hover:underline cursor-pointer"
+            onClick={() => setExpandedGroups(new Set(curatedGroups.map((g) => g.key)))}
+          >
+            Expand all
+          </button>
+          <button
+            type="button"
+            className="text-primary hover:underline cursor-pointer"
+            onClick={() => setExpandedGroups(new Set())}
+          >
+            Collapse all
+          </button>
+        </div>
+      )}
+
       {/* Scrollable table */}
       <div ref={scrollContainerRef} className="overflow-auto flex-1 min-h-0 custom-scrollbar">
         <table ref={tableRef} className="min-w-full divide-y divide-divide">
@@ -3524,19 +3674,98 @@ export function TransactionTable({ curatedSuggestions = null, onOpenSuggestion, 
                   </tr>
                 )}
                 {virtualRows.map((virtualRow) => {
-                  const i = virtualRow.index;
+                  const vIdx = virtualRow.index;
+                  const entry = displayList ? displayList[vIdx] : null;
+                  if (entry && entry.kind === 'group') {
+                    const g = entry.group;
+                    const expanded = expandedGroups.has(g.key);
+                    return (
+                      <tr key={virtualRow.key} data-index={vIdx} ref={rowVirtualizer.measureElement}>
+                        <td colSpan={visibleColumns.length} className="p-0 border-y border-border-strong/50 bg-surface-secondary">
+                          {/* Sticky-left inner block: the header content stays
+                              visible while the table scrolls horizontally. */}
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            aria-expanded={expanded}
+                            onClick={() => toggleCuratedGroup(g.key)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCuratedGroup(g.key); }
+                            }}
+                            className="sticky left-0 flex w-fit max-w-full items-center gap-2 px-3 py-1.5 cursor-pointer select-none hover:bg-surface-hover transition-colors"
+                          >
+                            <svg className={`w-3 h-3 shrink-0 text-faint transition-transform ${expanded ? 'rotate-90' : ''}`} viewBox="0 0 10 10" fill="none" aria-hidden>
+                              <path d="M3 1l4 4-4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                            </svg>
+                            <span className={`w-2 h-2 rounded-sm shrink-0 ${CURATED_GROUP_DOT[g.type]}`} aria-hidden />
+                            {g.type === 'ref' ? (
+                              <span className="flex items-center gap-1.5 min-w-0">
+                                <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-px text-[11px] font-semibold text-primary-dark dark:text-primary whitespace-nowrap">
+                                  {g.label}
+                                  {g.nickname && <span className="font-normal opacity-75 text-[10px]">{g.nickname}</span>}
+                                </span>
+                                <span className="text-[10px] text-faint whitespace-nowrap hidden md:inline">reference — examples of a working rule</span>
+                              </span>
+                            ) : (
+                              <span
+                                className="text-xs font-semibold text-heading truncate max-w-[420px] lg:max-w-[560px]"
+                                title={g.suggestion?.StructuralAnchor ?? g.label}
+                              >
+                                {g.label}
+                              </span>
+                            )}
+                            {g.type === 'work' && g.suggestion && g.suggestion.Confidence !== 'UNUSABLE' && (
+                              <span className={`inline-flex items-center rounded-full border px-1.5 py-px text-[9px] font-semibold whitespace-nowrap shrink-0 ${confidenceChipClass(g.suggestion.Confidence)}`}>
+                                {CONFIDENCE_DISPLAY[g.suggestion.Confidence]}
+                              </span>
+                            )}
+                            {g.type === 'conflict' && (
+                              <span className="inline-flex items-center rounded px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide whitespace-nowrap shrink-0 border border-red-200 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800">
+                                conflict{g.conflictTags && g.conflictTags.length > 0 ? `: ${g.conflictTags.join(' vs ')}` : ''}
+                              </span>
+                            )}
+                            <span className="text-[11px] text-body-secondary whitespace-nowrap shrink-0 tabular-nums">
+                              {g.rowIdxs.length} shown{g.coverage > 0 ? ` · covers ${g.coverage.toLocaleString()}` : ''}
+                            </span>
+                            {g.suggestion && (
+                              g.type === 'work' && onOpenSuggestionInBuilder ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); onOpenSuggestionInBuilder(g.suggestion!); }}
+                                  title="Load this draft into the inline Rule Builder"
+                                  className="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-lg border border-primary/40 bg-primary/10 text-primary-dark dark:text-primary hover:bg-primary/20 transition-colors cursor-pointer whitespace-nowrap"
+                                >
+                                  Open in Rule Builder
+                                </button>
+                              ) : onOpenSuggestion ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); onOpenSuggestion(g.suggestion!); }}
+                                  title={g.type === 'conflict' ? 'See the conflicting rules' : 'Review the draft rule'}
+                                  className="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-lg border border-border-strong bg-surface text-body hover:bg-surface-hover transition-colors cursor-pointer whitespace-nowrap"
+                                >
+                                  {g.type === 'conflict' ? 'Details' : 'Review draft'}
+                                </button>
+                              ) : null
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  }
+                  const i = entry ? entry.dataIndex : vIdx;
                   const item = data[i];
                   const rowId = getRowId(item.row);
                   return (
                     <TableRow
                       key={virtualRow.key}
                       item={item}
-                      index={i}
+                      index={vIdx}
                       rowId={rowId}
                       isSelected={selectedIds.has(rowId)}
                       isDeadEnd={item.row['IsDeadEnd'] === true}
                       band={ledgerBands?.[i] ?? false}
-                      rowHighlight={highlightSource?.rowIdx === i ? highlightSource : null}
+                      rowHighlight={highlightSource?.rowIdx === vIdx ? highlightSource : null}
                       measureRef={rowVirtualizer.measureElement}
                       ctx={rowCtx}
                     />
