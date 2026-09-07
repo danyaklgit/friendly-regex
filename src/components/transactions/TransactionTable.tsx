@@ -2229,6 +2229,9 @@ export function TransactionTable({ curatedSuggestions = null, onOpenSuggestion, 
   }, [onHideTagDefs]);
 
   const theadRef = useRef<HTMLTableSectionElement>(null);
+  // Curated group headers stick right below the (sticky) column header row
+  // while their group's rows scroll — needs the thead's live height.
+  const [theadHeight, setTheadHeight] = useState(0);
   const tableRef = useRef<HTMLTableElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const viewportIndicatorRef = useRef<HTMLDivElement>(null);
@@ -2615,6 +2618,7 @@ export function TransactionTable({ curatedSuggestions = null, onOpenSuggestion, 
     const widths: number[] = [];
     ths.forEach((th) => widths.push(th.offsetWidth));
     setColWidths(widths);
+    setTheadHeight(theadRef.current.offsetHeight);
 
     if (leftIndices.size === 0 && rightIndices.size === 0) {
       setStickyLefts(new Map());
@@ -3775,7 +3779,17 @@ export function TransactionTable({ curatedSuggestions = null, onOpenSuggestion, 
                     const expanded = expandedGroups.has(g.key);
                     return (
                       <tr key={virtualRow.key} data-index={vIdx} ref={rowVirtualizer.measureElement}>
-                        <td colSpan={visibleColumns.length} className="p-0 border-y border-border-strong/50 bg-surface-secondary">
+                        {/* Sticky BELOW the column header while the group's
+                            rows scroll (z 25: above row cells' sticky-left
+                            z 20, below the thead's sticky-col z 30). The next
+                            group header takes over on arrival. Only works
+                            while the row is in the virtual window — fine,
+                            groups cap at ~12 entries, well inside overscan. */}
+                        <td
+                          colSpan={visibleColumns.length}
+                          className="p-0 border-y border-border-strong/50 bg-surface-secondary"
+                          style={{ position: 'sticky', top: theadHeight, zIndex: 25 }}
+                        >
                           {/* Sticky-left inner block: the header content stays
                               visible while the table scrolls horizontally. */}
                           <div
