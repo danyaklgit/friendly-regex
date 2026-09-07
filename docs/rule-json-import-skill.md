@@ -155,6 +155,7 @@ Applied in array order. `args` values are always strings (numbers written as str
 | `ends_with_and_replace` | `suffix`, `replaceWith` |
 | `pad_left`, `pad_right` | `length`, `char` |
 | `date_reformat` | `fromFormat`, `toFormat` |
+| `format_amount` | `thousandSeparator` ("comma" \| "space" \| "apostrophe" \| "none"), `decimals` (number) |
 | `add_to_start` | `text` |
 | `append_at_end` | `text` |
 | `substring` | `start`, `end` (end optional) |
