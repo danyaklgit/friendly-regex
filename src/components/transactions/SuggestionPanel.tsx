@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { SuggestedTagSpec } from '../../api/sampling';
 import { CONFIDENCE_DISPLAY, confidenceChipClass } from '../../utils/curatedView';
 import { Button } from '../shared/Button';
+import { MatchingKeyEditor, type TepAuth } from './MatchingKeyEditor';
 
 interface SuggestionPanelProps {
   /** The suggestion to show; null closes the drawer. */
@@ -12,6 +13,16 @@ interface SuggestionPanelProps {
   onOpenInBuilder: (s: SuggestedTagSpec) => void;
   canOpen: boolean;
   openDisabledReason?: string;
+  /** Matching-key editing (2026-09-07): the checked-out workspace and auth.
+   *  Null workspace = chips read-only. */
+  workspace: { bank: string; side: string } | null;
+  canEditKey: boolean;
+  userId: string | null;
+  getTepAuth: () => Promise<TepAuth>;
+  /** SaveKeyEdit / DeleteKeyEdit succeeded — flip the sampling-running state
+   *  and let the existing status poll regroup the view. */
+  onKeyEditApplied: (runStarted: boolean, message: string) => void;
+  onKeyEditError: (message: string) => void;
 }
 
 /**
@@ -24,7 +35,10 @@ interface SuggestionPanelProps {
  * normal save is the only write path); UNUSABLE suggestions never reach this
  * panel.
  */
-export function SuggestionPanel({ suggestion, onClose, onOpenInBuilder, canOpen, openDisabledReason }: SuggestionPanelProps) {
+export function SuggestionPanel({
+  suggestion, onClose, onOpenInBuilder, canOpen, openDisabledReason,
+  workspace, canEditKey, userId, getTepAuth, onKeyEditApplied, onKeyEditError,
+}: SuggestionPanelProps) {
   const open = !!suggestion;
   const closeBtnRef = useRef<HTMLButtonElement>(null);
 
@@ -196,12 +210,19 @@ export function SuggestionPanel({ suggestion, onClose, onOpenInBuilder, canOpen,
                 </section>
               )}
 
-              {s.StructuralAnchor && !isConflict && (
-                <section>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-faint mb-1">Structural anchor</p>
-                  <code dir="auto" className="text-[11px] text-body-secondary whitespace-pre-wrap break-all font-mono">{s.StructuralAnchor}</code>
-                </section>
-              )}
+              {/* Matching key (2026-09-07): chips from KeyTokens with the
+                  operator key editor — replaces the read-only Structural
+                  anchor block. Falls back to the anchor string for pre-delta
+                  docs without tokens. */}
+              <MatchingKeyEditor
+                suggestion={s}
+                workspace={workspace}
+                canEdit={canEditKey}
+                userId={userId}
+                getTepAuth={getTepAuth}
+                onKeyEditApplied={onKeyEditApplied}
+                onError={onKeyEditError}
+              />
             </div>
 
             <footer className="border-t border-border px-6 py-4 flex items-center justify-end gap-3 bg-surface-elevated">

@@ -1,5 +1,6 @@
 import type { TransactionRow } from '../types';
 import type { SuggestedTagSpec, SuggestionConfidence } from '../api/sampling';
+import { humanizeKeyTokens } from './keyTokens';
 
 /**
  * Curated View helpers (Smart Sampling Engine, 2026-09-03).
@@ -110,4 +111,17 @@ export function humanizeAnchor(
     .trim();
   if (!text) return humanizeAnchor(null, fallbackExample);
   return anchored ? `Starts with "${truncateLabel(text)}"` : `Contains "${truncateLabel(text)}"`;
+}
+
+/**
+ * Group label for a suggestion. Since the matching-keys delta (2026-09-07)
+ * every suggestion carries `KeyTokens[]` — the label is built from the tokens
+ * (anchors are a token grammar now, not regexes). The anchor-string path
+ * stays as the fallback for pre-delta docs with no tokens.
+ */
+export function curatedGroupLabel(sug: SuggestedTagSpec): string {
+  return (
+    humanizeKeyTokens(sug.KeyTokens) ??
+    humanizeAnchor(sug.StructuralAnchor, sug.ExampleTexts?.[0])
+  );
 }

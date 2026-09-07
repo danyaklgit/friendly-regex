@@ -12,7 +12,7 @@ import { Tooltip } from '../shared/Tooltip';
 import { getHints } from '../../utils/getHints';
 import { containsRtl } from '../../utils/bidi';
 import type { SuggestedTagSpec } from '../../api/sampling';
-import { curatedRowKind, humanizeAnchor, CONFIDENCE_DISPLAY, confidenceChipClass } from '../../utils/curatedView';
+import { curatedRowKind, curatedGroupLabel, CONFIDENCE_DISPLAY, confidenceChipClass } from '../../utils/curatedView';
 import { SegmentedRtlText } from '../shared/CharacterBreakdown';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
 import { decomposeExtractionRegex, engregxify } from '../../utils/engregxify';
@@ -3010,7 +3010,9 @@ export function TransactionTable({ curatedSuggestions = null, onOpenSuggestion, 
             g = {
               key,
               type: sug.MatchKind === 'MultiTag' ? 'conflict' : 'work',
-              label: humanizeAnchor(sug.StructuralAnchor, sug.ExampleTexts?.[0]),
+              // KeyTokens-based since the matching-keys delta (2026-09-07);
+              // anchor-string fallback for pre-delta docs.
+              label: curatedGroupLabel(sug),
               nickname: null,
               suggestion: sug,
               conflictTags: sug.ConflictingTags ?? null,
@@ -3809,6 +3811,14 @@ export function TransactionTable({ curatedSuggestions = null, onOpenSuggestion, 
                             {g.type === 'work' && g.suggestion && g.suggestion.Confidence !== 'UNUSABLE' && (
                               <span className={`inline-flex items-center rounded-full border px-1.5 py-px text-[9px] font-semibold whitespace-nowrap shrink-0 ${confidenceChipClass(g.suggestion.Confidence)}`}>
                                 {CONFIDENCE_DISPLAY[g.suggestion.Confidence]}
+                              </span>
+                            )}
+                            {g.suggestion?.KeyOverrideId && (
+                              <span
+                                className="inline-flex items-center rounded-full border border-primary/40 bg-primary/10 px-1.5 py-px text-[9px] font-semibold text-primary-dark dark:text-primary whitespace-nowrap shrink-0"
+                                title="An operator corrected this group's matching key — see the suggestion drawer."
+                              >
+                                edited key
                               </span>
                             )}
                             {g.type === 'conflict' && (

@@ -33,6 +33,81 @@ export type SuggestionMatchKind = 'Untagged' | 'MultiTag';
 export type SuggestionMode = 'Create' | 'Extend';
 export type SuggestionStatus = 'Pending' | 'Accepted' | 'Rejected';
 
+// --- Matching keys (backend 2026-09-07) --------------------------------------
+// The matching key is the narrative with changing parts replaced by typed
+// placeholders. It is delivered as KeyTokens[] (chips) beside the legacy
+// StructuralAnchor string — render from the tokens, never by parsing the
+// string. Contracts: UI_CuratedView_MatchingKeys.md §3 / API Reference §6.5c.
+
+export type KeyTokenField = 'AI' | 'D2';
+export type KeyTokenKind = 'Literal' | 'Placeholder' | 'List';
+
+export interface KeyToken {
+  /** "AI" (AdditionalInformation) or "D2" (Description2). */
+  Field: KeyTokenField;
+  /** Literal = exact words; Placeholder = one of the nine built-ins
+   *  (Text = name without brackets, e.g. "DATE"); List = a LOV list
+   *  (Text = list tag, Item = the item for Keep-item lists). */
+  Kind: KeyTokenKind;
+  Text: string;
+  Item?: string | null;
+  /** No space before this chip: render flush against the previous one
+   *  (`ORD//` + `<NAME>` reads `ORD//<NAME>`). */
+  Glued?: boolean;
+}
+
+export type VocabularyBehavior = 'Collapse' | 'KeepItem' | 'Off' | 'Never';
+
+export interface VocabularyListInfo {
+  ListTag: string;
+  Behavior: VocabularyBehavior;
+  Priority: number;
+  MinKeyLength: number;
+  ShortCodesInSlashPair: boolean;
+  ActiveItems: number;
+  /** Distinct names/aliases/codes long enough to match under MinKeyLength —
+   *  a 0 explains "why does this list never mask?". */
+  UsableKeys: number;
+  /** Internal lists (ATTRIBUTES, EXTRACTIONS, …) never take part: read-only. */
+  IsInternal: boolean;
+  /** Nothing stored yet — the code default shows. */
+  IsDefault: boolean;
+}
+
+/** How a field the key does not mention is treated: "Blank" = must be empty
+ *  (kept from the source group), "Any" = the engine dropped the constraint
+ *  while widening a small group, "Pattern" = the key's own tokens apply. */
+export type KeyFieldMode = 'Blank' | 'Any' | 'Pattern';
+
+export interface KeyEditPreview {
+  EditedKey: string;
+  AiMode: KeyFieldMode;
+  D2Mode: KeyFieldMode;
+  /** Open rows (untagged/multi-tag, not dead-end) the edited key matches. */
+  MatchCount: number;
+  WorkRows: number;
+  /** Where those rows sit today: source group first, then by size. */
+  Groups: { SimilarSetId: string; Anchor: string; Count: number; IsSource: boolean }[];
+  /** Rows the edit would ADD come first. */
+  ExampleTexts: string[];
+  Warnings: string[];
+}
+
+export interface KeyOverride {
+  Id: string;
+  BankSwiftCode: string;
+  Side: string;
+  SourceSimilarSetId: string;
+  SourceAnchor: string;
+  Tokens: KeyToken[];
+  EditedKey: string;
+  AiMode: KeyFieldMode;
+  D2Mode: KeyFieldMode;
+  CreatedByUserId: string;
+  CreatedAtUtc: string;
+  Note?: string | null;
+}
+
 export interface SuggestedTagSpec {
   /** Suggestion document id — the `SuggestionId` Accept/Reject take. */
   Id: string;
@@ -57,6 +132,10 @@ export interface SuggestedTagSpec {
   /** MultiTag sets: the tags that conflict on these rows (no draft). */
   ConflictingTags?: string[] | null;
   Status: SuggestionStatus;
+  /** The matching key as chips — the render source (never parse the anchor). */
+  KeyTokens?: KeyToken[] | null;
+  /** Set when an operator key edit produced this group's key. */
+  KeyOverrideId?: string | null;
 }
 
 interface SfmEnvelope {
@@ -175,4 +254,137 @@ export async function rejectSuggestion(
     signal,
   });
   await throwIfNotOk(res, 'Failed to reject the suggestion');
+}
+
+// --- Sampling vocabulary ------------------------------------------------------
+// Which LOV lists take part in key masking and how (Collapse / KeepItem / Off;
+// Never for internal lists). Saves take effect at the NEXT sampling run.
+
+export async function getSamplingVocabulary(
+  token: string,
+  tepHeaders: TepHeaders,
+  signal?: AbortSignal,
+): Promise<VocabularyListInfo[]> {
+  const res = await fetch(`${BASE}/GetSamplingVocabulary`, {
+    method: 'POST',
+    headers: buildHeaders(token, tepHeaders, 'GetSamplingVocabulary'),
+    body: JSON.stringify({}),
+    signal,
+  });
+  await throwIfNotOk(res, 'Failed to fetch the sampling vocabulary');
+  const json = (await res.json()) as { Lists?: VocabularyListInfo[] };
+  return json.Lists ?? [];
+}
+
+export async function saveSamplingVocabulary(
+  lists: Pick<VocabularyListInfo, 'ListTag' | 'Behavior' | 'Priority' | 'MinKeyLength' | 'ShortCodesInSlashPair'>[],
+  userId: string,
+  token: string,
+  tepHeaders: TepHeaders,
+  signal?: AbortSignal,
+): Promise<VocabularyListInfo[]> {
+  const res = await fetch(`${BASE}/SaveSamplingVocabulary`, {
+    method: 'POST',
+    headers: buildHeaders(token, tepHeaders, 'SaveSamplingVocabulary'),
+    body: JSON.stringify({ Lists: lists, UserId: userId }),
+    signal,
+  });
+  await throwIfNotOk(res, 'Failed to save the sampling vocabulary');
+  const json = (await res.json()) as { Lists?: VocabularyListInfo[] };
+  return json.Lists ?? [];
+}
+
+// --- Key edits ----------------------------------------------------------------
+// Operators correct a group's matching key; the engine regroups the workspace
+// (a run REPLACES its groups — SimilarSetIds change) and the correction
+// survives every later resample until deleted. Per workspace (bank + side).
+
+/** Preview result, or `invalidKey` when the key pins nothing (no literal with
+ *  3+ meaningful characters and no list value) — disable Apply, don't error. */
+export type KeyEditPreviewResult =
+  | { preview: KeyEditPreview; invalidKey: false }
+  | { preview: null; invalidKey: true };
+
+export async function previewKeyEdit(
+  req: { BankSwiftCode: string; Side: string; SourceSimilarSetId: string; Tokens: KeyToken[] },
+  token: string,
+  tepHeaders: TepHeaders,
+  signal?: AbortSignal,
+): Promise<KeyEditPreviewResult> {
+  const res = await fetch(`${BASE}/PreviewKeyEdit`, {
+    method: 'POST',
+    headers: buildHeaders(token, tepHeaders, 'PreviewKeyEdit'),
+    body: JSON.stringify(req),
+    signal,
+  });
+  if (!res.ok) {
+    const json = (await res.clone().json().catch(() => ({}))) as SfmEnvelope;
+    if (sfmTag(json).includes('INVALID_INPUT')) return { preview: null, invalidKey: true };
+    await throwIfNotOk(res, 'Failed to preview the key edit');
+  }
+  const json = (await res.json()) as SfmEnvelope & { Preview?: KeyEditPreview };
+  if (sfmTag(json).includes('INVALID_INPUT') || !json.Preview) return { preview: null, invalidKey: true };
+  return { preview: json.Preview, invalidKey: false };
+}
+
+export async function saveKeyEdit(
+  req: {
+    BankSwiftCode: string;
+    Side: string;
+    SourceSimilarSetId: string;
+    SourceAnchor: string;
+    Tokens: KeyToken[];
+    Note?: string;
+    UserId: string;
+  },
+  token: string,
+  tepHeaders: TepHeaders,
+  signal?: AbortSignal,
+): Promise<{ override: KeyOverride | null; runStarted: boolean }> {
+  const res = await fetch(`${BASE}/SaveKeyEdit`, {
+    method: 'POST',
+    headers: buildHeaders(token, tepHeaders, 'SaveKeyEdit'),
+    body: JSON.stringify(req),
+    signal,
+  });
+  await throwIfNotOk(res, 'Failed to save the key edit');
+  const json = (await res.json()) as { Override?: KeyOverride | null; RunStarted?: boolean };
+  // RunStarted false = a run was already live; the edit is applied by the
+  // next one — the caller still polls the same way.
+  return { override: json.Override ?? null, runStarted: json.RunStarted ?? false };
+}
+
+export async function deleteKeyEdit(
+  keyOverrideId: string,
+  token: string,
+  tepHeaders: TepHeaders,
+  signal?: AbortSignal,
+): Promise<{ runStarted: boolean }> {
+  const res = await fetch(`${BASE}/DeleteKeyEdit`, {
+    method: 'POST',
+    headers: buildHeaders(token, tepHeaders, 'DeleteKeyEdit'),
+    body: JSON.stringify({ KeyOverrideId: keyOverrideId }),
+    signal,
+  });
+  await throwIfNotOk(res, 'Failed to delete the key edit');
+  const json = (await res.json()) as { RunStarted?: boolean };
+  return { runStarted: json.RunStarted ?? false };
+}
+
+/** Newest first. */
+export async function getKeyEdits(
+  req: { BankSwiftCode: string; Side: string },
+  token: string,
+  tepHeaders: TepHeaders,
+  signal?: AbortSignal,
+): Promise<KeyOverride[]> {
+  const res = await fetch(`${BASE}/GetKeyEdits`, {
+    method: 'POST',
+    headers: buildHeaders(token, tepHeaders, 'GetKeyEdits'),
+    body: JSON.stringify(req),
+    signal,
+  });
+  await throwIfNotOk(res, 'Failed to fetch key edits');
+  const json = (await res.json()) as { Overrides?: KeyOverride[] };
+  return json.Overrides ?? [];
 }

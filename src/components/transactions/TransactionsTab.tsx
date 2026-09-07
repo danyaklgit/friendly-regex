@@ -50,11 +50,15 @@ import { ValidityEditor } from '../wizard/ValidityEditor';
 import { DuplicateRulesButton } from '../wizard/DuplicateRulesButton';
 import { SettingsTab } from '../settings/SettingsTab';
 import { SuggestionPanel } from './SuggestionPanel';
+import { KeyRulesPanel } from './KeyRulesPanel';
 import {
   getSuggestedTagSpecs,
   getSamplingStatus,
+  getKeyEdits,
+  deleteKeyEdit,
   resample,
   type SuggestedTagSpec,
+  type KeyOverride,
 } from '../../api/sampling';
 import { suggestionsBySetId, curatedPendingStats } from '../../utils/curatedView';
 import { Button } from '../shared/Button';
@@ -504,6 +508,12 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const [resampleBusy, setResampleBusy] = useState(false);
   /** CompletedAtUtc of the workspace's latest finished sampling run. */
   const [lastSampledAt, setLastSampledAt] = useState<string | null>(null);
+  /** Matching-key edits of the workspace (2026-09-07), newest first; null
+   *  until loaded. Feeds the "Key rules (N)" drawer. */
+  const [keyEdits, setKeyEdits] = useState<KeyOverride[] | null>(null);
+  const [keyEditsReloadKey, setKeyEditsReloadKey] = useState(0);
+  const [keyRulesOpen, setKeyRulesOpen] = useState(false);
+  const [keyEditDeletingId, setKeyEditDeletingId] = useState<string | null>(null);
   const [charViewCols, setCharViewCols] = useState<Set<string>>(() => {
     try {
       const stored = settingsStore.getItem('tep:charViewCols');
@@ -1741,6 +1751,71 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       setResampleBusy(false);
     }
   }, [getTepAuth, activeCheckout?.bank, activeCheckout?.side]);
+
+  // Matching-key edits of the workspace (2026-09-07): drives the "Key rules
+  // (N)" drawer + counter. Reloads with the suggestions (a regroup changes
+  // nothing here, but the list is cheap) and on keyEditsReloadKey after an
+  // apply/delete.
+  useEffect(() => {
+    if (!curatedActive || !activeCheckout?.bank || !activeCheckout?.side) {
+      setKeyEdits(null);
+      return;
+    }
+    const controller = new AbortController();
+    const bank = activeCheckout.bank;
+    const side = activeCheckout.side;
+    (async () => {
+      try {
+        const { token, headers } = await getTepAuth();
+        if (!token || controller.signal.aborted) return;
+        const edits = await getKeyEdits({ BankSwiftCode: bank, Side: side }, token, headers, controller.signal);
+        if (!controller.signal.aborted) setKeyEdits(edits);
+      } catch (err) {
+        if ((err as Error).name !== 'AbortError') {
+          // Pre-deploy backend (404): degrade to an empty list — the button
+          // shows "Key rules (0)" and the drawer its empty state.
+          setKeyEdits([]);
+        }
+      }
+    })();
+    return () => controller.abort();
+  }, [curatedActive, activeCheckout?.bank, activeCheckout?.side, suggestionsReloadKey, keyEditsReloadKey, getTepAuth]);
+
+  // A key edit was saved or removed: the backend started (or queued) the
+  // workspace's sampling run — a run REPLACES the groups (SimilarSetIds
+  // change), so never patch the old group; flip the running state and let the
+  // existing 5s status poll refetch suggestions + rows on completion.
+  const handleKeyEditApplied = useCallback((_runStarted: boolean, message: string) => {
+    setToast({ message, type: 'success' });
+    setActiveSuggestion(null);
+    setSamplingRunning(true);
+    setKeyEditsReloadKey((k) => k + 1);
+  }, []);
+
+  const handleKeyEditError = useCallback((message: string) => {
+    setToast({ message, type: 'error' });
+  }, []);
+
+  // Stable identity: the key editor keys its debounced preview effect on this
+  // object — an inline literal would reset the 400ms debounce every render.
+  const curatedWorkspace = useMemo(
+    () => (activeCheckout?.bank && activeCheckout?.side ? { bank: activeCheckout.bank, side: activeCheckout.side } : null),
+    [activeCheckout?.bank, activeCheckout?.side],
+  );
+
+  const handleDeleteKeyEdit = useCallback(async (id: string) => {
+    setKeyEditDeletingId(id);
+    try {
+      const { token, headers } = await getTepAuth();
+      if (!token) throw new Error('Not authenticated');
+      await deleteKeyEdit(id, token, headers);
+      handleKeyEditApplied(true, 'Key edit removed — regrouping with the automatic key…');
+    } catch (err) {
+      setToast({ message: err instanceof Error ? err.message : 'Failed to remove the key edit', type: 'error' });
+    } finally {
+      setKeyEditDeletingId(null);
+    }
+  }, [getTepAuth, handleKeyEditApplied]);
 
   // Open the draft pre-filled in the inline Rule Builder. Purely local (no
   // Accept/Reject server calls — the suggestion stays pending until the
@@ -3534,6 +3609,19 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
             </svg>
             {samplingRunning ? 'Refreshing…' : 'Resample'}
           </button>
+          {keyEdits !== null && activeCheckout && (
+            <button
+              type="button"
+              onClick={() => setKeyRulesOpen(true)}
+              title="Matching-key corrections stored for this workspace — each survives every resample until removed."
+              className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg border bg-surface border-border-strong text-body hover:bg-surface-hover transition-colors cursor-pointer whitespace-nowrap shrink-0"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+              </svg>
+              Key rules ({keyEdits.length})
+            </button>
+          )}
         </div>
       )}
 
@@ -4724,6 +4812,21 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
               ? 'This workspace is checked out by someone else — read-only.'
               : undefined
         }
+        workspace={curatedWorkspace}
+        canEditKey={!!activeCheckout && !isReadOnly}
+        userId={userId ?? null}
+        getTepAuth={getTepAuth}
+        onKeyEditApplied={handleKeyEditApplied}
+        onKeyEditError={handleKeyEditError}
+      />
+
+      <KeyRulesPanel
+        open={keyRulesOpen}
+        onClose={() => setKeyRulesOpen(false)}
+        edits={keyEdits}
+        canEdit={!!activeCheckout && !isReadOnly}
+        onDelete={(id) => { void handleDeleteKeyEdit(id); }}
+        deletingId={keyEditDeletingId}
       />
 
       <Modal
