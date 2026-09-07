@@ -11,7 +11,8 @@ import { Badge } from '../shared/Badge';
 import { Tooltip } from '../shared/Tooltip';
 import { getHints } from '../../utils/getHints';
 import { containsRtl } from '../../utils/bidi';
-import type { SuggestedTagSpec } from '../../api/sampling';
+import type { SuggestedTagSpec, KeyToken } from '../../api/sampling';
+import { tokenChipClass, tokenPhrase, isBuiltinPlaceholder } from '../../utils/keyTokens';
 import { curatedRowKind, curatedGroupLabel, CONFIDENCE_DISPLAY, confidenceChipClass } from '../../utils/curatedView';
 import { SegmentedRtlText } from '../shared/CharacterBreakdown';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
@@ -1274,6 +1275,91 @@ const CURATED_GROUP_DOT: Record<CuratedGroup['type'], string> = {
   other: 'bg-amber-500',
   ref: 'bg-teal-500',
 };
+
+/** Group-header key label: literal words as plain text, every `<PLACEHOLDER>`
+ *  as a clickable pill carrying the RAW token name (never the humanized
+ *  phrase — that lives in the pill's tooltip); clicking a pill opens the
+ *  suggestion drawer where the key can be edited. Built from KeyTokens when
+ *  the suggestion carries them; otherwise the `<…>` runs still present in the
+ *  humanized anchor label are pilled. */
+type KeyLabelSegment = { kind: 'text'; text: string } | { kind: 'tok'; token: KeyToken };
+
+function keyLabelSegments(suggestion: SuggestedTagSpec | null, label: string): KeyLabelSegment[] {
+  const tokens = suggestion?.KeyTokens;
+  if (tokens && tokens.length > 0) {
+    const segs: KeyLabelSegment[] = [
+      { kind: 'text', text: tokens[0].Kind === 'Literal' ? 'Starts with ' : 'Transactions like ' },
+    ];
+    const multiField = new Set(tokens.map((t) => t.Field)).size > 1;
+    let prevField: string | null = null;
+    tokens.forEach((t, i) => {
+      if (t.Field !== prevField) {
+        if (multiField) segs.push({ kind: 'text', text: `${prevField ? ' · ' : ''}${t.Field}: ` });
+        prevField = t.Field;
+      } else if (!t.Glued && i > 0) {
+        segs.push({ kind: 'text', text: ' ' });
+      }
+      if (t.Kind === 'Literal') segs.push({ kind: 'text', text: t.Text });
+      else segs.push({ kind: 'tok', token: t });
+    });
+    return segs;
+  }
+  const segs: KeyLabelSegment[] = [];
+  const re = /<([A-Z][A-Z0-9_]*)(?::([^>]*))?>/g;
+  let last = 0;
+  for (let m = re.exec(label); m; m = re.exec(label)) {
+    if (m.index > last) segs.push({ kind: 'text', text: label.slice(last, m.index) });
+    segs.push({
+      kind: 'tok',
+      token: {
+        Field: 'AI',
+        Kind: isBuiltinPlaceholder(m[1]) ? 'Placeholder' : 'List',
+        Text: m[1],
+        Item: m[2] ?? null,
+      },
+    });
+    last = m.index + m[0].length;
+  }
+  if (last < label.length) segs.push({ kind: 'text', text: label.slice(last) });
+  return segs;
+}
+
+function CuratedKeyLabel({
+  suggestion,
+  label,
+  title,
+  onPillClick,
+}: {
+  suggestion: SuggestedTagSpec | null;
+  label: string;
+  title: string;
+  onPillClick?: () => void;
+}) {
+  const segs = keyLabelSegments(suggestion, label);
+  return (
+    <span className="text-xs font-semibold text-heading truncate max-w-[420px] lg:max-w-[560px]" title={title}>
+      {segs.map((s, i) =>
+        s.kind === 'text' ? (
+          // whitespace-pre: narrative literals keep their exact space runs
+          // (gotcha #29) and boundary spaces don't collapse next to pills.
+          <span key={i} className="whitespace-pre">{s.text}</span>
+        ) : (
+          <button
+            key={i}
+            type="button"
+            onClick={onPillClick ? (e) => { e.stopPropagation(); onPillClick(); } : undefined}
+            title={`${tokenPhrase(s.token)} — open the draft to edit the key`}
+            className={`inline-flex items-center align-middle rounded-full border px-1.5 py-px mx-0.5 text-[10px] font-mono font-semibold ${tokenChipClass(s.token)} ${
+              onPillClick ? 'cursor-pointer hover:ring-1 hover:ring-primary/50' : 'cursor-default'
+            }`}
+          >
+            {s.token.Text}{s.token.Item ? `:${s.token.Item}` : ''}
+          </button>
+        ),
+      )}
+    </span>
+  );
+}
 
 interface RowCtx {
   visibleColumns: ColumnDef[];
@@ -3815,12 +3901,12 @@ export function TransactionTable({ curatedSuggestions = null, onOpenSuggestion, 
                                 <span className="text-[10px] text-faint whitespace-nowrap hidden md:inline">reference — examples of a working rule</span>
                               </span>
                             ) : (
-                              <span
-                                className="text-xs font-semibold text-heading truncate max-w-[420px] lg:max-w-[560px]"
+                              <CuratedKeyLabel
+                                suggestion={g.suggestion}
+                                label={g.label}
                                 title={g.suggestion?.StructuralAnchor ?? g.label}
-                              >
-                                {g.label}
-                              </span>
+                                onPillClick={onOpenSuggestion && g.suggestion ? () => onOpenSuggestion(g.suggestion!) : undefined}
+                              />
                             )}
                             {g.type === 'work' && g.suggestion && g.suggestion.Confidence !== 'UNUSABLE' && (
                               <span className={`inline-flex items-center rounded-full border px-1.5 py-px text-[9px] font-semibold whitespace-nowrap shrink-0 ${confidenceChipClass(g.suggestion.Confidence)}`}>
