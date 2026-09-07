@@ -3865,16 +3865,19 @@ export function TransactionTable({ curatedSuggestions = null, onOpenSuggestion, 
                     const expanded = expandedGroups.has(g.key);
                     return (
                       <tr key={virtualRow.key} data-index={vIdx} ref={rowVirtualizer.measureElement}>
-                        {/* Sticky BELOW the column header while the group's
-                            rows scroll (z 25: above row cells' sticky-left
-                            z 20, below the thead's sticky-col z 30). The next
-                            group header takes over on arrival. Only works
+                        {/* When EXPANDED, sticky BELOW the column header while
+                            the group's rows scroll (z 25: above row cells'
+                            sticky-left z 20, below the thead's sticky-col
+                            z 30); the next group header takes over on
+                            arrival. Collapsed headers scroll normally — a
+                            sticky collapsed header would just shadow the one
+                            whose rows are actually on screen. Only works
                             while the row is in the virtual window — fine,
                             groups cap at ~12 entries, well inside overscan. */}
                         <td
                           colSpan={visibleColumns.length}
                           className="p-0 border-y border-border-strong/50 bg-surface-secondary"
-                          style={{ position: 'sticky', top: theadHeight, zIndex: 25 }}
+                          style={expanded ? { position: 'sticky', top: theadHeight, zIndex: 25 } : undefined}
                         >
                           {/* Sticky-left inner block: the header content stays
                               visible while the table scrolls horizontally. */}
