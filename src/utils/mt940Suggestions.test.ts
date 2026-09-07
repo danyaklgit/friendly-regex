@@ -91,3 +91,39 @@ describe('matchingMt940Defs', () => {
     expect(matchingMt940Defs([future, expired, current], row, TODAY).map((d) => d.Id)).toEqual(['d3']);
   });
 });
+
+// The "Match transaction type" toggle (MT942 / Interim MT940 workspaces).
+// Opt-in: the def's OWN Context code must equal the row's, and a def with no
+// code is hidden rather than treated as unconstrained.
+describe('matchingMt940Defs — matchTransactionType', () => {
+  const sameType = def('d1', 'Same', { Context: [{ Key: 'TransactionTypeCode', Value: 'TRF' }] });
+  const otherType = def('d2', 'Other', { Context: [{ Key: 'TransactionTypeCode', Value: 'CHG' }] });
+  const noType = def('d3', 'Untyped');
+
+  it('keeps only defs whose Context code equals the row code', () => {
+    const result = matchingMt940Defs([sameType, otherType, noType], row, TODAY, true);
+    expect(result.map((d) => d.Id)).toEqual(['d1']);
+  });
+
+  it('hides a def that carries no transaction type code', () => {
+    expect(matchingMt940Defs([noType], row, TODAY, true)).toEqual([]);
+  });
+
+  it('is off by default — same inputs return every rule-matching def', () => {
+    const result = matchingMt940Defs([sameType, otherType, noType], row, TODAY);
+    expect(result.map((d) => d.Id)).toEqual(['d1', 'd2', 'd3']);
+  });
+
+  it('still requires the rules themselves to match', () => {
+    const sameTypeWrongNarrative = def('d4', 'Same', {
+      Context: [{ Key: 'TransactionTypeCode', Value: 'TRF' }],
+      TagRuleExpressions: [[{ SourceField: 'AdditionalInformation', ExpressionPrompt: null, ExpressionId: null, Regex: regexify('contains', 'PAYROLL'), RegexDetails: [] }]],
+    });
+    expect(matchingMt940Defs([sameTypeWrongNarrative], row, TODAY, true)).toEqual([]);
+  });
+
+  it('suggests nothing when the row has no transaction type code', () => {
+    const untypedRow: TransactionRow = { AdditionalInformation: 'Outward SARIE Transfer ...' };
+    expect(matchingMt940Defs([sameType, otherType, noType], untypedRow, TODAY, true)).toEqual([]);
+  });
+});

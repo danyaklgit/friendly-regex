@@ -1,4 +1,5 @@
 import type { TagSpecDefinition, TransactionRow } from '../types';
+import { getContextValue } from '../types/tagSpec';
 import { evaluateRuleSet } from './evaluateRuleSet';
 
 /**
@@ -14,7 +15,7 @@ const TRANSACTION_TYPE_FIELDS = new Set(['TransactionTypeCode', 'TransactionType
  * INTERIM_MT940, …), the MT940 rules that already describe it — so the
  * operator can clone one into a tag for that workspace.
  *
- * TRANSACTION TYPE IS DELIBERATELY IGNORED — both the def's child Context AND
+ * BY DEFAULT TRANSACTION TYPE IS IGNORED — both the def's child Context AND
  * any TransactionTypeCode / TransactionTypeName CONDITION inside the rule
  * expressions. MT940 and MT942 use DIFFERENT transaction-type codes/names for
  * the same logical transaction (an MT940 rule scoped to `NTRF` / "Expense" vs
@@ -25,18 +26,34 @@ const TRANSACTION_TYPE_FIELDS = new Set(['TransactionTypeCode', 'TransactionType
  * rule whose ONLY constraint was the transaction type imposes nothing once
  * that is ignored, so it is suggested for any row. The operator adapts the TTC
  * on the new intraday tag. Read-only; never tags the row or touches Ops.
+ *
+ * `matchTransactionType` is the opt-in escape hatch for banks whose intraday
+ * codes DO line up with their MT940 codes: the "Match transaction type" toggle
+ * in the MT942 / Interim MT940 workspaces. When true a def is suggested only
+ * if its OWN Context TransactionTypeCode equals the row's — and a def carrying
+ * NO code is hidden rather than treated as unconstrained (deliberately strict:
+ * the toggle exists to see only confirmed same-type matches). Rule-level type
+ * CONDITIONS stay stripped either way, so the toggle changes the def's
+ * identity scope, never how its narrative/amount/date rules evaluate.
  */
 export function matchingMt940Defs(
   defs: TagSpecDefinition[],
   row: TransactionRow,
   todayISODate: string,
+  matchTransactionType = false,
 ): TagSpecDefinition[] {
   const out: TagSpecDefinition[] = [];
+  const rowTtc = matchTransactionType ? String(row['TransactionTypeCode'] ?? '').trim() : '';
   for (const def of defs) {
     if (def.StatusTag !== 'ACTIVE') continue;
     if (def.TagRuleExpressions.length === 0) continue;
     if (def.Validity.StartDate && todayISODate < def.Validity.StartDate) continue;
     if (def.Validity.EndDate && todayISODate > def.Validity.EndDate) continue;
+    if (matchTransactionType) {
+      const defTtc = (getContextValue(def.Context, 'TransactionTypeCode') ?? '').trim();
+      // No code on the rule → hidden while the toggle is on (strict).
+      if (!defTtc || defTtc !== rowTtc) continue;
+    }
     const matches = def.TagRuleExpressions.some((group) => {
       const nonTypeConditions = group.filter((c) => !TRANSACTION_TYPE_FIELDS.has(c.SourceField));
       // Group was purely a transaction-type constraint → nothing left to check

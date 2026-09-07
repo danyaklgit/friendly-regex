@@ -486,6 +486,14 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const [charViewEnabled, setCharViewEnabled] = useState(() => {
     try { return settingsStore.getItem('tep:charView') === 'true'; } catch { return false; }
   });
+  // "Match transaction type" (MT942 / Interim MT940 only): narrow the
+  // "Clone from MT940" suggestions to MT940 rules whose OWN Transaction Type
+  // Code equals the row's. Off by default because the two feeds usually code
+  // the same logical transaction differently (see matchingMt940Defs); it's an
+  // opt-in for banks whose codes do line up. Persists per device.
+  const [matchTxnType, setMatchTxnType] = useState(() => {
+    try { return settingsStore.getItem('tep:matchTxnType') === 'true'; } catch { return false; }
+  });
   // Curated View (Smart Sampling Engine, 2026-09-03): the grid shows only the
   // backend-built curated sample — one representative per group of look-alike
   // transactions plus reference examples. Per-user like the other toggles.
@@ -868,6 +876,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const ledgerAnchor = isLedger(columnPrefsDst) && showFullTransactions ? 'TransactionId' : null;
   useEffect(() => { setAnchorColumn(ledgerAnchor); }, [ledgerAnchor, setAnchorColumn]);
   useEffect(() => { try { settingsStore.setItem('tep:charView', String(charViewEnabled)); } catch { /* ignore */ } }, [charViewEnabled]);
+  useEffect(() => { try { settingsStore.setItem('tep:matchTxnType', String(matchTxnType)); } catch { /* ignore */ } }, [matchTxnType]);
   useEffect(() => { try { settingsStore.setItem('tep:curatedView', String(curatedView)); } catch { /* ignore */ } }, [curatedView]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -2062,6 +2071,14 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // per-row × per-def evaluation runs once per row, not on every scroll
   // frame; the cache (and the function identity, which busts rowCtx) resets
   // whenever the candidate defs change.
+  // The "Match transaction type" toggle only exists for the intraday
+  // workspaces; gating the EFFECTIVE flag (not just the control) keeps a
+  // persisted `true` from silently narrowing suggestions in any other
+  // workspace the operator switches to.
+  const canMatchTxnType =
+    activeCheckout?.dataSetType === 'MT942' || activeCheckout?.dataSetType === 'INTERIM_MT940';
+  const matchTxnTypeActive = matchTxnType && canMatchTxnType;
+
   const getMt940Suggestions = useMemo(() => {
     if (mt940SuggestionDefs.length === 0) return undefined;
     const cache = new WeakMap<TransactionRow, TagSpecDefinition[]>();
@@ -2069,12 +2086,12 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     return (row: TransactionRow): TagSpecDefinition[] => {
       let matches = cache.get(row);
       if (!matches) {
-        matches = matchingMt940Defs(mt940SuggestionDefs, row, today);
+        matches = matchingMt940Defs(mt940SuggestionDefs, row, today, matchTxnTypeActive);
         cache.set(row, matches);
       }
       return matches;
     };
-  }, [mt940SuggestionDefs]);
+  }, [mt940SuggestionDefs, matchTxnTypeActive]);
 
   // Clone a suggested MT940 rule into a NEW intraday tag: open the Rule
   // Builder in create mode (for the current intraday checkout), pre-fill the
@@ -3756,6 +3773,29 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                   <circle cx="12" cy="12" r="3.25" />
                 </svg>
                 <span className="hidden lg:inline">Curated view</span>
+              </button>
+            )}
+            {/* "Match transaction type": narrows the "Clone from MT940"
+                suggestions on untagged rows to MT940 rules whose OWN
+                Transaction Type Code equals the row's. Intraday workspaces
+                only (MT942 / Interim MT940) — that's where those suggestions
+                appear — and hidden in read-only, where they never render. */}
+            {canMatchTxnType && !isReadOnly && (
+              <button
+                type="button"
+                onClick={() => setMatchTxnType((v) => !v)}
+                title="Suggest only MT940 rules whose transaction type code matches this row. Rules with no transaction type code are hidden while this is on."
+                aria-pressed={matchTxnType}
+                className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-colors whitespace-nowrap ${
+                  matchTxnType
+                    ? 'bg-primary/10 border-primary/30 text-primary-dark dark:text-primary shadow-sm'
+                    : 'bg-surface border-border-strong text-body hover:bg-surface-hover'
+                }`}
+              >
+                <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M3 5h18l-7 8v5l-4 2v-7L3 5z" />
+                </svg>
+                <span className="hidden lg:inline">Match transaction type</span>
               </button>
             )}
             {/* Character view: compact button next to Columns (a sibling
