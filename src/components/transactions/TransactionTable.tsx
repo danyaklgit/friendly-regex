@@ -3911,6 +3911,18 @@ export function TransactionTable({ curatedSuggestions = null, onOpenSuggestion, 
                                 onPillClick={onOpenSuggestion && g.suggestion ? () => onOpenSuggestion(g.suggestion!) : undefined}
                               />
                             )}
+                            {/* A key's identity includes the transaction type
+                                (2026-09-08): two groups can share a key TEXT —
+                                the type chip is what tells them apart. */}
+                            {(g.suggestion?.TransactionTypeCodes ?? []).map((code) => (
+                              <span
+                                key={code}
+                                title={`Transaction type ${code} — part of this group's identity; another group may share the key text under a different type`}
+                                className="inline-flex items-center rounded border border-border-strong bg-surface px-1.5 py-px text-[9px] font-mono font-semibold text-body-secondary whitespace-nowrap shrink-0"
+                              >
+                                {code}
+                              </span>
+                            ))}
                             {g.type === 'work' && g.suggestion && g.suggestion.Confidence !== 'UNUSABLE' && (
                               <span className={`inline-flex items-center rounded-full border px-1.5 py-px text-[9px] font-semibold whitespace-nowrap shrink-0 ${confidenceChipClass(g.suggestion.Confidence)}`}>
                                 {CONFIDENCE_DISPLAY[g.suggestion.Confidence]}

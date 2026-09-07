@@ -96,6 +96,17 @@ export function SuggestionPanel({
                     <span className="text-sm font-semibold text-heading">
                       Represents {s.CoverageCount.toLocaleString()} transaction{s.CoverageCount === 1 ? '' : 's'}
                     </span>
+                    {/* Part of the group's identity (2026-09-08): another
+                        group may share the key text under a different type. */}
+                    {(s.TransactionTypeCodes ?? []).map((code) => (
+                      <span
+                        key={code}
+                        title={`Transaction type ${code}`}
+                        className="inline-flex items-center rounded border border-border-strong bg-surface px-1.5 py-px text-[10px] font-mono font-semibold text-body-secondary"
+                      >
+                        {code}
+                      </span>
+                    ))}
                   </div>
                   {s.Mode === 'Extend' && s.BaseTag && (
                     <p className="mt-1.5 text-xs text-body-secondary">

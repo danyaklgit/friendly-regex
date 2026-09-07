@@ -42,9 +42,11 @@ describe('placeholder vocabulary', () => {
     expect(tokenPhrase(ph('NUM'))).toBe(tokenPhrase(ph('INT')));
     expect(tokenPhrase(ph('INT'))).toBe('a number');
   });
-  it('labels the two key fields', () => {
+  it('labels all four key fields (D1/TD fallback fields, 2026-09-08)', () => {
     expect(KEY_FIELD_LABELS.AI).toBe('Additional Information');
     expect(KEY_FIELD_LABELS.D2).toBe('Description 2');
+    expect(KEY_FIELD_LABELS.D1).toBe('Description 1');
+    expect(KEY_FIELD_LABELS.TD).toBe('Transaction details');
   });
 });
 

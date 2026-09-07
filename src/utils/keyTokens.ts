@@ -13,7 +13,14 @@ import type { KeyToken, KeyTokenField } from '../api/sampling';
 export const KEY_FIELD_LABELS: Record<KeyTokenField, string> = {
   AI: 'Additional Information',
   D2: 'Description 2',
+  // Fallback fields (2026-09-08): rows with empty AI and D2 key on the
+  // MT940 :61:/:86: narrative instead (e.g. TD=>NTRF, D1=>NONREF).
+  D1: 'Description 1',
+  TD: 'Transaction details',
 };
+
+/** Field order used when scanning a key's fields (primary fields first). */
+export const KEY_FIELDS: readonly KeyTokenField[] = ['AI', 'D2', 'D1', 'TD'];
 
 /** The built-in placeholders (plus the legacy NUM synonym for INT).
  *  IBAN split 2026-09-08: <IBAN> narrowed to foreign IBANs; the two Saudi

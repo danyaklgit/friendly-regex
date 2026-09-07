@@ -22,6 +22,8 @@ import {
   splitLiteralToken,
   tokensEqual,
   tokensPinSomething,
+  KEY_FIELDS,
+  KEY_FIELD_LABELS,
 } from '../../utils/keyTokens';
 import { KeyTokenChips } from './KeyTokenChips';
 import { Button } from '../shared/Button';
@@ -132,10 +134,11 @@ export function MatchingKeyEditor({
   const alignedWords = useMemo(() => {
     const example = suggestion.ExampleTexts?.[0];
     if (!example) return null;
-    return (
-      alignTokensToExample(workTokens, 'AI', example) ??
-      alignTokensToExample(workTokens, 'D2', example)
-    );
+    for (const field of KEY_FIELDS) {
+      const hit = alignTokensToExample(workTokens, field, example);
+      if (hit) return hit;
+    }
+    return null;
   }, [workTokens, suggestion.ExampleTexts]);
 
   // --- Live preview (debounced ~400 ms per the operator brief) --------------
@@ -771,14 +774,19 @@ export function MatchingKeyEditor({
                       )}
                     </ul>
                   )}
-                  {(preview.AiMode === 'Blank' || preview.D2Mode === 'Blank') && (
-                    <p className="text-[10px] text-faint">
-                      {[
-                        preview.AiMode === 'Blank' ? 'Additional Information: must be empty' : null,
-                        preview.D2Mode === 'Blank' ? 'Description 2: must be empty' : null,
-                      ].filter(Boolean).join(' · ')}
-                    </p>
-                  )}
+                  {(() => {
+                    const blanks = [
+                      preview.AiMode === 'Blank' ? KEY_FIELD_LABELS.AI : null,
+                      preview.D2Mode === 'Blank' ? KEY_FIELD_LABELS.D2 : null,
+                      preview.D1Mode === 'Blank' ? KEY_FIELD_LABELS.D1 : null,
+                      preview.TDMode === 'Blank' ? KEY_FIELD_LABELS.TD : null,
+                    ].filter(Boolean);
+                    return blanks.length > 0 ? (
+                      <p className="text-[10px] text-faint">
+                        {blanks.map((f) => `${f}: must be empty`).join(' · ')}
+                      </p>
+                    ) : null;
+                  })()}
                   {preview.ExampleTexts.length > 0 && (
                     <div className="pt-0.5">
                       <p className="text-[10px] font-semibold uppercase tracking-wider text-faint">Rows that would join</p>

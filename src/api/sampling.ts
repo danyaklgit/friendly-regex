@@ -39,11 +39,14 @@ export type SuggestionStatus = 'Pending' | 'Accepted' | 'Rejected';
 // StructuralAnchor string — render from the tokens, never by parsing the
 // string. Contracts: UI_CuratedView_MatchingKeys.md §3 / API Reference §6.5c.
 
-export type KeyTokenField = 'AI' | 'D2';
+/** AI = AdditionalInformation, D2 = Description2; D1 (Description1) and TD
+ *  (TransactionDetails) joined 2026-09-08 as fallback fields — rows whose AI
+ *  and D2 are both empty key on the MT940 :61:/:86: narrative instead of
+ *  piling into one keyless UNUSABLE set. */
+export type KeyTokenField = 'AI' | 'D2' | 'D1' | 'TD';
 export type KeyTokenKind = 'Literal' | 'Placeholder' | 'List';
 
 export interface KeyToken {
-  /** "AI" (AdditionalInformation) or "D2" (Description2). */
   Field: KeyTokenField;
   /** Literal = exact words; Placeholder = one of the nine built-ins
    *  (Text = name without brackets, e.g. "DATE"); List = a LOV list
@@ -83,6 +86,9 @@ export interface KeyEditPreview {
   EditedKey: string;
   AiMode: KeyFieldMode;
   D2Mode: KeyFieldMode;
+  /** Fallback fields (2026-09-08), same three values and meaning. */
+  D1Mode?: KeyFieldMode;
+  TDMode?: KeyFieldMode;
   /** Decided by the engine from the rows being edited, never set by the
    *  operator (2026-09-08): true = the key sits at the start of its field
    *  ("Starts with"), false = it may appear anywhere ("Contains"). */
@@ -107,6 +113,8 @@ export interface KeyOverride {
   EditedKey: string;
   AiMode: KeyFieldMode;
   D2Mode: KeyFieldMode;
+  D1Mode?: KeyFieldMode;
+  TDMode?: KeyFieldMode;
   /** Stored from the preview's engine decision and reused by every run. */
   Anchored?: boolean;
   CreatedByUserId: string;
@@ -142,6 +150,10 @@ export interface SuggestedTagSpec {
   KeyTokens?: KeyToken[] | null;
   /** Set when an operator key edit produced this group's key. */
   KeyOverrideId?: string | null;
+  /** A key's identity includes the transaction type (2026-09-08): two sets
+   *  can share the same key TEXT and still be separate groups. Show these on
+   *  the header/drawer — they're what tells such groups apart. */
+  TransactionTypeCodes?: string[] | null;
 }
 
 interface SfmEnvelope {
