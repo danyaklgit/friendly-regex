@@ -87,6 +87,11 @@ export function KeyRulesPanel({ open, onClose, edits, canEdit, onDelete, deletin
             edits.map((o) => (
               <div key={o.Id} className="rounded-lg border border-border bg-surface px-3 py-2.5 space-y-1.5">
                 <KeyTokenChips tokens={o.Tokens ?? []} size="xs" />
+                {o.Anchored != null && (
+                  <p className="text-[10px] text-faint">
+                    {o.Anchored ? 'Starts with — the key sits at the start of its field' : 'Contains — the key may appear anywhere in its field'}
+                  </p>
+                )}
                 {o.SourceAnchor && (
                   <p dir="auto" className="text-[10px] text-faint font-mono truncate" title={o.SourceAnchor}>
                     was {o.SourceAnchor}

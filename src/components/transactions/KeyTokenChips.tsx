@@ -1,23 +1,24 @@
 import { Fragment } from 'react';
 import type { KeyToken, KeyTokenField } from '../../api/sampling';
-import { KEY_FIELD_LABELS, tokenChipClass, tokenPhrase } from '../../utils/keyTokens';
+import { KEY_FIELD_LABELS, tokenChipClass, tokenCode, tokenPhrase } from '../../utils/keyTokens';
 
 interface KeyTokenChipsProps {
   tokens: KeyToken[];
-  /** Chip click → editing menu. Absent = read-only chips. */
-  onChipClick?: (index: number) => void;
-  /** Highlight the chip whose menu is open. */
+  /** Chip click → editing popover; the element anchors it. Absent = read-only. */
+  onChipClick?: (index: number, el: HTMLElement) => void;
+  /** Highlight the chip whose menu is open (adds a caret). */
   selectedIndex?: number | null;
   size?: 'xs' | 'sm';
 }
 
 /**
  * The matching key rendered as chips (Curated View matching keys,
- * 2026-09-07): plain words and typed placeholders, colored by kind — the
- * same treatment in the drawer, the key-rules list, and previews. Chips are
- * grouped per field with the field's label; a Glued chip renders flush
- * against the previous one (no gap — `ORD//<NAME>`). Rendered from
- * `KeyTokens[]`, never by parsing the anchor string.
+ * 2026-09-07), matching the operator brief: an `AI=>` field prefix, literal
+ * chips as their exact words, placeholder/list chips as `<BANKS>` /
+ * `<CARD_TYPES:Visa>` codes — colored by kind, the same treatment in the
+ * drawer, the key-rules list, and previews. A Glued chip renders flush
+ * against the previous one (`ORD//<NAME>`). Rendered from `KeyTokens[]`,
+ * never by parsing the anchor string.
  */
 export function KeyTokenChips({ tokens, onChipClick, selectedIndex, size = 'sm' }: KeyTokenChipsProps) {
   if (tokens.length === 0) return null;
@@ -35,52 +36,49 @@ export function KeyTokenChips({ tokens, onChipClick, selectedIndex, size = 'sm' 
     arr.push(i);
   });
 
-  const chipPad = size === 'xs' ? 'px-1.5 py-px text-[10px]' : 'px-2 py-0.5 text-[11px]';
+  const chipPad = size === 'xs' ? 'px-1.5 py-px text-[10px]' : 'px-2.5 py-1 text-xs';
 
   return (
     <div className="space-y-1.5">
       {fields.map((field) => (
-        <div key={field} className="flex items-center gap-y-1 flex-wrap min-w-0">
+        <div key={field} className="flex items-center gap-y-1.5 flex-wrap min-w-0">
           <span
-            className="text-[9px] font-semibold uppercase tracking-wider text-faint mr-1.5 shrink-0"
+            className="text-[11px] font-mono text-faint mr-2 shrink-0 select-none"
             title={KEY_FIELD_LABELS[field]}
           >
-            {field}
+            {field}=&gt;
           </span>
           {(byField.get(field) ?? []).map((i, posInField) => {
             const t = tokens[i];
-            const phrase = tokenPhrase(t);
-            const isPlaceholder = t.Kind !== 'Literal';
+            const selected = selectedIndex === i;
             const glued = (t.Glued ?? false) && posInField > 0;
             const chip = (
               <span
                 dir="auto"
-                title={
-                  t.Kind === 'List'
-                    ? `${t.Text}${t.Item ? `: ${t.Item}` : ''} (LOV list)`
-                    : t.Kind === 'Placeholder'
-                      ? `<${t.Text}>`
-                      : undefined
-                }
-                className={`inline-flex items-center rounded border font-medium whitespace-pre max-w-full overflow-hidden text-ellipsis ${chipPad} ${tokenChipClass(t)} ${
-                  isPlaceholder ? 'italic' : 'font-mono'
-                } ${onChipClick ? 'cursor-pointer hover:ring-2 hover:ring-primary/40' : ''} ${
-                  selectedIndex === i ? 'ring-2 ring-primary' : ''
-                }`}
+                title={t.Kind === 'List' ? `${tokenPhrase(t)} (from the ${t.Text} list)` : t.Kind === 'Placeholder' ? tokenPhrase(t) : undefined}
+                className={`inline-flex items-center gap-1 rounded-md border font-mono whitespace-pre max-w-full overflow-hidden text-ellipsis ${chipPad} ${tokenChipClass(t)} ${
+                  onChipClick ? 'cursor-pointer hover:ring-2 hover:ring-primary/40' : ''
+                } ${selected ? 'ring-2 ring-primary' : ''}`}
               >
-                {phrase}
+                {tokenCode(t)}
+                {selected && (
+                  <svg className="w-2.5 h-2.5 shrink-0 opacity-80" viewBox="0 0 10 10" fill="none" aria-hidden>
+                    <path d="M2 3.5l3 3 3-3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                  </svg>
+                )}
               </span>
             );
             return (
               <Fragment key={i}>
                 {/* Spacing between chips carries meaning: glued = no space. */}
-                {!glued && posInField > 0 && <span className="w-1" aria-hidden />}
+                {!glued && posInField > 0 && <span className="w-1.5" aria-hidden />}
                 {onChipClick ? (
                   <button
                     type="button"
-                    onClick={() => onChipClick(i)}
+                    onClick={(e) => onChipClick(i, e.currentTarget)}
                     className="inline-flex max-w-full min-w-0 cursor-pointer"
-                    aria-label={`Edit key part: ${phrase}`}
+                    aria-label={`Edit key part: ${tokenCode(t)}`}
+                    aria-expanded={selected}
                   >
                     {chip}
                   </button>

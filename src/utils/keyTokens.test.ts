@@ -5,11 +5,13 @@ import {
   isBuiltinPlaceholder,
   listTagPhrase,
   tokenPhrase,
+  tokenCode,
   humanizeKeyTokens,
   replaceTokenAt,
   removeTokenAt,
   splitLiteralToken,
   locateSelectionInTokens,
+  alignTokensToExample,
   tokensPinSomething,
   tokensEqual,
 } from './keyTokens';
@@ -25,11 +27,16 @@ const list = (tag: string, item: string | null = null, field: KeyToken['Field'] 
 });
 
 describe('placeholder vocabulary', () => {
-  it('knows the nine built-ins plus the legacy NUM synonym', () => {
-    for (const p of ['IBAN', 'DATE', 'TIME', 'CURRENCY', 'DECIMAL', 'INT', 'AR', 'NAME', 'STRING', 'NUM']) {
+  it('knows the built-ins plus the legacy NUM synonym', () => {
+    for (const p of ['IBAN', 'SA_IBAN', 'SA_IBAN_INTRA', 'DATE', 'TIME', 'CURRENCY', 'DECIMAL', 'INT', 'AR', 'NAME', 'STRING', 'NUM']) {
       expect(isBuiltinPlaceholder(p)).toBe(true);
     }
     expect(isBuiltinPlaceholder('BANKS')).toBe(false);
+  });
+  it('separates the IBAN family (2026-09-08 split)', () => {
+    expect(tokenPhrase(ph('IBAN'))).toBe('a foreign IBAN');
+    expect(tokenPhrase(ph('SA_IBAN_INTRA'))).toContain('own');
+    expect(tokenPhrase(ph('SA_IBAN'))).toContain('another Saudi bank');
   });
   it('NUM reads the same as INT', () => {
     expect(tokenPhrase(ph('NUM'))).toBe(tokenPhrase(ph('INT')));
@@ -57,6 +64,38 @@ describe('tokenPhrase', () => {
   it('shows collapse lists as the list phrase and literals verbatim', () => {
     expect(tokenPhrase(list('BANKS'))).toBe('a bank');
     expect(tokenPhrase(lit('FAVOR'))).toBe('FAVOR');
+  });
+});
+
+describe('tokenCode', () => {
+  it('renders chips in the token grammar', () => {
+    expect(tokenCode(lit('FAVOR'))).toBe('FAVOR');
+    expect(tokenCode(list('BANKS'))).toBe('<BANKS>');
+    expect(tokenCode(list('CARD_TYPES', 'Visa'))).toBe('<CARD_TYPES:Visa>');
+    expect(tokenCode(ph('AR'))).toBe('<AR>');
+  });
+});
+
+describe('alignTokensToExample', () => {
+  it('recovers the words each placeholder stands for', () => {
+    const tokens = [lit('/BULK SARIE PAYMENTS/'), list('BANKS'), lit('REF'), ph('INT')];
+    const hit = alignTokensToExample(tokens, 'AI', '/BULK SARIE PAYMENTS/ RIYAD BANK REF 12345');
+    expect(hit).not.toBeNull();
+    expect(hit!.get(1)).toBe('RIYAD BANK');
+    expect(hit!.get(3)).toBe('12345');
+  });
+  it('handles glued placeholders (ORD//<NAME>)', () => {
+    const tokens = [lit('ORD//'), ph('NAME', 'AI', true)];
+    const hit = alignTokensToExample(tokens, 'AI', 'ORD//JOHN DOE');
+    expect(hit!.get(1)).toBe('JOHN DOE');
+  });
+  it('refuses ambiguous keys with adjacent placeholders', () => {
+    const tokens = [lit('FAVOR'), list('BANKS'), ph('AR')];
+    expect(alignTokensToExample(tokens, 'AI', 'FAVOR RIYAD BANK note')).toBeNull();
+  });
+  it('returns null when the example does not fit the key or the field is absent', () => {
+    expect(alignTokensToExample([lit('FAVOR')], 'AI', 'SOMETHING ELSE')).toBeNull();
+    expect(alignTokensToExample([lit('FAVOR', 'D2')], 'AI', 'FAVOR X')).toBeNull();
   });
 });
 

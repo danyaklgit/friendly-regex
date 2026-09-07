@@ -83,6 +83,10 @@ export interface KeyEditPreview {
   EditedKey: string;
   AiMode: KeyFieldMode;
   D2Mode: KeyFieldMode;
+  /** Decided by the engine from the rows being edited, never set by the
+   *  operator (2026-09-08): true = the key sits at the start of its field
+   *  ("Starts with"), false = it may appear anywhere ("Contains"). */
+  Anchored?: boolean;
   /** Open rows (untagged/multi-tag, not dead-end) the edited key matches. */
   MatchCount: number;
   WorkRows: number;
@@ -103,6 +107,8 @@ export interface KeyOverride {
   EditedKey: string;
   AiMode: KeyFieldMode;
   D2Mode: KeyFieldMode;
+  /** Stored from the preview's engine decision and reused by every run. */
+  Anchored?: boolean;
   CreatedByUserId: string;
   CreatedAtUtc: string;
   Note?: string | null;

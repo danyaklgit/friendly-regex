@@ -15,7 +15,7 @@ import {
 import { createLOVListItem, getLOVListItems, updateLOVListItem } from '../../api/lovManagement';
 import type { LOVListItem } from '../../types/lov';
 import {
-  humanizeKeyTokens,
+  alignTokensToExample,
   locateSelectionInTokens,
   removeTokenAt,
   replaceTokenAt,
@@ -55,17 +55,20 @@ const MARK_CHOICES: { text: string; label: string }[] = [
   { text: 'AR', label: 'Arabic text' },
 ];
 
+const POPOVER_WIDTH = 340;
+
 /**
  * "Matching key" section of the suggestion drawer (matching-keys delta,
- * 2026-09-07). Renders the key as chips; the checked-out operator can correct
- * it: click a chip → "This part is…" (a list value, any text, a number, an
- * amount, Arabic text, keep the exact words, remove), or select words in an
- * example → "Mark as…" the same choices plus "Add to list…" (a new bank
- * becomes vocabulary instead of a one-off fix). Every change previews its
- * effect ("32 → 47 · merges 2 groups", debounced ~400 ms) before Apply, which
- * stores the edit (SaveKeyEdit) and regroups the workspace through the
- * existing sampling-run poll. An edited key shows who/when and offers
- * "Return to automatic key" (DeleteKeyEdit).
+ * 2026-09-07; layout per the operator brief b078111d). Renders the key as
+ * chips in a dashed container; the checked-out operator can correct it: click
+ * a chip → an anchored "This part is…" popover (a list value, any text, a
+ * number, an amount, Arabic text, keep the exact words, remove), or select
+ * words in an example → "Mark as…" the same choices plus "Add to list…" (a
+ * new bank becomes vocabulary instead of a one-off fix). Every change
+ * previews its effect ("If you apply: 32 → 47 · merges 2 groups", debounced
+ * ~400 ms) before Apply, which stores the edit (SaveKeyEdit) and regroups the
+ * workspace through the existing sampling-run poll. An edited key shows
+ * who/when and offers "Return to automatic key" (DeleteKeyEdit).
  */
 export function MatchingKeyEditor({
   suggestion,
@@ -80,15 +83,19 @@ export function MatchingKeyEditor({
 
   const [editing, setEditing] = useState(false);
   const [workTokens, setWorkTokens] = useState<KeyToken[]>(baseTokens);
-  const [menuIndex, setMenuIndex] = useState<number | null>(null);
   const [applyBusy, setApplyBusy] = useState(false);
   const [note, setNote] = useState('');
+
+  // Popover anchoring: index of the open chip + its offset inside the
+  // relative wrapper (computed from bounding rects on click).
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const [menu, setMenu] = useState<{ index: number; left: number; top: number } | null>(null);
 
   // Reset the working copy whenever the drawer shows a different suggestion.
   useEffect(() => {
     setEditing(false);
     setWorkTokens(baseTokens);
-    setMenuIndex(null);
+    setMenu(null);
     setNote('');
   }, [suggestion.Id, baseTokens]);
 
@@ -119,6 +126,17 @@ export function MatchingKeyEditor({
       .filter((l) => !l.IsInternal && l.Behavior !== 'Never')
       .sort((a, b) => rank(a) - rank(b) || a.ListTag.localeCompare(b.ListTag));
   }, [vocab]);
+
+  // The words each placeholder chip stands for in the first example — feeds
+  // "Keep the exact words" so the operator sees what they would keep.
+  const alignedWords = useMemo(() => {
+    const example = suggestion.ExampleTexts?.[0];
+    if (!example) return null;
+    return (
+      alignTokensToExample(workTokens, 'AI', example) ??
+      alignTokensToExample(workTokens, 'D2', example)
+    );
+  }, [workTokens, suggestion.ExampleTexts]);
 
   // --- Live preview (debounced ~400 ms per the operator brief) --------------
   const changed = !tokensEqual(workTokens, baseTokens);
@@ -173,19 +191,47 @@ export function MatchingKeyEditor({
     return () => clearTimeout(timer);
   }, [editing, workspace, changed, pins, workTokens, suggestion.SimilarSetId, getTepAuth, onError]);
 
-  // --- Chip menu actions ----------------------------------------------------
-  const [listPickerFor, setListPickerFor] = useState<number | null>(null);
+  // --- Chip popover actions ---------------------------------------------------
+  const [listPickerOpen, setListPickerOpen] = useState(false);
   const [listSearch, setListSearch] = useState('');
-  const [keepWordsFor, setKeepWordsFor] = useState<number | null>(null);
+  const [keepWordsOpen, setKeepWordsOpen] = useState(false);
   const [keepWordsText, setKeepWordsText] = useState('');
 
   const closeMenus = useCallback(() => {
-    setMenuIndex(null);
-    setListPickerFor(null);
-    setKeepWordsFor(null);
+    setMenu(null);
+    setListPickerOpen(false);
+    setKeepWordsOpen(false);
     setListSearch('');
     setKeepWordsText('');
   }, []);
+
+  const openChipMenu = useCallback((index: number, el: HTMLElement) => {
+    const wrapper = anchorRef.current;
+    if (!wrapper) return;
+    setListPickerOpen(false);
+    setKeepWordsOpen(false);
+    setListSearch('');
+    setMenu((prev) => {
+      if (prev?.index === index) return null; // toggle
+      const wRect = wrapper.getBoundingClientRect();
+      const cRect = el.getBoundingClientRect();
+      const left = Math.max(0, Math.min(cRect.left - wRect.left, wRect.width - POPOVER_WIDTH));
+      return { index, left, top: cRect.bottom - wRect.top + 8 };
+    });
+  }, []);
+
+  // Escape closes the popover before it closes the drawer.
+  useEffect(() => {
+    if (!menu) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        closeMenus();
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [menu, closeMenus]);
 
   const assignPlaceholder = useCallback((index: number, text: string) => {
     setWorkTokens((prev) => replaceTokenAt(prev, index, { Kind: 'Placeholder', Text: text }));
@@ -219,7 +265,6 @@ export function MatchingKeyEditor({
   }, [closeMenus]);
 
   // --- Example selection ("Mark as…") ----------------------------------------
-  const exampleBoxRef = useRef<HTMLDivElement>(null);
   const [selText, setSelText] = useState('');
   const [selUnmatched, setSelUnmatched] = useState(false);
 
@@ -384,13 +429,18 @@ export function MatchingKeyEditor({
     ) : null;
   }
 
-  const menuToken = menuIndex != null ? workTokens[menuIndex] : null;
+  const menuToken = menu != null ? workTokens[menu.index] : null;
+  const menuWords = menu != null ? alignedWords?.get(menu.index) : undefined;
   const sourceCount = preview?.Groups.find((g) => g.IsSource)?.Count ?? suggestion.CoverageCount;
   const merges = preview ? Math.max(preview.Groups.length - 1, 0) : 0;
 
+  const menuRow =
+    'w-full flex items-center justify-between gap-3 px-3 py-2 text-xs text-body hover:bg-surface-hover cursor-pointer text-left';
+  const menuCode = 'text-[10px] font-mono text-faint whitespace-nowrap shrink-0';
+
   return (
     <section>
-      <div className="flex items-center justify-between gap-2 mb-1.5">
+      <div className="flex items-center gap-2 mb-1.5">
         <p className="text-[10px] font-semibold uppercase tracking-wider text-faint">Matching key</p>
         {!editing && canEdit && workspace && (
           <button
@@ -398,7 +448,7 @@ export function MatchingKeyEditor({
             onClick={() => setEditing(true)}
             className="text-[11px] font-medium text-primary hover:underline cursor-pointer"
           >
-            Edit key
+            Edit
           </button>
         )}
       </div>
@@ -426,123 +476,148 @@ export function MatchingKeyEditor({
         </div>
       )}
 
-      <div className="rounded-lg border border-border bg-surface px-3 py-2">
-        <KeyTokenChips
-          tokens={editing ? workTokens : baseTokens}
-          onChipClick={editing ? (i) => { setMenuIndex(i === menuIndex ? null : i); setListPickerFor(null); setKeepWordsFor(null); } : undefined}
-          selectedIndex={editing ? menuIndex : null}
-        />
-        {!editing && (
-          <p className="mt-1.5 text-[10px] text-faint">{humanizeKeyTokens(baseTokens)}</p>
+      {/* Relative wrapper: the chip popover anchors inside it. */}
+      <div ref={anchorRef} className="relative">
+        <div className={`rounded-xl border px-4 py-3 bg-surface ${editing ? 'border-dashed border-border-strong' : 'border-border'}`}>
+          <KeyTokenChips
+            tokens={editing ? workTokens : baseTokens}
+            onChipClick={editing ? openChipMenu : undefined}
+            selectedIndex={editing ? (menu?.index ?? null) : null}
+          />
+        </div>
+        {editing && (
+          <p className="mt-1.5 text-[11px] text-faint">
+            Click a part to change what it stands for. Select text in an example below to mask it.
+          </p>
         )}
-      </div>
 
-      {editing && (
-        <>
-          {/* Chip menu: "This part is…" */}
-          {menuToken && (
-            <div className="mt-2 rounded-lg border border-border-strong bg-surface-elevated shadow-sm px-3 py-2">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-faint mb-1.5">
+        {/* "This part is…" popover, anchored under the clicked chip. */}
+        {editing && menu && menuToken && (
+          <>
+            <div className="fixed inset-0 z-10" onClick={closeMenus} aria-hidden />
+            <div
+              role="menu"
+              className="absolute z-20 rounded-xl border border-border-strong bg-surface-elevated shadow-xl overflow-hidden"
+              style={{ left: menu.left, top: menu.top, width: POPOVER_WIDTH }}
+            >
+              <div
+                className="absolute -top-1 w-2 h-2 rotate-45 bg-surface-elevated border-l border-t border-border-strong"
+                style={{ left: 18 }}
+                aria-hidden
+              />
+              <p className="px-3 pt-2.5 pb-1.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-faint">
                 This part is…
               </p>
-              {listPickerFor === menuIndex ? (
-                <div>
+
+              <button type="button" onClick={() => setListPickerOpen((v) => !v)} className={`${menuRow} ${listPickerOpen ? 'bg-surface-hover' : ''}`}>
+                <span className="font-medium">A value from a list</span>
+                <span className={`${menuCode} flex items-center gap-1`}>
+                  &lt;LIST&gt;
+                  <svg className={`w-2.5 h-2.5 transition-transform ${listPickerOpen ? 'rotate-90' : ''}`} viewBox="0 0 10 10" fill="none" aria-hidden>
+                    <path d="M3 1l4 4-4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                  </svg>
+                </span>
+              </button>
+              {listPickerOpen && (
+                <div className="px-3 pb-2">
                   <input
                     type="text"
                     value={listSearch}
                     onChange={(e) => setListSearch(e.target.value)}
                     placeholder="Search lists…"
-                    className="w-full mb-1.5 rounded-lg border border-border bg-surface px-2 py-1 text-xs text-body outline-none focus:border-primary"
+                    autoFocus
+                    className="w-full mb-1 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-body outline-none focus:border-primary"
                   />
-                  <div className="max-h-36 overflow-y-auto custom-scrollbar space-y-0.5">
-                    {vocab === null && <p className="text-[11px] text-faint italic px-1 py-0.5">Loading lists…</p>}
+                  <div className="max-h-36 overflow-y-auto custom-scrollbar">
+                    {vocab === null && <p className="text-[11px] text-faint italic px-1 py-1">Loading lists…</p>}
                     {pickableLists
                       .filter((l) => l.ListTag.toLowerCase().includes(listSearch.trim().toLowerCase()))
-                      .map((l) => (
+                      .map((l, i) => (
                         <button
                           key={l.ListTag}
                           type="button"
-                          onClick={() => assignList(menuIndex!, l)}
-                          className="w-full text-left px-2 py-1 rounded text-xs text-body hover:bg-surface-hover cursor-pointer flex items-center justify-between gap-2"
+                          onClick={() => assignList(menu.index, l)}
+                          className="w-full flex items-center justify-between gap-2 px-1.5 py-1 rounded text-xs hover:bg-surface-hover cursor-pointer text-left"
                         >
-                          <span className="font-medium truncate">{l.ListTag}</span>
-                          <span className="text-[10px] text-faint whitespace-nowrap">
-                            {l.Behavior === 'KeepItem' ? 'keeps items apart' : l.Behavior === 'Collapse' ? `${l.UsableKeys} keys` : 'off — enable in Settings'}
+                          <span className={`truncate ${i === 0 ? 'font-semibold text-heading' : 'text-body'}`}>{l.ListTag}</span>
+                          <span className="text-[10px] text-faint whitespace-nowrap tabular-nums">
+                            {l.Behavior === 'Off' ? 'off' : `${l.ActiveItems.toLocaleString()} item${l.ActiveItems === 1 ? '' : 's'}`}
                           </span>
                         </button>
                       ))}
                     {vocab !== null && pickableLists.length === 0 && (
-                      <p className="text-[11px] text-faint italic px-1 py-0.5">No lists available.</p>
+                      <p className="text-[11px] text-faint italic px-1 py-1">No lists available.</p>
                     )}
                   </div>
                 </div>
-              ) : keepWordsFor === menuIndex ? (
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="text"
-                    dir="auto"
-                    value={keepWordsText}
-                    onChange={(e) => setKeepWordsText(e.target.value)}
-                    placeholder="The exact words from the example"
-                    className="flex-1 rounded-lg border border-border bg-surface px-2 py-1 text-xs text-body outline-none focus:border-primary font-mono"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => keepExactWords(menuIndex!, keepWordsText)}
-                    disabled={!keepWordsText.trim() || keepWordsText.includes('<')}
-                    className="text-[11px] font-medium text-primary hover:underline cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Keep
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={() => setListPickerFor(menuIndex)}
-                    className="text-[11px] px-2 py-1 rounded-lg border border-teal-300 bg-teal-50 text-teal-800 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-800 hover:opacity-80 cursor-pointer"
-                  >
-                    A value from a list…
-                  </button>
-                  {MARK_CHOICES.map((c) => (
-                    <button
-                      key={c.text}
-                      type="button"
-                      onClick={() => assignPlaceholder(menuIndex!, c.text)}
-                      className="text-[11px] px-2 py-1 rounded-lg border border-border-strong bg-surface text-body hover:bg-surface-hover cursor-pointer"
-                    >
-                      {c.label}
+              )}
+
+              <div className="border-t border-border-subtle" />
+              {MARK_CHOICES.map((c) => (
+                <button key={c.text} type="button" onClick={() => assignPlaceholder(menu.index, c.text)} className={menuRow}>
+                  <span>{c.label}</span>
+                  <span className={menuCode}>&lt;{c.text}&gt;</span>
+                </button>
+              ))}
+
+              {menuToken.Kind !== 'Literal' && (
+                <>
+                  <div className="border-t border-border-subtle" />
+                  {menuWords && !keepWordsOpen ? (
+                    <button type="button" onClick={() => keepExactWords(menu.index, menuWords)} className={menuRow}>
+                      <span>Keep the exact words</span>
+                      <span dir="auto" className="text-[10px] font-mono text-body-secondary truncate max-w-[45%]" title={menuWords}>
+                        {menuWords}
+                      </span>
                     </button>
-                  ))}
-                  {menuToken.Kind !== 'Literal' && (
-                    <button
-                      type="button"
-                      onClick={() => { setKeepWordsFor(menuIndex); setKeepWordsText(''); }}
-                      className="text-[11px] px-2 py-1 rounded-lg border border-border-strong bg-surface text-body hover:bg-surface-hover cursor-pointer"
-                    >
-                      Keep the exact words…
+                  ) : keepWordsOpen ? (
+                    <div className="px-3 py-2 flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        dir="auto"
+                        value={keepWordsText}
+                        onChange={(e) => setKeepWordsText(e.target.value)}
+                        placeholder="The exact words from the example"
+                        autoFocus
+                        className="flex-1 rounded-lg border border-border bg-surface px-2 py-1 text-xs text-body outline-none focus:border-primary font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => keepExactWords(menu.index, keepWordsText)}
+                        disabled={!keepWordsText.trim() || keepWordsText.includes('<')}
+                        className="text-[11px] font-medium text-primary hover:underline cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Keep
+                      </button>
+                    </div>
+                  ) : (
+                    <button type="button" onClick={() => { setKeepWordsOpen(true); setKeepWordsText(''); }} className={menuRow}>
+                      <span>Keep the exact words…</span>
                     </button>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => removeChip(menuIndex!)}
-                    className="text-[11px] px-2 py-1 rounded-lg border border-red-200 bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-300 dark:border-red-800 hover:opacity-80 cursor-pointer"
-                  >
-                    Remove from key
-                  </button>
-                </div>
+                </>
               )}
-            </div>
-          )}
 
+              <div className="border-t border-border-subtle" />
+              <button
+                type="button"
+                onClick={() => removeChip(menu.index)}
+                className="w-full flex items-center justify-between gap-3 px-3 py-2 text-xs text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 cursor-pointer text-left"
+              >
+                <span className="font-medium">Remove from key</span>
+                <span className="text-[10px]" aria-hidden>✕</span>
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+
+      {editing && (
+        <>
           {/* Selection marking on an example. */}
           {(suggestion.ExampleTexts?.length ?? 0) > 0 && (
-            <div className="mt-2">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-faint mb-1">
-                Or select words in an example…
-              </p>
+            <div className="mt-3">
               <div
-                ref={exampleBoxRef}
                 onMouseUp={handleExampleMouseUp}
                 dir="auto"
                 className="rounded-lg border border-border-subtle bg-surface-secondary/60 px-3 py-2 text-xs text-body whitespace-pre-wrap break-all font-mono select-text"
@@ -657,65 +732,77 @@ export function MatchingKeyEditor({
             </div>
           )}
 
-          {/* Effect preview + field modes. */}
-          <div className="mt-2 rounded-lg border border-border bg-surface-secondary/50 px-3 py-2 min-h-[2.25rem]">
-            {!changed ? (
-              <p className="text-[11px] text-faint italic">Click a chip or select words in the example to correct the key.</p>
-            ) : previewInvalid ? (
-              <p className="text-[11px] text-amber-700 dark:text-amber-400">
-                Keep at least a few exact words or a list value in the key.
-              </p>
-            ) : previewLoading || !preview ? (
-              <p className="text-[11px] text-faint italic animate-pulse">Previewing the effect…</p>
-            ) : (
-              <div className="space-y-1">
-                <p className="text-xs text-heading font-medium">
-                  Represents {sourceCount.toLocaleString()} → {preview.MatchCount.toLocaleString()} transactions
-                  {merges > 0 && <span className="text-body-secondary font-normal"> · merges {merges} group{merges === 1 ? '' : 's'}</span>}
+          {/* Effect preview — "If you apply: …" per the operator brief. */}
+          {changed && (
+            <div className={`mt-3 rounded-xl border px-4 py-3 ${
+              previewInvalid
+                ? 'border-amber-300 bg-amber-50/60 dark:bg-amber-950/20 dark:border-amber-800'
+                : 'border-emerald-300/60 bg-emerald-50/50 dark:bg-emerald-950/20 dark:border-emerald-900'
+            }`}>
+              {previewInvalid ? (
+                <p className="text-xs text-amber-800 dark:text-amber-300">
+                  Keep at least a few exact words or a list value in the key.
                 </p>
-                {preview.Groups.length > 0 && (
-                  <ul className="space-y-0.5">
-                    {preview.Groups.slice(0, 6).map((g) => (
-                      <li key={g.SimilarSetId} dir="auto" className="text-[10px] text-body-secondary font-mono truncate">
-                        {g.IsSource ? '● ' : '○ '}{g.Anchor} · {g.Count.toLocaleString()}
-                      </li>
-                    ))}
-                    {preview.Groups.length > 6 && (
-                      <li className="text-[10px] text-faint">…and {preview.Groups.length - 6} more</li>
+              ) : previewLoading || !preview ? (
+                <p className="text-xs text-faint italic animate-pulse">Previewing the effect…</p>
+              ) : (
+                <div className="space-y-1.5">
+                  <p className="text-xs text-heading">
+                    <span className="font-semibold">If you apply:</span>{' '}
+                    the key represents{' '}
+                    <span className="font-semibold text-primary-dark dark:text-primary">
+                      {sourceCount.toLocaleString()} → {preview.MatchCount.toLocaleString()}
+                    </span>{' '}
+                    transactions
+                    {merges > 0 && <> and merges <span className="font-semibold">{merges}</span> group{merges === 1 ? '' : 's'}</>}
+                    {preview.Anchored != null && (
+                      <span className="ml-1.5 text-[10px] text-faint">({preview.Anchored ? 'starts with' : 'contains'})</span>
                     )}
-                  </ul>
-                )}
-                {(preview.AiMode === 'Blank' || preview.D2Mode === 'Blank') && (
-                  <p className="text-[10px] text-faint">
-                    {[
-                      preview.AiMode === 'Blank' ? 'Additional Information: must be empty' : null,
-                      preview.D2Mode === 'Blank' ? 'Description 2: must be empty' : null,
-                    ].filter(Boolean).join(' · ')}
                   </p>
-                )}
-                {preview.ExampleTexts.length > 0 && (
-                  <div className="pt-0.5">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-faint">Rows that would join</p>
-                    {preview.ExampleTexts.slice(0, 2).map((t, i) => (
-                      <p key={i} dir="auto" className="text-[10px] text-body-secondary font-mono whitespace-pre-wrap break-all">{t}</p>
-                    ))}
-                  </div>
-                )}
-                {preview.Warnings.map((w, i) => (
-                  <p key={i} className="text-[10px] text-amber-700 dark:text-amber-400">{w}</p>
-                ))}
-              </div>
-            )}
-          </div>
+                  {preview.Groups.length > 0 && (
+                    <ul className="space-y-0.5">
+                      {preview.Groups.slice(0, 6).map((g) => (
+                        <li key={g.SimilarSetId} dir="auto" className="text-[11px] text-body-secondary font-mono truncate">
+                          · {g.Anchor} — {g.Count.toLocaleString()}
+                        </li>
+                      ))}
+                      {preview.Groups.length > 6 && (
+                        <li className="text-[10px] text-faint">…and {preview.Groups.length - 6} more</li>
+                      )}
+                    </ul>
+                  )}
+                  {(preview.AiMode === 'Blank' || preview.D2Mode === 'Blank') && (
+                    <p className="text-[10px] text-faint">
+                      {[
+                        preview.AiMode === 'Blank' ? 'Additional Information: must be empty' : null,
+                        preview.D2Mode === 'Blank' ? 'Description 2: must be empty' : null,
+                      ].filter(Boolean).join(' · ')}
+                    </p>
+                  )}
+                  {preview.ExampleTexts.length > 0 && (
+                    <div className="pt-0.5">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-faint">Rows that would join</p>
+                      {preview.ExampleTexts.slice(0, 2).map((t, i) => (
+                        <p key={i} dir="auto" className="text-[10px] text-body-secondary font-mono whitespace-pre-wrap break-all">{t}</p>
+                      ))}
+                    </div>
+                  )}
+                  {preview.Warnings.map((w, i) => (
+                    <p key={i} className="text-[10px] text-amber-700 dark:text-amber-400">{w}</p>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
-          {/* Note + Cancel / Apply. */}
-          <div className="mt-2 flex items-center gap-2">
+          {/* Note + Cancel / Apply key. */}
+          <div className="mt-3 flex items-center gap-2">
             <input
               type="text"
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="Note (optional) — why this key was corrected"
-              className="flex-1 rounded-lg border border-border bg-surface px-2 py-1 text-xs text-body outline-none focus:border-primary"
+              className="flex-1 min-w-0 rounded-lg border border-border bg-surface px-2 py-1 text-xs text-body outline-none focus:border-primary"
             />
             <Button variant="outline" size="sm" onClick={() => { setEditing(false); setWorkTokens(baseTokens); closeMenus(); }}>
               Cancel

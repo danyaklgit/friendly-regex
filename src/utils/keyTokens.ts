@@ -15,9 +15,14 @@ export const KEY_FIELD_LABELS: Record<KeyTokenField, string> = {
   D2: 'Description 2',
 };
 
-/** The nine built-in placeholders (plus the legacy NUM synonym for INT). */
+/** The built-in placeholders (plus the legacy NUM synonym for INT).
+ *  IBAN split 2026-09-08: <IBAN> narrowed to foreign IBANs; the two Saudi
+ *  placeholders separate intra-bank from outgoing transfers (Saudi IBAN
+ *  chars 5-6 are the bank, compared against the row's own IBAN). */
 const BUILTIN_PHRASES: Record<string, string> = {
-  IBAN: 'an IBAN',
+  IBAN: 'a foreign IBAN',
+  SA_IBAN_INTRA: "the bank's own IBAN",
+  SA_IBAN: "another Saudi bank's IBAN",
   DATE: 'a date',
   TIME: 'a time',
   CURRENCY: 'a currency',
@@ -64,6 +69,14 @@ export function tokenPhrase(token: KeyToken): string {
   return BUILTIN_PHRASES[token.Text] ?? token.Text.toLowerCase();
 }
 
+/** Chip text in the token grammar: literals verbatim, `<BANKS>`,
+ *  `<CARD_TYPES:Visa>`, `<AR>` — the way the operator brief renders keys. */
+export function tokenCode(token: KeyToken): string {
+  if (token.Kind === 'Literal') return token.Text;
+  if (token.Kind === 'List' && token.Item) return `<${token.Text}:${token.Item}>`;
+  return `<${token.Text}>`;
+}
+
 /** Chip color classes per token kind/type (hand-off §4.2 palette). */
 export function tokenChipClass(token: KeyToken): string {
   if (token.Kind === 'Literal') {
@@ -74,6 +87,8 @@ export function tokenChipClass(token: KeyToken): string {
   }
   switch (token.Text) {
     case 'IBAN':
+    case 'SA_IBAN':
+    case 'SA_IBAN_INTRA':
       return 'border-indigo-300 bg-indigo-50 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800';
     case 'DATE':
     case 'TIME':
@@ -235,6 +250,58 @@ export function tokensPinSomething(tokens: KeyToken[]): boolean {
       t.Kind === 'List' ||
       (t.Kind === 'Literal' && (t.Text.match(meaningful)?.length ?? 0) >= 3),
   );
+}
+
+/**
+ * Best-effort alignment of one field's tokens against an example text, so
+ * "Keep the exact words" can show the words a placeholder actually stands
+ * for. Literals match loosely (case-insensitive, space-run-tolerant),
+ * placeholders capture lazily (the last one greedily). Returns the matched
+ * text per token index, or null when the example doesn't fit the key — or
+ * when two placeholders sit side by side (the split between them is
+ * ambiguous; showing confidently-wrong words would be worse than asking, so
+ * the caller falls back to letting the operator type/select them).
+ */
+export function alignTokensToExample(
+  tokens: KeyToken[],
+  field: KeyTokenField,
+  example: string,
+): Map<number, string> | null {
+  const fieldTokens = tokens
+    .map((t, i) => ({ t, i }))
+    .filter(({ t }) => t.Field === field);
+  if (fieldTokens.length === 0) return null;
+  for (let p = 1; p < fieldTokens.length; p++) {
+    if (fieldTokens[p - 1].t.Kind !== 'Literal' && fieldTokens[p].t.Kind !== 'Literal') return null;
+  }
+  let pattern = '^\\s*';
+  const groupToIndex: number[] = [];
+  fieldTokens.forEach(({ t, i }, pos) => {
+    if (pos > 0) pattern += t.Glued ? '' : '\\s+';
+    if (t.Kind === 'Literal') {
+      pattern += t.Text.trim()
+        .split(/\s+/)
+        .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+        .join('\\s+');
+    } else {
+      const last = pos === fieldTokens.length - 1;
+      pattern += last ? '(.+)' : '(.+?)';
+      groupToIndex.push(i);
+    }
+  });
+  let m: RegExpExecArray | null;
+  try {
+    m = new RegExp(pattern, 'i').exec(example);
+  } catch {
+    return null;
+  }
+  if (!m) return null;
+  const out = new Map<number, string>();
+  groupToIndex.forEach((tokenIndex, g) => {
+    const text = (m![g + 1] ?? '').trim();
+    if (text) out.set(tokenIndex, text);
+  });
+  return out;
 }
 
 /** Deep-enough equality for "has the operator changed anything yet". */
