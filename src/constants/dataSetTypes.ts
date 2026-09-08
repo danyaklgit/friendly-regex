@@ -9,14 +9,35 @@ import type { FilterProperty } from '../api/transactions';
  * lower-case or reformat them.
  *
  * MT940 is the confirmed end-of-day statement (the original, only type until
- * intraday shipped). MT942 and INTERIM_MT940 are the provisional intraday
- * reports (their rows carry IsConfirmed = false). Ledger is the ERP ledger
- * feed — its library is identified by (ClientCode, ErpCode), NOT (bank, side)
- * (see src/utils/libraryIdentity.ts). TransactionsList (an end-of-day SNB
- * list) is intentionally NOT here yet — see WORKSPACES.
+ * intraday shipped). MT942, INTERIM_MT940 and INTERIM_TransactionsList are the
+ * provisional intraday reports (their rows carry IsConfirmed = false;
+ * INTERIM_TransactionsList is ANB's intraday JSON list, 2026-09-08 — the
+ * canonical spelling has the plural `s`, the backend normalises the sender's
+ * `INTERIM_TransactionList` variant on ingestion and only ever returns the
+ * canonical string). Ledger is the ERP ledger feed — its library is identified
+ * by (ClientCode, ErpCode), NOT (bank, side) (see
+ * src/utils/libraryIdentity.ts). TransactionsList (an end-of-day SNB list) is
+ * intentionally NOT here yet — see WORKSPACES.
  */
-export const DATA_SET_TYPES = ['MT940', 'MT942', 'INTERIM_MT940', 'Ledger'] as const;
+export const DATA_SET_TYPES = ['MT940', 'MT942', 'INTERIM_MT940', 'INTERIM_TransactionsList', 'Ledger'] as const;
 export type DataSetType = (typeof DATA_SET_TYPES)[number];
+
+/**
+ * The provisional intraday workspace types: rows arrive through the day
+ * (IsConfirmed = false), are archived in place when the day's MT940 lands, and
+ * get the intraday-only UI — the "Clone from MT940" suggestions section, the
+ * "Match transaction type" toggle, the recommendation columns on export, and
+ * the amber tint in View Context.
+ */
+export const INTRADAY_DATA_SET_TYPES: ReadonlySet<string> = new Set([
+  'MT942',
+  'INTERIM_MT940',
+  'INTERIM_TransactionsList',
+]);
+
+export function isIntradayDataSetType(dataSetType: string | undefined | null): boolean {
+  return dataSetType != null && INTRADAY_DATA_SET_TYPES.has(dataSetType);
+}
 
 /**
  * Scope used when nothing is checked out (browse / "View all"). The grid
@@ -60,6 +81,7 @@ export const DATA_SET_TYPE_LABELS: Record<DataSetType, string> = {
   MT940: 'MT940',
   MT942: 'MT942',
   INTERIM_MT940: 'Interim MT940',
+  INTERIM_TransactionsList: 'Interim Transactions List',
   Ledger: 'Ledger (ERP)',
 };
 
@@ -80,6 +102,10 @@ export const WORKSPACES: Workspace[] = [
   { id: 'MT940', label: 'MT940', dataSetTypes: ['MT940'] },
   { id: 'MT942', label: 'MT942', dataSetTypes: ['MT942'] },
   { id: 'INTERIM_MT940', label: 'Interim MT940', dataSetTypes: ['INTERIM_MT940'] },
+  // ANB's intraday JSON list (2026-09-08). Its libraries are auto-created on
+  // ingestion per bank/side; there is NO fallback to MT940 rules — rows are
+  // tagged only by their own (bank, side, INTERIM_TransactionsList) library.
+  { id: 'INTERIM_TransactionsList', label: 'Interim Transactions List', dataSetTypes: ['INTERIM_TransactionsList'] },
   { id: 'Ledger', label: 'Ledger (ERP)', dataSetTypes: ['Ledger'] },
 ];
 

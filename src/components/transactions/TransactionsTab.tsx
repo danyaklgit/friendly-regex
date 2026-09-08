@@ -19,7 +19,7 @@ import {
 } from '../../utils/attributeFingerprint';
 import type { FilterProperty } from '../../api/transactions';
 import { getAllTransactionTags, getTransactions, getDefaultSorting, buildSortingProperties, parseSortOverride, type SortOverride } from '../../api/transactions';
-import { dataSetTypeFilter, dataSetTypeScopeValues, DEFAULT_DATA_SET_TYPE, isSameDataSetFamily } from '../../constants/dataSetTypes';
+import { dataSetTypeFilter, dataSetTypeScopeValues, DEFAULT_DATA_SET_TYPE, isIntradayDataSetType, isSameDataSetFamily } from '../../constants/dataSetTypes';
 import { libraryMatchesCheckout, identityKeySuffix, identityScopeFilters, isLedger } from '../../utils/libraryIdentity';
 import { translateFilters } from '../../utils/translateFilters';
 import { findTransactionTypeFilterDef } from '../../utils/transactionTypeFilterDef';
@@ -1966,8 +1966,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       //      declared later in this component; a persisted true must not
       //      narrow anything outside the intraday workspaces). Omitted
       //      elsewhere: those exports never carry the columns.
-      const intraday =
-        activeCheckout?.dataSetType === 'MT942' || activeCheckout?.dataSetType === 'INTERIM_MT940';
+      const intraday = isIntradayDataSetType(activeCheckout?.dataSetType);
       await downloadCenter.triggerExport(
         filtersPayload,
         effectiveSorting,
@@ -2157,8 +2156,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // workspaces; gating the EFFECTIVE flag (not just the control) keeps a
   // persisted `true` from silently narrowing suggestions in any other
   // workspace the operator switches to.
-  const canMatchTxnType =
-    activeCheckout?.dataSetType === 'MT942' || activeCheckout?.dataSetType === 'INTERIM_MT940';
+  const canMatchTxnType = isIntradayDataSetType(activeCheckout?.dataSetType);
   const matchTxnTypeActive = matchTxnType && canMatchTxnType;
 
   const getMt940Suggestions = useMemo(() => {

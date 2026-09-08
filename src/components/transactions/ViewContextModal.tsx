@@ -12,14 +12,15 @@ import { AmountText, LEDGER_AMOUNT_FIELDS } from '../shared/AmountText';
 import type { FilterProperty, TepHeaders } from '../../api/transactions';
 import type { TransactionRow, TagSpecLibrary, AnalyzedTransaction } from '../../types';
 import type { ColumnDef } from './TransactionTable';
-import { DATA_SET_TYPE_LABELS, DEFAULT_DATA_SET_TYPE } from '../../constants/dataSetTypes';
+import { DATA_SET_TYPE_LABELS, DEFAULT_DATA_SET_TYPE, isIntradayDataSetType } from '../../constants/dataSetTypes';
 import { isLedger, LEDGER_DATA_SET_TYPE } from '../../utils/libraryIdentity';
 
 // Order the per-DataSetType context tables: intraday statements (MT942 /
-// INTERIM_MT940) always come BEFORE the end-of-day tables (MT940 and its
-// TransactionsList sibling — prod labels SNB end-of-day rows TransactionsList
-// under the MT940 scope); Ledger and any unrecognized type sort last.
-const CONTEXT_DATASET_ORDER = ['MT942', 'INTERIM_MT940', 'MT940', 'TransactionsList', 'Ledger'];
+// INTERIM_MT940 / INTERIM_TransactionsList) always come BEFORE the end-of-day
+// tables (MT940 and its TransactionsList sibling — prod labels SNB end-of-day
+// rows TransactionsList under the MT940 scope); Ledger and any unrecognized
+// type sort last.
+const CONTEXT_DATASET_ORDER = ['MT942', 'INTERIM_MT940', 'INTERIM_TransactionsList', 'MT940', 'TransactionsList', 'Ledger'];
 function dataSetRank(t: string): number {
   const i = CONTEXT_DATASET_ORDER.indexOf(t);
   return i === -1 ? CONTEXT_DATASET_ORDER.length : i;
@@ -461,7 +462,7 @@ export function ViewContextModal({ open, onClose, transaction, authToken, tepHea
           {groupedRows.map(([dst, items]) => {
             // Amber = provisional intraday. Ledger is not provisional, so it
             // gets the neutral treatment (its own group, no tint).
-            const isIntraday = dst === 'MT942' || dst === 'INTERIM_MT940';
+            const isIntraday = isIntradayDataSetType(dst);
             return (
             <section key={dst}>
               {/* DataSetType group header — intraday statements (MT942 /

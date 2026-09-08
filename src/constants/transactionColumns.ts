@@ -210,6 +210,17 @@ const INTERIM_MT940_SPEC: DataSetColumnSpec = {
   neverShow: new Set(LEDGER_ONLY_KEYS),
 };
 
+// INTERIM_TransactionsList (intraday, ANB JSON list — 2026-09-08): unlike
+// MT942 its RunningBalance IS populated (the bank's own figure, stored as
+// sent), so it stays visible by default — the spec matches MT940's. The text
+// columns are filled from the payload's additionalInformation bag, values
+// joined by the literal ` [_TEP_] ` separator (rule authors anchor on it).
+const INTERIM_TRANSACTIONS_LIST_SPEC: DataSetColumnSpec = {
+  defaultOrder: MT940_ORDER,
+  defaultVisible: MT940_VISIBLE,
+  neverShow: new Set(LEDGER_ONLY_KEYS),
+};
+
 const LEDGER_SPEC: DataSetColumnSpec = {
   defaultOrder: LEDGER_ORDER,
   defaultVisible: LEDGER_VISIBLE,
@@ -244,6 +255,7 @@ const SPECS: Record<string, DataSetColumnSpec> = {
   MT940: MT940_SPEC,
   MT942: MT942_SPEC,
   INTERIM_MT940: INTERIM_MT940_SPEC,
+  INTERIM_TransactionsList: INTERIM_TRANSACTIONS_LIST_SPEC,
   Ledger: LEDGER_SPEC,
 };
 

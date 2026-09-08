@@ -37,7 +37,7 @@ describe('getColumnSpec', () => {
   });
 
   it('ends every statement default view with StatementId then Comment', () => {
-    for (const type of ['MT940', 'MT942', 'INTERIM_MT940'] as const) {
+    for (const type of ['MT940', 'MT942', 'INTERIM_MT940', 'INTERIM_TransactionsList'] as const) {
       const spec = getColumnSpec(type);
       const visibleInOrder = spec.defaultOrder.filter((k) => spec.defaultVisible.has(k));
       expect(visibleInOrder.slice(-2)).toEqual(['data:StatementId', 'data:Comment']);
@@ -93,6 +93,14 @@ describe('getColumnSpec', () => {
 
     expect(getColumnSpec('MT940').defaultVisible.has('data:RunningBalance')).toBe(true);
 
+    // INTERIM_TransactionsList (2026-09-08): unlike the other intraday types
+    // its RunningBalance IS populated (the bank's own figure) — visible by
+    // default, like MT940.
+    const interimList = getColumnSpec('INTERIM_TransactionsList');
+    expect(interimList.neverShow.has('data:RunningBalance')).toBe(false);
+    expect(interimList.defaultOrder).toContain('data:RunningBalance');
+    expect(interimList.defaultVisible.has('data:RunningBalance')).toBe(true);
+
     // Ledger model V2: RunningBalance is no longer populated on Ledger rows.
     const ledger = getColumnSpec('Ledger');
     expect(ledger.neverShow.has('data:RunningBalance')).toBe(true);
@@ -100,7 +108,7 @@ describe('getColumnSpec', () => {
   });
 
   it('never offers Ledger-only fields on MT940/intraday types', () => {
-    for (const type of ['MT940', 'MT942', 'INTERIM_MT940'] as const) {
+    for (const type of ['MT940', 'MT942', 'INTERIM_MT940', 'INTERIM_TransactionsList'] as const) {
       const spec = getColumnSpec(type);
       for (const field of ['ClientCode', 'CounterPartyName', 'OffsetAccountNumber', 'AmountFcy', 'IsStale', 'TransactionId', 'PostingDate', 'Narrative', 'TransactionRef', 'SourceRef', 'AccountBankCode', 'FXRate', 'VATCode']) {
         expect(spec.neverShow.has(`data:${field}`), `${type}: ${field}`).toBe(true);
@@ -175,7 +183,7 @@ describe('getColumnSpec', () => {
     const ledger = getColumnSpec('Ledger');
     expect(ledger.defaultVisible.has('data:Side')).toBe(true);
     expect(ledger.defaultOrder).toContain('data:Side');
-    for (const type of ['MT940', 'MT942', 'INTERIM_MT940'] as const) {
+    for (const type of ['MT940', 'MT942', 'INTERIM_MT940', 'INTERIM_TransactionsList'] as const) {
       const spec = getColumnSpec(type);
       expect(spec.defaultOrder).toContain('data:Side');
       expect(spec.defaultVisible.has('data:Side'), type).toBe(false);

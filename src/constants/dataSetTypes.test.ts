@@ -7,14 +7,17 @@ import {
   ALL_LIBRARY_DATA_SET_TYPES,
   dataSetTypeFilter,
   dataSetTypeScopeValues,
+  isIntradayDataSetType,
   isSameDataSetFamily,
 } from './dataSetTypes';
 
 describe('dataSetTypes', () => {
   it('uses the exact case-sensitive wire literals', () => {
     // The backend rejects anything else — guard against accidental
-    // reformatting (e.g. "Interim_MT940" or "INTERM_MT940").
-    expect(DATA_SET_TYPES).toEqual(['MT940', 'MT942', 'INTERIM_MT940', 'Ledger']);
+    // reformatting (e.g. "Interim_MT940" or "INTERM_MT940"; the canonical
+    // INTERIM_TransactionsList keeps the plural `s` — the sender's singular
+    // variant is normalised server-side and never returned).
+    expect(DATA_SET_TYPES).toEqual(['MT940', 'MT942', 'INTERIM_MT940', 'INTERIM_TransactionsList', 'Ledger']);
     expect(DEFAULT_DATA_SET_TYPE).toBe('MT940');
   });
 
@@ -23,7 +26,19 @@ describe('dataSetTypes', () => {
       expect(DATA_SET_TYPE_LABELS[t]).toBeTruthy();
     }
     expect(DATA_SET_TYPE_LABELS.INTERIM_MT940).toBe('Interim MT940');
+    expect(DATA_SET_TYPE_LABELS.INTERIM_TransactionsList).toBe('Interim Transactions List');
     expect(DATA_SET_TYPE_LABELS.Ledger).toBe('Ledger (ERP)');
+  });
+
+  it('marks exactly the provisional intraday types', () => {
+    expect(isIntradayDataSetType('MT942')).toBe(true);
+    expect(isIntradayDataSetType('INTERIM_MT940')).toBe(true);
+    expect(isIntradayDataSetType('INTERIM_TransactionsList')).toBe(true);
+    expect(isIntradayDataSetType('MT940')).toBe(false);
+    expect(isIntradayDataSetType('TransactionsList')).toBe(false);
+    expect(isIntradayDataSetType('Ledger')).toBe(false);
+    expect(isIntradayDataSetType(undefined)).toBe(false);
+    expect(isIntradayDataSetType(null)).toBe(false);
   });
 
   it('derives the library fetch list from the workspaces', () => {
@@ -31,6 +46,7 @@ describe('dataSetTypes', () => {
     expect(ALL_LIBRARY_DATA_SET_TYPES).toContain('MT940');
     expect(ALL_LIBRARY_DATA_SET_TYPES).toContain('MT942');
     expect(ALL_LIBRARY_DATA_SET_TYPES).toContain('INTERIM_MT940');
+    expect(ALL_LIBRARY_DATA_SET_TYPES).toContain('INTERIM_TransactionsList');
     expect(ALL_LIBRARY_DATA_SET_TYPES).toContain('Ledger');
   });
 
@@ -77,6 +93,7 @@ describe('dataSetTypes', () => {
     it('maps every other type to just itself', () => {
       expect(dataSetTypeScopeValues('MT942')).toEqual(['MT942']);
       expect(dataSetTypeScopeValues('INTERIM_MT940')).toEqual(['INTERIM_MT940']);
+      expect(dataSetTypeScopeValues('INTERIM_TransactionsList')).toEqual(['INTERIM_TransactionsList']);
       expect(dataSetTypeScopeValues('Ledger')).toEqual(['Ledger']);
     });
   });
