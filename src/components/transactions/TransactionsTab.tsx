@@ -494,6 +494,13 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const [matchTxnType, setMatchTxnType] = useState(() => {
     try { return settingsStore.getItem('tep:matchTxnType') === 'true'; } catch { return false; }
   });
+  // "Recommendations in export" (2026-09-08): whether an intraday CSV export
+  // carries the MT940Recommendation* columns. Default ON — that is what every
+  // export did before the operator could choose. Per-device like the other
+  // toggles.
+  const [exportMt940Recos, setExportMt940Recos] = useState(() => {
+    try { return settingsStore.getItem('tep:exportMt940Recos') !== 'false'; } catch { return true; }
+  });
   // Curated View (Smart Sampling Engine, 2026-09-03): the grid shows only the
   // backend-built curated sample — one representative per group of look-alike
   // transactions plus reference examples. Per-user like the other toggles.
@@ -877,6 +884,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   useEffect(() => { setAnchorColumn(ledgerAnchor); }, [ledgerAnchor, setAnchorColumn]);
   useEffect(() => { try { settingsStore.setItem('tep:charView', String(charViewEnabled)); } catch { /* ignore */ } }, [charViewEnabled]);
   useEffect(() => { try { settingsStore.setItem('tep:matchTxnType', String(matchTxnType)); } catch { /* ignore */ } }, [matchTxnType]);
+  useEffect(() => { try { settingsStore.setItem('tep:exportMt940Recos', String(exportMt940Recos)); } catch { /* ignore */ } }, [exportMt940Recos]);
   useEffect(() => { try { settingsStore.setItem('tep:curatedView', String(curatedView)); } catch { /* ignore */ } }, [curatedView]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -1892,7 +1900,22 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
           { ColumnName: 'OpsMultiTags.TagSpecDefinitionId', Value: hiddenValue, Operand: 'NI' },
         );
       }
-      await downloadCenter.triggerExport(filtersPayload, effectiveSorting);
+      //   4. Intraday workspaces only (2026-09-08): the operator's
+      //      "Recommendations in export" choice + the EFFECTIVE
+      //      "Match transaction type" state (toggle AND intraday, matching
+      //      `matchTxnTypeActive` — computed locally because that const is
+      //      declared later in this component; a persisted true must not
+      //      narrow anything outside the intraday workspaces). Omitted
+      //      elsewhere: those exports never carry the columns.
+      const intraday =
+        activeCheckout?.dataSetType === 'MT942' || activeCheckout?.dataSetType === 'INTERIM_MT940';
+      await downloadCenter.triggerExport(
+        filtersPayload,
+        effectiveSorting,
+        intraday
+          ? { includeMT940Recommendations: exportMt940Recos, matchTransactionType: matchTxnType }
+          : undefined,
+      );
       setToast({
         message: 'Export queued — check the Download Center when ready.',
         type: 'success',
@@ -1907,7 +1930,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       // the same breath. The button label says "Queueing…" during the lockout.
       setTimeout(() => setExporting(false), 1500);
     }
-  }, [downloadCenter, outgoingFilters, filterDefinitions, activeExtraFilters, effectiveSorting, hiddenDefIds]);
+  }, [downloadCenter, outgoingFilters, filterDefinitions, activeExtraFilters, effectiveSorting, hiddenDefIds, activeCheckout?.dataSetType, exportMt940Recos, matchTxnType]);
 
   // Drafts queued from inside the wizard. Held here so the save handler can
   // flush after `tagSpecLibrarySave` resolves; the same value is passed down
@@ -3796,6 +3819,33 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                   <path d="M3 5h18l-7 8v5l-4 2v-7L3 5z" />
                 </svg>
                 <span className="hidden lg:inline">Match transaction type</span>
+              </button>
+            )}
+            {/* "Recommendations in export" (2026-09-08): whether the CSV export
+                of this intraday workspace carries the MT940Recommendation*
+                columns. A persisted toolbar toggle rather than a dialog on
+                Export — the Export button queues immediately and operators
+                export repeatedly with the same intent. Same visibility rule
+                as "Match transaction type"; in read-only the persisted choice
+                is still sent (recommendations are read-only information). */}
+            {canMatchTxnType && !isReadOnly && (
+              <button
+                type="button"
+                onClick={() => setExportMt940Recos((v) => !v)}
+                title="Add the matching MT940 rules to the CSV export: how many, each tag, and the rule in words and as stored."
+                aria-pressed={exportMt940Recos}
+                className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-colors whitespace-nowrap ${
+                  exportMt940Recos
+                    ? 'bg-primary/10 border-primary/30 text-primary-dark dark:text-primary shadow-sm'
+                    : 'bg-surface border-border-strong text-body hover:bg-surface-hover'
+                }`}
+              >
+                <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M14 3v4a1 1 0 001 1h4" />
+                  <path d="M17 21H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z" />
+                  <path d="M12 11v6m0 0l-2.5-2.5M12 17l2.5-2.5" />
+                </svg>
+                <span className="hidden lg:inline">Recommendations in export</span>
               </button>
             )}
             {/* Character view: compact button next to Columns (a sibling

@@ -26,4 +26,14 @@ export interface DownloadCenterFile {
 export interface ExportMT940Request {
   FilteringProperties?: FilterProperty[];
   SortingProperties?: SortProperty[];
+  /** Intraday (MT942 / Interim MT940) exports only (2026-09-08): whether the
+   *  CSV carries the MT940Recommendation* columns. Backend default when
+   *  omitted: true (what every export did before the operator could choose).
+   *  Ignored when the export holds no intraday row. */
+  IncludeMT940Recommendations?: boolean;
+  /** The "Match transaction type" toggle's state, so the file's
+   *  recommendations are the ones on screen: true = only MT940 rules whose
+   *  own Transaction Type Code equals the row's (rules with no code hidden).
+   *  Backend default when omitted: true. */
+  MatchTransactionType?: boolean;
 }

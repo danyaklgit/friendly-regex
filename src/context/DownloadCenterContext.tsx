@@ -47,6 +47,10 @@ export interface DownloadCenterApi {
   triggerExport: (
     filters: FilterProperty[],
     sortingProps: SortProperty[],
+    /** Intraday-only extras (2026-09-08): recommendation columns on/off +
+     *  the "Match transaction type" toggle state. Omit outside MT942 /
+     *  Interim MT940 — the backend ignores them there anyway. */
+    options?: { includeMT940Recommendations?: boolean; matchTransactionType?: boolean },
   ) => Promise<string>;
   /** Central export (ExportConfiguration) — same Download Center lifecycle. */
   triggerConfigurationExport: (req: ExportConfigurationRequest) => Promise<string>;
@@ -180,7 +184,11 @@ export function DownloadCenterProvider({ children }: DownloadCenterProviderProps
   }, []);
 
   const triggerExport = useCallback(
-    async (filters: FilterProperty[], sortingProps: SortProperty[]): Promise<string> => {
+    async (
+      filters: FilterProperty[],
+      sortingProps: SortProperty[],
+      options?: { includeMT940Recommendations?: boolean; matchTransactionType?: boolean },
+    ): Promise<string> => {
       if (!tepHeaders) throw new Error('Not authenticated');
       const token = await getToken();
       if (!token) throw new Error('Not authenticated');
@@ -188,6 +196,12 @@ export function DownloadCenterProvider({ children }: DownloadCenterProviderProps
         {
           FilteringProperties: filters,
           SortingProperties: sortingProps,
+          ...(options?.includeMT940Recommendations != null
+            ? { IncludeMT940Recommendations: options.includeMT940Recommendations }
+            : {}),
+          ...(options?.matchTransactionType != null
+            ? { MatchTransactionType: options.matchTransactionType }
+            : {}),
         },
         token,
         tepHeaders,
