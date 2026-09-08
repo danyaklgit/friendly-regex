@@ -119,6 +119,34 @@ describe('useMatchingTagIds', () => {
     });
   });
 
+  // Regression (2026-09-08): the preview was answered from the MT940 scope in
+  // intraday workspaces because the call carried no DataSetType filter — the
+  // rule builder's "Tags matching the specified ruleset" listed MT940 tags in
+  // an MT942 / Interim MT940 checkout.
+  it('scopes the call by the form DataSetType (exact for intraday types)', async () => {
+    mockedGetAllTransactionTags.mockResolvedValue([]);
+    renderHook(() => useMatchingTagIds(makeFormState({ dataSetType: 'MT942' }), true));
+    await act(async () => { await vi.advanceTimersByTimeAsync(1300); });
+    const [request] = mockedGetAllTransactionTags.mock.calls[0];
+    expect(request.FilteringProperties[0]).toEqual({
+      ColumnName: 'DataSetType',
+      Value: 'MT942',
+      Operand: 'IN',
+    });
+  });
+
+  it('sends the whole MT940 family for an MT940 workspace', async () => {
+    mockedGetAllTransactionTags.mockResolvedValue([]);
+    renderHook(() => useMatchingTagIds(makeFormState({ dataSetType: 'MT940' }), true));
+    await act(async () => { await vi.advanceTimersByTimeAsync(1300); });
+    const [request] = mockedGetAllTransactionTags.mock.calls[0];
+    expect(request.FilteringProperties[0]).toEqual({
+      ColumnName: 'DataSetType',
+      Value: 'MT940|TransactionsList',
+      Operand: 'IN',
+    });
+  });
+
   it('stores the response IDs after a successful call', async () => {
     mockedGetAllTransactionTags.mockResolvedValue(['def-1', 'def-2']);
 

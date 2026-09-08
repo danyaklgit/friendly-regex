@@ -5,6 +5,7 @@ import { getAllTransactionTags } from '../api/transactions';
 import { buildRulesetFilters } from '../utils/buildRulesetFilters';
 import { isFilledCondition } from '../utils/ruleFingerprint';
 import { hasCompleteIdentity } from '../utils/libraryIdentity';
+import { DEFAULT_DATA_SET_TYPE, dataSetTypeFilter, dataSetTypeScopeValues } from '../constants/dataSetTypes';
 import { useAuth } from '../context/AuthContext';
 import { useTepConfig } from '../context/TepConfigContext';
 import { useTransactionData } from './useTransactionData';
@@ -72,7 +73,16 @@ export function useMatchingTagIds(
   });
   const payload: FilterProperty[] | null =
     enabled && isLiveMode && identityComplete && hasNarrowingCriteria
-      ? buildRulesetFilters(formState)
+      ? [
+          // Scope by the workspace's DataSetType (2026-09-08) — without it
+          // GetAllTransactionTags answered from the MT940 scope, so intraday
+          // (MT942 / Interim MT940) builders previewed MT940 tags under
+          // "Tags matching the specified ruleset". Family semantics like the
+          // Detected Tag Specs call: MT940 also catches TransactionsList,
+          // every other type sends exactly itself.
+          dataSetTypeFilter(dataSetTypeScopeValues(formState.dataSetType || DEFAULT_DATA_SET_TYPE)),
+          ...buildRulesetFilters(formState),
+        ]
       : null;
   const payloadKey = payload ? JSON.stringify(payload) : null;
 
