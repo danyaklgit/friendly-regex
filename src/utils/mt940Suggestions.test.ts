@@ -127,3 +127,55 @@ describe('matchingMt940Defs — matchTransactionType', () => {
     expect(matchingMt940Defs([sameType, otherType, noType], untypedRow, TODAY, true)).toEqual([]);
   });
 });
+
+// Regression (2026-09-08): intraday rows were missing recommendations for
+// rules that combine a positive narrative condition with a NEGATIVE guard —
+// e.g. D2 pattern ^SA\d{2}45\d{18}$ AND AI does-not-contain 'ACC TO ACC'
+// (type 101). Two causes: (a) a null/absent field failed EVERY condition,
+// including negations that an empty field plainly satisfies; (b) the
+// `^(?!…).*$` negation shape could never match a multi-line narrative
+// (`.` stopped at the first newline).
+describe('matchingMt940Defs — negative conditions on absent / multi-line fields', () => {
+  const ibanIntraDef = def('iban', 'IntraBankTransfer', {
+    Context: [{ Key: 'TransactionTypeCode', Value: '101' }],
+    TagRuleExpressions: [[
+      { SourceField: 'Description2', ExpressionPrompt: null, ExpressionId: null, Regex: regexify('match_regex', '^SA\\d{2}45\\d{18}$'), RegexDetails: [] },
+      { SourceField: 'AdditionalInformation', ExpressionPrompt: null, ExpressionId: null, Regex: regexify('does_not_contain', 'ACC TO ACC'), RegexDetails: [] },
+    ]],
+  });
+  const D2 = 'SA1245000000000000000001'; // SA + 2 digits + 45 + 18 digits
+
+  it('matches when the negated field is null / missing (nothing cannot contain the phrase)', () => {
+    const nullAi: TransactionRow = { Description2: D2, AdditionalInformation: null, TransactionTypeCode: '101' };
+    const missingAi: TransactionRow = { Description2: D2, TransactionTypeCode: '101' };
+    expect(matchingMt940Defs([ibanIntraDef], nullAi, TODAY).map((d) => d.Id)).toEqual(['iban']);
+    expect(matchingMt940Defs([ibanIntraDef], missingAi, TODAY).map((d) => d.Id)).toEqual(['iban']);
+  });
+
+  it('matches a multi-line narrative that does not carry the phrase', () => {
+    const multiLine: TransactionRow = {
+      Description2: D2,
+      AdditionalInformation: 'TRANSFER ORDER\nVALUE DATE 2026-08-01',
+      TransactionTypeCode: '101',
+    };
+    expect(matchingMt940Defs([ibanIntraDef], multiLine, TODAY).map((d) => d.Id)).toEqual(['iban']);
+  });
+
+  it('still refuses rows that DO carry the phrase — on any line', () => {
+    const firstLine: TransactionRow = { Description2: D2, AdditionalInformation: 'ACC TO ACC TRANSFER', TransactionTypeCode: '101' };
+    const laterLine: TransactionRow = { Description2: D2, AdditionalInformation: 'TRANSFER ORDER\nACC TO ACC', TransactionTypeCode: '101' };
+    expect(matchingMt940Defs([ibanIntraDef], firstLine, TODAY)).toEqual([]);
+    expect(matchingMt940Defs([ibanIntraDef], laterLine, TODAY)).toEqual([]);
+  });
+
+  it('a null field still fails POSITIVE and numeric conditions', () => {
+    const positive = def('p', 'T', {
+      TagRuleExpressions: [[{ SourceField: 'AdditionalInformation', ExpressionPrompt: null, ExpressionId: null, Regex: regexify('contains', 'SARIE'), RegexDetails: [] }]],
+    });
+    const numeric = def('n', 'T', {
+      TagRuleExpressions: [[{ SourceField: 'Amount', ExpressionPrompt: null, ExpressionId: null, Regex: regexify('greater_than', '100'), RegexDetails: [] }]],
+    });
+    const bareRow: TransactionRow = { Description2: D2 };
+    expect(matchingMt940Defs([positive, numeric], bareRow, TODAY)).toEqual([]);
+  });
+});

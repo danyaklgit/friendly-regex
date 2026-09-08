@@ -205,4 +205,40 @@ describe('evaluateRuleSet', () => {
       expect(evaluateRuleSet([makeCondition('Amount', '__NUMERIC_GT:2000')], row)).toBe(false);
     });
   });
+
+  // Recommendation-matcher relaxations (2026-09-08). OPT-IN ONLY — the
+  // defaults stay strict for parity with the legacy tagger.
+  describe('options: nullFieldsAsBlank + dotAllNegations', () => {
+    const notContains = makeCondition('AdditionalInformation', '^(?!.*ACC TO ACC).*$');
+    const opts = { nullFieldsAsBlank: true, dotAllNegations: true };
+
+    it('by default a null field fails even a negative condition', () => {
+      expect(evaluateRuleSet([notContains], { AdditionalInformation: null })).toBe(false);
+    });
+
+    it('nullFieldsAsBlank lets a negation pass on a null field, but positives and comparisons still fail', () => {
+      const row: TransactionRow = { AdditionalInformation: null, Amount: null };
+      expect(evaluateRuleSet([notContains], row, opts)).toBe(true);
+      expect(evaluateRuleSet([makeCondition('AdditionalInformation', 'SARIE')], row, opts)).toBe(false);
+      expect(evaluateRuleSet([makeCondition('Amount', '__NUMERIC_GT:100')], row, opts)).toBe(false);
+      expect(evaluateRuleSet([makeCondition('StatementDate', '__NUMERIC_LT:2024-06-01')], row, opts)).toBe(false);
+    });
+
+    it('dotAllNegations scans a multi-line value in full', () => {
+      const clean: TransactionRow = { AdditionalInformation: 'TRANSFER ORDER\nVALUE DATE 2026-08-01' };
+      const dirty: TransactionRow = { AdditionalInformation: 'TRANSFER ORDER\nACC TO ACC' };
+      // Without the option the shape can never match a multi-line value…
+      expect(evaluateRuleSet([notContains], clean)).toBe(false);
+      // …with it, the whole value is scanned: clean matches, dirty doesn't.
+      expect(evaluateRuleSet([notContains], clean, opts)).toBe(true);
+      expect(evaluateRuleSet([notContains], dirty, opts)).toBe(false);
+    });
+
+    it('dot-all never leaks into user match_regex patterns', () => {
+      // `.` in a user pattern keeps standard semantics (no `^(?!` prefix).
+      const userPattern = makeCondition('Description2', '^A.B$');
+      expect(evaluateRuleSet([userPattern], { Description2: 'A\nB' }, opts)).toBe(false);
+      expect(evaluateRuleSet([userPattern], { Description2: 'AXB' }, opts)).toBe(true);
+    });
+  });
 });

@@ -60,7 +60,14 @@ export function matchingMt940Defs(
       // once type is ignored, so the rule applies. Otherwise match on the
       // remaining conditions.
       if (nonTypeConditions.length === 0) return true;
-      return evaluateRuleSet(nonTypeConditions, row);
+      // Recommendation semantics (2026-09-08, mirrored by the backend's CSV
+      // export port — keep in sync): a null field counts as blank so NEGATIVE
+      // conditions ("AI does not contain …") pass on rows where the field is
+      // simply absent, and the `^(?!…).*$` negation shapes scan multi-line
+      // narratives in full. Without both, rules like
+      //   D2 matches ^SA\d{2}45\d{18}$  AND  AI does not contain 'ACC TO ACC'
+      // never surfaced on intraday rows whose AI is empty or multi-line.
+      return evaluateRuleSet(nonTypeConditions, row, { nullFieldsAsBlank: true, dotAllNegations: true });
     });
     if (matches) out.push(def);
   }
