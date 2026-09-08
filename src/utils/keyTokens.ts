@@ -41,6 +41,9 @@ const BUILTIN_PHRASES: Record<string, string> = {
   STRING: 'any text',
   // Curation Studio (2026-09-08): fixed-width shape; carries Length.
   CHAR: 'characters',
+  // Curation Studio editing delta (2026-09-08): what a removal in the MIDDLE
+  // of a key leaves behind — "REFERENCE, then whatever, then FM".
+  ANY: 'anything',
 };
 
 export function isBuiltinPlaceholder(text: string): boolean {
@@ -119,6 +122,7 @@ export function tokenChipClass(token: KeyToken): string {
       return 'border-sky-300 bg-sky-50 text-sky-800 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800';
     case 'STRING':
     case 'CHAR':
+    case 'ANY':
       return 'border-blue-300 bg-blue-50 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800';
     default:
       return 'border-border bg-surface-secondary text-body-secondary';

@@ -410,11 +410,19 @@ export async function deleteKeyEdit(
 
 export interface CurationSpan {
   /** Character offset into the field's Text. Spans cover the text completely
-   *  and in order — render them, never re-tokenise the string. */
+   *  and in order — render them, never re-tokenise the string. Inserted
+   *  spans sit between them with Start -1 / Length 0. */
   Start: number;
   Length: number;
   Text: string;
   Token: KeyToken;
+  /** Editing delta (2026-09-08): false = source text that is NOT part of the
+   *  key — shown struck through, contributes nothing. Default true. */
+  InKey?: boolean;
+  /** Editing delta (2026-09-08): true = a key token that is nowhere in the
+   *  source text (typed words, an added pill); Start -1, Length 0, Text is
+   *  the typed words (empty for a pill). Default false. */
+  Inserted?: boolean;
 }
 
 export interface CurationFieldInfo {

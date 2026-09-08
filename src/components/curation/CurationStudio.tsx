@@ -24,13 +24,20 @@ import {
   tokensPinSomething,
 } from '../../utils/keyTokens';
 import {
+  excludeRange,
+  includeSegmentAt,
+  insertSegmentAt,
   normalizeSelection,
-  removePillAt,
+  removeSegmentFromKey,
   replacePillAt,
   replaceRangeWithPill,
+  restorePillToWords,
   segmentsFromSpans,
   segmentsFromText,
+  segmentsHavePills,
   segmentsToTokens,
+  setInsertedGlued,
+  splitSourceSegmentAt,
   type CurationSegment,
   type SegmentPill,
 } from '../../utils/curationSegments';
@@ -69,8 +76,17 @@ const POPOVER_WIDTH = 340;
 const MATCHES_PAGE_SIZE = 10;
 
 type PillMenuState =
-  | { kind: 'selection'; field: KeyTokenField; segIndex: number; start: number; end: number; text: string; left: number; top: number }
-  | { kind: 'pill'; field: KeyTokenField; segIndex: number; text: string; left: number; top: number };
+  /** Selected words inside one source segment — kept (This part is… /
+   *  Remove / Insert) or excluded (Include / This part is…). */
+  | { kind: 'selection'; field: KeyTokenField; segIndex: number; start: number; end: number; text: string; excluded: boolean; left: number; top: number }
+  /** A clicked pill — change, back to words, remove, insert around it;
+   *  inserted pills get the glue toggle + delete instead of restore. */
+  | { kind: 'pill'; field: KeyTokenField; segIndex: number; text: string; inserted: boolean; glued: boolean; left: number; top: number }
+  /** Clicked typed words (an inserted segment): glue toggle + delete. */
+  | { kind: 'insertedWords'; field: KeyTokenField; segIndex: number; text: string; glued: boolean; left: number; top: number }
+  /** The insert menu: type words or pick a pill. `offset` non-null = split
+   *  the source segment there first (insert relative to a selection). */
+  | { kind: 'insert'; field: KeyTokenField; at: { index: number; offset: number | null }; left: number; top: number };
 
 function modesOf(
   selected: Set<KeyTokenField>,
@@ -241,6 +257,7 @@ export function CurationStudio({ source, canEdit, userId, getTepAuth, onClose, o
     setMenu(null);
     setPillSearch('');
     setDetected(null);
+    setInsertText('');
   }, []);
 
   useEffect(() => {
@@ -293,6 +310,20 @@ export function CurationStudio({ source, canEdit, userId, getTepAuth, onClose, o
     };
   }, []);
 
+  // One updater for every segment operation: applies the op, keeps the map
+  // identity stable when the op refuses, and implicitly selects the field
+  // into the key (shaping a field means keying on it).
+  const updateSegments = useCallback((field: KeyTokenField, op: (segs: CurationSegment[]) => CurationSegment[] | null) => {
+    setSegmentsByField((prev) => {
+      const next = op(prev.get(field) ?? []);
+      if (!next) return prev;
+      const out = new Map(prev);
+      out.set(field, next);
+      return out;
+    });
+    setSelected((prev) => (prev.has(field) ? prev : new Set(prev).add(field)));
+  }, []);
+
   const handleFieldMouseUp = useCallback((field: KeyTokenField) => {
     if (!canEdit) return;
     const sel = window.getSelection();
@@ -309,7 +340,16 @@ export function CurationStudio({ source, canEdit, userId, getTepAuth, onClose, o
     if (!pos) return;
     setDetected(null);
     setPillSearch('');
-    setMenu({ kind: 'selection', field, segIndex: norm.index, start: norm.start, end: norm.end, text: norm.text, ...pos });
+    setMenu({
+      kind: 'selection',
+      field,
+      segIndex: norm.index,
+      start: norm.start,
+      end: norm.end,
+      text: norm.text,
+      excluded: !(segs[norm.index]?.inKey ?? true),
+      ...pos,
+    });
   }, [canEdit, segmentsByField, anchorMenuAt]);
 
   const handlePillClick = useCallback((field: KeyTokenField, segIndex: number, el: HTMLElement) => {
@@ -323,41 +363,123 @@ export function CurationStudio({ source, canEdit, userId, getTepAuth, onClose, o
     setMenu((prev) =>
       prev?.kind === 'pill' && prev.field === field && prev.segIndex === segIndex
         ? null // toggle
-        : { kind: 'pill', field, segIndex, text: seg.text, ...pos },
+        : { kind: 'pill', field, segIndex, text: seg.text, inserted: seg.inserted, glued: seg.glued, ...pos },
     );
   }, [canEdit, segmentsByField, anchorMenuAt]);
 
+  // Clicked struck-through text: the whole excluded run becomes the target
+  // (Include in the key / This part is…). A real selection inside it went
+  // through handleFieldMouseUp already — skip when one is active.
+  const handleExcludedClick = useCallback((field: KeyTokenField, segIndex: number, el: HTMLElement) => {
+    if (!canEdit) return;
+    if (window.getSelection()?.isCollapsed === false) return;
+    const segs = segmentsByField.get(field) ?? [];
+    const norm = normalizeSelection(segs, segIndex, 0, segIndex, segs[segIndex]?.text.length ?? 0);
+    if (!norm) return;
+    const pos = anchorMenuAt(el.getBoundingClientRect());
+    if (!pos) return;
+    setDetected(null);
+    setPillSearch('');
+    setMenu({ kind: 'selection', field, segIndex: norm.index, start: norm.start, end: norm.end, text: norm.text, excluded: true, ...pos });
+  }, [canEdit, segmentsByField, anchorMenuAt]);
+
+  // Clicked typed words: glue toggle + delete.
+  const handleInsertedWordsClick = useCallback((field: KeyTokenField, segIndex: number, el: HTMLElement) => {
+    if (!canEdit) return;
+    const seg = (segmentsByField.get(field) ?? [])[segIndex];
+    if (!seg?.inserted || seg.token) return;
+    const pos = anchorMenuAt(el.getBoundingClientRect());
+    if (!pos) return;
+    setMenu({ kind: 'insertedWords', field, segIndex, text: seg.text, glued: seg.glued, ...pos });
+  }, [canEdit, segmentsByField, anchorMenuAt]);
+
+  // Insert at an array boundary (`offset` null) or relative to a selection
+  // (`offset` = where to split the source segment first).
+  const resolveInsert = useCallback((segs: CurationSegment[], at: { index: number; offset: number | null }, seed: { text: string } | { token: SegmentPill }): CurationSegment[] | null => {
+    if (at.offset == null) return insertSegmentAt(segs, at.index, seed);
+    const split = splitSourceSegmentAt(segs, at.index, at.offset);
+    if (!split) return null;
+    return insertSegmentAt(split.segments, split.index, seed);
+  }, []);
+
   const applyPill = useCallback((pill: CurationPill) => {
-    if (!menu) return;
+    if (!menu || menu.kind === 'insertedWords') return;
     const sp: SegmentPill = { Kind: pill.Kind, Text: pill.Text, Item: pill.Item ?? null, Length: pill.Length ?? null };
-    setSegmentsByField((prev) => {
-      const segs = prev.get(menu.field) ?? [];
-      const next =
-        menu.kind === 'selection'
-          ? replaceRangeWithPill(segs, menu.segIndex, menu.start, menu.end, sp)
-          : replacePillAt(segs, menu.segIndex, sp);
-      if (!next) return prev;
-      const out = new Map(prev);
-      out.set(menu.field, next);
-      return out;
+    updateSegments(menu.field, (segs) => {
+      if (menu.kind === 'selection') return replaceRangeWithPill(segs, menu.segIndex, menu.start, menu.end, sp);
+      if (menu.kind === 'pill') return replacePillAt(segs, menu.segIndex, sp);
+      return resolveInsert(segs, menu.at, { token: sp });
     });
-    // Marking part of a field implicitly selects it into the key.
-    setSelected((prev) => (prev.has(menu.field) ? prev : new Set(prev).add(menu.field)));
     closeMenu();
     window.getSelection()?.removeAllRanges();
-  }, [menu, closeMenu]);
+  }, [menu, updateSegments, resolveInsert, closeMenu]);
 
-  const restorePillText = useCallback(() => {
-    if (!menu || menu.kind !== 'pill') return;
-    setSegmentsByField((prev) => {
-      const next = removePillAt(prev.get(menu.field) ?? [], menu.segIndex);
-      if (!next) return prev;
-      const out = new Map(prev);
-      out.set(menu.field, next);
-      return out;
-    });
+  /** "Back to the exact words" — a source-backed pill returns to kept text. */
+  const handleBackToWords = useCallback(() => {
+    if (!menu || menu.kind !== 'pill' || menu.inserted) return;
+    updateSegments(menu.field, (segs) => restorePillToWords(segs, menu.segIndex));
     closeMenu();
-  }, [menu, closeMenu]);
+  }, [menu, updateSegments, closeMenu]);
+
+  /** "Remove from the key" on a whole segment (pill or typed words). Also the
+   *  Backspace/Delete action on a focused pill. */
+  const removeSegment = useCallback((field: KeyTokenField, segIndex: number) => {
+    updateSegments(field, (segs) => removeSegmentFromKey(segs, segIndex));
+    closeMenu();
+  }, [updateSegments, closeMenu]);
+
+  /** "Remove from the key" on selected kept words — they become excluded. */
+  const handleRemoveSelection = useCallback(() => {
+    if (!menu || menu.kind !== 'selection' || menu.excluded) return;
+    updateSegments(menu.field, (segs) => excludeRange(segs, menu.segIndex, menu.start, menu.end));
+    closeMenu();
+    window.getSelection()?.removeAllRanges();
+  }, [menu, updateSegments, closeMenu]);
+
+  /** "Include in the key" — the whole excluded run returns to kept words. */
+  const handleIncludeExcluded = useCallback(() => {
+    if (!menu || menu.kind !== 'selection' || !menu.excluded) return;
+    updateSegments(menu.field, (segs) => includeSegmentAt(segs, menu.segIndex));
+    closeMenu();
+    window.getSelection()?.removeAllRanges();
+  }, [menu, updateSegments, closeMenu]);
+
+  const [insertText, setInsertText] = useState('');
+
+  /** Open the insert menu at an array boundary (the +) or around the current
+   *  menu target (Insert before… / Insert after…). */
+  const openInsertAt = useCallback((field: KeyTokenField, at: { index: number; offset: number | null }, pos: { left: number; top: number }) => {
+    setDetected(null);
+    setPillSearch('');
+    setInsertText('');
+    setMenu({ kind: 'insert', field, at, ...pos });
+  }, []);
+
+  const openInsertAroundMenu = useCallback((side: 'before' | 'after') => {
+    if (!menu || menu.kind === 'insert') return;
+    const pos = { left: menu.left, top: menu.top };
+    if (menu.kind === 'selection') {
+      openInsertAt(menu.field, { index: menu.segIndex, offset: side === 'before' ? menu.start : menu.end }, pos);
+    } else {
+      openInsertAt(menu.field, { index: menu.segIndex + (side === 'after' ? 1 : 0), offset: null }, pos);
+    }
+  }, [menu, openInsertAt]);
+
+  const commitTypedWords = useCallback(() => {
+    if (!menu || menu.kind !== 'insert') return;
+    const text = insertText.trim();
+    if (!text || text.includes('<')) return; // a Literal never contains '<'
+    updateSegments(menu.field, (segs) => resolveInsert(segs, menu.at, { text }));
+    closeMenu();
+  }, [menu, insertText, updateSegments, resolveInsert, closeMenu]);
+
+  /** "Attach to previous (no space)" on an inserted segment. */
+  const handleToggleGlued = useCallback(() => {
+    if (!menu || (menu.kind !== 'pill' && menu.kind !== 'insertedWords')) return;
+    const next = !menu.glued;
+    updateSegments(menu.field, (segs) => setInsertedGlued(segs, menu.segIndex, next));
+    setMenu({ ...menu, glued: next });
+  }, [menu, updateSegments]);
 
   // --- Field toggles -------------------------------------------------------
   const toggleField = useCallback((field: KeyTokenField) => {
@@ -455,16 +577,19 @@ export function CurationStudio({ source, canEdit, userId, getTepAuth, onClose, o
   // --- Save ----------------------------------------------------------------
   const [saveBusy, setSaveBusy] = useState(false);
   const isUpdate = !!draft?.KeyOverrideId;
+  // A source that no longer matches does NOT block Save any more (editing
+  // delta §6): typed words / removals may deliberately use a transaction as a
+  // template for a sibling family — the Save click confirms instead.
   const canSave =
     canEdit &&
     !!draft &&
     !!preview &&
     preview.IsValid &&
     pins &&
-    preview.SourceMatches !== false &&
     !previewLoading &&
     !saveBusy &&
     name.trim().length > 0;
+  const [confirmSourceMismatch, setConfirmSourceMismatch] = useState(false);
 
   const handleSave = useCallback(async () => {
     if (!draft) return;
@@ -625,7 +750,7 @@ export function CurationStudio({ source, canEdit, userId, getTepAuth, onClose, o
                       {KEY_FIELD_LABELS[f.Field]}
                       <span className="font-mono font-normal text-[10px] text-faint">{f.Field}</span>
                     </label>
-                    {isSel && !empty && canEdit && segs.some((s) => s.token) && (
+                    {isSel && !empty && canEdit && segmentsHavePills(segs) && (
                       <button
                         type="button"
                         onClick={() => resetFieldText(f.Field)}
@@ -662,22 +787,90 @@ export function CurationStudio({ source, canEdit, userId, getTepAuth, onClose, o
                         onMouseUp={() => handleFieldMouseUp(f.Field)}
                         className="font-mono text-sm leading-7 text-heading whitespace-pre-wrap break-all select-text"
                       >
-                        {segs.map((seg, i) =>
-                          seg.token ? (
-                            <button
-                              key={i}
-                              type="button"
-                              data-field={f.Field}
-                              data-pill={i}
-                              onClick={(e) => handlePillClick(f.Field, i, e.currentTarget)}
-                              title={`${tokenPhrase({ Field: f.Field, Kind: seg.token.Kind, Text: seg.token.Text, Item: seg.token.Item, Length: seg.token.Length })} — was "${seg.text}"${canEdit ? '. Click to change or restore.' : ''}`}
-                              className={`inline-flex items-center rounded-md border px-1.5 mx-px text-[12px] font-semibold align-baseline ${canEdit ? 'cursor-pointer' : 'cursor-default'} ${tokenChipClass({ Field: f.Field, Kind: seg.token.Kind, Text: seg.token.Text, Item: seg.token.Item, Length: seg.token.Length })}`}
-                            >
-                              {tokenCode({ Field: f.Field, Kind: seg.token.Kind, Text: seg.token.Text, Item: seg.token.Item, Length: seg.token.Length })}
-                            </button>
-                          ) : (
-                            <span key={i} data-field={f.Field} data-seg={i}>{seg.text}</span>
-                          ),
+                        {canEdit && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              const pos = anchorMenuAt(e.currentTarget.getBoundingClientRect());
+                              if (pos) openInsertAt(f.Field, { index: 0, offset: null }, pos);
+                            }}
+                            title="Insert words or a pill at the start of the key"
+                            className="inline-flex items-center justify-center w-4 h-4 mr-1 rounded-full border border-dashed border-border-strong text-faint text-[11px] leading-none align-middle hover:text-primary hover:border-primary cursor-pointer select-none"
+                          >
+                            +
+                          </button>
+                        )}
+                        {segs.map((seg, i) => {
+                          if (seg.token) {
+                            const kt = { Field: f.Field, Kind: seg.token.Kind, Text: seg.token.Text, Item: seg.token.Item, Length: seg.token.Length } as const;
+                            return (
+                              <button
+                                key={i}
+                                type="button"
+                                data-field={f.Field}
+                                data-pill={i}
+                                onClick={(e) => handlePillClick(f.Field, i, e.currentTarget)}
+                                onKeyDown={canEdit ? (e) => {
+                                  if (e.key === 'Backspace' || e.key === 'Delete') {
+                                    e.preventDefault();
+                                    removeSegment(f.Field, i);
+                                  }
+                                } : undefined}
+                                title={`${tokenPhrase(kt)}${seg.inserted ? ' — added, not in the transaction’s text' : ` — was "${seg.text}"`}${canEdit ? '. Click to change or remove (Backspace removes).' : ''}`}
+                                className={`inline-flex items-center rounded-md border px-1.5 mx-px text-[12px] font-semibold align-baseline ${seg.inserted ? 'border-dashed' : ''} ${canEdit ? 'cursor-pointer' : 'cursor-default'} ${tokenChipClass(kt)}`}
+                              >
+                                {seg.inserted && <span aria-hidden className="mr-0.5 opacity-70">+</span>}
+                                {tokenCode(kt)}
+                              </button>
+                            );
+                          }
+                          if (seg.inserted) {
+                            return (
+                              <button
+                                key={i}
+                                type="button"
+                                onClick={(e) => handleInsertedWordsClick(f.Field, i, e.currentTarget)}
+                                onKeyDown={canEdit ? (e) => {
+                                  if (e.key === 'Backspace' || e.key === 'Delete') {
+                                    e.preventDefault();
+                                    removeSegment(f.Field, i);
+                                  }
+                                } : undefined}
+                                title={`Typed words — not in the transaction's text${canEdit ? '. Click to adjust or delete.' : ''}`}
+                                className={`mx-px border-b-2 border-dashed border-primary/60 text-primary-dark dark:text-primary font-semibold align-baseline ${canEdit ? 'cursor-pointer' : 'cursor-default'}`}
+                              >
+                                {seg.text}
+                              </button>
+                            );
+                          }
+                          if (!seg.inKey) {
+                            return (
+                              <span
+                                key={i}
+                                data-field={f.Field}
+                                data-seg={i}
+                                onClick={canEdit ? (e) => handleExcludedClick(f.Field, i, e.currentTarget) : undefined}
+                                title={`Not part of the key${canEdit ? ' — click to bring it back.' : ''}`}
+                                className={`line-through decoration-2 text-faint opacity-60 ${canEdit ? 'cursor-pointer hover:opacity-90' : ''}`}
+                              >
+                                {seg.text}
+                              </span>
+                            );
+                          }
+                          return <span key={i} data-field={f.Field} data-seg={i}>{seg.text}</span>;
+                        })}
+                        {canEdit && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              const pos = anchorMenuAt(e.currentTarget.getBoundingClientRect());
+                              if (pos) openInsertAt(f.Field, { index: segs.length, offset: null }, pos);
+                            }}
+                            title="Insert words or a pill at the end of the key"
+                            className="inline-flex items-center justify-center w-4 h-4 ml-1 rounded-full border border-dashed border-border-strong text-faint text-[11px] leading-none align-middle hover:text-primary hover:border-primary cursor-pointer select-none"
+                          >
+                            +
+                          </button>
                         )}
                       </div>
                     )
@@ -694,12 +887,14 @@ export function CurationStudio({ source, canEdit, userId, getTepAuth, onClose, o
 
             {canEdit && selectedFields.length > 0 && (
               <p className="text-[10px] text-faint">
-                Tip: a pill inside a word splits it — INV<span className="font-mono">&lt;INT&gt;</span> matches INV2024
-                and INV2025. Literal words match case-insensitively and tolerate extra spaces.
+                Tip: select text to mark it as a pill or remove it from the key (struck-through text can be brought
+                back); click a pill to change, restore, or remove it (Backspace works too); the +&nbsp;dots and
+                "Insert before/after" add typed words or a pill. A pill inside a word splits it —
+                INV<span className="font-mono">&lt;INT&gt;</span> matches INV2024 and INV2025.
               </p>
             )}
 
-            {/* "This part is…" popover */}
+            {/* The segment popover: This part is… / Include / insert / glue. */}
             {menu && (
               <>
                 <div className="fixed inset-0 z-10" onClick={closeMenu} aria-hidden />
@@ -709,56 +904,152 @@ export function CurationStudio({ source, canEdit, userId, getTepAuth, onClose, o
                   style={{ left: menu.left, top: menu.top, width: POPOVER_WIDTH }}
                 >
                   <p className="px-3 pt-2.5 pb-1 text-[9px] font-semibold uppercase tracking-[0.18em] text-faint">
-                    This part is…
+                    {menu.kind === 'insert'
+                      ? 'Insert'
+                      : menu.kind === 'insertedWords'
+                        ? 'Typed words'
+                        : menu.kind === 'selection' && menu.excluded
+                          ? 'Not in the key'
+                          : 'This part is…'}
                   </p>
-                  <p dir="auto" className="px-3 pb-1.5 text-[11px] font-mono text-body-secondary truncate" title={menu.text}>
-                    {menu.text}
-                  </p>
-                  <div className="px-3 pb-1.5">
-                    <input
-                      type="text"
-                      value={pillSearch}
-                      onChange={(e) => setPillSearch(e.target.value)}
-                      placeholder="Search pills…"
-                      autoFocus
-                      className="w-full rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-body outline-none focus:border-primary"
-                    />
-                  </div>
-                  <div className="max-h-64 overflow-y-auto custom-scrollbar pb-1">
-                    {menu.kind === 'selection' && detected === null && (
-                      <p className="px-3 py-1 text-[10px] text-faint italic animate-pulse">Detecting…</p>
-                    )}
-                    {pillGroups.map((g) => (
-                      <div key={g.title}>
-                        <p className="px-3 pt-1.5 pb-0.5 text-[9px] font-semibold uppercase tracking-wider text-faint">{g.title}</p>
-                        {g.pills.slice(0, 30).map((p) => (
-                          <button
-                            key={`${p.Kind}:${p.Text}:${p.Item ?? ''}:${p.Length ?? ''}`}
-                            type="button"
-                            onClick={() => applyPill(p)}
-                            className={menuRow}
-                            title={p.Description ?? undefined}
-                          >
-                            <span className="min-w-0 truncate">{p.Label}</span>
-                            <span className="text-[10px] font-mono text-faint whitespace-nowrap shrink-0">
-                              {tokenCode({ Field: menu.field, Kind: p.Kind, Text: p.Text, Item: p.Item, Length: p.Length })}
-                            </span>
-                          </button>
-                        ))}
+                  {menu.kind !== 'insert' && menu.text && (
+                    <p dir="auto" className="px-3 pb-1.5 text-[11px] font-mono text-body-secondary truncate" title={menu.text}>
+                      {menu.text}
+                    </p>
+                  )}
+
+                  {/* Include comes first on struck-through text. */}
+                  {menu.kind === 'selection' && menu.excluded && (
+                    <>
+                      <button type="button" onClick={handleIncludeExcluded} className={`${menuRow} py-2`}>
+                        <span className="font-medium text-primary-dark dark:text-primary">Include in the key</span>
+                        <span className="text-[10px] text-faint whitespace-nowrap shrink-0">back to the exact words</span>
+                      </button>
+                      <div className="border-t border-border-subtle" />
+                      <p className="px-3 pt-1.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-faint">Or this part is…</p>
+                    </>
+                  )}
+
+                  {/* Type words… — the insert menu's first row. */}
+                  {menu.kind === 'insert' && (
+                    <div className="px-3 pb-1.5 flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        dir="auto"
+                        value={insertText}
+                        onChange={(e) => setInsertText(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') commitTypedWords(); }}
+                        placeholder="Type words…"
+                        autoFocus
+                        className="flex-1 min-w-0 rounded-lg border border-border bg-surface px-2 py-1 text-xs text-body outline-none focus:border-primary font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={commitTypedWords}
+                        disabled={!insertText.trim() || insertText.includes('<')}
+                        className="text-[11px] font-medium text-primary hover:underline cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  )}
+
+                  {/* The pill catalogue (selection: mark as; pill: change to;
+                      insert: add a pill). */}
+                  {menu.kind !== 'insertedWords' && (
+                    <>
+                      <div className="px-3 pb-1.5">
+                        <input
+                          type="text"
+                          value={pillSearch}
+                          onChange={(e) => setPillSearch(e.target.value)}
+                          placeholder="Search pills…"
+                          autoFocus={menu.kind !== 'insert'}
+                          className="w-full rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-body outline-none focus:border-primary"
+                        />
                       </div>
-                    ))}
-                    {pillGroups.every((g) => g.pills.length === 0) && (
-                      <p className="px-3 py-1.5 text-[11px] text-faint italic">No pills match the search.</p>
-                    )}
-                  </div>
-                  {menu.kind === 'pill' && (
+                      <div className="max-h-56 overflow-y-auto custom-scrollbar pb-1">
+                        {menu.kind === 'selection' && detected === null && (
+                          <p className="px-3 py-1 text-[10px] text-faint italic animate-pulse">Detecting…</p>
+                        )}
+                        {pillGroups.map((g) => (
+                          <div key={g.title}>
+                            <p className="px-3 pt-1.5 pb-0.5 text-[9px] font-semibold uppercase tracking-wider text-faint">{g.title}</p>
+                            {g.pills.slice(0, 30).map((p) => (
+                              <button
+                                key={`${p.Kind}:${p.Text}:${p.Item ?? ''}:${p.Length ?? ''}`}
+                                type="button"
+                                onClick={() => applyPill(p)}
+                                className={menuRow}
+                                title={p.Description ?? undefined}
+                              >
+                                <span className="min-w-0 truncate">{p.Label}</span>
+                                <span className="text-[10px] font-mono text-faint whitespace-nowrap shrink-0">
+                                  {tokenCode({ Field: menu.field, Kind: p.Kind, Text: p.Text, Item: p.Item, Length: p.Length })}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        ))}
+                        {pillGroups.every((g) => g.pills.length === 0) && (
+                          <p className="px-3 py-1.5 text-[11px] text-faint italic">No pills match the search.</p>
+                        )}
+                      </div>
+                    </>
+                  )}
+
+                  {/* Segment actions. */}
+                  {menu.kind === 'pill' && !menu.inserted && (
                     <>
                       <div className="border-t border-border-subtle" />
-                      <button type="button" onClick={restorePillText} className={`${menuRow} py-2`}>
-                        <span className="font-medium">Keep the exact words</span>
+                      <button type="button" onClick={handleBackToWords} className={`${menuRow} py-2`}>
+                        <span className="font-medium">Back to the exact words</span>
                         <span dir="auto" className="text-[10px] font-mono text-body-secondary truncate max-w-[45%]" title={menu.text}>
                           {menu.text}
                         </span>
+                      </button>
+                    </>
+                  )}
+                  {((menu.kind === 'pill' && menu.inserted) || menu.kind === 'insertedWords') && (
+                    <>
+                      <div className="border-t border-border-subtle" />
+                      <button type="button" onClick={handleToggleGlued} className={`${menuRow} py-2`}>
+                        <span className="font-medium">Attach to previous (no space)</span>
+                        <span className={`text-[10px] font-semibold whitespace-nowrap shrink-0 ${menu.glued ? 'text-primary' : 'text-faint'}`}>
+                          {menu.glued ? 'on' : 'off'}
+                        </span>
+                      </button>
+                    </>
+                  )}
+                  {(menu.kind === 'pill' || (menu.kind === 'selection' && !menu.excluded)) && (
+                    <>
+                      <div className="border-t border-border-subtle" />
+                      <div className="flex">
+                        <button type="button" onClick={() => openInsertAroundMenu('before')} className={`${menuRow} py-2 justify-center`}>
+                          <span>Insert before…</span>
+                        </button>
+                        <div className="w-px bg-border-subtle" aria-hidden />
+                        <button type="button" onClick={() => openInsertAroundMenu('after')} className={`${menuRow} py-2 justify-center`}>
+                          <span>Insert after…</span>
+                        </button>
+                      </div>
+                    </>
+                  )}
+                  {menu.kind !== 'insert' && !(menu.kind === 'selection' && menu.excluded) && (
+                    <>
+                      <div className="border-t border-border-subtle" />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (menu.kind === 'selection') handleRemoveSelection();
+                          else removeSegment(menu.field, menu.segIndex);
+                        }}
+                        className="w-full flex items-center justify-between gap-3 px-3 py-2 text-xs text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 cursor-pointer text-left"
+                      >
+                        <span className="font-medium">
+                          {menu.kind === 'insertedWords' || (menu.kind === 'pill' && menu.inserted) ? 'Delete' : 'Remove from the key'}
+                        </span>
+                        <span className="text-[10px]" aria-hidden>✕</span>
                       </button>
                     </>
                   )}
@@ -837,6 +1128,18 @@ export function CurationStudio({ source, canEdit, userId, getTepAuth, onClose, o
                       {preview.MatchCount.toLocaleString()}
                     </span>{' '}
                     of {preview.WorkRows.toLocaleString()} open transactions
+                    {/* Opened from a group: the KEY's count can exceed the
+                        group's coverage (a group's identity includes the
+                        transaction type; a key does not) — show both. */}
+                    {(() => {
+                      if (!draft.SuggestionId) return null;
+                      const src = preview.Groups.find((g) => g.IsSource);
+                      return src && src.Count !== preview.MatchCount ? (
+                        <span className="ml-1.5 text-[11px] font-normal text-faint">
+                          · the group itself covers {src.Count.toLocaleString()}
+                        </span>
+                      ) : null;
+                    })()}
                   </p>
                   {preview.SourceMatches === false && (
                     <p className="text-[11px] text-amber-700 dark:text-amber-400">
@@ -1013,17 +1316,23 @@ export function CurationStudio({ source, canEdit, userId, getTepAuth, onClose, o
                     ? 'Name the curation first.'
                     : !pins
                       ? 'Keep at least a few exact words or a list value in the key.'
-                      : preview?.SourceMatches === false
-                        ? 'The key no longer matches the transaction you started from.'
-                        : preview && !preview.IsValid
-                          ? 'The key is not valid yet — see the warnings.'
-                          : previewLoading
-                            ? 'Waiting for the preview…'
-                            : undefined
+                      : preview && !preview.IsValid
+                        ? 'The key is not valid yet — see the warnings.'
+                        : previewLoading
+                          ? 'Waiting for the preview…'
+                          : undefined
                   : undefined
               }
             >
-              <Button variant="primary" size="sm" onClick={() => { void handleSave(); }} disabled={!canSave}>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  if (preview?.SourceMatches === false) setConfirmSourceMismatch(true);
+                  else void handleSave();
+                }}
+                disabled={!canSave}
+              >
                 {saveBusy ? 'Saving…' : isUpdate ? 'Update curation' : 'Save curation'}
               </Button>
             </span>
@@ -1039,6 +1348,20 @@ export function CurationStudio({ source, canEdit, userId, getTepAuth, onClose, o
         message="The curation has unsaved changes. Close the studio and discard them?"
         confirmLabel="Discard"
         variant="danger_ghost"
+      />
+
+      {/* Deliberate template use: the source row no longer matching is a
+          confirmation, never a block (editing delta §6). */}
+      <ConfirmDialog
+        open={confirmSourceMismatch}
+        onClose={() => setConfirmSourceMismatch(false)}
+        onConfirm={() => { setConfirmSourceMismatch(false); void handleSave(); }}
+        title="Save anyway?"
+        message={`The transaction you started from does not match this key any more${
+          preview && preview.SourceFailingFields.length > 0 ? ` (${preview.SourceFailingFields.join(', ')})` : ''
+        }. Save anyway?`}
+        confirmLabel="Save anyway"
+        variant="primary"
       />
     </div>
   );

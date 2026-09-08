@@ -81,6 +81,11 @@ describe('tokenCode', () => {
     expect(tokenCode({ Field: 'AI', Kind: 'Placeholder', Text: 'CHAR', Length: 16 })).toBe('<CHAR[16]>');
     expect(tokenPhrase({ Field: 'AI', Kind: 'Placeholder', Text: 'CHAR', Length: 16 })).toBe('exactly 16 characters');
   });
+
+  it('knows the ANY placeholder (what a middle removal leaves behind)', () => {
+    expect(tokenCode(ph('ANY'))).toBe('<ANY>');
+    expect(tokenPhrase(ph('ANY'))).toBe('anything');
+  });
 });
 
 describe('alignTokensToExample', () => {
