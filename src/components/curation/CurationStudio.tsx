@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   startCuration,
@@ -253,11 +253,18 @@ export function CurationStudio({ source, canEdit, userId, getTepAuth, onClose, o
   const [detected, setDetected] = useState<CurationPill[] | null>(null);
   const leftPaneRef = useRef<HTMLDivElement>(null);
 
+  // Picking <CHAR> asks for the exact width first (a CHAR pill without a
+  // Length would match any run — the width IS its meaning).
+  const [charPrompt, setCharPrompt] = useState<CurationPill | null>(null);
+  const [charLen, setCharLen] = useState('');
+
   const closeMenu = useCallback(() => {
     setMenu(null);
     setPillSearch('');
     setDetected(null);
     setInsertText('');
+    setCharPrompt(null);
+    setCharLen('');
   }, []);
 
   useEffect(() => {
@@ -271,6 +278,12 @@ export function CurationStudio({ source, canEdit, userId, getTepAuth, onClose, o
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
   }, [menu, closeMenu]);
+
+  // Any move to a different menu target drops a pending CHAR width prompt.
+  useEffect(() => {
+    setCharPrompt(null);
+    setCharLen('');
+  }, [menu]);
 
   // Ranked "Detected" pills for the selected text (advisory — the catalogue
   // from the draft renders regardless; a pre-deploy 404 costs nothing).
@@ -785,22 +798,30 @@ export function CurationStudio({ source, canEdit, userId, getTepAuth, onClose, o
                       <div
                         dir="auto"
                         onMouseUp={() => handleFieldMouseUp(f.Field)}
-                        className="font-mono text-sm leading-7 text-heading whitespace-pre-wrap break-all select-text"
+                        className="group/canvas font-mono text-sm leading-7 text-heading whitespace-pre-wrap break-all select-text"
                       >
-                        {canEdit && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              const pos = anchorMenuAt(e.currentTarget.getBoundingClientRect());
-                              if (pos) openInsertAt(f.Field, { index: 0, offset: null }, pos);
-                            }}
-                            title="Insert words or a pill at the start of the key"
-                            className="inline-flex items-center justify-center w-4 h-4 mr-1 rounded-full border border-dashed border-border-strong text-faint text-[11px] leading-none align-middle hover:text-primary hover:border-primary cursor-pointer select-none"
-                          >
-                            +
-                          </button>
-                        )}
+                        {/* Insertion dots sit BETWEEN every pair of segments
+                            (and at the edges), invisible until the operator
+                            hovers the text — hover a dot to insert there. */}
                         {segs.map((seg, i) => {
+                          const dot = canEdit ? (
+                            <button
+                              type="button"
+                              tabIndex={-1}
+                              onClick={(e) => {
+                                const pos = anchorMenuAt(e.currentTarget.getBoundingClientRect());
+                                if (pos) openInsertAt(f.Field, { index: i, offset: null }, pos);
+                              }}
+                              title="Insert words or a pill here"
+                              className="inline-flex items-center justify-center w-3.5 h-3.5 mx-0.5 rounded-full border border-dashed border-border-strong text-faint text-[10px] leading-none align-middle opacity-0 group-hover/canvas:opacity-40 hover:opacity-100! hover:text-primary hover:border-primary transition-opacity cursor-pointer select-none"
+                            >
+                              +
+                            </button>
+                          ) : null;
+                          return (
+                            <Fragment key={i}>
+                              {dot}
+                              {(() => {
                           if (seg.token) {
                             const kt = { Field: f.Field, Kind: seg.token.Kind, Text: seg.token.Text, Item: seg.token.Item, Length: seg.token.Length } as const;
                             return (
@@ -857,17 +878,21 @@ export function CurationStudio({ source, canEdit, userId, getTepAuth, onClose, o
                               </span>
                             );
                           }
-                          return <span key={i} data-field={f.Field} data-seg={i}>{seg.text}</span>;
+                          return <span data-field={f.Field} data-seg={i}>{seg.text}</span>;
+                              })()}
+                            </Fragment>
+                          );
                         })}
                         {canEdit && (
                           <button
                             type="button"
+                            tabIndex={-1}
                             onClick={(e) => {
                               const pos = anchorMenuAt(e.currentTarget.getBoundingClientRect());
                               if (pos) openInsertAt(f.Field, { index: segs.length, offset: null }, pos);
                             }}
                             title="Insert words or a pill at the end of the key"
-                            className="inline-flex items-center justify-center w-4 h-4 ml-1 rounded-full border border-dashed border-border-strong text-faint text-[11px] leading-none align-middle hover:text-primary hover:border-primary cursor-pointer select-none"
+                            className="inline-flex items-center justify-center w-3.5 h-3.5 mx-0.5 rounded-full border border-dashed border-border-strong text-faint text-[10px] leading-none align-middle opacity-0 group-hover/canvas:opacity-40 hover:opacity-100! hover:text-primary hover:border-primary transition-opacity cursor-pointer select-none"
                           >
                             +
                           </button>
@@ -954,9 +979,54 @@ export function CurationStudio({ source, canEdit, userId, getTepAuth, onClose, o
                     </div>
                   )}
 
+                  {/* <CHAR> asks for its exact width before applying (default:
+                      the covered text's length). */}
+                  {menu.kind !== 'insertedWords' && charPrompt && (
+                    <div className="px-3 pb-2 space-y-1.5">
+                      <p className="text-[11px] text-body">Exactly how many characters?</p>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={charLen}
+                          onChange={(e) => setCharLen(e.target.value.replace(/[^\d]/g, ''))}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              const n = parseInt(charLen, 10);
+                              if (Number.isFinite(n) && n >= 1) applyPill({ ...charPrompt, Length: n });
+                            }
+                          }}
+                          autoFocus
+                          className="w-16 rounded-lg border border-border bg-surface px-2 py-1 text-xs text-body outline-none focus:border-primary font-mono text-center"
+                        />
+                        <span className="text-[10px] font-mono text-faint">
+                          {`<CHAR[${charLen || 'n'}]>`}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const n = parseInt(charLen, 10);
+                            if (Number.isFinite(n) && n >= 1) applyPill({ ...charPrompt, Length: n });
+                          }}
+                          disabled={!/^\d+$/.test(charLen) || parseInt(charLen, 10) < 1}
+                          className="ml-auto text-[11px] font-medium text-primary hover:underline cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Use
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setCharPrompt(null); setCharLen(''); }}
+                          className="text-[11px] text-body-secondary hover:underline cursor-pointer"
+                        >
+                          Back
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* The pill catalogue (selection: mark as; pill: change to;
                       insert: add a pill). */}
-                  {menu.kind !== 'insertedWords' && (
+                  {menu.kind !== 'insertedWords' && !charPrompt && (
                     <>
                       <div className="px-3 pb-1.5">
                         <input
@@ -979,7 +1049,22 @@ export function CurationStudio({ source, canEdit, userId, getTepAuth, onClose, o
                               <button
                                 key={`${p.Kind}:${p.Text}:${p.Item ?? ''}:${p.Length ?? ''}`}
                                 type="button"
-                                onClick={() => applyPill(p)}
+                                onClick={() => {
+                                  // A width-less CHAR prompts for its length
+                                  // first, seeded from the covered text.
+                                  if (p.Kind === 'Placeholder' && p.Text === 'CHAR' && p.Length == null) {
+                                    setCharPrompt(p);
+                                    setCharLen(
+                                      menu.kind === 'selection'
+                                        ? String(menu.end - menu.start)
+                                        : menu.kind === 'pill' && menu.text
+                                          ? String(menu.text.length)
+                                          : '',
+                                    );
+                                  } else {
+                                    applyPill(p);
+                                  }
+                                }}
                                 className={menuRow}
                                 title={p.Description ?? undefined}
                               >
