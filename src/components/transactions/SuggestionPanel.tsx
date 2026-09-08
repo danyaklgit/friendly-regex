@@ -18,6 +18,9 @@ interface SuggestionPanelProps {
   workspace: { bank: string; side: string } | null;
   canEditKey: boolean;
   userId: string | null;
+  /** Curation Studio (2026-09-08): open this group's key full-screen. Absent
+   *  when the studio isn't available (no checkout / read-only / MT942). */
+  onEditInStudio?: (s: SuggestedTagSpec) => void;
   getTepAuth: () => Promise<TepAuth>;
   /** SaveKeyEdit / DeleteKeyEdit succeeded — flip the sampling-running state
    *  and let the existing status poll regroup the view. */
@@ -37,7 +40,7 @@ interface SuggestionPanelProps {
  */
 export function SuggestionPanel({
   suggestion, onClose, onOpenInBuilder, canOpen, openDisabledReason,
-  workspace, canEditKey, userId, getTepAuth, onKeyEditApplied, onKeyEditError,
+  workspace, canEditKey, userId, onEditInStudio, getTepAuth, onKeyEditApplied, onKeyEditError,
 }: SuggestionPanelProps) {
   const open = !!suggestion;
   const closeBtnRef = useRef<HTMLButtonElement>(null);
@@ -238,6 +241,11 @@ export function SuggestionPanel({
 
             <footer className="border-t border-border px-6 py-4 flex items-center justify-end gap-3 bg-surface-elevated">
               <Button variant="outline" onClick={onClose}>Close</Button>
+              {!isConflict && onEditInStudio && (
+                <Button variant="outline" onClick={() => onEditInStudio(s)} title="Reshape this group's key in the full-screen Curation Studio">
+                  Edit in studio
+                </Button>
+              )}
               {!isConflict && (
                 <span title={!canOpen ? (openDisabledReason ?? 'Check out this workspace to work on a draft rule.') : undefined}>
                   <Button variant="primary" onClick={() => onOpenInBuilder(s)} disabled={!canOpen}>

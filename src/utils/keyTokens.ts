@@ -39,6 +39,8 @@ const BUILTIN_PHRASES: Record<string, string> = {
   AR: 'Arabic text',
   NAME: 'a name',
   STRING: 'any text',
+  // Curation Studio (2026-09-08): fixed-width shape; carries Length.
+  CHAR: 'characters',
 };
 
 export function isBuiltinPlaceholder(text: string): boolean {
@@ -73,6 +75,9 @@ export function tokenPhrase(token: KeyToken): string {
   if (token.Kind === 'List') {
     return token.Item ? token.Item.replace(/_/g, ' ') : listTagPhrase(token.Text);
   }
+  if (token.Text === 'CHAR' && token.Length != null) {
+    return `exactly ${token.Length} characters`;
+  }
   return BUILTIN_PHRASES[token.Text] ?? token.Text.toLowerCase();
 }
 
@@ -81,6 +86,9 @@ export function tokenPhrase(token: KeyToken): string {
 export function tokenCode(token: KeyToken): string {
   if (token.Kind === 'Literal') return token.Text;
   if (token.Kind === 'List' && token.Item) return `<${token.Text}:${token.Item}>`;
+  if (token.Kind === 'Placeholder' && token.Text === 'CHAR' && token.Length != null) {
+    return `<CHAR[${token.Length}]>`;
+  }
   return `<${token.Text}>`;
 }
 
@@ -110,6 +118,7 @@ export function tokenChipClass(token: KeyToken): string {
     case 'NAME':
       return 'border-sky-300 bg-sky-50 text-sky-800 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800';
     case 'STRING':
+    case 'CHAR':
       return 'border-blue-300 bg-blue-50 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800';
     default:
       return 'border-border bg-surface-secondary text-body-secondary';
@@ -321,6 +330,7 @@ export function tokensEqual(a: KeyToken[], b: KeyToken[]): boolean {
       t.Kind === u.Kind &&
       t.Text === u.Text &&
       (t.Item ?? null) === (u.Item ?? null) &&
+      (t.Length ?? null) === (u.Length ?? null) &&
       (t.Glued ?? false) === (u.Glued ?? false)
     );
   });

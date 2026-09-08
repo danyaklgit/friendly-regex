@@ -50,6 +50,10 @@ interface TransactionTableProps {
    *  Absent when the workspace isn't checked out / is read-only — headers
    *  then fall back to opening the review panel. */
   onOpenSuggestionInBuilder?: (s: SuggestedTagSpec) => void;
+  /** Curation Studio (2026-09-08): open the group's key in the full-screen
+   *  studio (saved curations open by KeyOverrideId, automatic groups by
+   *  SuggestionId). Absent while read-only / no checkout. */
+  onEditInStudio?: (s: SuggestedTagSpec) => void;
   /** Curated groups, extra look-alike rows per SimilarSetId (fetched by the
    *  parent when a group's sample holds fewer rows than the display tiers). */
   extraCuratedRows?: Map<string, TransactionRow[]> | null;
@@ -2007,7 +2011,7 @@ const TableRow = memo(function TableRow({
   );
 });
 
-export function TransactionTable({ curatedSuggestions = null, onOpenSuggestion, onOpenSuggestionInBuilder, extraCuratedRows = null, extraCuratedLoading, onNeedSetRows, data, tagDefinitions, originalDefinitionIds, definitionSourceMap, definitionVersions, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, onFlagDeadEndWithComment, onSetComments, onHideTagDefs, getMt940Suggestions, onCloneMt940Suggestion, showAttributes = true, relaxedMode = false, charViewColumns = EMPTY_CHAR_VIEW_COLUMNS, hiddenColumns = EMPTY_HIDDEN_COLUMNS, columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, forceSkeleton = false, accentHue = 190, onRowContextMenu, onCellDoubleClick, interactiveCellFields, interactiveCellHint, originalEditingDef, activeDefinitionId, sortOverride = null, onSortChange, columnWidths, onColumnWidthChange, dataSetType, journalBanding = false }: TransactionTableProps) {
+export function TransactionTable({ curatedSuggestions = null, onOpenSuggestion, onOpenSuggestionInBuilder, onEditInStudio, extraCuratedRows = null, extraCuratedLoading, onNeedSetRows, data, tagDefinitions, originalDefinitionIds, definitionSourceMap, definitionVersions, highlightExpressions, searchHighlights, onTagClick, onFlagDeadEnd, onFlagDeadEndWithComment, onSetComments, onHideTagDefs, getMt940Suggestions, onCloneMt940Suggestion, showAttributes = true, relaxedMode = false, charViewColumns = EMPTY_CHAR_VIEW_COLUMNS, hiddenColumns = EMPTY_HIDDEN_COLUMNS, columnOrder, onColumnsReady, onVisibleColumnsReady, builderHeight = 0, loading = false, forceSkeleton = false, accentHue = 190, onRowContextMenu, onCellDoubleClick, interactiveCellFields, interactiveCellHint, originalEditingDef, activeDefinitionId, sortOverride = null, onSortChange, columnWidths, onColumnWidthChange, dataSetType, journalBanding = false }: TransactionTableProps) {
   // Resolve the effective width for a column: explicit override wins,
   // otherwise the catalog default, otherwise undefined (browser
   // auto-layout). Width overrides are intentionally scoped to non-compact
@@ -3904,12 +3908,25 @@ export function TransactionTable({ curatedSuggestions = null, onOpenSuggestion, 
                                 <span className="text-[10px] text-faint whitespace-nowrap hidden md:inline">reference — examples of a working rule</span>
                               </span>
                             ) : (
-                              <CuratedKeyLabel
-                                suggestion={g.suggestion}
-                                label={g.label}
-                                title={g.suggestion?.StructuralAnchor ?? g.label}
-                                onPillClick={onOpenSuggestion && g.suggestion ? () => onOpenSuggestion(g.suggestion!) : undefined}
-                              />
+                              <>
+                                {/* A saved curation heads its group by NAME
+                                    (Curation Studio, 2026-09-08); the key
+                                    label stays as the smaller detail. */}
+                                {g.suggestion?.CurationName && (
+                                  <span
+                                    className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-2 py-px text-[11px] font-semibold text-primary-dark dark:text-primary whitespace-nowrap shrink-0"
+                                    title="A saved curation — an operator named this group's key in the Curation Studio."
+                                  >
+                                    {g.suggestion.CurationName}
+                                  </span>
+                                )}
+                                <CuratedKeyLabel
+                                  suggestion={g.suggestion}
+                                  label={g.label}
+                                  title={g.suggestion?.StructuralAnchor ?? g.label}
+                                  onPillClick={onOpenSuggestion && g.suggestion ? () => onOpenSuggestion(g.suggestion!) : undefined}
+                                />
+                              </>
                             )}
                             {/* A key's identity includes the transaction type
                                 (2026-09-08): two groups can share a key TEXT —
@@ -3968,6 +3985,16 @@ export function TransactionTable({ curatedSuggestions = null, onOpenSuggestion, 
                                   {g.type === 'conflict' ? 'Details' : 'Review draft'}
                                 </button>
                               ) : null
+                            )}
+                            {g.suggestion && g.type !== 'conflict' && onEditInStudio && (
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); onEditInStudio(g.suggestion!); }}
+                                title="Reshape this group's key in the full-screen Curation Studio"
+                                className="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-lg border border-border-strong bg-surface text-body hover:bg-surface-hover transition-colors cursor-pointer whitespace-nowrap"
+                              >
+                                Edit in studio
+                              </button>
                             )}
                           </div>
                         </td>

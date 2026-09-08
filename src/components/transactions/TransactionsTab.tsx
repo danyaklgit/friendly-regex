@@ -50,15 +50,16 @@ import { ValidityEditor } from '../wizard/ValidityEditor';
 import { DuplicateRulesButton } from '../wizard/DuplicateRulesButton';
 import { SettingsTab } from '../settings/SettingsTab';
 import { SuggestionPanel } from './SuggestionPanel';
-import { KeyRulesPanel } from './KeyRulesPanel';
+import { CurationsPanel } from '../curation/CurationsPanel';
+import { CurationStudio, type CurationStudioSource } from '../curation/CurationStudio';
 import {
   getSuggestedTagSpecs,
   getSamplingStatus,
-  getKeyEdits,
-  deleteKeyEdit,
+  getCurations,
+  deleteCuration,
   resample,
   type SuggestedTagSpec,
-  type KeyOverride,
+  type CurationSummary,
 } from '../../api/sampling';
 import { suggestionsBySetId, curatedPendingStats } from '../../utils/curatedView';
 import { Button } from '../shared/Button';
@@ -300,6 +301,27 @@ function isRowHidden(
   return false;
 }
 
+// Curation Studio deep link (2026-09-08): the open studio lives in the URL as
+// ?curation=t:<TransactionId> | k:<KeyOverrideId> | s:<SuggestionId>, so a
+// refresh restores it (shareLink-style; no router in this app).
+function parseCurationParam(): CurationStudioSource | null {
+  try {
+    const raw = new URLSearchParams(window.location.search).get('curation');
+    if (!raw) return null;
+    if (raw.startsWith('t:') && raw.length > 2) return { transactionId: raw.slice(2) };
+    if (raw.startsWith('k:') && raw.length > 2) return { keyOverrideId: raw.slice(2) };
+    if (raw.startsWith('s:') && raw.length > 2) return { suggestionId: raw.slice(2) };
+  } catch { /* no URL access (tests) */ }
+  return null;
+}
+
+function curationParamValue(source: CurationStudioSource): string | null {
+  if (source.keyOverrideId) return `k:${source.keyOverrideId}`;
+  if (source.suggestionId) return `s:${source.suggestionId}`;
+  if (source.transactionId) return `t:${source.transactionId}`;
+  return null;
+}
+
 
 export function TransactionsTab({ activeCheckout, onClearPendingDefinition, initialShareFilters, initialShareToggles, operatorName, shareDialogOpen: shareDialogOpenProp, onShareDialogClose, pendingPillFilters, onPendingPillFiltersConsumed, onBuilderOpenChange }: TransactionsTabProps) {
   const { libraries, tagDefinitions, originalDefinitionIds, dispatch, isPairBeingTagged, rawHierarchyNodes } = useTagSpecs();
@@ -523,12 +545,17 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const [resampleBusy, setResampleBusy] = useState(false);
   /** CompletedAtUtc of the workspace's latest finished sampling run. */
   const [lastSampledAt, setLastSampledAt] = useState<string | null>(null);
-  /** Matching-key edits of the workspace (2026-09-07), newest first; null
-   *  until loaded. Feeds the "Key rules (N)" drawer. */
-  const [keyEdits, setKeyEdits] = useState<KeyOverride[] | null>(null);
-  const [keyEditsReloadKey, setKeyEditsReloadKey] = useState(0);
-  const [keyRulesOpen, setKeyRulesOpen] = useState(false);
-  const [keyEditDeletingId, setKeyEditDeletingId] = useState<string | null>(null);
+  /** Stored curations + key edits of the workspace (Curation Studio,
+   *  2026-09-08 — supersedes the key-edits list), newest first; null until
+   *  loaded. Feeds the "Curations (N)" drawer. */
+  const [curations, setCurations] = useState<CurationSummary[] | null>(null);
+  const [curationsReloadKey, setCurationsReloadKey] = useState(0);
+  const [curationsOpen, setCurationsOpen] = useState(false);
+  const [curationDeletingId, setCurationDeletingId] = useState<string | null>(null);
+  /** The open Curation Studio's source; null = closed. Initialized from the
+   *  ?curation URL param so a refresh survives (the sync effect below writes
+   *  it back). */
+  const [studioSource, setStudioSource] = useState<CurationStudioSource | null>(() => parseCurationParam());
   const [charViewCols, setCharViewCols] = useState<Set<string>>(() => {
     try {
       const stored = settingsStore.getItem('tep:charViewCols');
@@ -1769,13 +1796,13 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     }
   }, [getTepAuth, activeCheckout?.bank, activeCheckout?.side]);
 
-  // Matching-key edits of the workspace (2026-09-07): drives the "Key rules
-  // (N)" drawer + counter. Reloads with the suggestions (a regroup changes
-  // nothing here, but the list is cheap) and on keyEditsReloadKey after an
-  // apply/delete.
+  // Stored curations of the workspace (Curation Studio, 2026-09-08): drives
+  // the "Curations (N)" drawer + counter. Reloads with the suggestions (a
+  // regroup changes OpenMatches) and on curationsReloadKey after a
+  // save/delete.
   useEffect(() => {
     if (!curatedActive || !activeCheckout?.bank || !activeCheckout?.side) {
-      setKeyEdits(null);
+      setCurations(null);
       return;
     }
     const controller = new AbortController();
@@ -1785,18 +1812,18 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       try {
         const { token, headers } = await getTepAuth();
         if (!token || controller.signal.aborted) return;
-        const edits = await getKeyEdits({ BankSwiftCode: bank, Side: side }, token, headers, controller.signal);
-        if (!controller.signal.aborted) setKeyEdits(edits);
+        const res = await getCurations({ BankSwiftCode: bank, Side: side }, token, headers, controller.signal);
+        if (!controller.signal.aborted) setCurations(res.curations);
       } catch (err) {
         if ((err as Error).name !== 'AbortError') {
           // Pre-deploy backend (404): degrade to an empty list — the button
-          // shows "Key rules (0)" and the drawer its empty state.
-          setKeyEdits([]);
+          // shows "Curations (0)" and the drawer its empty state.
+          setCurations([]);
         }
       }
     })();
     return () => controller.abort();
-  }, [curatedActive, activeCheckout?.bank, activeCheckout?.side, suggestionsReloadKey, keyEditsReloadKey, getTepAuth]);
+  }, [curatedActive, activeCheckout?.bank, activeCheckout?.side, suggestionsReloadKey, curationsReloadKey, getTepAuth]);
 
   // A key edit was saved or removed: the backend started (or queued) the
   // workspace's sampling run — a run REPLACES the groups (SimilarSetIds
@@ -1806,7 +1833,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     setToast({ message, type: 'success' });
     setActiveSuggestion(null);
     setSamplingRunning(true);
-    setKeyEditsReloadKey((k) => k + 1);
+    setCurationsReloadKey((k) => k + 1);
   }, []);
 
   const handleKeyEditError = useCallback((message: string) => {
@@ -1820,19 +1847,51 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     [activeCheckout?.bank, activeCheckout?.side],
   );
 
-  const handleDeleteKeyEdit = useCallback(async (id: string) => {
-    setKeyEditDeletingId(id);
+  const handleDeleteCuration = useCallback(async (id: string) => {
+    setCurationDeletingId(id);
     try {
       const { token, headers } = await getTepAuth();
       if (!token) throw new Error('Not authenticated');
-      await deleteKeyEdit(id, token, headers);
-      handleKeyEditApplied(true, 'Key edit removed — regrouping with the automatic key…');
+      await deleteCuration(id, token, headers);
+      handleKeyEditApplied(true, 'Curation deleted — regrouping with the automatic keys…');
     } catch (err) {
-      setToast({ message: err instanceof Error ? err.message : 'Failed to remove the key edit', type: 'error' });
+      setToast({ message: err instanceof Error ? err.message : 'Failed to delete the curation', type: 'error' });
     } finally {
-      setKeyEditDeletingId(null);
+      setCurationDeletingId(null);
     }
   }, [getTepAuth, handleKeyEditApplied]);
+
+  // --- Curation Studio (2026-09-08) ----------------------------------------
+  // Keep the open studio in the URL so a refresh restores it. replaceState —
+  // the studio is a mode of this page, not a navigation.
+  useEffect(() => {
+    try {
+      const url = new URL(window.location.href);
+      const value = studioSource ? curationParamValue(studioSource) : null;
+      if (value) url.searchParams.set('curation', value);
+      else if (url.searchParams.has('curation')) url.searchParams.delete('curation');
+      else return;
+      window.history.replaceState(null, '', url);
+    } catch { /* no URL access (tests) */ }
+  }, [studioSource]);
+
+  const handleEditInStudio = useCallback((sug: SuggestedTagSpec) => {
+    setActiveSuggestion(null);
+    // A saved curation opens by its override id (the stored identity); an
+    // automatic group opens by its suggestion id.
+    setStudioSource(sug.KeyOverrideId ? { keyOverrideId: sug.KeyOverrideId } : { suggestionId: sug.Id });
+  }, []);
+
+  const handleOpenCurationInStudio = useCallback((c: CurationSummary) => {
+    setCurationsOpen(false);
+    setStudioSource({ keyOverrideId: c.Id });
+  }, []);
+
+  const handleStudioSaved = useCallback((_runStarted: boolean, message: string) => {
+    setToast({ message, type: 'success' });
+    setSamplingRunning(true);
+    setCurationsReloadKey((k) => k + 1);
+  }, []);
 
   // Open the draft pre-filled in the inline Rule Builder. Purely local (no
   // Accept/Reject server calls — the suggestion stays pending until the
@@ -3649,17 +3708,17 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
             </svg>
             {samplingRunning ? 'Refreshing…' : 'Resample'}
           </button>
-          {keyEdits !== null && activeCheckout && (
+          {curations !== null && activeCheckout && (
             <button
               type="button"
-              onClick={() => setKeyRulesOpen(true)}
-              title="Matching-key corrections stored for this workspace — each survives every resample until removed."
+              onClick={() => setCurationsOpen(true)}
+              title="Saved curations and key edits of this workspace — each survives every resample until deleted, and revives when new matching transactions arrive."
               className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg border bg-surface border-border-strong text-body hover:bg-surface-hover transition-colors cursor-pointer whitespace-nowrap shrink-0"
             >
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
               </svg>
-              Key rules ({keyEdits.length})
+              Curations ({curations.length})
             </button>
           )}
         </div>
@@ -4574,6 +4633,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         curatedSuggestions={curatedActive ? curatedSuggestionsMap : null}
         onOpenSuggestion={curatedActive ? setActiveSuggestion : undefined}
         onOpenSuggestionInBuilder={curatedActive && activeCheckout && !isReadOnly ? handleOpenSuggestionInBuilder : undefined}
+        onEditInStudio={curatedActive && activeCheckout && !isReadOnly ? handleEditInStudio : undefined}
         extraCuratedRows={curatedActive ? extraCuratedRows : null}
         extraCuratedLoading={extraCuratedLoading}
         onNeedSetRows={curatedActive ? handleNeedSetRows : undefined}
@@ -4848,6 +4908,14 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
           y={contextMenu.y}
           onViewContext={() => { setContextModalRow(contextMenu.row); setContextMenu(null); }}
           onComment={!isAudit ? () => { setSingleRowCommentRow(contextMenu.row); setContextMenu(null); } : undefined}
+          onCreateCuration={
+            curatedAvailable && activeCheckout && !isReadOnly && contextMenu.row['Id'] != null
+              ? () => {
+                  setStudioSource({ transactionId: String(contextMenu.row['Id']) });
+                  setContextMenu(null);
+                }
+              : undefined
+          }
           onAddMatchingRule={
             builderOpen && !isReadOnly && contextMenu.field
               ? (op) => {
@@ -4905,19 +4973,35 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         workspace={curatedWorkspace}
         canEditKey={!!activeCheckout && !isReadOnly}
         userId={userId ?? null}
+        onEditInStudio={curatedAvailable && activeCheckout ? handleEditInStudio : undefined}
         getTepAuth={getTepAuth}
         onKeyEditApplied={handleKeyEditApplied}
         onKeyEditError={handleKeyEditError}
       />
 
-      <KeyRulesPanel
-        open={keyRulesOpen}
-        onClose={() => setKeyRulesOpen(false)}
-        edits={keyEdits}
+      <CurationsPanel
+        open={curationsOpen}
+        onClose={() => setCurationsOpen(false)}
+        curations={curations}
         canEdit={!!activeCheckout && !isReadOnly}
-        onDelete={(id) => { void handleDeleteKeyEdit(id); }}
-        deletingId={keyEditDeletingId}
+        onOpenInStudio={handleOpenCurationInStudio}
+        onDelete={(id) => { void handleDeleteCuration(id); }}
+        deletingId={curationDeletingId}
       />
+
+      {/* Curation Studio: full-screen, above every drawer. Mounted only while
+          open so StartCuration fires exactly once per source. */}
+      {studioSource && (
+        <CurationStudio
+          source={studioSource}
+          canEdit={!!activeCheckout && !isReadOnly}
+          userId={userId ?? null}
+          getTepAuth={getTepAuth}
+          onClose={() => setStudioSource(null)}
+          onSaved={handleStudioSaved}
+          onError={handleKeyEditError}
+        />
+      )}
 
       <Modal
         open={settingsOpen}

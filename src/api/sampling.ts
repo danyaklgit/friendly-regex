@@ -54,6 +54,9 @@ export interface KeyToken {
   Kind: KeyTokenKind;
   Text: string;
   Item?: string | null;
+  /** Exactly-N-characters shapes (Curation Studio, 2026-09-08): the CHAR
+   *  placeholder carries its width — `<CHAR[16]>`. */
+  Length?: number | null;
   /** No space before this chip: render flush against the previous one
    *  (`ORD//` + `<NAME>` reads `ORD//<NAME>`). */
   Glued?: boolean;
@@ -120,6 +123,12 @@ export interface KeyOverride {
   CreatedByUserId: string;
   CreatedAtUtc: string;
   Note?: string | null;
+  // Curation Studio (2026-09-08): a saved curation IS a KeyOverride with
+  // these extras.
+  Name?: string | null;
+  SourceTransactionId?: string | null;
+  UpdatedAtUtc?: string | null;
+  UpdatedByUserId?: string | null;
 }
 
 export interface SuggestedTagSpec {
@@ -154,6 +163,9 @@ export interface SuggestedTagSpec {
    *  can share the same key TEXT and still be separate groups. Show these on
    *  the header/drawer — they're what tells such groups apart. */
   TransactionTypeCodes?: string[] | null;
+  /** Curation Studio (2026-09-08): the operator-given name of the curation
+   *  that produced this group's key — head the group by it when present. */
+  CurationName?: string | null;
 }
 
 interface SfmEnvelope {
@@ -387,6 +399,270 @@ export async function deleteKeyEdit(
   await throwIfNotOk(res, 'Failed to delete the key edit');
   const json = (await res.json()) as { RunStarted?: boolean };
   return { runStarted: json.RunStarted ?? false };
+}
+
+// --- Curation Studio (2026-09-08) ---------------------------------------------
+// Operators build a curation FROM a transaction: pick the narrative fields,
+// replace the changing parts with typed pills, watch the matching rows, save.
+// A saved curation IS a KeyOverride, so the sampling run applies it unchanged.
+// Contracts: UI_Curation_Studio.md §3 / API Reference §6.5d. Per workspace
+// (bank + side), MT940 family only. Nothing here writes rules or tags.
+
+export interface CurationSpan {
+  /** Character offset into the field's Text. Spans cover the text completely
+   *  and in order — render them, never re-tokenise the string. */
+  Start: number;
+  Length: number;
+  Text: string;
+  Token: KeyToken;
+}
+
+export interface CurationFieldInfo {
+  Field: KeyTokenField;
+  /** Transaction property name (AdditionalInformation, Description2, …). */
+  Property: string;
+  Label: string;
+  Text: string | null;
+  /** Pre-selected = the engine keys on this field. */
+  Selected: boolean;
+  Mode: KeyFieldMode;
+  Spans: CurationSpan[];
+}
+
+export interface CurationPill {
+  Kind: 'Placeholder' | 'List';
+  Text: string;
+  Item?: string | null;
+  /** CHAR shapes: the exact width. */
+  Length?: number | null;
+  Label: string;
+  Description?: string | null;
+  /** "Detected" (the ladder found it in the text), "Shapes", "Lists". */
+  Group: string;
+  Behavior?: VocabularyBehavior | null;
+  UsableKeys?: number | null;
+}
+
+export interface CurationPreview {
+  /** false = the key pins nothing (counts are 0, Warnings says why) — Save
+   *  must be disabled. */
+  IsValid: boolean;
+  Key: string;
+  Anchored: boolean;
+  Modes: Partial<Record<KeyTokenField, KeyFieldMode>>;
+  /** The rule as the engine knows it, one regex per keyed field. */
+  Patterns: { Field: KeyTokenField; Property: string; Mode: KeyFieldMode; Regex: string }[];
+  /** Open rows (untagged/multi-tag, not dead-end) the key matches. */
+  MatchCount: number;
+  WorkRows: number;
+  /** Null when no SourceTransactionId was sent. */
+  SourceMatches: boolean | null;
+  SourceFailingFields: string[];
+  TransactionTypeCodes: { Key: string; Count: number }[];
+  Groups: { SimilarSetId: string; Anchor: string; Count: number; IsSource: boolean }[];
+  OverlappingCurations: { KeyOverrideId: string; Name: string | null; Key: string; Count: number }[];
+  /** Rows ALREADY tagged that the key also matches — an existing rule may
+   *  cover the shape. */
+  TaggedMatchCount: number;
+  TaggedTags: { Key: string; Count: number }[];
+  ExampleTexts: string[];
+  ExampleTransactionIds: string[];
+  /** A GetTEPTransactions filter equivalent to the key — feed it to the grid,
+   *  adding OpsIsUntagged EQ true for the open-rows tab. Passed through
+   *  verbatim (the REGEX entry carries its own nested clauses). */
+  Filters: unknown[];
+  Warnings: string[];
+}
+
+export interface CurationDraft {
+  KeyOverrideId?: string | null;
+  SuggestionId?: string | null;
+  SimilarSetId?: string | null;
+  Name?: string | null;
+  Note?: string | null;
+  TransactionId: string;
+  BankSwiftCode: string;
+  Side: string;
+  DataSetType: string;
+  TransactionTypeCode?: string | null;
+  SourceAnchor?: string | null;
+  Fields: CurationFieldInfo[];
+  /** The working key: the selected fields' spans in order. */
+  Tokens: KeyToken[];
+  /** The one-click "Use the engine's key" alternative. */
+  EngineTokens?: KeyToken[] | null;
+  /** Fields WITHOUT tokens only: "Any" (not part of the key) or "Blank". */
+  FieldModes: Partial<Record<KeyTokenField, KeyFieldMode>>;
+  Anchored: boolean;
+  /** The full pill catalogue (every shape + every enabled list). */
+  Pills: CurationPill[];
+  Preview: CurationPreview;
+  CreatedByUserId?: string | null;
+  CreatedAtUtc?: string | null;
+  UpdatedByUserId?: string | null;
+  UpdatedAtUtc?: string | null;
+}
+
+export interface CurationSummary {
+  Id: string;
+  Name: string | null;
+  Key: string;
+  Tokens: KeyToken[];
+  Anchored: boolean;
+  AiMode: KeyFieldMode;
+  D2Mode: KeyFieldMode;
+  D1Mode?: KeyFieldMode;
+  TDMode?: KeyFieldMode;
+  SourceTransactionId?: string | null;
+  SourceAnchor?: string | null;
+  Note?: string | null;
+  CreatedByUserId: string;
+  CreatedAtUtc: string;
+  UpdatedByUserId?: string | null;
+  UpdatedAtUtc?: string | null;
+  /** Open transactions grouped under it right now. */
+  OpenMatches: number;
+  /** No untagged matches at the moment — stays stored, revives when a
+   *  matching transaction arrives. */
+  IsExhausted: boolean;
+  /** The Curated View groups the latest run produced (one per txn type). */
+  Sets: { SuggestionId: string; SimilarSetId: string; CoverageCount: number; Confidence: SuggestionConfidence; TransactionTypeCodes: string[] }[];
+  ExampleTexts: string[];
+}
+
+/** Exactly one of the three ids: KeyOverrideId wins, then SuggestionId,
+ *  then TransactionId (a NEW curation from that row). */
+export async function startCuration(
+  req: { TransactionId?: string; KeyOverrideId?: string; SuggestionId?: string },
+  token: string,
+  tepHeaders: TepHeaders,
+  signal?: AbortSignal,
+): Promise<CurationDraft> {
+  const res = await fetch(`${BASE}/StartCuration`, {
+    method: 'POST',
+    headers: buildHeaders(token, tepHeaders, 'StartCuration'),
+    body: JSON.stringify(req),
+    signal,
+  });
+  await throwIfNotOk(res, 'Failed to open the curation');
+  const json = (await res.json()) as { Curation?: CurationDraft };
+  if (!json.Curation) throw new Error('The curation could not be opened');
+  return json.Curation;
+}
+
+export async function previewCuration(
+  req: {
+    BankSwiftCode: string;
+    Side: string;
+    Tokens: KeyToken[];
+    FieldModes?: Partial<Record<KeyTokenField, KeyFieldMode>>;
+    /** Null/omitted = resolved from the source transaction; send true/false
+     *  only when the operator forces Starts with / Anywhere. */
+    Anchored?: boolean | null;
+    SourceTransactionId?: string | null;
+    /** Editing a saved curation: its own id, so it doesn't list itself as
+     *  an overlap. */
+    ExcludeKeyOverrideId?: string | null;
+  },
+  token: string,
+  tepHeaders: TepHeaders,
+  signal?: AbortSignal,
+): Promise<CurationPreview> {
+  const res = await fetch(`${BASE}/PreviewCuration`, {
+    method: 'POST',
+    headers: buildHeaders(token, tepHeaders, 'PreviewCuration'),
+    body: JSON.stringify(req),
+    signal,
+  });
+  await throwIfNotOk(res, 'Failed to preview the curation');
+  const json = (await res.json()) as { Preview?: CurationPreview };
+  if (!json.Preview) throw new Error('The curation preview is unavailable');
+  return json.Preview;
+}
+
+export async function saveCuration(
+  req: {
+    /** Null = create; a curation id = update that curation. */
+    Id?: string | null;
+    BankSwiftCode: string;
+    Side: string;
+    Name?: string | null;
+    Tokens: KeyToken[];
+    FieldModes?: Partial<Record<KeyTokenField, KeyFieldMode>>;
+    Anchored?: boolean | null;
+    SourceTransactionId?: string | null;
+    SourceSuggestionId?: string | null;
+    Note?: string | null;
+    UserId: string;
+  },
+  token: string,
+  tepHeaders: TepHeaders,
+  signal?: AbortSignal,
+): Promise<{ curation: KeyOverride | null; runStarted: boolean }> {
+  const res = await fetch(`${BASE}/SaveCuration`, {
+    method: 'POST',
+    headers: buildHeaders(token, tepHeaders, 'SaveCuration'),
+    body: JSON.stringify(req),
+    signal,
+  });
+  await throwIfNotOk(res, 'Failed to save the curation');
+  const json = (await res.json()) as { Curation?: KeyOverride | null; RunStarted?: boolean };
+  return { curation: json.Curation ?? null, runStarted: json.RunStarted ?? false };
+}
+
+export async function getCurations(
+  req: { BankSwiftCode: string; Side: string },
+  token: string,
+  tepHeaders: TepHeaders,
+  signal?: AbortSignal,
+): Promise<{ curations: CurationSummary[]; runStatus: SamplingRunStatus; lastRunAtUtc: string | null }> {
+  const res = await fetch(`${BASE}/GetCurations`, {
+    method: 'POST',
+    headers: buildHeaders(token, tepHeaders, 'GetCurations'),
+    body: JSON.stringify(req),
+    signal,
+  });
+  await throwIfNotOk(res, 'Failed to fetch curations');
+  const json = (await res.json()) as { Curations?: CurationSummary[]; RunStatus?: SamplingRunStatus; LastRunAtUtc?: string | null };
+  return { curations: json.Curations ?? [], runStatus: json.RunStatus ?? 'Idle', lastRunAtUtc: json.LastRunAtUtc ?? null };
+}
+
+/** Same as DeleteKeyEdit under the studio's name: the rows return to their
+ *  automatic keys at the run this starts. */
+export async function deleteCuration(
+  keyOverrideId: string,
+  token: string,
+  tepHeaders: TepHeaders,
+  signal?: AbortSignal,
+): Promise<{ runStarted: boolean }> {
+  const res = await fetch(`${BASE}/DeleteCuration`, {
+    method: 'POST',
+    headers: buildHeaders(token, tepHeaders, 'DeleteCuration'),
+    body: JSON.stringify({ KeyOverrideId: keyOverrideId }),
+    signal,
+  });
+  await throwIfNotOk(res, 'Failed to delete the curation');
+  const json = (await res.json()) as { RunStarted?: boolean };
+  return { runStarted: json.RunStarted ?? false };
+}
+
+/** The "This part is…" menu content for a selected piece of text, best
+ *  first: Detected (the ladder's finds), then Shapes, then Lists. */
+export async function suggestCurationPill(
+  req: { Text: string; Field?: KeyTokenField; BankSwiftCode?: string; Side?: string; TransactionId?: string },
+  token: string,
+  tepHeaders: TepHeaders,
+  signal?: AbortSignal,
+): Promise<CurationPill[]> {
+  const res = await fetch(`${BASE}/SuggestCurationPill`, {
+    method: 'POST',
+    headers: buildHeaders(token, tepHeaders, 'SuggestCurationPill'),
+    body: JSON.stringify(req),
+    signal,
+  });
+  await throwIfNotOk(res, 'Failed to suggest pills');
+  const json = (await res.json()) as { Pills?: CurationPill[] };
+  return json.Pills ?? [];
 }
 
 /** Newest first. */

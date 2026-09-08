@@ -76,6 +76,11 @@ describe('tokenCode', () => {
     expect(tokenCode(list('CARD_TYPES', 'Visa'))).toBe('<CARD_TYPES:Visa>');
     expect(tokenCode(ph('AR'))).toBe('<AR>');
   });
+
+  it('renders the CHAR shape with its width', () => {
+    expect(tokenCode({ Field: 'AI', Kind: 'Placeholder', Text: 'CHAR', Length: 16 })).toBe('<CHAR[16]>');
+    expect(tokenPhrase({ Field: 'AI', Kind: 'Placeholder', Text: 'CHAR', Length: 16 })).toBe('exactly 16 characters');
+  });
 });
 
 describe('alignTokensToExample', () => {
