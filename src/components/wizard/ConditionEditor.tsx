@@ -9,6 +9,7 @@ import { DATE_SOURCE_FIELDS, LEDGER_SOURCE_FIELDS } from '../../constants/fields
 import { useTransactionData } from '../../hooks/useTransactionData';
 import { generateExpressionPrompt } from '../../utils/regexify';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
+import { tepBagKeys } from '../../utils/tepBag';
 import { WizardCommentIconButton } from './WizardCommentIconButton';
 
 const ALLOWED_SOURCE_FIELDS = new Set([
@@ -259,6 +260,24 @@ export function ConditionEditor({
   // we only resync when the canonical join of condition.values diverges from
   // the join of our parsed input (i.e. an external reset such as Discard).
   const [valuesInput, setValuesInput] = useState(() => (condition.values ?? []).join(', '));
+
+  // `[_TEP_]` bag support (INTERIM_TransactionsList AdditionalInformation):
+  // when the loaded rows carry `key: value [_TEP_] …` bags, an "Advanced
+  // options" affordance above the Value input lists the keys so the operator
+  // can anchor a Contains/Equals value on `key: ` without retyping it.
+  const tepKeys = useMemo(
+    () => (condition.sourceField === 'AdditionalInformation' ? tepBagKeys(transactions) : []),
+    [condition.sourceField, transactions],
+  );
+  const [tepMenuOpen, setTepMenuOpen] = useState(false);
+  const applyTepKey = useCallback((key: string) => {
+    const current = condition.value ?? '';
+    // Swap an already-inserted key prefix instead of stacking prefixes.
+    const m = current.match(/^([A-Za-z0-9_$][A-Za-z0-9_.$-]*): ?/);
+    const rest = m && tepKeys.includes(m[1]) ? current.slice(m[0].length) : current;
+    onUpdate({ value: `${key}: ${rest}` });
+    setTepMenuOpen(false);
+  }, [condition.value, tepKeys, onUpdate]);
   useEffect(() => {
     const fromValues = (condition.values ?? []).join(', ');
     const parsedFromInput = valuesInput.split(',').map((v) => v.trim()).filter(Boolean).join(', ');
@@ -428,13 +447,50 @@ export function ConditionEditor({
                   }}
                 />
               ) : (
-                <Input
-                  label='Value'
-                  placeholder="Enter value..."
-                  value={condition.value}
-                  disabled={readOnly}
-                  onChange={(e) => onUpdate({ value: e.target.value })}
-                  onPaste={(e) => {
+                <div className="relative">
+                  {tepKeys.length > 0 && !readOnly && (
+                    // Custom label row so the "Advanced options" trigger sits
+                    // on the Value label line (same pattern as the Extraction
+                    // Method shortcut in AttributeEditor). The Input below
+                    // drops its own label to avoid doubling it.
+                    <div className="flex items-center justify-between mb-1 pl-1">
+                      <label className="text-xs font-medium text-body">Value</label>
+                      <button
+                        type="button"
+                        onClick={() => setTepMenuOpen((v) => !v)}
+                        className="text-[11px] text-primary hover:text-primary-dark hover:underline"
+                      >
+                        Advanced options {tepMenuOpen ? '▴' : '▾'}
+                      </button>
+                    </div>
+                  )}
+                  {tepMenuOpen && tepKeys.length > 0 && !readOnly && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setTepMenuOpen(false)} />
+                      <div className="absolute right-0 top-6 z-50 w-56 max-h-64 overflow-y-auto rounded-lg border border-border bg-surface shadow-lg py-1">
+                        <p className="px-3 py-1 text-[10px] uppercase tracking-wide text-faint">
+                          Insert a field key
+                        </p>
+                        {tepKeys.map((key) => (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => applyTepKey(key)}
+                            className="w-full text-left px-3 py-1.5 text-xs font-mono text-body hover:bg-surface-hover"
+                          >
+                            {key}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                  <Input
+                    label={tepKeys.length > 0 && !readOnly ? undefined : 'Value'}
+                    placeholder="Enter value..."
+                    value={condition.value}
+                    disabled={readOnly}
+                    onChange={(e) => onUpdate({ value: e.target.value })}
+                    onPaste={(e) => {
                     // Clipboards often carry a leading space from selection
                     // gestures (double-click word grab, drag-select past the
                     // start). If the paste lands at the start of an empty or
@@ -452,7 +508,8 @@ export function ConditionEditor({
                       onUpdate({ value: newValue });
                     }
                   }}
-                />
+                  />
+                </div>
               )}
             </div>
           </div>

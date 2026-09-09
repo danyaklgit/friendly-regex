@@ -8,6 +8,7 @@ import { SearchableSelect } from '../shared/SearchableSelect';
 import { Input } from '../shared/Input';
 import { Select } from '../shared/Select';
 import { Button } from '../shared/Button';
+import { TEP_BAG_SEPARATOR, isTepBagText, parseTepBag } from '../../utils/tepBag';
 
 interface TransformationItemProps {
   transformation: TransformationFormValue;
@@ -17,6 +18,10 @@ interface TransformationItemProps {
   methods: TransformationMethodDef[];
   reorderDisabled?: boolean;
   readOnly?: boolean;
+  /** Sample source value from the loaded rows — when it's a `[_TEP_]` bag
+   *  and this step is Split & Pick on that separator, the numeric Pick Index
+   *  input turns into a dropdown of the bag's field keys. */
+  sampleValue?: string;
   onUpdate: (updates: Partial<TransformationFormValue>) => void;
   onRemove: () => void;
   onMoveUp: () => void;
@@ -31,6 +36,7 @@ export function TransformationItem({
   methods,
   reorderDisabled,
   readOnly,
+  sampleValue,
   onUpdate,
   onRemove,
   onMoveUp,
@@ -60,6 +66,18 @@ export function TransformationItem({
   const methodOptions = buildMethodOptions(methods);
 
   const hasArgs = !!methodDef && methodDef.args.length > 0;
+
+  // `[_TEP_]` bag mode for Split & Pick: when the sample source value carries
+  // the bag separator and the delimiter arg is that separator, the operator
+  // picks the FIELD KEY instead of typing a 0-based index. The option value
+  // is still the split index (that's what the wire format and the runtime
+  // `split_and_pick` consume) — the dropdown just resolves it from the key.
+  const tepEntries =
+    transformation.method === 'split_and_pick' &&
+    (transformation.args.delimiter ?? '').trim() === TEP_BAG_SEPARATOR &&
+    isTepBagText(sampleValue)
+      ? parseTepBag(sampleValue)
+      : [];
 
   return (
     <div
@@ -179,6 +197,23 @@ export function TransformationItem({
                     label={argDef.label}
                     placeholder={argDef.placeholder || 'Select…'}
                     options={argDef.options ?? []}
+                    value={transformation.args[argDef.key] ?? ''}
+                    disabled={readOnly}
+                    required={showAsRequired}
+                    onChange={(e) =>
+                      onUpdate({ args: { ...transformation.args, [argDef.key]: e.target.value } })
+                    }
+                  />
+                ) : argDef.key === 'index' && tepEntries.length > 0 ? (
+                  // Bag-aware Pick Index: the operator picks the field key;
+                  // the stored arg stays the 0-based split index.
+                  <Select
+                    label="Field"
+                    placeholder="Select field…"
+                    options={tepEntries.map((e) => ({
+                      value: String(e.index),
+                      label: e.key ?? `Part ${e.index + 1}`,
+                    }))}
                     value={transformation.args[argDef.key] ?? ''}
                     disabled={readOnly}
                     required={showAsRequired}

@@ -11,6 +11,7 @@ import { Badge } from '../shared/Badge';
 import { Tooltip } from '../shared/Tooltip';
 import { getHints } from '../../utils/getHints';
 import { containsRtl } from '../../utils/bidi';
+import { isTepBagText, parseTepBag } from '../../utils/tepBag';
 import type { SuggestedTagSpec, KeyToken } from '../../api/sampling';
 import { tokenChipClass, tokenPhrase, isBuiltinPlaceholder } from '../../utils/keyTokens';
 import { curatedRowKind, curatedGroupLabel, CONFIDENCE_DISPLAY, confidenceChipClass } from '../../utils/curatedView';
@@ -286,6 +287,8 @@ function computeHighlightRanges(text: string, regexes: RegExp[]): [number, numbe
   return merged;
 }
 
+const HIGHLIGHT_MARK_CLASS = 'bg-primary/20 dark:bg-primary/40 rounded-sm text-heading dark:text-primary-light font-medium p-0.5 ring-1 ring-primary/40 dark:ring-primary/70 dark:shadow-[0_0_6px_var(--color-primary)]';
+
 function highlightText(text: string, regexes: RegExp[]): ReactNode {
   const merged = computeHighlightRanges(text, regexes);
   if (merged.length === 0) return text;
@@ -295,7 +298,7 @@ function highlightText(text: string, regexes: RegExp[]): ReactNode {
   for (const [start, end] of merged) {
     if (pos < start) parts.push(text.slice(pos, start));
     parts.push(
-      <mark key={start} className="bg-primary/20 dark:bg-primary/40 rounded-sm text-heading dark:text-primary-light font-medium p-0.5 ring-1 ring-primary/40 dark:ring-primary/70 dark:shadow-[0_0_6px_var(--color-primary)]">
+      <mark key={start} className={HIGHLIGHT_MARK_CLASS}>
         {text.slice(start, end)}
       </mark>
     );
@@ -304,6 +307,60 @@ function highlightText(text: string, regexes: RegExp[]): ReactNode {
   if (pos < text.length) parts.push(text.slice(pos));
 
   return <>{parts}</>;
+}
+
+/**
+ * Render `text[from, to)` with the (already merged, full-string) highlight
+ * ranges applied. Lets the `[_TEP_]` bag renderer split one value into
+ * per-pair lines WITHOUT re-running the match regexes per line — ranges are
+ * computed once on the full raw string (so anchors like `^` behave exactly
+ * as they do for plain cells) and sliced here per line segment.
+ */
+function highlightSlice(text: string, merged: [number, number][], from: number, to: number): ReactNode {
+  const parts: ReactNode[] = [];
+  let pos = from;
+  for (const [start, end] of merged) {
+    if (end <= from) continue;
+    if (start >= to) break;
+    const s = Math.max(start, from);
+    const e = Math.min(end, to);
+    if (pos < s) parts.push(text.slice(pos, s));
+    parts.push(
+      <mark key={s} className={HIGHLIGHT_MARK_CLASS}>
+        {text.slice(s, e)}
+      </mark>
+    );
+    pos = e;
+  }
+  if (pos < to) parts.push(text.slice(pos, to));
+  if (parts.length === 0) return '';
+  return <>{parts}</>;
+}
+
+/**
+ * `[_TEP_]` bag values render one `key: value` pair per line (the separator
+ * itself is dropped from the display; the td's `title` still carries the
+ * pairs). Keys are dimmed so the values read first; each line keeps its
+ * padding runs verbatim via `whitespace-pre` (gotcha #29) and `dir="auto"`
+ * so an Arabic-first value lays out per line, not per cell.
+ */
+function renderTepBagLines(text: string, regexes: RegExp[]): ReactNode {
+  const entries = parseTepBag(text);
+  const merged = regexes.length > 0 ? computeHighlightRanges(text, regexes) : [];
+  return (
+    <>
+      {entries.map((entry) => (
+        <div key={entry.start} dir="auto" className="whitespace-pre">
+          {entry.key != null && (
+            <span className="text-faint">
+              {highlightSlice(text, merged, entry.start, entry.valueStart)}
+            </span>
+          )}
+          {highlightSlice(text, merged, entry.valueStart, entry.end)}
+        </div>
+      ))}
+    </>
+  );
 }
 
 export function ColumnPicker({ columns, hiddenColumns, onChange, columnOrder, onColumnOrderChange, defaultHiddenColumns, onReset, lockedVisibleKeys, dataSetType }: {
@@ -640,13 +697,21 @@ function CellContentWrapper({
   relaxedMode,
   narrative,
   hasWidth,
+  tepBag,
   children,
 }: {
   relaxedMode: boolean;
   narrative: boolean;
   hasWidth: boolean;
+  /** `[_TEP_]` bag content — already rendered as one line per pair (each
+   *  line carries its own `whitespace-pre` + `dir`), so the wrapper must
+   *  not clamp (expanded) or force a single line (compact). */
+  tepBag?: boolean;
   children: React.ReactNode;
 }) {
+  if (tepBag) {
+    return <div className={hasWidth ? 'overflow-hidden' : undefined}>{children}</div>;
+  }
   if (relaxedMode) {
     // Narrative columns carry space-padding that rules split on, so preserve
     // consecutive spaces even in compact mode. `whitespace-pre` keeps the
@@ -864,6 +929,9 @@ function renderCellContentFor(
     ...(highlightMap?.get(field) ?? []),
     ...(searchHighlightMap?.get(field) ?? []),
   ];
+  // `[_TEP_]` bag values (INTERIM_TransactionsList AdditionalInformation)
+  // render one `key: value` pair per line instead of one long run.
+  if (isTepBagText(text)) return renderTepBagLines(text, regexes);
   if (regexes.length > 0) return highlightText(text, regexes);
   return text;
 }
@@ -1586,6 +1654,11 @@ const TableRow = memo(function TableRow({
               const cellWidth = resolveColumnWidth(col.key);
               const isNarrative = NARRATIVE_COLUMN_KEYS.has(col.key);
               const rawValue = item.row[col.field];
+              // `[_TEP_]` bag values render one pair per line (see
+              // renderTepBagLines) — the wrapper must not clamp or force a
+              // single line for them, and the hover title shows the pairs
+              // on separate lines instead of the raw joined string.
+              const isTepBag = isNarrative && isTepBagText(rawValue);
               // Character-view toggle: only RTL-containing cells in the
               // operator-selected columns switch to the logical-order
               // breakdown so bidi reordering can't hide where a split lands.
@@ -1607,7 +1680,9 @@ const TableRow = memo(function TableRow({
               const titleAttr = isInteractive
                 ? (interactiveCellHint ?? 'Double-click to use')
                 : (isNarrative || cellWidth != null) && rawValue != null
-                  ? String(rawValue)
+                  ? (isTepBag
+                      ? parseTepBag(String(rawValue)).map((e) => e.text).join('\n')
+                      : String(rawValue))
                   : undefined;
               return (
                 <td
@@ -1633,6 +1708,7 @@ const TableRow = memo(function TableRow({
                       relaxedMode={relaxedMode}
                       narrative={isNarrative}
                       hasWidth={cellWidth != null}
+                      tepBag={isTepBag}
                     >
                       {renderCellContent(col.field, rawValue)}
                     </CellContentWrapper>
