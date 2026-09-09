@@ -1,5 +1,6 @@
 import type { TransactionRow } from '../types';
 import { ApiError, throwIfNotOk } from './apiError';
+import { flattenCustomFields } from '../utils/customFields';
 
 // --- Request types ---
 
@@ -314,7 +315,15 @@ export async function getTransactions(
   });
 
   await throwIfNotOk(res, 'Failed to fetch transactions');
-  return res.json();
+  const data = (await res.json()) as { Transactions: TransactionRow[]; TransactionsCount?: number };
+  // INTERIM_TransactionsList rows carry the feed's own named fields as a
+  // structured `CustomFields` array — flatten it onto each row as
+  // `CustomFields:<key>` scalar properties (the backend's own column-name
+  // convention) so field meta, table columns, the rule engine, and attribute
+  // extraction all read them like any other row field. One choke point:
+  // every transactions read in the app goes through this function.
+  flattenCustomFields(data.Transactions);
+  return data;
 }
 
 export async function getBacklogStats(

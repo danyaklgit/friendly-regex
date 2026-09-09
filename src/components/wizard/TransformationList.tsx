@@ -19,7 +19,6 @@ import type { TransformationMethodDef } from '../../constants/transformations';
 import { TransformationItem } from './TransformationItem';
 import { TransformationPreview } from './TransformationPreview';
 import { Button } from '../shared/Button';
-import { TEP_BAG_SEPARATOR, isTepBagText, parseTepBag } from '../../utils/tepBag';
 
 interface TransformationListProps {
   transformations: TransformationFormValue[];
@@ -101,41 +100,13 @@ export function TransformationList({
 
   const handleUpdate = useCallback(
     (id: string, updates: Partial<TransformationFormValue>) => {
-      const idx = transformations.findIndex((t) => t.id === id);
-      let next = transformations.map((t) =>
-        t.id === id ? { ...t, ...updates } : t,
+      onChange(
+        transformations.map((t) =>
+          t.id === id ? { ...t, ...updates } : t,
+        ),
       );
-      // `[_TEP_]` bag pipeline wiring: when the operator picks a field key on
-      // a Split & Pick step (delimiter = the bag separator), prefill the NEXT
-      // step's Replace Find with `key:` — the seeded pipeline strips the key
-      // prefix from the picked pair before Trim. Only fires while that Find
-      // is untouched (blank, or a previously-inserted `key:`), so a
-      // hand-edited Find is never clobbered.
-      if (idx !== -1 && isTepBagText(sampleValue)) {
-        const updated = next[idx];
-        if (
-          updated.method === 'split_and_pick' &&
-          (updated.args.delimiter ?? '').trim() === TEP_BAG_SEPARATOR &&
-          updated.args.index !== transformations[idx].args.index
-        ) {
-          const entries = parseTepBag(sampleValue);
-          const picked = entries.find((e) => String(e.index) === updated.args.index);
-          const follower = next[idx + 1];
-          if (picked?.key && follower?.method === 'replace') {
-            const find = follower.args.find ?? '';
-            const untouched =
-              find.trim() === '' || entries.some((e) => e.key != null && find === `${e.key}:`);
-            if (untouched) {
-              next = next.map((t, i) =>
-                i === idx + 1 ? { ...t, args: { ...t.args, find: `${picked.key}:` } } : t,
-              );
-            }
-          }
-        }
-      }
-      onChange(next);
     },
-    [transformations, onChange, sampleValue],
+    [transformations, onChange],
   );
 
   const handleMove = useCallback(
@@ -207,7 +178,6 @@ export function TransformationList({
                   methods={methods}
                   reorderDisabled={hasUnselected || readOnly}
                   readOnly={readOnly}
-                  sampleValue={sampleValue}
                   onUpdate={(updates) => handleUpdate(t.id, updates)}
                   onRemove={() => handleRemove(t.id)}
                   onMoveUp={() => handleMove(i, 'up')}

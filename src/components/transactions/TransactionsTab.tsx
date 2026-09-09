@@ -1255,6 +1255,12 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         if (!showCredit) s.add(col.key);
         continue;
       }
+      // Custom fields (`CustomFields:<key>`, the flattened
+      // INTERIM_TransactionsList bag) default VISIBLE — each bank field gets
+      // its own column so the operator sees the structured values without a
+      // trip to the column picker. They are data-driven, so no spec lists
+      // them; the operator can still hide them like any other column.
+      if (col.type === 'data' && col.field.startsWith('CustomFields:')) continue;
       // Anything outside this DataSetType's default-visible set starts
       // hidden — including fields unknown to the spec (a future backend
       // addition), which stay offerable in the picker but never default-on.

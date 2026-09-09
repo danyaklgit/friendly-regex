@@ -16,7 +16,7 @@ import { humanizeFieldName } from '../../utils/humanizeFieldName';
 import { describeLiteralBoundary } from '../../utils/engregxify';
 import { applyTransformation } from '../../utils/transformations';
 import { stringifyFieldValue } from '../../utils/extractAttributes';
-import { TEP_BAG_SEPARATOR, tepBagKeys } from '../../utils/tepBag';
+import { isCustomFieldKey } from '../../utils/customFields';
 import { containsRtl } from '../../utils/bidi';
 import { CharacterBreakdown, HighlightedText } from '../shared/CharacterBreakdown';
 import { Modal } from '../shared/Modal';
@@ -497,17 +497,23 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
   // a non-empty value, stringified the same way extractAttributes does.
   // Picked once and shared across renders so the operator's preview is
   // stable while they edit the pipeline.
-  // `[_TEP_]` bag detection (INTERIM_TransactionsList AdditionalInformation):
-  // when the loaded rows carry the bag shape, picking Additional Information
-  // as the extraction source seeds the pre-extraction pipeline with
-  // Split & Pick on the separator → Replace `key:` → Trim, and the Split &
-  // Pick index input becomes a dropdown of the bag's field keys (see
-  // TransformationItem). Seeding only happens while the pre-list is empty so
-  // an operator's own pipeline is never overwritten.
-  const rowsHaveTepBag = useMemo(
-    () => tepBagKeys(transactions ?? []).length > 0,
-    [transactions],
-  );
+  // Source-field options: the standard allow-listed fields first (sorted),
+  // then the feed's own custom fields (`CustomFields:<key>`, flattened onto
+  // the loaded rows and picked up by fieldMeta) as a "Bank field" group. The
+  // stored sourceField is the canonical `CustomFields:<key>` name the backend
+  // accepts in AttributeRuleExpression.SourceField — the field IS the value,
+  // so a plain Extract Full Field usually does the job with no Split & Pick.
+  const sourceFieldOptions = useMemo(() => {
+    const standard = fieldMeta.sourceFields
+      .filter((f) => ALLOWED_SOURCE_FIELDS.has(f))
+      .map((f) => ({ value: f, label: humanizeFieldName(f) }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+    const custom = fieldMeta.sourceFields
+      .filter(isCustomFieldKey)
+      .map((f) => ({ value: f, label: humanizeFieldName(f), sublabel: 'Bank field' }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+    return [...standard, ...custom];
+  }, [fieldMeta.sourceFields]);
 
   const rawSourceSample = useMemo<string>(() => {
     if (!transactions || !attribute.sourceField) return '';
@@ -1231,33 +1237,8 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
                 label="Source Field"
                 placeholder="Select source field"
                 value={attribute.sourceField}
-                onChange={(val) => {
-                  const updates: Partial<AttributeFormValue> = { sourceField: val };
-                  // Seed the `[_TEP_]` bag pipeline: Split & Pick on the
-                  // separator (index picked via the key dropdown) → Replace
-                  // `key:` (filled when the key is picked) → Trim. Only when
-                  // the pre-list is empty so we never clobber operator work.
-                  if (
-                    val === 'AdditionalInformation' &&
-                    rowsHaveTepBag &&
-                    (attribute.preExtractionTransformations ?? []).length === 0
-                  ) {
-                    updates.preExtractionTransformations = [
-                      { id: crypto.randomUUID(), method: 'split_and_pick', args: { delimiter: TEP_BAG_SEPARATOR, index: '' } },
-                      { id: crypto.randomUUID(), method: 'replace', args: { find: '', replaceWith: '' } },
-                      { id: crypto.randomUUID(), method: 'trim', args: {} },
-                    ];
-                    // The bag pipeline already isolates the wanted value, so
-                    // extraction usually just takes the whole result — autofill
-                    // Extract Full Field (only while no method is chosen; the
-                    // operator can still pick any other method afterwards).
-                    if (!attribute.extractionOperation) {
-                      updates.extractionOperation = 'extract_full_field';
-                    }
-                  }
-                  onUpdate(updates);
-                }}
-                options={fieldMeta.sourceFields.filter((f) => ALLOWED_SOURCE_FIELDS.has(f)).map((f) => ({ value: f, label: humanizeFieldName(f) })).sort((a, b) => a.label.localeCompare(b.label))}
+                onChange={(val) => onUpdate({ sourceField: val })}
+                options={sourceFieldOptions}
                 disabled={readOnly}
                 required={!readOnly}
                 error={!readOnly && (!attribute.sourceField || attribute.sourceField.trim().length === 0)}

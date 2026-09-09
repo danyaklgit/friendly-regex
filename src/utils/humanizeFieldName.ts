@@ -29,6 +29,13 @@ const TOKEN_REWRITES: Record<string, string> = {
  *   StaleSinceUtc → Stale Since UTC
  */
 export function humanizeFieldName(name: string): string {
+  // Custom fields (`CustomFields:<key>`) display as the bank's own key,
+  // VERBATIM — the keys come from the data (`narrative.narr1`, `partTrnType`)
+  // and camelCase splitting or dot handling would mangle them. Matching is
+  // case-sensitive server-side, so the label must never re-case the key.
+  if (name.startsWith('CustomFields:') && name.length > 'CustomFields:'.length) {
+    return name.slice('CustomFields:'.length);
+  }
   return name
     // Replace underscores with spaces: "Additional_Information" → "Additional Information"
     .replace(/_/g, ' ')
