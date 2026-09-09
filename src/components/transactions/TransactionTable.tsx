@@ -1,4 +1,4 @@
-import { memo, useMemo, useLayoutEffect, useEffect, useRef, useState, useCallback, type ReactNode } from 'react';
+import { Fragment, memo, useMemo, useLayoutEffect, useEffect, useRef, useState, useCallback, type ReactNode } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { AnalyzedTransaction, TagSpecDefinition, TagAttribute, RuleExpression, TransactionRow } from '../../types';
 import { useTransactionData } from '../../hooks/useTransactionData';
@@ -338,28 +338,46 @@ function highlightSlice(text: string, merged: [number, number][], from: number, 
 }
 
 /**
- * `[_TEP_]` bag values render as a stack of CELLS — one bordered row per
- * `key: value` pair, divided like a mini table (the separator itself is
- * dropped from the display; the td's `title` still carries the pairs). Keys
- * are dimmed so the values read first; each row keeps its padding runs
- * verbatim via `whitespace-pre` (gotcha #29) and `dir="auto"` so an
- * Arabic-first value lays out per row, not per column cell.
+ * `[_TEP_]` bag values DIVIDE the td into smaller key/value cells: a
+ * two-column full-bleed grid (key | value) whose row and column dividers
+ * reach the td edges (the td drops its own padding for these cells — see
+ * the `isTepBag` branch on the td className). The separator itself is
+ * dropped from the display; the td's `title` still carries the pairs. A
+ * keyless part spans both columns. Values wrap (`whitespace-pre-wrap`)
+ * instead of cropping, keeping padding runs verbatim (gotcha #29), and get
+ * `dir="auto"` so an Arabic-first value lays out per row.
  */
 function renderTepBagLines(text: string, regexes: RegExp[]): ReactNode {
   const entries = parseTepBag(text);
   const merged = regexes.length > 0 ? computeHighlightRanges(text, regexes) : [];
   return (
-    <div className="w-fit max-w-full rounded border border-border-subtle divide-y divide-border-subtle overflow-hidden my-0.5">
-      {entries.map((entry) => (
-        <div key={entry.start} dir="auto" className="whitespace-pre px-1.5 py-0.5 odd:bg-surface-secondary/60">
-          {entry.key != null && (
-            <span className="text-faint">
-              {highlightSlice(text, merged, entry.start, entry.valueStart)}
-            </span>
-          )}
-          {highlightSlice(text, merged, entry.valueStart, entry.end)}
-        </div>
-      ))}
+    // min-w widens the auto-layout column so values get real room instead of
+    // wrapping every few characters; pre-wrap still catches the rare
+    // overlong value.
+    <div className="grid grid-cols-[max-content_minmax(0,1fr)] w-full min-w-96">
+      {entries.map((entry, i) => {
+        const rowClasses = `px-2 py-1 ${i > 0 ? 'border-t border-border-subtle' : ''} ${i % 2 === 1 ? 'bg-surface-secondary/60' : ''}`;
+        if (entry.key == null) {
+          return (
+            <div key={entry.start} dir="auto" className={`whitespace-pre-wrap break-words col-span-2 ${rowClasses}`}>
+              {highlightSlice(text, merged, entry.start, entry.end)}
+            </div>
+          );
+        }
+        return (
+          <Fragment key={entry.start}>
+            <div className={`whitespace-pre text-faint border-r border-border-subtle ${rowClasses}`}>
+              {/* Key cell: the parsed key only — the `: ` stays out of the
+                  display but its offsets still exist in `merged`, so slice
+                  just the key's own span for highlight fidelity. */}
+              {highlightSlice(text, merged, entry.start, entry.start + entry.key.length)}
+            </div>
+            <div dir="auto" className={`whitespace-pre-wrap break-words ${rowClasses}`}>
+              {highlightSlice(text, merged, entry.valueStart, entry.end)}
+            </div>
+          </Fragment>
+        );
+      })}
     </div>
   );
 }
@@ -930,9 +948,10 @@ function renderCellContentFor(
     ...(highlightMap?.get(field) ?? []),
     ...(searchHighlightMap?.get(field) ?? []),
   ];
-  // `[_TEP_]` bag values (INTERIM_TransactionsList AdditionalInformation)
-  // render one `key: value` pair per line instead of one long run.
-  if (isTepBagText(text)) return renderTepBagLines(text, regexes);
+  // `[_TEP_]` bag values render as a key/value table — ONLY for Additional
+  // Information. Other columns (e.g. TransactionDetails) may carry the same
+  // separator but stay verbatim strings.
+  if (field === 'AdditionalInformation' && isTepBagText(text)) return renderTepBagLines(text, regexes);
   if (regexes.length > 0) return highlightText(text, regexes);
   return text;
 }
@@ -1655,11 +1674,12 @@ const TableRow = memo(function TableRow({
               const cellWidth = resolveColumnWidth(col.key);
               const isNarrative = NARRATIVE_COLUMN_KEYS.has(col.key);
               const rawValue = item.row[col.field];
-              // `[_TEP_]` bag values render one pair per line (see
-              // renderTepBagLines) — the wrapper must not clamp or force a
-              // single line for them, and the hover title shows the pairs
-              // on separate lines instead of the raw joined string.
-              const isTepBag = isNarrative && isTepBagText(rawValue);
+              // `[_TEP_]` bag values render as a key/value table (see
+              // renderTepBagLines) — ONLY for Additional Information; other
+              // columns keep the raw string. The wrapper must not clamp or
+              // force a single line for the table, and the hover title shows
+              // the pairs on separate lines instead of the raw joined string.
+              const isTepBag = col.field === 'AdditionalInformation' && isTepBagText(rawValue);
               // Character-view toggle: only RTL-containing cells in the
               // operator-selected columns switch to the logical-order
               // breakdown so bidi reordering can't hide where a split lands.
@@ -1693,7 +1713,10 @@ const TableRow = memo(function TableRow({
                   // so they never take the compact `whitespace-nowrap` branch;
                   // a max-width bounds them so the boxes wrap instead of forcing
                   // one giant line.
-                  className={`px-3 ${cellPy} text-xs text-body-secondary ${relaxedMode && !showCharView ? 'whitespace-nowrap' : 'align-top'} ${cellWidth != null ? 'overflow-hidden' : ''} ${stickyBg} ${isHighlighted ? 'ring-1 ring-primary/30 ring-inset bg-primary/5 dark:bg-primary/10' : ''} ${isInteractive ? 'cursor-pointer hover:ring-1 hover:ring-primary/50 hover:bg-primary/5 dark:hover:bg-primary/10 transition-shadow select-none' : ''}`}
+                  // Bag cells drop the td padding entirely: their key/value
+                  // rows divide the WHOLE cell (dividers reach the td edges)
+                  // instead of floating as a boxed table inside it.
+                  className={`${isTepBag && !showCharView ? 'p-0 align-top' : `px-3 ${cellPy} ${relaxedMode && !showCharView ? 'whitespace-nowrap' : 'align-top'}`} text-xs text-body-secondary ${cellWidth != null ? 'overflow-hidden' : ''} ${stickyBg} ${isHighlighted ? 'ring-1 ring-primary/30 ring-inset bg-primary/5 dark:bg-primary/10' : ''} ${isInteractive ? 'cursor-pointer hover:ring-1 hover:ring-primary/50 hover:bg-primary/5 dark:hover:bg-primary/10 transition-shadow select-none' : ''}`}
                   style={{ ...getCellStyle(colIdx), width: cellWidth, maxWidth: showCharView ? (cellWidth ?? CHAR_VIEW_MAX_WIDTH) : cellWidth }}
                   title={titleAttr}
                   onDoubleClick={
