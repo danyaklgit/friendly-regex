@@ -338,19 +338,20 @@ function highlightSlice(text: string, merged: [number, number][], from: number, 
 }
 
 /**
- * `[_TEP_]` bag values render one `key: value` pair per line (the separator
- * itself is dropped from the display; the td's `title` still carries the
- * pairs). Keys are dimmed so the values read first; each line keeps its
- * padding runs verbatim via `whitespace-pre` (gotcha #29) and `dir="auto"`
- * so an Arabic-first value lays out per line, not per cell.
+ * `[_TEP_]` bag values render as a stack of CELLS — one bordered row per
+ * `key: value` pair, divided like a mini table (the separator itself is
+ * dropped from the display; the td's `title` still carries the pairs). Keys
+ * are dimmed so the values read first; each row keeps its padding runs
+ * verbatim via `whitespace-pre` (gotcha #29) and `dir="auto"` so an
+ * Arabic-first value lays out per row, not per column cell.
  */
 function renderTepBagLines(text: string, regexes: RegExp[]): ReactNode {
   const entries = parseTepBag(text);
   const merged = regexes.length > 0 ? computeHighlightRanges(text, regexes) : [];
   return (
-    <>
+    <div className="w-fit max-w-full rounded border border-border-subtle divide-y divide-border-subtle overflow-hidden my-0.5">
       {entries.map((entry) => (
-        <div key={entry.start} dir="auto" className="whitespace-pre">
+        <div key={entry.start} dir="auto" className="whitespace-pre px-1.5 py-0.5 odd:bg-surface-secondary/60">
           {entry.key != null && (
             <span className="text-faint">
               {highlightSlice(text, merged, entry.start, entry.valueStart)}
@@ -359,7 +360,7 @@ function renderTepBagLines(text: string, regexes: RegExp[]): ReactNode {
           {highlightSlice(text, merged, entry.valueStart, entry.end)}
         </div>
       ))}
-    </>
+    </div>
   );
 }
 
