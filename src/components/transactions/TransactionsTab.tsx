@@ -326,7 +326,7 @@ function curationParamValue(source: CurationStudioSource): string | null {
 
 
 export function TransactionsTab({ activeCheckout, onClearPendingDefinition, initialShareFilters, initialShareToggles, operatorName, shareDialogOpen: shareDialogOpenProp, onShareDialogClose, pendingPillFilters, onPendingPillFiltersConsumed, onBuilderOpenChange }: TransactionsTabProps) {
-  const { libraries, tagDefinitions, originalDefinitionIds, dispatch, isPairBeingTagged, rawHierarchyNodes } = useTagSpecs();
+  const { libraries, tagDefinitions, originalDefinitionIds, dispatch, isPairBeingTagged, rawHierarchyNodes, refetchLibraries } = useTagSpecs();
   const { userId, usersMap, getAuthHeaders, refreshIfNeeded, isAudit } = useAuth();
   const { extractionMethods } = useLovAttributes();
   const tepConfig = useTepConfig();
@@ -3254,11 +3254,16 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     // filter reset only after the save ensures the refetch (triggered by
     // setFilters below, or the explicit fetchPage when there's no filter
     // change to piggyback on) hits a backend that already has the new rule.
-    // When the server save ran, this is the exact library object that was
-    // persisted — state must take it verbatim (REPLACE_LIBRARY below) rather
-    // than letting an ADD/UPDATE re-derive the target library and risk filing
-    // the definition elsewhere.
+    // When the server save ran, `savedLib` is the library AS THE SERVER
+    // PERSISTED IT (the save response's TagSpecLib) — state must take it
+    // verbatim (REPLACE_LIBRARY below). NEVER adopt the outgoing payload as
+    // the persisted state: the backend's save merge can keep stored
+    // definitions over stale echoes, so what the server holds may differ
+    // from what was sent, and adopting the payload hid server-side changes
+    // (the Nickname-migration incident, 2026-09-09). On a backend that
+    // predates the response addition, refetch instead.
     let savedLib: TagSpecLibrary | null = null;
+    let savedToServer = false;
     if (activeCheckout) {
       setSavingTagSpec(true);
       try {
@@ -3297,16 +3302,32 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
               ? currentLib.TagSpecDefinitions.map((d) => d.Id === result.definition.Id ? result.definition : d)
               : [...currentLib.TagSpecDefinitions, result.definition];
             const libToSave = { ...currentLib, TagSpecDefinitions: updatedDefs };
-            await tagSpecLibrarySave(libToSave, token, tepHeaders);
-            savedLib = libToSave;
+            const saveResult = await tagSpecLibrarySave(libToSave, token, tepHeaders);
+            savedToServer = true;
+            savedLib = saveResult.library;
             // Curated View: the backend resamples the workspace after every
             // rule save/retag — refetch suggestions so covered sets leave the
             // work list on the next refresh.
             setSuggestionsReloadKey((k) => k + 1);
-            // Re-baseline the local cache so baseline + current both reflect
-            // what's now on the server, preventing stale draft state from
-            // overriding fresh API responses on future fetches.
-            saveBaseline(libToSave);
+            if (savedLib) {
+              // Re-baseline the local cache to the RETURNED library so
+              // baseline + current both reflect exactly what the server now
+              // holds (stamps, LastUpdatedDate, definitions the merge kept).
+              saveBaseline(savedLib);
+              if (saveResult.merge?.ServerKnewBetter) {
+                // Delayed so the "Tag saved" toast below doesn't instantly
+                // overwrite it (same pattern as the comment-flush toast).
+                const kept = saveResult.merge.KeptStored ?? 0;
+                setTimeout(() => {
+                  setToast({
+                    message: kept > 0
+                      ? `${kept} rule${kept === 1 ? '' : 's'} ${kept === 1 ? 'was' : 'were'} newer on the server and ${kept === 1 ? 'was' : 'were'} kept.`
+                      : 'Some rules were newer on the server and were kept.',
+                    type: 'success',
+                  });
+                }, 1200);
+              }
+            }
 
             // The TagSpec is now persisted, so wizard-deferred comment drafts
             // can safely be flushed against the now-real definition / rule /
@@ -3348,10 +3369,16 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
 
     // Save succeeded — now safe to flip the local state.
     if (savedLib) {
-      // Server save ran: state takes the persisted library verbatim, so
-      // state, the localStorage baseline, and the server agree by
-      // construction (no ADD/UPDATE re-derivation of the target library).
+      // Server save ran and returned the persisted library: state takes it
+      // verbatim, so state, the localStorage baseline, and the server agree
+      // by construction (no ADD/UPDATE re-derivation of the target library).
       dispatch({ type: 'REPLACE_LIBRARY', payload: savedLib });
+      setToast({ message: `Tag '${result.definition.Tag}' ${editingDef ? 'updated' : 'created'}`, type: 'success' });
+    } else if (savedToServer) {
+      // Server save ran but the backend predates the TagSpecLib response
+      // field: refetch so state (and the re-anchored draft cache) come from
+      // the server, never from the outgoing payload.
+      await refetchLibraries();
       setToast({ message: `Tag '${result.definition.Tag}' ${editingDef ? 'updated' : 'created'}`, type: 'success' });
     } else if (editingDef) {
       dispatch({ type: 'UPDATE', payload: result });
@@ -3388,7 +3415,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       // target (no blanking, window preserved).
       void engineRefetch();
     }
-  }, [dispatch, builder, editingDef, tagClickState, baseFilters, activeCheckout, libraries, refreshIfNeeded, getAuthHeaders, userId, tepConfig, saveBaseline, isLiveMode, engineRefetch, fetchFilterDefinitions, wizardCommentDrafts]);
+  }, [dispatch, builder, editingDef, tagClickState, baseFilters, activeCheckout, libraries, refreshIfNeeded, getAuthHeaders, userId, tepConfig, saveBaseline, isLiveMode, engineRefetch, fetchFilterDefinitions, wizardCommentDrafts, refetchLibraries]);
 
   const handleWizardClose = useCallback(() => {
     setWizardOpen(false);

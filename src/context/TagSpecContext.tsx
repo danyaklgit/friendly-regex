@@ -4,45 +4,79 @@ import type { TepHeaders } from '../api/transactions';
 import type { TagTreeNode, TagHierarchyRawNode, TagsHierarchyWrapper } from '../api/tagsHierarchy';
 import { getTagSpecLibraries } from '../api/tagSpecs';
 import { getRawTagsHierarchy, buildTagTree } from '../api/tagsHierarchy';
-import { getContextValue } from '../types/tagSpec';
 import { ALL_LIBRARY_DATA_SET_TYPES } from '../constants/dataSetTypes';
 import { useAuth } from './AuthContext';
 import { loadSampleTagData, loadSampleHierarchy } from '../data/loadSampleData';
 import { syncInProgressDrafts, LOCAL_CHANGES_EVENT } from '../hooks/useLocalChanges';
+import { mergeDraftWithServer } from '../utils/draftMerge';
+import { identityFromContext, identityKeySuffix, hasCompleteIdentity, type IdentityInput } from '../utils/libraryIdentity';
 
 // --- Helpers ---
 
 /**
- * Merge localStorage draft (`tep:current:${bank}:${side}`) over the API lib ONLY when
- * the cached draft is still anchored to the same server version we just fetched.
+ * Reconcile the localStorage draft of a checked-out library with the fresh
+ * API copy (UI_TagSpec_Draft_Cache_Server_Fields.md, 2026-09-09).
  *
- * The cache is a user's in-progress edits; it must not silently shadow a backend
- * that has moved on (e.g. someone else saved, or this user saved from another
- * machine). We detect that by comparing Id + VersionDate. If they diverge, the
- * cache is stale — drop it and surface the fresh API data.
+ * The draft is a DIFF over the last server snapshot, never a replacement:
+ * `mergeDraftWithServer` starts from the API library and keeps only pending
+ * local edits (current vs baseline), so server-authored changes — another
+ * window's or user's save, a backend migration setting `Nickname` — flow
+ * through on the very next poll. The old behavior (replace the API's
+ * definitions wholesale, invalidate only on Id / VersionDate divergence) hid
+ * every in-place server write indefinitely, because saves and migrations bump
+ * `LastUpdatedDate` / `SrvSavedRev`, never `VersionDate`.
+ *
+ * After the merge, `tep:baseline` is re-anchored to the API library (the new
+ * server truth) and `tep:current` to the merged result, so `hasChanges` means
+ * exactly "edits the server does not have yet".
  */
 function applyLocalDraftOrInvalidate(apiLib: TagSpecLibrary): TagSpecLibrary {
   if (apiLib.StatusTag !== 'INPROGRESS' || !apiLib.OperatorId) return apiLib;
-  const bank = getContextValue(apiLib.Context, 'BankSwiftCode') ?? '';
-  const side = getContextValue(apiLib.Context, 'Side') ?? '';
-  if (!bank || !side) return apiLib;
-  // Keys are namespaced by DataSetType (matches useLocalChanges) so an MT942
-  // draft never shadows the MT940 library for the same bank/side.
-  const currentKey = `tep:current:${apiLib.DataSetType}:${bank}:${side}`;
-  const baselineKey = `tep:baseline:${apiLib.DataSetType}:${bank}:${side}`;
+  // Identity-keyed like useLocalChanges (Ledger keys off client/erp), via the
+  // single central suffix builder.
+  const identity: IdentityInput = { dataSetType: apiLib.DataSetType, ...identityFromContext(apiLib) };
+  if (!hasCompleteIdentity(identity)) return apiLib;
+  const suffix = identityKeySuffix(identity);
+  const currentKey = `tep:current:${suffix}`;
+  const baselineKey = `tep:baseline:${suffix}`;
   try {
-    const raw = localStorage.getItem(currentKey);
-    if (!raw) return apiLib;
-    const cached = JSON.parse(raw) as TagSpecLibrary;
-    const stale =
-      cached.Id !== apiLib.Id ||
-      (apiLib.VersionDate && cached.VersionDate && cached.VersionDate < apiLib.VersionDate);
-    if (stale) {
+    const currentRaw = localStorage.getItem(currentKey);
+    if (!currentRaw) return apiLib;
+    const current = JSON.parse(currentRaw) as TagSpecLibrary;
+    if (current.Id !== apiLib.Id) {
+      // Draft belongs to an older document (a new check-out happened) — drop it.
       localStorage.removeItem(currentKey);
       localStorage.removeItem(baselineKey);
       return apiLib;
     }
-    return { ...apiLib, TagSpecDefinitions: cached.TagSpecDefinitions };
+    const baselineRaw = localStorage.getItem(baselineKey);
+    const baseline = baselineRaw ? (JSON.parse(baselineRaw) as TagSpecLibrary) : null;
+
+    // Fast path (backend 2026-09-09): `LastUpdatedDate` is bumped by EVERY
+    // server write. Unchanged since the baseline anchor = the server has not
+    // moved, so the draft (fresh copy + pending edits) is still current —
+    // skip the merge and keep the anchors as they are.
+    if (
+      baseline &&
+      baseline.Id === apiLib.Id &&
+      apiLib.LastUpdatedDate &&
+      baseline.LastUpdatedDate === apiLib.LastUpdatedDate
+    ) {
+      return { ...apiLib, TagSpecDefinitions: current.TagSpecDefinitions };
+    }
+
+    const { merged, resurrectedTags } = mergeDraftWithServer(apiLib, baseline, current);
+    if (resurrectedTags.length > 0) {
+      console.warn(
+        `Draft cache: pending delete of [${resurrectedTags.join(', ')}] cancelled — the server changed the definition(s) meanwhile.`,
+      );
+    }
+    // Re-anchor both keys in one pass so hasChangesFor never sees a mixed
+    // pair (the post-dispatch syncInProgressDrafts would rewrite `current`
+    // anyway, but only after React commits).
+    localStorage.setItem(baselineKey, JSON.stringify(apiLib));
+    localStorage.setItem(currentKey, JSON.stringify(merged));
+    return merged;
   } catch {
     return apiLib;
   }
@@ -50,12 +84,14 @@ function applyLocalDraftOrInvalidate(apiLib: TagSpecLibrary): TagSpecLibrary {
 
 /**
  * One-time migration: older builds could persist stale `tep:current:*` drafts that
- * silently shadowed fresh API data (see applyLocalDraftOrInvalidate above). The
- * version-aware merge only heals caches on a server-side VersionDate bump, so
- * existing stale drafts on users' browsers need a one-shot purge. Guarded by a
- * versioned flag so it runs exactly once per browser per bump.
+ * silently shadowed fresh API data (see applyLocalDraftOrInvalidate above). Bumped
+ * to v2 (2026-09-09): the pre-merge builds anchored baselines that never tracked
+ * the server (only Id/VersionDate divergence dropped them), so every browser
+ * drops its drafts once on first load of the merge build — operators lose
+ * nothing the server does not already have (the wizard saves on every change).
+ * Guarded by a versioned flag so it runs exactly once per browser per bump.
  */
-const CACHE_PURGE_FLAG = 'tep:cacheMigration:v1';
+const CACHE_PURGE_FLAG = 'tep:cacheMigration:v2';
 function runOneTimeCachePurge(): void {
   if (typeof window === 'undefined') return;
   try {

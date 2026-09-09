@@ -126,6 +126,14 @@ export interface TagSpecDefinition {
   Validity: TagValidity;
   TagRuleExpressions: TagRuleExpressions;
   Attributes: TagAttribute[];
+  /** Server-managed anti-stale-save stamps (unix ms), set ONLY by the backend
+   *  (API ref §7.3). Round-trip stored definitions untouched (spread keeps
+   *  them); an edited definition is rebuilt WITHOUT them (`toTagSpecDefinition`
+   *  does this) so the server knows it is client-authored. Never send stamps
+   *  older than the API's for a definition you did not edit — the save merge
+   *  then ignores your copy. */
+  SrvAddedRev?: number | null;
+  SrvSavedRev?: number | null;
 }
 
 // --- Tag Spec Library (parent container) ---
@@ -139,6 +147,12 @@ export interface TagSpecLibrary {
   Version: number;
   IsLatestVersion?: boolean;
   VersionDate: string;
+  /** Bumped by EVERY server write to the document (save, check-out, check-in,
+   *  release, promotion, migration) — unlike `VersionDate`, which moves only
+   *  at promotion / check-out (backend 2026-09-09). The "server moved on"
+   *  signal for the draft cache; null on documents written before the field
+   *  existed and on pre-deploy backends. */
+  LastUpdatedDate?: string | null;
   Context: ContextEntry[];
   TagSpecDefinitions: TagSpecDefinition[];
 }
