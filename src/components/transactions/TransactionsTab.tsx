@@ -25,6 +25,8 @@ import { translateFilters } from '../../utils/translateFilters';
 import { findTransactionTypeFilterDef } from '../../utils/transactionTypeFilterDef';
 import { humanizeFieldName } from '../../utils/humanizeFieldName';
 import { useOptionalDownloadCenter } from '../../context/DownloadCenterContext';
+import { ExportPromptModal } from '../downloadCenter/ExportPromptModal';
+import type { ExportColumnSelection, ExportContext } from '../../types/downloadCenter';
 import { useWizardForm, fromExistingDefinition } from '../../hooks/useWizardForm';
 import type { TagSpecDefinition, TagSpecLibrary, AnalyzedTransaction, WizardFormState, RuleExpression, CheckoutState, TransactionRow, AndGroupFormValue } from '../../types';
 import type { WizardFormResult } from '../../hooks/useWizardForm';
@@ -1933,8 +1935,32 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // button degrades to a disabled tooltip rather than crashing.
   const downloadCenter = useOptionalDownloadCenter();
   const [exporting, setExporting] = useState(false);
-  const handleExport = useCallback(async () => {
-    if (!downloadCenter) return;
+  // The export prompt (2026-09-09): Export opens a dialog to pick/reorder
+  // columns and choose a shared profile instead of queueing immediately.
+  const [exportPromptOpen, setExportPromptOpen] = useState(false);
+  // The workspace identity sent to GetExportProfiles (profile ranking) and
+  // echoed on ExportTEPTransactions (usage counting). Statement workspaces
+  // are (DataSetType, bank, side); Ledger is (DataSetType, client, ERP).
+  // Partial contexts are fine — send what the workspace knows.
+  const exportContext = useMemo<ExportContext>(() => {
+    const dst = activeCheckout?.dataSetType ?? DEFAULT_DATA_SET_TYPE;
+    if (isLedger(dst)) {
+      return {
+        DataSetType: dst,
+        ...(activeCheckout?.clientCode ? { ClientCode: activeCheckout.clientCode } : {}),
+        ...(activeCheckout?.erpCode ? { ErpCode: activeCheckout.erpCode } : {}),
+      };
+    }
+    return {
+      DataSetType: dst,
+      ...(activeCheckout?.bank ? { BankSwiftCode: activeCheckout.bank } : {}),
+      ...(activeCheckout?.side ? { Side: activeCheckout.side } : {}),
+    };
+  }, [activeCheckout]);
+  const handleExport = useCallback(async (
+    choice?: { profileId?: string; selection?: ExportColumnSelection },
+  ): Promise<boolean> => {
+    if (!downloadCenter) return false;
     setExporting(true);
     try {
       // Mirror the EXACT filter shape the live fetch uses so the export
@@ -1973,28 +1999,41 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       //      narrow anything outside the intraday workspaces). Omitted
       //      elsewhere: those exports never carry the columns.
       const intraday = isIntradayDataSetType(activeCheckout?.dataSetType);
+      //   5. Export profiles (2026-09-09): the prompt's choice — ProfileId
+      //      when the operator exports the selected profile unchanged, an
+      //      ad-hoc Selection when they edited without saving. ExportContext
+      //      always goes along so the queued export counts toward this
+      //      workspace's profile ranking. Neither present = the legacy
+      //      full layout, byte-identical to pre-profile exports.
       await downloadCenter.triggerExport(
         filtersPayload,
         effectiveSorting,
-        intraday
-          ? { includeMT940Recommendations: exportMt940Recos, matchTransactionType: matchTxnType }
-          : undefined,
+        {
+          ...(intraday
+            ? { includeMT940Recommendations: exportMt940Recos, matchTransactionType: matchTxnType }
+            : {}),
+          ...(choice?.profileId ? { profileId: choice.profileId } : {}),
+          ...(choice?.selection ? { selection: choice.selection } : {}),
+          exportContext,
+        },
       );
       setToast({
         message: 'Export queued — check the Download Center when ready.',
         type: 'success',
       });
+      return true;
     } catch (err) {
       setToast({
         message: err instanceof Error ? err.message : 'Failed to queue export.',
         type: 'error',
       });
+      return false;
     } finally {
       // Brief lockout so an accidental double-click can't fire two jobs in
       // the same breath. The button label says "Queueing…" during the lockout.
       setTimeout(() => setExporting(false), 1500);
     }
-  }, [downloadCenter, outgoingFilters, filterDefinitions, activeExtraFilters, effectiveSorting, hiddenDefIds, activeCheckout?.dataSetType, exportMt940Recos, matchTxnType]);
+  }, [downloadCenter, outgoingFilters, filterDefinitions, activeExtraFilters, effectiveSorting, hiddenDefIds, activeCheckout?.dataSetType, exportMt940Recos, matchTxnType, exportContext]);
 
   // Drafts queued from inside the wizard. Held here so the save handler can
   // flush after `tagSpecLibrarySave` resolves; the same value is passed down
@@ -3590,13 +3629,15 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
           {/* Export — only meaningful in live mode (the backend owns the
               dataset); hidden in sample/upload modes where there's no
               server-side data to export. Also hidden while the Rule Builder
-              is open so the toolbar focuses on builder controls. */}
+              is open so the toolbar focuses on builder controls. Opens the
+              export prompt (2026-09-09) — column picker + shared profiles —
+              rather than queueing immediately. */}
           {isLiveMode && downloadCenter && !builderOpen && (() => {
             const exportBtn = (
               <Button
                 variant="secondary"
                 size="xs"
-                onClick={handleExport}
+                onClick={() => setExportPromptOpen(true)}
                 disabled={exporting}
                 data-tour="export-transactions"
                 className="whitespace-nowrap inline-flex items-center gap-1.5"
@@ -3607,13 +3648,11 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                 {exporting ? 'Queueing…' : 'Export'}
               </Button>
             );
-            // Suppress the "Queue an export…" tooltip while a queue is
-            // already in flight — the button's own "Queueing…" label
-            // already communicates that state, and a tooltip telling the
-            // operator to do what they just did is noise.
+            // Suppress the tooltip while a queue is already in flight — the
+            // button's own "Queueing…" label already communicates that state.
             return exporting
               ? exportBtn
-              : <Tooltip content="Queue an export of the current filtered view" placement="bottom">{exportBtn}</Tooltip>;
+              : <Tooltip content="Choose columns and queue an export of the current filtered view" placement="bottom">{exportBtn}</Tooltip>;
           })()}
           {!builderOpen && !isAudit && (
             activeCheckout && !isReadOnly ? (
@@ -3884,33 +3923,10 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                 <span className="hidden lg:inline">Match transaction type</span>
               </button>
             )}
-            {/* "Recommendations in export" (2026-09-08): whether the CSV export
-                of this intraday workspace carries the MT940Recommendation*
-                columns. A persisted toolbar toggle rather than a dialog on
-                Export — the Export button queues immediately and operators
-                export repeatedly with the same intent. Same visibility rule
-                as "Match transaction type"; in read-only the persisted choice
-                is still sent (recommendations are read-only information). */}
-            {canMatchTxnType && !isReadOnly && (
-              <button
-                type="button"
-                onClick={() => setExportMt940Recos((v) => !v)}
-                title="Add the matching MT940 rules to the CSV export: how many, each tag, and the rule in words and as stored."
-                aria-pressed={exportMt940Recos}
-                className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-colors whitespace-nowrap ${
-                  exportMt940Recos
-                    ? 'bg-primary/10 border-primary/30 text-primary-dark dark:text-primary shadow-sm'
-                    : 'bg-surface border-border-strong text-body hover:bg-surface-hover'
-                }`}
-              >
-                <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <path d="M14 3v4a1 1 0 001 1h4" />
-                  <path d="M17 21H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z" />
-                  <path d="M12 11v6m0 0l-2.5-2.5M12 17l2.5-2.5" />
-                </svg>
-                <span className="hidden lg:inline">Recommendations in export</span>
-              </button>
-            )}
+            {/* "Recommendations in export" moved into the export prompt's
+                MT940 recommendations row (2026-09-09) — the prompt is where
+                export intent is expressed now. The persisted state
+                (`exportMt940Recos`) survives; the prompt edits it. */}
             {/* Character view: compact button next to Columns (a sibling
                 column-display control). Its on/off switch + per-column picker
                 live in the popover so the filter row stays tidy. Renders
@@ -5055,6 +5071,23 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
           />
         );
       })()}
+
+      {/* Export prompt (2026-09-09): column picker + shared profiles. The
+          recommendations row edits the same live toggle state the workspace
+          uses (matchTxnType also drives the on-screen suggestions), so the
+          sent flags always mirror what the operator sees. */}
+      <ExportPromptModal
+        open={exportPromptOpen}
+        onClose={() => setExportPromptOpen(false)}
+        exportContext={exportContext}
+        intraday={isIntradayDataSetType(activeCheckout?.dataSetType)}
+        includeRecommendations={exportMt940Recos}
+        onIncludeRecommendationsChange={setExportMt940Recos}
+        matchTransactionType={matchTxnType}
+        onMatchTransactionTypeChange={setMatchTxnType}
+        rowCount={displayCounts.totalNow}
+        onExport={handleExport}
+      />
 
       {otherDefsModalOpen && tagClickState
         && !tagClickState.showingAll && !tagClickState.rulesetApplied

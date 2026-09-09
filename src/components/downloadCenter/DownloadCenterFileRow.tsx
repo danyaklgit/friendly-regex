@@ -88,6 +88,13 @@ export function DownloadCenterFileRow({ file, onDownload, onDelete }: DownloadCe
           <span className="font-mono text-xs text-body truncate" title={file.FileName}>
             {file.FileName}
           </span>
+          {/* Which export profile laid the CSV out (2026-09-09). Absent on
+              configuration exports and pre-profile files. */}
+          {file.ProfileName && (
+            <span className="text-[11px] text-faint whitespace-nowrap shrink-0" title="Export profile">
+              · {file.ProfileName}
+            </span>
+          )}
         </div>
         <div className="text-[11px] text-faint">
           Created: {formatDate(file.CreatedDate)}

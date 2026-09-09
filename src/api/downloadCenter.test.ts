@@ -6,7 +6,11 @@ import {
   downloadTepTransactions,
   deleteDownloadCenterFile,
   clearDownloadCenterFiles,
+  getExportProfiles,
+  saveExportProfile,
+  deleteExportProfile,
 } from './downloadCenter';
+import { ApiError } from './apiError';
 import type { TepHeaders } from './transactions';
 
 const tepHeaders: TepHeaders = {
@@ -105,6 +109,98 @@ describe('downloadCenter API helpers', () => {
     it('throws when the server omits FileId', async () => {
       fetchSpy.mockResolvedValueOnce(jsonResponse({}));
       await expect(exportConfiguration({}, TOKEN, tepHeaders)).rejects.toThrow(/FileId/i);
+    });
+  });
+
+  describe('getExportProfiles', () => {
+    it('POSTs the ExportContext (not Context) and defaults absent arrays', async () => {
+      fetchSpy.mockResolvedValueOnce(jsonResponse({
+        ContextKey: 'MT940|SABBSARI|D||',
+        SuggestedProfileId: 'p-1',
+        Profiles: [{ Id: 'p-1', Name: 'Operator default', IsBuiltIn: true, BuiltInKey: 'operator-default', Selection: {} }],
+        Columns: [{ Id: 'StatementDate', Label: 'Statement Date', Group: 'Statement' }],
+      }));
+      const res = await getExportProfiles(
+        { DataSetType: 'MT940', BankSwiftCode: 'SABBSARI', Side: 'D' },
+        TOKEN,
+        tepHeaders,
+      );
+      const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe(`${BASE}/GetExportProfiles`);
+      expect((init.headers as Record<string, string>).ActivityTag).toBe('GetExportProfiles');
+      const body = JSON.parse(init.body as string);
+      expect(body.ExportContext).toEqual({ DataSetType: 'MT940', BankSwiftCode: 'SABBSARI', Side: 'D' });
+      expect(body.Context).toBeUndefined();
+      expect(res.SuggestedProfileId).toBe('p-1');
+      expect(res.Profiles).toHaveLength(1);
+      expect(res.Columns[0].Group).toBe('Statement');
+      // Absent in the payload → defaulted, so the prompt can render safely.
+      expect(res.CustomFieldKeys).toEqual([]);
+      expect(res.AttributeKeys).toEqual([]);
+    });
+
+    it('sends an empty body when no context is given', async () => {
+      fetchSpy.mockResolvedValueOnce(jsonResponse({ Profiles: [], Columns: [] }));
+      await getExportProfiles(undefined, TOKEN, tepHeaders);
+      const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      expect(JSON.parse(init.body as string)).toEqual({});
+    });
+  });
+
+  describe('saveExportProfile', () => {
+    it('POSTs the profile and returns it with IgnoredColumns', async () => {
+      fetchSpy.mockResolvedValueOnce(jsonResponse({
+        Profile: { Id: 'p-9', Name: 'Recon', Selection: { Columns: ['Id'] } },
+        IgnoredColumns: ['NotAColumn'],
+      }));
+      const res = await saveExportProfile(
+        { Name: 'Recon', Selection: { Columns: ['Id', 'NotAColumn'] } },
+        TOKEN,
+        tepHeaders,
+      );
+      const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe(`${BASE}/SaveExportProfile`);
+      expect((init.headers as Record<string, string>).ActivityTag).toBe('SaveExportProfile');
+      expect(JSON.parse(init.body as string).Name).toBe('Recon');
+      expect(res.Profile.Id).toBe('p-9');
+      expect(res.IgnoredColumns).toEqual(['NotAColumn']);
+    });
+
+    it('surfaces a 400 as ApiError with status (duplicate name / empty selection)', async () => {
+      fetchSpy.mockResolvedValueOnce(jsonResponse({
+        SFM: {
+          Constant: 'SFM_INVALID_INPUT_PARAMETERS',
+          Minor: [{ MinorRetCodeDetails: [{ ShortDescription: 'Name already used' }] }],
+        },
+      }, 400));
+      await expect(
+        saveExportProfile({ Name: 'Everything', Selection: {} }, TOKEN, tepHeaders),
+      ).rejects.toMatchObject({ name: 'ApiError', status: 400, message: 'Name already used' });
+    });
+
+    it('throws when the server omits the saved Profile', async () => {
+      fetchSpy.mockResolvedValueOnce(jsonResponse({ IgnoredColumns: [] }));
+      await expect(
+        saveExportProfile({ Name: 'X', Selection: { Columns: ['Id'] } }, TOKEN, tepHeaders),
+      ).rejects.toThrow(/profile/i);
+    });
+  });
+
+  describe('deleteExportProfile', () => {
+    it('POSTs the id with the paired ActivityTag', async () => {
+      fetchSpy.mockResolvedValueOnce(jsonResponse({ Deleted: true }));
+      await deleteExportProfile('p-9', TOKEN, tepHeaders);
+      const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe(`${BASE}/DeleteExportProfile`);
+      expect((init.headers as Record<string, string>).ActivityTag).toBe('DeleteExportProfile');
+      expect(JSON.parse(init.body as string)).toEqual({ Id: 'p-9' });
+    });
+
+    it('rejects with ApiError on a built-in (400)', async () => {
+      fetchSpy.mockResolvedValueOnce(jsonResponse({ SFM: { Constant: 'SFM_INVALID_INPUT_PARAMETERS' } }, 400));
+      const err = await deleteExportProfile('operator-default', TOKEN, tepHeaders).catch((e) => e);
+      expect(err).toBeInstanceOf(ApiError);
+      expect((err as ApiError).status).toBe(400);
     });
   });
 

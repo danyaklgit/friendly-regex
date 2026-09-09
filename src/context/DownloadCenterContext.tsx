@@ -11,7 +11,7 @@ import {
 import { useAuth } from './AuthContext';
 import { useTepConfig } from './TepConfigContext';
 import type { TepHeaders, FilterProperty, SortProperty } from '../api/transactions';
-import type { DownloadCenterFile } from '../types/downloadCenter';
+import type { DownloadCenterFile, ExportColumnSelection, ExportContext } from '../types/downloadCenter';
 import {
   exportTepTransactions,
   exportConfiguration,
@@ -48,9 +48,19 @@ export interface DownloadCenterApi {
     filters: FilterProperty[],
     sortingProps: SortProperty[],
     /** Intraday-only extras (2026-09-08): recommendation columns on/off +
-     *  the "Match transaction type" toggle state. Omit outside MT942 /
-     *  Interim MT940 — the backend ignores them there anyway. */
-    options?: { includeMT940Recommendations?: boolean; matchTransactionType?: boolean },
+     *  the "Match transaction type" toggle state (they WIN over a profile's
+     *  stored rule). Omit outside MT942 / Interim MT940 — the backend
+     *  ignores them there anyway. Export profiles (2026-09-09): profileId
+     *  (a saved profile lays the CSV out) OR selection (ad-hoc, unsaved);
+     *  exportContext identifies the workspace so usage counts toward the
+     *  ranking. All omitted = the legacy full layout, unchanged. */
+    options?: {
+      includeMT940Recommendations?: boolean;
+      matchTransactionType?: boolean;
+      profileId?: string;
+      selection?: ExportColumnSelection;
+      exportContext?: ExportContext;
+    },
   ) => Promise<string>;
   /** Central export (ExportConfiguration) — same Download Center lifecycle. */
   triggerConfigurationExport: (req: ExportConfigurationRequest) => Promise<string>;
@@ -187,7 +197,13 @@ export function DownloadCenterProvider({ children }: DownloadCenterProviderProps
     async (
       filters: FilterProperty[],
       sortingProps: SortProperty[],
-      options?: { includeMT940Recommendations?: boolean; matchTransactionType?: boolean },
+      options?: {
+        includeMT940Recommendations?: boolean;
+        matchTransactionType?: boolean;
+        profileId?: string;
+        selection?: ExportColumnSelection;
+        exportContext?: ExportContext;
+      },
     ): Promise<string> => {
       if (!tepHeaders) throw new Error('Not authenticated');
       const token = await getToken();
@@ -202,6 +218,11 @@ export function DownloadCenterProvider({ children }: DownloadCenterProviderProps
           ...(options?.matchTransactionType != null
             ? { MatchTransactionType: options.matchTransactionType }
             : {}),
+          // ProfileId wins over Selection server-side; the callers send one
+          // or the other (pristine profile vs edited-unsaved selection).
+          ...(options?.profileId ? { ProfileId: options.profileId } : {}),
+          ...(options?.selection ? { Selection: options.selection } : {}),
+          ...(options?.exportContext ? { ExportContext: options.exportContext } : {}),
         },
         token,
         tepHeaders,

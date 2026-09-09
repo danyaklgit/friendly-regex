@@ -4,6 +4,10 @@ import { throwIfNotOk } from './apiError';
 import type {
   DownloadCenterFile,
   ExportMT940Request,
+  ExportContext,
+  ExportColumnSelection,
+  ExportProfile,
+  ExportColumnInfo,
 } from '../types/downloadCenter';
 
 const BASE = '/api/tep/api/v1/TEP';
@@ -85,6 +89,117 @@ export async function exportConfiguration(
   const json = (await res.json()) as ExportResponse;
   if (!json.FileId) throw new Error('Server did not return a FileId for the queued export.');
   return { FileId: json.FileId };
+}
+
+// --- Export profiles (backend 2026-09-09, API ref §9.1c) -------------------
+// Shared saved column selections for ExportTEPTransactions. GetExportProfiles
+// also carries the fixed-column catalogue and the workspace's dynamic keys,
+// so the export prompt is fully data-driven (no column names hard-coded).
+
+export interface GetExportProfilesResponse {
+  ContextKey?: string;
+  /** The profile to pre-select: most used in this workspace, else most used
+   *  anywhere, else the Operator default. */
+  SuggestedProfileId?: string | null;
+  /** RANKED: most used here first, then most used anywhere, then built-ins,
+   *  then by name — render in this order. */
+  Profiles: ExportProfile[];
+  /** Every fixed column the export can emit, in the legacy order. */
+  Columns: ExportColumnInfo[];
+  /** Custom-field keys known for the context's DataSetType. */
+  CustomFieldKeys: string[];
+  /** Attribute keys extracted for the context's bank and type. */
+  AttributeKeys: string[];
+}
+
+interface GetExportProfilesJson extends SfmEnvelope, Partial<GetExportProfilesResponse> {}
+
+export async function getExportProfiles(
+  exportContext: ExportContext | undefined,
+  token: string,
+  tepHeaders: TepHeaders,
+  signal?: AbortSignal,
+): Promise<GetExportProfilesResponse> {
+  const res = await fetch(`${BASE}/GetExportProfiles`, {
+    method: 'POST',
+    headers: buildHeaders(token, tepHeaders, 'GetExportProfiles'),
+    body: JSON.stringify(exportContext ? { ExportContext: exportContext } : {}),
+    signal,
+  });
+  await throwIfNotOk(res, 'Failed to load export profiles');
+  const json = (await res.json()) as GetExportProfilesJson;
+  return {
+    ContextKey: json.ContextKey,
+    SuggestedProfileId: json.SuggestedProfileId ?? null,
+    Profiles: json.Profiles ?? [],
+    Columns: json.Columns ?? [],
+    CustomFieldKeys: json.CustomFieldKeys ?? [],
+    AttributeKeys: json.AttributeKeys ?? [],
+  };
+}
+
+export interface SaveExportProfileRequest {
+  /** Omitted/null = create; a profile id = update it (built-ins included). */
+  Id?: string | null;
+  /** 1-80 chars, unique across profiles case-insensitively. */
+  Name: string;
+  Description?: string | null;
+  /** Normalised on save: aliases resolved, duplicate ids collapsed, unknown
+   *  ids dropped (reported via IgnoredColumns), rule modes defaulted. */
+  Selection: ExportColumnSelection;
+}
+
+export interface SaveExportProfileResult {
+  Profile: ExportProfile;
+  /** Column ids the request named that the export does not know — they were
+   *  dropped. Empty when the picker is built from GetExportProfiles.Columns;
+   *  surface it when it is not. */
+  IgnoredColumns: string[];
+}
+
+interface SaveExportProfileJson extends SfmEnvelope {
+  Profile?: ExportProfile;
+  IgnoredColumns?: string[];
+}
+
+/** 400 `SFM_INVALID_INPUT_PARAMETERS` (surfaced as ApiError status 400) when
+ *  the name is missing / too long / already used by another profile, when
+ *  Selection is missing or would export no column at all, or when Id names
+ *  no profile. */
+export async function saveExportProfile(
+  req: SaveExportProfileRequest,
+  token: string,
+  tepHeaders: TepHeaders,
+  signal?: AbortSignal,
+): Promise<SaveExportProfileResult> {
+  const res = await fetch(`${BASE}/SaveExportProfile`, {
+    method: 'POST',
+    headers: buildHeaders(token, tepHeaders, 'SaveExportProfile'),
+    body: JSON.stringify(req),
+    signal,
+  });
+  await throwIfNotOk(res, 'Failed to save the export profile');
+  const json = (await res.json()) as SaveExportProfileJson;
+  if (!json.Profile) throw new Error('Server did not return the saved profile.');
+  return { Profile: json.Profile, IgnoredColumns: json.IgnoredColumns ?? [] };
+}
+
+/** Built-ins and unknown ids refuse with 400 `SFM_INVALID_INPUT_PARAMETERS`
+ *  — keep the Delete button disabled for built-ins. Deleting a profile does
+ *  not touch Download Center files exported with it (they keep ProfileName). */
+export async function deleteExportProfile(
+  id: string,
+  token: string,
+  tepHeaders: TepHeaders,
+  signal?: AbortSignal,
+): Promise<void> {
+  const res = await fetch(`${BASE}/DeleteExportProfile`, {
+    method: 'POST',
+    headers: buildHeaders(token, tepHeaders, 'DeleteExportProfile'),
+    body: JSON.stringify({ Id: id }),
+    signal,
+  });
+  await throwIfNotOk(res, 'Failed to delete the export profile');
 }
 
 // --- GetDownloadCenterFiles --------------------------------------------------
