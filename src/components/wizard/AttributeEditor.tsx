@@ -1247,6 +1247,13 @@ export function AttributeEditor({ attribute, onUpdate, onRemove, onClone, transa
                       { id: crypto.randomUUID(), method: 'replace', args: { find: '', replaceWith: '' } },
                       { id: crypto.randomUUID(), method: 'trim', args: {} },
                     ];
+                    // The bag pipeline already isolates the wanted value, so
+                    // extraction usually just takes the whole result — autofill
+                    // Extract Full Field (only while no method is chosen; the
+                    // operator can still pick any other method afterwards).
+                    if (!attribute.extractionOperation) {
+                      updates.extractionOperation = 'extract_full_field';
+                    }
                   }
                   onUpdate(updates);
                 }}
