@@ -86,6 +86,23 @@ describe('tokenCode', () => {
     expect(tokenCode(ph('ANY'))).toBe('<ANY>');
     expect(tokenPhrase(ph('ANY'))).toBe('anything');
   });
+
+  it('renders date-family formats from Item (formats delta, 2026-09-08)', () => {
+    const date: KeyToken = { Field: 'TD', Kind: 'Placeholder', Text: 'DATE', Item: 'yyMMdd' };
+    expect(tokenCode(date)).toBe('<DATE:yyMMdd>');
+    expect(tokenPhrase(date)).toBe('a date (yyMMdd)');
+    const time: KeyToken = { Field: 'TD', Kind: 'Placeholder', Text: 'TIME', Item: 'HH:mm' };
+    expect(tokenCode(time)).toBe('<TIME:HH:mm>');
+    expect(tokenPhrase(time)).toBe('a time (HH:mm)');
+    // `_` pins one space — the phrase shows it as one.
+    const dt: KeyToken = { Field: 'TD', Kind: 'Placeholder', Text: 'DATETIME', Item: 'yyyy-MM-dd_HH:mm' };
+    expect(tokenCode(dt)).toBe('<DATETIME:yyyy-MM-dd_HH:mm>');
+    expect(tokenPhrase(dt)).toBe('a date and time (yyyy-MM-dd HH:mm)');
+    // No Item = the generic shape, exactly as before.
+    expect(tokenCode(ph('DATE'))).toBe('<DATE>');
+    expect(tokenPhrase(ph('DATE'))).toBe('a date');
+    expect(tokenPhrase(ph('DATETIME'))).toBe('a date and time');
+  });
 });
 
 describe('alignTokensToExample', () => {

@@ -32,6 +32,9 @@ const BUILTIN_PHRASES: Record<string, string> = {
   SA_IBAN: "another Saudi bank's IBAN",
   DATE: 'a date',
   TIME: 'a time',
+  // Date-formats delta (2026-09-08): a date-and-time in one run; the chosen
+  // format rides in Item for all three date-family placeholders.
+  DATETIME: 'a date and time',
   CURRENCY: 'a currency',
   DECIMAL: 'an amount',
   INT: 'a number',
@@ -48,6 +51,12 @@ const BUILTIN_PHRASES: Record<string, string> = {
 
 export function isBuiltinPlaceholder(text: string): boolean {
   return Object.prototype.hasOwnProperty.call(BUILTIN_PHRASES, text);
+}
+
+/** The placeholders whose Item is a date/time FORMAT (`<DATE:yyMMdd>`) —
+ *  no Item = the generic shape. In a format, `_` stands for one space. */
+export function isDateFamilyPlaceholder(text: string): boolean {
+  return text === 'DATE' || text === 'TIME' || text === 'DATETIME';
 }
 
 /** Naive singular of an UPPER_SNAKE list tag word ("BILLERS" → "biller",
@@ -81,6 +90,10 @@ export function tokenPhrase(token: KeyToken): string {
   if (token.Text === 'CHAR' && token.Length != null) {
     return `exactly ${token.Length} characters`;
   }
+  if (isDateFamilyPlaceholder(token.Text) && token.Item) {
+    // "a date (yyMMdd)" / "a time (HH:mm)" — `_` reads as the space it pins.
+    return `${BUILTIN_PHRASES[token.Text]} (${token.Item.replace(/_/g, ' ')})`;
+  }
   return BUILTIN_PHRASES[token.Text] ?? token.Text.toLowerCase();
 }
 
@@ -88,7 +101,9 @@ export function tokenPhrase(token: KeyToken): string {
  *  `<CARD_TYPES:Visa>`, `<AR>` — the way the operator brief renders keys. */
 export function tokenCode(token: KeyToken): string {
   if (token.Kind === 'Literal') return token.Text;
-  if (token.Kind === 'List' && token.Item) return `<${token.Text}:${token.Item}>`;
+  // Item renders the same way for list pills (<CARD_TYPES:Visa>) and
+  // date-family formats (<DATE:yyMMdd>) — it's the token grammar.
+  if (token.Item) return `<${token.Text}:${token.Item}>`;
   if (token.Kind === 'Placeholder' && token.Text === 'CHAR' && token.Length != null) {
     return `<CHAR[${token.Length}]>`;
   }
@@ -110,6 +125,7 @@ export function tokenChipClass(token: KeyToken): string {
       return 'border-indigo-300 bg-indigo-50 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800';
     case 'DATE':
     case 'TIME':
+    case 'DATETIME':
       return 'border-violet-300 bg-violet-50 text-violet-800 dark:bg-violet-950/40 dark:text-violet-300 dark:border-violet-800';
     case 'CURRENCY':
     case 'DECIMAL':

@@ -8,6 +8,7 @@ import {
   type CurationDraft,
   type CurationPill,
   type CurationPreview,
+  type DateFormatKind,
   type KeyFieldMode,
   type KeyToken,
   type KeyTokenField,
@@ -17,6 +18,7 @@ import type { TransactionRow } from '../../types/transaction';
 import {
   KEY_FIELDS,
   KEY_FIELD_LABELS,
+  isDateFamilyPlaceholder,
   tokenChipClass,
   tokenCode,
   tokenPhrase,
@@ -257,15 +259,28 @@ export function CurationStudio({ source, canEdit, userId, getTepAuth, onClose, o
   // Length would match any run — the width IS its meaning).
   const [charPrompt, setCharPrompt] = useState<CurationPill | null>(null);
   const [charLen, setCharLen] = useState('');
+  // Date-family pills (DATE / TIME / DATETIME) pick their FORMAT from the
+  // draft's DateFormats catalogue — the format rides in Item (2026-09-08).
+  const [formatPrompt, setFormatPrompt] = useState<{ kind: DateFormatKind } | null>(null);
+  const [formatSearch, setFormatSearch] = useState('');
+  const [customFormat, setCustomFormat] = useState('');
+
+  // Every move to a different menu target drops the sub-pickers.
+  const resetPickers = useCallback(() => {
+    setDetected(null);
+    setPillSearch('');
+    setCharPrompt(null);
+    setCharLen('');
+    setFormatPrompt(null);
+    setFormatSearch('');
+    setCustomFormat('');
+  }, []);
 
   const closeMenu = useCallback(() => {
     setMenu(null);
-    setPillSearch('');
-    setDetected(null);
     setInsertText('');
-    setCharPrompt(null);
-    setCharLen('');
-  }, []);
+    resetPickers();
+  }, [resetPickers]);
 
   useEffect(() => {
     if (!menu) return;
@@ -279,11 +294,6 @@ export function CurationStudio({ source, canEdit, userId, getTepAuth, onClose, o
     return () => window.removeEventListener('keydown', onKey, true);
   }, [menu, closeMenu]);
 
-  // Any move to a different menu target drops a pending CHAR width prompt.
-  useEffect(() => {
-    setCharPrompt(null);
-    setCharLen('');
-  }, [menu]);
 
   // Ranked "Detected" pills for the selected text (advisory — the catalogue
   // from the draft renders regardless; a pre-deploy 404 costs nothing).
@@ -351,8 +361,7 @@ export function CurationStudio({ source, canEdit, userId, getTepAuth, onClose, o
     if (!norm) return;
     const pos = anchorMenuAt(sel.getRangeAt(0).getBoundingClientRect());
     if (!pos) return;
-    setDetected(null);
-    setPillSearch('');
+    resetPickers();
     setMenu({
       kind: 'selection',
       field,
@@ -363,7 +372,7 @@ export function CurationStudio({ source, canEdit, userId, getTepAuth, onClose, o
       excluded: !(segs[norm.index]?.inKey ?? true),
       ...pos,
     });
-  }, [canEdit, segmentsByField, anchorMenuAt]);
+  }, [canEdit, segmentsByField, anchorMenuAt, resetPickers]);
 
   const handlePillClick = useCallback((field: KeyTokenField, segIndex: number, el: HTMLElement) => {
     if (!canEdit) return;
@@ -371,14 +380,18 @@ export function CurationStudio({ source, canEdit, userId, getTepAuth, onClose, o
     if (!seg?.token) return;
     const pos = anchorMenuAt(el.getBoundingClientRect());
     if (!pos) return;
-    setDetected(null);
-    setPillSearch('');
-    setMenu((prev) =>
-      prev?.kind === 'pill' && prev.field === field && prev.segIndex === segIndex
-        ? null // toggle
-        : { kind: 'pill', field, segIndex, text: seg.text, inserted: seg.inserted, glued: seg.glued, ...pos },
-    );
-  }, [canEdit, segmentsByField, anchorMenuAt]);
+    resetPickers();
+    if (menu?.kind === 'pill' && menu.field === field && menu.segIndex === segIndex) {
+      setMenu(null); // toggle
+      return;
+    }
+    setMenu({ kind: 'pill', field, segIndex, text: seg.text, inserted: seg.inserted, glued: seg.glued, ...pos });
+    // A date-family pill opens straight on its format list — clicking a date
+    // is most often "pick/adjust the format" (acceptance #4).
+    if (seg.token.Kind === 'Placeholder' && isDateFamilyPlaceholder(seg.token.Text)) {
+      setFormatPrompt({ kind: seg.token.Text as DateFormatKind });
+    }
+  }, [canEdit, segmentsByField, anchorMenuAt, resetPickers, menu]);
 
   // Clicked struck-through text: the whole excluded run becomes the target
   // (Include in the key / This part is…). A real selection inside it went
@@ -391,10 +404,9 @@ export function CurationStudio({ source, canEdit, userId, getTepAuth, onClose, o
     if (!norm) return;
     const pos = anchorMenuAt(el.getBoundingClientRect());
     if (!pos) return;
-    setDetected(null);
-    setPillSearch('');
+    resetPickers();
     setMenu({ kind: 'selection', field, segIndex: norm.index, start: norm.start, end: norm.end, text: norm.text, excluded: true, ...pos });
-  }, [canEdit, segmentsByField, anchorMenuAt]);
+  }, [canEdit, segmentsByField, anchorMenuAt, resetPickers]);
 
   // Clicked typed words: glue toggle + delete.
   const handleInsertedWordsClick = useCallback((field: KeyTokenField, segIndex: number, el: HTMLElement) => {
@@ -462,11 +474,10 @@ export function CurationStudio({ source, canEdit, userId, getTepAuth, onClose, o
   /** Open the insert menu at an array boundary (the +) or around the current
    *  menu target (Insert before… / Insert after…). */
   const openInsertAt = useCallback((field: KeyTokenField, at: { index: number; offset: number | null }, pos: { left: number; top: number }) => {
-    setDetected(null);
-    setPillSearch('');
+    resetPickers();
     setInsertText('');
     setMenu({ kind: 'insert', field, at, ...pos });
-  }, []);
+  }, [resetPickers]);
 
   const openInsertAroundMenu = useCallback((side: 'before' | 'after') => {
     if (!menu || menu.kind === 'insert') return;
@@ -1024,9 +1035,101 @@ export function CurationStudio({ source, canEdit, userId, getTepAuth, onClose, o
                     </div>
                   )}
 
+                  {/* Date-family format picker: the formats of that kind from
+                      the draft's catalogue, each with an example rendered from
+                      THIS transaction's own value date. Searchable by format
+                      AND example (typing 0306 finds MMdd). */}
+                  {menu.kind !== 'insertedWords' && !charPrompt && formatPrompt && (
+                    <div>
+                      <div className="px-3 pb-1.5 flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          value={formatSearch}
+                          onChange={(e) => setFormatSearch(e.target.value)}
+                          placeholder="Search formats — try 0306"
+                          autoFocus
+                          className="flex-1 min-w-0 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-body outline-none focus:border-primary"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => { setFormatPrompt(null); setFormatSearch(''); setCustomFormat(''); }}
+                          className="text-[11px] text-body-secondary hover:underline cursor-pointer"
+                        >
+                          Back
+                        </button>
+                      </div>
+                      <div className="max-h-56 overflow-y-auto custom-scrollbar pb-1">
+                        <button
+                          type="button"
+                          onClick={() => applyPill({ Kind: 'Placeholder', Text: formatPrompt.kind, Item: null, Label: 'Any format', Group: 'Shapes' })}
+                          className={menuRow}
+                          title="The generic shape — any common way of writing it."
+                        >
+                          <span className="font-medium">Any format</span>
+                          <span className="text-[10px] font-mono text-faint whitespace-nowrap shrink-0">{`<${formatPrompt.kind}>`}</span>
+                        </button>
+                        {(draft.DateFormats ?? [])
+                          .filter((f) => f.Kind === formatPrompt.kind)
+                          .filter((f) => {
+                            const q = formatSearch.trim().toLowerCase();
+                            if (!q) return true;
+                            return (
+                              f.Format.toLowerCase().includes(q) ||
+                              f.Example.toLowerCase().includes(q) ||
+                              f.Label.toLowerCase().includes(q)
+                            );
+                          })
+                          .map((f) => (
+                            <button
+                              key={f.Format}
+                              type="button"
+                              onClick={() => applyPill({ Kind: 'Placeholder', Text: f.Kind, Item: f.Format, Label: f.Label, Group: 'Shapes' })}
+                              className={menuRow}
+                              title={f.Label}
+                            >
+                              {/* `_` pins one space — show it as one. */}
+                              <span className="font-mono">{f.Format.replace(/_/g, ' ')}</span>
+                              <span className="text-[10px] font-mono text-body-secondary whitespace-nowrap shrink-0">{f.Example}</span>
+                            </button>
+                          ))}
+                      </div>
+                      {/* Custom format: sent as typed; a format that doesn't
+                          compile falls back to the generic shape and the
+                          preview warns. */}
+                      <div className="border-t border-border-subtle px-3 py-2 space-y-1">
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="text"
+                            value={customFormat}
+                            onChange={(e) => setCustomFormat(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && customFormat.trim()) {
+                                applyPill({ Kind: 'Placeholder', Text: formatPrompt.kind, Item: customFormat.trim(), Label: 'Custom format', Group: 'Shapes' });
+                              }
+                            }}
+                            placeholder="Custom format…"
+                            className="flex-1 min-w-0 rounded-lg border border-border bg-surface px-2 py-1 text-xs text-body outline-none focus:border-primary font-mono"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => applyPill({ Kind: 'Placeholder', Text: formatPrompt.kind, Item: customFormat.trim(), Label: 'Custom format', Group: 'Shapes' })}
+                            disabled={!customFormat.trim() || /[<>\s]/.test(customFormat)}
+                            className="text-[11px] font-medium text-primary hover:underline cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Use
+                          </button>
+                        </div>
+                        <p className="text-[10px] text-faint">
+                          Letters: <span className="font-mono">yyyy yy MM dd HH mm ss MMM</span> · <span className="font-mono">_</span> = a
+                          space · anything else is a literal. An unusable format falls back to the generic shape (the preview warns).
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* The pill catalogue (selection: mark as; pill: change to;
                       insert: add a pill). */}
-                  {menu.kind !== 'insertedWords' && !charPrompt && (
+                  {menu.kind !== 'insertedWords' && !charPrompt && !formatPrompt && (
                     <>
                       <div className="px-3 pb-1.5">
                         <input
@@ -1061,6 +1164,17 @@ export function CurationStudio({ source, canEdit, userId, getTepAuth, onClose, o
                                           ? String(menu.text.length)
                                           : '',
                                     );
+                                  } else if (
+                                    // A GENERIC date-family pill opens the
+                                    // format picker (detected rows carry their
+                                    // Item and apply directly).
+                                    p.Kind === 'Placeholder' &&
+                                    isDateFamilyPlaceholder(p.Text) &&
+                                    p.Item == null &&
+                                    (draft.DateFormats?.length ?? 0) > 0
+                                  ) {
+                                    setFormatPrompt({ kind: p.Text as DateFormatKind });
+                                    setFormatSearch('');
                                   } else {
                                     applyPill(p);
                                   }
@@ -1068,7 +1182,17 @@ export function CurationStudio({ source, canEdit, userId, getTepAuth, onClose, o
                                 className={menuRow}
                                 title={p.Description ?? undefined}
                               >
-                                <span className="min-w-0 truncate">{p.Label}</span>
+                                <span className="min-w-0 truncate flex items-center gap-1.5">
+                                  {p.Label}
+                                  {/* The formats under which the text IS one of
+                                      this transaction's own dates rank first
+                                      and get the marker. */}
+                                  {p.Group === 'Detected' && p.Description?.startsWith("this transaction's own date") && (
+                                    <span className="inline-flex items-center rounded-full border border-emerald-300 bg-emerald-50 px-1.5 py-px text-[9px] font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 whitespace-nowrap shrink-0">
+                                      matches
+                                    </span>
+                                  )}
+                                </span>
                                 <span className="text-[10px] font-mono text-faint whitespace-nowrap shrink-0">
                                   {tokenCode({ Field: menu.field, Kind: p.Kind, Text: p.Text, Item: p.Item, Length: p.Length })}
                                 </span>

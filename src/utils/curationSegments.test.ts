@@ -262,6 +262,18 @@ describe('segmentsToTokens', () => {
     expect(t(segmentsToTokens('AI', segs))).toBe('A <ANY> PAY');
   });
 
+  it('carries a date-family FORMAT (Item) through spans and back out (formats delta)', () => {
+    const spans: CurationSpan[] = [
+      { Start: 0, Length: 6, Text: '240306', Token: { Field: 'TD', Kind: 'Placeholder', Text: 'DATE', Item: 'yyMMdd' } },
+      { Start: 6, Length: 4, Text: '0306', Token: { Field: 'TD', Kind: 'Placeholder', Text: 'DATE', Item: 'MMdd', Glued: true } },
+    ];
+    const segs = segmentsFromSpans(spans);
+    expect(segs[0].token).toMatchObject({ Text: 'DATE', Item: 'yyMMdd' });
+    const tokens = segmentsToTokens('TD', segs);
+    expect(tokens[0]).toMatchObject({ Kind: 'Placeholder', Text: 'DATE', Item: 'yyMMdd', Glued: false });
+    expect(tokens[1]).toMatchObject({ Item: 'MMdd', Glued: true });
+  });
+
   it('never marks the first token glued and carries Item/Length through', () => {
     const segs = [
       insPill({ Kind: 'List', Text: 'CARD_TYPES', Item: 'Visa' }, true),

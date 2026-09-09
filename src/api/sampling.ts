@@ -437,6 +437,22 @@ export interface CurationFieldInfo {
   Spans: CurationSpan[];
 }
 
+/** Date-family pill kinds (formats delta, 2026-09-08): the format rides in
+ *  the pill's Item — `<DATE:yyMMdd>`, `<TIME:HH:mm>`, `<DATETIME:yyyyMMddHHmm>`.
+ *  No Item = the generic shape, exactly as before. Format letters are .NET's
+ *  (`yyyy yy MM M dd d MMM HH H hh h mm m ss s tt`), `_` stands for one space,
+ *  anything else is a literal. A format that does not compile is NOT rejected:
+ *  the pill falls back to the generic shape and the preview warns. */
+export type DateFormatKind = 'DATE' | 'TIME' | 'DATETIME';
+
+export interface DateFormatInfo {
+  Kind: DateFormatKind;
+  Format: string;
+  Label: string;
+  /** Rendered from this transaction's own value date (e.g. "240306"). */
+  Example: string;
+}
+
 export interface CurationPill {
   Kind: 'Placeholder' | 'List';
   Text: string;
@@ -504,6 +520,12 @@ export interface CurationDraft {
   Anchored: boolean;
   /** The full pill catalogue (every shape + every enabled list). */
   Pills: CurationPill[];
+  /** Date-format catalogue (2026-09-08): the formats a DATE / TIME / DATETIME
+   *  pill's Item can pin, each with an Example rendered from THIS
+   *  transaction's own value date so the picker reads as the operator's data.
+   *  Delivered in display order (compact digit shapes, separated, month
+   *  names; then times; then datetimes). */
+  DateFormats?: DateFormatInfo[] | null;
   Preview: CurationPreview;
   CreatedByUserId?: string | null;
   CreatedAtUtc?: string | null;
