@@ -95,7 +95,15 @@ export function CurrentTagsDropdown({ entries, selectedIds, onChange, loading = 
     if (!q) return entries;
     return entries.filter((e) => {
       const name = e.def?.Tag ?? '';
-      return name.toLowerCase().includes(q) || e.id.toLowerCase().includes(q);
+      // The rule's nickname is rendered on the row's TagBadge, so it must be
+      // searchable too — operators know same-tag variants by nickname
+      // (matches the Tags filter's nickname search, 2026-09-14).
+      const nickname = e.def?.Nickname ?? '';
+      return (
+        name.toLowerCase().includes(q) ||
+        e.id.toLowerCase().includes(q) ||
+        nickname.toLowerCase().includes(q)
+      );
     });
   }, [entries, search]);
 

@@ -178,6 +178,9 @@ export function SourceTagPickerModal({ open, libraries, onClose, onSelect, curre
         return (
           e.def.Tag.toLowerCase().includes(term) ||
           e.def.Id.toLowerCase().includes(term) ||
+          // The nickname is rendered on the row, so it must be searchable
+          // too (matches the tag filter dropdowns, 2026-09-14).
+          (e.def.Nickname ?? '').toLowerCase().includes(term) ||
           e.txnType.toLowerCase().includes(term) ||
           e.bank.toLowerCase().includes(term) ||
           e.side.toLowerCase().includes(term)
