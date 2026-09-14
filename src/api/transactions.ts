@@ -169,6 +169,14 @@ export interface FilterValue {
   Value: string | null;
   Label: string;
   SubLabel?: string | null;
+  /** Operator-facing alias (2026-09-14). Today only the `TAGS` filter of
+   *  GetFilters fills it, with the nickname(s) of the rule(s) defining that
+   *  tag — several rules with different nicknames arrive joined with ` / `,
+   *  so treat it as a possibly long string, never assume one value. Null on
+   *  most tags and on every other filter (a non-null value elsewhere is a
+   *  future addition, not a surprise). Rendered as the standard nickname
+   *  pill and matched by the filter search box. */
+  Nickname?: string | null;
   Operand: string | null;
   DisabledBy: string | null;
 }

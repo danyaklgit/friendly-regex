@@ -594,7 +594,10 @@ function StringFromListDropdown({
     return definition.Values.filter(
       (v) => (v.Label ?? v.Value ?? '').toLowerCase().includes(term) ||
              (v.Value ?? '').toLowerCase().includes(term) ||
-             (v.SubLabel ?? '').toLowerCase().includes(term)
+             (v.SubLabel ?? '').toLowerCase().includes(term) ||
+             // Rule nickname(s) on the Tags filter (2026-09-14) — operators
+             // know their rules by nickname, so typing one must find the tag.
+             (v.Nickname ?? '').toLowerCase().includes(term)
     );
   }, [definition.Values, search]);
 
@@ -829,7 +832,21 @@ function StringFromListDropdown({
                         className="rounded border-border-strong shrink-0 mt-0.5"
                       />
                       <span className="min-w-0">
-                        <span className="block text-black dark:text-white font-medium truncate">{rv(v.Label || v.Value || '')}</span>
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          <span className="text-black dark:text-white font-medium truncate">{rv(v.Label || v.Value || '')}</span>
+                          {/* Rule nickname(s) — the same pill language TagBadge
+                              and the rule cards use. Possibly several joined
+                              with " / ", so truncate with the full text in the
+                              title. */}
+                          {v.Nickname && (
+                            <span
+                              className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-1.5 py-px text-[9px] font-medium leading-tight text-primary-dark dark:text-primary max-w-28 truncate shrink-0"
+                              title={v.Nickname}
+                            >
+                              <span className="truncate">{rv(v.Nickname)}</span>
+                            </span>
+                          )}
+                        </span>
                         {v.SubLabel && <span className="block text-[10px] text-muted truncate">{rv(v.SubLabel)}</span>}
                       </span>
                     </label>
@@ -1849,7 +1866,9 @@ function AttributeFilterCard({
       (v) =>
         (v.Label ?? v.Value ?? '').toLowerCase().includes(q) ||
         (v.Value ?? '').toLowerCase().includes(q) ||
-        (v.SubLabel ?? '').toLowerCase().includes(q),
+        (v.SubLabel ?? '').toLowerCase().includes(q) ||
+        // Rule nickname(s) on the Tags filter (2026-09-14).
+        (v.Nickname ?? '').toLowerCase().includes(q),
     );
   }, [def.Values, search]);
 
@@ -1956,7 +1975,17 @@ function AttributeFilterCard({
                     className="rounded border-border-strong shrink-0 mt-0.5"
                   />
                   <span className="min-w-0">
-                    <span className="block text-black dark:text-white truncate">{rv(v.Label || v.Value || '')}</span>
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-black dark:text-white truncate">{rv(v.Label || v.Value || '')}</span>
+                      {v.Nickname && (
+                        <span
+                          className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-1.5 py-px text-[9px] font-medium leading-tight text-primary-dark dark:text-primary max-w-28 truncate shrink-0"
+                          title={v.Nickname}
+                        >
+                          <span className="truncate">{rv(v.Nickname)}</span>
+                        </span>
+                      )}
+                    </span>
                     {v.SubLabel && <span className="block text-[10px] text-muted truncate">{rv(v.SubLabel)}</span>}
                   </span>
                 </label>
