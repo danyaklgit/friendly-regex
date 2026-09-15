@@ -268,6 +268,12 @@ function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinitio
 }
 
 const BATCH_SIZE = 50;
+// Cap on the extra ~500-row pages a single +N click may append while a
+// client-side row filter (Show Only …) is active and the buffer keeps
+// failing to yield enough VISIBLE rows. On a heavily-tagged partition
+// "Show Only: Untagged" can mean 40+ pages per 50 visible rows — past the
+// cap the operator is asked before loading continues (keep-loading dialog).
+const MAX_FILTER_TOPUP_PAGES = 20;
 // Stable empty set for the disabled "Character view" state (a fresh new Set()
 // each render would bust TransactionTable's rowCtx memo).
 const EMPTY_CHAR_VIEW_COLS: ReadonlySet<string> = new Set<string>();
@@ -383,7 +389,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   const {
     transactions, fieldMeta, loadTransactions, resetToSample, isCustomData, flagDeadEnd,
     setComments, flagDeadEndWithComment,
-    isLiveMode, loading, totalTransactionsCount, replaceFromBeginning, replaceFromBeginningExcluding, fetchCount,
+    isLiveMode, loading, totalTransactionsCount, replaceFromBeginning, replaceFromBeginningExcluding, appendBatch, fetchCount,
     filterDefinitions, filterDefinitionsLoading, fetchFilterDefinitions,
     decimalMaxValues, setAnchorColumn,
   } = useTransactionData();
@@ -2399,12 +2405,34 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // newer one's state.
   const [analyzedData, setAnalyzedData] = useState<AnalyzedTransaction[]>([]);
   const analyzeRunRef = useRef(0);
+  // Progress of the chunked pass in RAW buffer space: the index of the next
+  // unanalyzed row. Read by the +N visible-space top-up loop to know when
+  // the analysis has caught up with the appended buffer.
+  const analyzeProgressRef = useRef(0);
+  // APPEND-AWARE resume state. Incremental +N grows APPEND pages to
+  // `transactions` (a new array identity per page), and a full restart per
+  // page would never converge while pages stream: `analyzedData` would keep
+  // shrinking back, `filteredLen` would oscillate (feeding the +N target and
+  // footer counts), and TransactionTable's REPLACE detection would wipe the
+  // selection once per page. When the SAME buffer merely GROWS (same first
+  // row id, longer) under UNCHANGED analysis inputs, the pass resumes from
+  // the previous raw count over the retained accumulator instead of
+  // restarting at 0. `deps` snapshots every input other than `transactions`
+  // by identity — any change forces the full restart.
+  const analyzeAccRef = useRef<{
+    deps: readonly unknown[];
+    firstId: string;
+    rawCount: number;
+    acc: AnalyzedTransaction[];
+  } | null>(null);
   useEffect(() => {
     const runId = ++analyzeRunRef.current;
     // Empty transactions: drop to empty immediately and skip the
     // chunking dance. Common path after a filter change that returns
     // zero rows; no need to spin up RIC.
     if (transactions.length === 0) {
+      analyzeAccRef.current = null;
+      analyzeProgressRef.current = 0;
       setAnalyzedData([]);
       return;
     }
@@ -2418,7 +2446,21 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     const builderActive = builderOpen && builderHasContent;
     const tagClickActive = tagClickState !== null;
     const editingDefId = editingDef?.Id;
-    const acc: AnalyzedTransaction[] = [];
+    // Same-buffer-grown detection (append). Row identity via the wire `Id`
+    // field, matching TransactionTable's REPLACE detection.
+    const deps = [allLibraries, isLiveMode, builderOpen, builderHasContent, tagClickState, editingDef, tempDefinition] as const;
+    const firstId = String(transactions[0]['Id'] ?? '');
+    const prev = analyzeAccRef.current;
+    const resume = prev != null
+      && prev.firstId === firstId
+      && transactions.length > prev.rawCount
+      && prev.deps.length === deps.length
+      && prev.deps.every((d, i) => d === deps[i])
+      ? prev
+      : null;
+    const acc: AnalyzedTransaction[] = resume ? resume.acc : [];
+    const startAt = resume ? resume.rawCount : 0;
+    analyzeProgressRef.current = startAt;
 
     const processChunk = (start: number) => {
       if (runId !== analyzeRunRef.current) return; // newer run took over
@@ -2440,6 +2482,10 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         }
         acc.push({ row, analysis });
       }
+      // Record resume state BEFORE committing: if an appended page lands
+      // between this chunk and the next, the re-run picks up exactly here.
+      analyzeAccRef.current = { deps, firstId, rawCount: end, acc };
+      analyzeProgressRef.current = end;
       // Commit progress. `[...acc]` keeps each render a distinct
       // reference so memoized consumers (filteredData, hiddenTagItems,
       // etc.) detect the change. Reading the same `acc` mutably across
@@ -2467,8 +2513,9 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
 
     // First chunk runs synchronously so the table at least gets a
     // partial render in the SAME commit as the setTransactions —
-    // avoids a single frame of empty state.
-    processChunk(0);
+    // avoids a single frame of empty state. On an append resume this
+    // starts at the previous raw count, not 0.
+    processChunk(startAt);
 
     return () => {
       // Bump runId so any pending chunk callbacks observe `runId !==
@@ -2721,20 +2768,20 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     return n;
   }, [isLiveMode, hiddenDefIds, analyzedData]);
 
-  // Visible-rows engine: owns the visible-row target (50 default, raised
-  // by +N / Show all / page nav, persisted per checkout), the scoped
-  // hidden-row count, and the refill planning. Hiding tag specs is purely
-  // client-side (the server NI filter dropped untagged rows — see the
-  // activeExtraFilters comment), so `ensureVisible` overfetches by the
-  // scoped hidden count (capped) and fires at most one exact-bound
-  // follow-up. `totalShowing` / `totalHidden` are the single source of
-  // truth for the header + footer counts — both totals share the active
-  // filter scope, so the subtraction is exact (no clamped drift math).
+  // Visible-rows engine: owns the visible-row target (50 default, raised by
+  // +N / Show all within a tab session — NOT persisted, it resets to 50 on
+  // unmount/remount and on checkout change), the scoped hidden-row count,
+  // and the fetch planning. Incremental +N grows APPEND only the missing
+  // ~500-row pages; fresh loads / Show all / hide refills REPLACE with one
+  // request (hidden tags excluded server-side via the dual NI query).
+  // `totalShowing` / `totalHidden` are the single source of truth for the
+  // header + footer counts — both totals share the active filter scope, so
+  // the subtraction is exact (no clamped drift math).
   const engine = useVisibleRowsEngine({
     isLiveMode,
     transactions,
     totalTransactionsCount,
-    fetchCount,
+    appendBatch,
     replaceFromBeginning,
     replaceFromBeginningExcluding,
     outgoingFilters,
@@ -2746,7 +2793,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     checkoutBank: activeCheckout?.bank ?? null,
     checkoutSide: activeCheckout?.side ?? null,
   });
-  const { ensureVisible, goToPage: engineGoToPage, refetch: engineRefetch, notifyHiddenSetChanged } = engine;
+  const { ensureVisible, appendNextChunk, goToPage: engineGoToPage, refetch: engineRefetch, notifyHiddenSetChanged } = engine;
 
   // Live mode: fetch from API when filters or extraFilters change.
   // While a Backlog "edit" navigation is pending, skip auto-fetch — handleTagClick
@@ -2756,10 +2803,11 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // uses sample-mode column-name keys that translateFilters drops, which would send
   // a request with no bank/side scope — pure waste, since the effect re-fires with
   // correct tag-name keys once definitions resolve.
-  // `engineRefetch` re-ensures the persisted visible target (so Refresh /
-  // tag toggle keep a Show-all window loaded) and reads the CURRENT
-  // filters at call time; its identity is stable, so this effect fires
-  // only on genuine scope changes (gotcha #16).
+  // `engineRefetch` resets the window to the initial PAGE_SIZE (50) and
+  // reloads page 0 (a prior +N / Show all window is deliberately discarded
+  // on scope changes) and reads the CURRENT filters at call time; its
+  // identity is stable, so this effect fires only on genuine scope changes
+  // (gotcha #16).
   useEffect(() => {
     if (!isLiveMode) return;
     if (filterDefinitions.length === 0) return;
@@ -2974,27 +3022,88 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     return entries;
   }, [matchingTagDefIds, allLibraries, definitionVersions]);
 
-  // Deliver +N VISIBLE rows. The engine plans the fetch in visible space:
-  // it asks for `currentShown + N` visible rows and overfetches by the
-  // scoped hidden-row count (capped on both calls), so a +50 click adds
-  // 50 rows the operator can actually see even when hidden tag specs are
-  // interleaved. One atomic replace per click — old rows stay on screen
-  // until the new buffer commits. When the buffer already over-satisfies
-  // the new target (e.g. right after an unhide), the rows appear
-  // instantly with no fetch. The target persists per checkout, so
-  // Refresh / tag toggles keep a Show-all window loaded.
-  const loadNVisible = useCallback(async (size: number) => {
+  // Live snapshot for the +N visible-space top-up loop below. Assigned
+  // every render (further down, once filteredData/clientRowFilterActive
+  // exist) so the async loop always reads the latest committed values —
+  // same latest-args-ref pattern as the engine.
+  const paginationLoopRef = useRef({
+    filteredLen: 0,
+    bufferLen: 0,
+    clientRowFilterActive: false,
+    totalShowing: null as number | null,
+  });
+
+  // "Keep loading?" affordance: set when a filtered +N hit the top-up page
+  // cap without surfacing enough visible rows; holds the visible-row target
+  // the loop was chasing so Confirm can resume it.
+  const [keepLoadingTarget, setKeepLoadingTarget] = useState<number | null>(null);
+
+  // Resolves once the chunked analyzeRow pass has caught up with the loaded
+  // buffer (or a safety timeout trips). The +N top-up loop must observe
+  // `filteredData` AFTER the appended rows are analyzed — before that the
+  // client row filter hasn't seen them and the loop would over-append.
+  const waitForAnalysisToCatchUp = useCallback(() => new Promise<void>((resolve) => {
+    const startedAt = Date.now();
+    const check = () => {
+      const caughtUp = analyzeProgressRef.current >= paginationLoopRef.current.bufferLen;
+      if (caughtUp || Date.now() - startedAt > 15000) resolve();
+      else window.setTimeout(check, 80);
+    };
+    check();
+  }), []);
+
+  // Visible-space top-up (only while a client-side row filter is active):
+  // the engine grows the buffer in RAW rows, but the +N promise is VISIBLE
+  // rows — with `Show Only: Untagged` a 500-row page may surface only a
+  // handful. Keep appending one page at a time until the filter yields the
+  // promised rows, the scope is exhausted, or the cap trips (then ask).
+  const topUpVisibleRows = useCallback(async (targetVisibleRows: number) => {
+    for (let extra = 0; extra < MAX_FILTER_TOPUP_PAGES; extra++) {
+      await waitForAnalysisToCatchUp();
+      const s = paginationLoopRef.current;
+      if (!s.clientRowFilterActive) return;
+      if (s.filteredLen >= targetVisibleRows) return;
+      if (s.totalShowing != null && s.bufferLen >= s.totalShowing) return; // whole scope loaded
+      const res = await appendNextChunk();
+      if (res == null) return; // superseded (filter change / hide) or failed
+      if (res.exhausted) {
+        await waitForAnalysisToCatchUp();
+        return;
+      }
+    }
+    await waitForAnalysisToCatchUp();
+    const s = paginationLoopRef.current;
+    if (s.clientRowFilterActive
+      && s.filteredLen < targetVisibleRows
+      && (s.totalShowing == null || s.bufferLen < s.totalShowing)) {
+      setKeepLoadingTarget(targetVisibleRows);
+    }
+  }, [appendNextChunk, waitForAnalysisToCatchUp]);
+
+  // Deliver +N VISIBLE rows. Incremental clicks APPEND only the missing
+  // ~500-row pages (the buffer keeps everything already loaded, so a +N
+  // ladder transfers each row once); `bulk` (Show all) fetches the whole
+  // window as ONE `{PageIndex:0, PageSize:remaining}` replace — appending
+  // it would be far slower (fixed full-count cost per request) and would
+  // hammer the database with parallel counts. When the buffer already
+  // over-satisfies the new target (a prior append landed a full 500-page),
+  // the rows appear instantly with no fetch. The target lives for the tab
+  // session only (reset to 50 on unmount / checkout change).
+  const loadNVisible = useCallback(async (size: number, opts?: { bulk?: boolean }) => {
     if (size <= 0) return;
     if (!isLiveMode) {
       setVisibleCount((c) => c + size);
       return;
     }
     const shown = Math.min(engine.targetVisible, filteredData.length);
-    // Incremental +N / Show all GROW the prefix buffer with a single
-    // `{PageIndex:0, PageSize:shown+size}` replace — one request per click,
-    // even for +500. (Per-page paging is classic-mode only, via goToPage.)
-    await ensureVisible(shown + size);
-  }, [isLiveMode, ensureVisible, engine.targetVisible, filteredData]);
+    const target = shown + size;
+    await ensureVisible(target, { bulk: opts?.bulk });
+    // With a client-side row filter active, raw rows ≠ visible rows — keep
+    // appending until the promise is met (bulk already fetched everything).
+    if (!opts?.bulk && paginationLoopRef.current.clientRowFilterActive) {
+      await topUpVisibleRows(target);
+    }
+  }, [isLiveMode, ensureVisible, engine.targetVisible, filteredData, topUpVisibleRows]);
 
   // Classic-mode navigation: make sure the prefix buffer holds enough
   // VISIBLE rows to cover the requested page, then let `visibleData`
@@ -3033,6 +3142,13 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // active the displayed count must come from `filteredLen`, not the raw
   // buffer length.
   const clientRowFilterActive = showOnlyUntagged || showOnlyMultiTagged || showOnlyDeadEnd || (builderOpen && builderHasContent);
+  // Keep the +N top-up loop's snapshot current (see paginationLoopRef).
+  paginationLoopRef.current = {
+    filteredLen,
+    bufferLen: transactions.length,
+    clientRowFilterActive,
+    totalShowing: engine.totalShowing,
+  };
   const displayCounts = useMemo(() => {
     if (validityFilterActive) {
       return { loadedNow: filteredLen, totalNow: filteredLen };
@@ -3090,9 +3206,13 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     if (builderOpen) return filteredData;
     if (incrementalPagination) {
       // Incremental mode shows the intended window, not the raw buffer:
-      // a hide-triggered refill overfetches (the buffer may briefly hold
-      // thousands of rows), but the operator asked to see targetVisible
-      // rows — slicing keeps "hide on 50 -> see 50 again" literal.
+      // +N appends land in ~500-row pages, so the buffer regularly holds
+      // MORE rows than the operator asked to see — slicing to
+      // `targetVisible` keeps "+50 shows 50 more" literal, and the
+      // pre-loaded surplus makes the next +N clicks instant (the engine's
+      // buffer short circuit). `targetVisible` is raised synchronously at
+      // every ensureVisible entry, so appended rows are never stranded
+      // below the slice boundary.
       return isLiveMode
         ? filteredData.slice(0, engine.targetVisible)
         : filteredData.slice(0, visibleCount);
@@ -3221,8 +3341,8 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // "Show all" pagination confirmation. State holds the pending remaining
   // count so we can render the exact number in the dialog body. Non-null
   // means the dialog is open; null hides it. Above the 1000-row threshold
-  // we surface the confirm; at or below we fetch immediately. The
-  // overfetch loop in loadNVisible already handles arbitrary sizes.
+  // we surface the confirm; at or below we fetch immediately. Show all is
+  // always a single bulk replace (loadNVisible's `bulk`), never an append.
   const [showAllConfirmRemaining, setShowAllConfirmRemaining] = useState<number | null>(null);
   const SHOW_ALL_CONFIRM_THRESHOLD = 1000;
   const handleRequestDelete = useCallback(() => {
@@ -4820,7 +4940,8 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
                         if (remaining > SHOW_ALL_CONFIRM_THRESHOLD) {
                           setShowAllConfirmRemaining(remaining);
                         } else {
-                          loadNVisible(remaining);
+                          // bulk: Show all stays ONE request (see loadNVisible).
+                          loadNVisible(remaining, { bulk: true });
                         }
                       }}
                     >
@@ -4919,19 +5040,36 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       />
 
       {/* Show all pagination confirmation. Past 1000 remaining rows the
-          fetch can chain multiple paginated round trips through the
-          overfetch loop, so we surface the count before committing. */}
+          single bulk fetch can transfer a lot of data, so we surface the
+          count before committing. */}
       <ConfirmDialog
         open={showAllConfirmRemaining != null}
         onClose={() => setShowAllConfirmRemaining(null)}
         onConfirm={() => {
           const n = showAllConfirmRemaining;
           setShowAllConfirmRemaining(null);
-          if (n != null && n > 0) loadNVisible(n);
+          // bulk: Show all stays ONE request (see loadNVisible).
+          if (n != null && n > 0) loadNVisible(n, { bulk: true });
         }}
         title="Load all transactions?"
         message={`This will fetch ${(showAllConfirmRemaining ?? 0).toLocaleString()} more transactions and may take a while. Continue?`}
         confirmLabel="Load all"
+      />
+
+      {/* Filtered +N hit the top-up cap: MAX_FILTER_TOPUP_PAGES pages were
+          appended without surfacing enough rows matching the active
+          Show Only filter. Ask before scanning further. */}
+      <ConfirmDialog
+        open={keepLoadingTarget != null}
+        onClose={() => setKeepLoadingTarget(null)}
+        onConfirm={() => {
+          const t = keepLoadingTarget;
+          setKeepLoadingTarget(null);
+          if (t != null) void topUpVisibleRows(t);
+        }}
+        title="Keep loading?"
+        message="Few of the recently loaded transactions match the active Show Only filter. Keep loading more to find matching rows?"
+        confirmLabel="Keep loading"
       />
 
       {activeCheckout && shareDialogOpenProp && (

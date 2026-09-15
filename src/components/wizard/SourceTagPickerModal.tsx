@@ -242,7 +242,7 @@ export function SourceTagPickerModal({ open, libraries, onClose, onSelect, curre
           </svg>
           <input
             type="text"
-            placeholder="Search by tag name, id, transaction type, bank, or side..."
+            placeholder="Search by tag name, nickname, id, transaction type, bank, or side..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             autoFocus

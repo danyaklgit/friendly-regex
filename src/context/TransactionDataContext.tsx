@@ -13,18 +13,42 @@ import { DEFAULT_DATA_SET_TYPE } from '../constants/dataSetTypes';
 // operators landing on the tab see 50 rows immediately rather than
 // waiting for 200 to transfer + render.
 //
-// +N pagination buttons (Show all included) bypass this default and
-// pass an explicit `pageSize` to `replaceFromBeginning` — the backend
-// confirmed `PageSize` is uncapped, so any +N click collapses to a
-// single round trip whose size matches what the operator asked for
-// (`+200` = 200 rows in one request, Show all = totalCount rows in one
-// request). PAGE_SIZE only governs the implicit "first batch" cost.
+// Incremental +N clicks APPEND the missing pages via `appendBatch`
+// (~500-row chunks — see useVisibleRowsEngine), so they only transfer
+// rows the buffer doesn't already hold. `Show all` stays a single
+// `{PageIndex:0, PageSize:remaining}` replace (`replaceFromBeginning`,
+// backend PageSize is uncapped) — one request beats hundreds of paged
+// appends because every request pays a fixed full-count cost.
 //
 // Both pagination modes render windows over the same loaded prefix
-// buffer (see useVisibleRowsEngine): classic mode slices visible rows
-// at PAGE_SIZE boundaries client-side, so this constant is also the
+// buffer (see useVisibleRowsEngine): classic mode fetches exact
+// `{PageIndex:k, PageSize:50}` pages, so this constant is also the
 // classic page length.
 export const PAGE_SIZE = 50;
+
+export interface AppendBatchOptions {
+  /** Server page size for the appended pages (default PAGE_SIZE). The
+   *  incremental engine appends at ~500 to amortize the fixed per-request
+   *  cost. `pageIndices` are in THIS size's space. */
+  pageSize?: number;
+  extraFilters?: FilterProperty[];
+  sortingProperties?: SortProperty[];
+  /** Caller-owned single-flight: a superseding replace aborts the batch
+   *  BEFORE its commit so stale rows are never spliced onto a new buffer. */
+  signal?: AbortSignal;
+  /** Refresh `totalTransactionsCount` from the appended pages' response
+   *  count so the scope total doesn't go stale during an appended stream.
+   *  Plain scope queries only — an NI-filtered (hidden tags) append returns
+   *  the VISIBLE total, which must not overwrite the scope total (the
+   *  hidden tally is scope − visible). */
+  updateTotal?: boolean;
+  /** Commit guard: append only while the buffer still starts with this row
+   *  id (null = the buffer was empty when the append was planned). Second
+   *  line of defense after `signal` — if the buffer was replaced between
+   *  plan and commit, the append is dropped instead of splicing stale rows
+   *  onto the rebuilt buffer. */
+  guardFirstRowId?: string | null;
+}
 
 export interface TransactionDataContextValue {
   transactions: TransactionRow[];
@@ -45,14 +69,16 @@ export interface TransactionDataContextValue {
    *  Resolves with an empty array on abort, error, or non-live mode. */
   fetchPage: (filters: Record<string, Set<string>>, append: boolean, pageIndex?: number, pageSize?: number, extraFilters?: FilterProperty[], sortingProperties?: SortProperty[]) => Promise<TransactionRow[]>;
   /** Append several pages in parallel — see implementation comment for
-   *  why this lives separate from `fetchPage`. Returns the merged rows in
-   *  `pageIndices` order. Resolves with an empty array on error or non-
-   *  live mode. */
-  appendBatch: (filters: Record<string, Set<string>>, pageIndices: number[], extraFilters?: FilterProperty[], sortingProperties?: SortProperty[], signal?: AbortSignal) => Promise<TransactionRow[]>;
+   *  why this lives separate from `fetchPage`. Returns the fetched rows
+   *  (pre-dedupe, in `pageIndices` order) plus the response's
+   *  `TransactionsCount`, or null on abort / error / non-live mode. The
+   *  buffer commit dedupes by row id and honors `guardFirstRowId`. */
+  appendBatch: (filters: Record<string, Set<string>>, pageIndices: number[], opts?: AppendBatchOptions) => Promise<{ rows: TransactionRow[]; totalCount: number | null } | null>;
   /** Fetch the first N rows in ONE request and replace the buffer
-   *  atomically (no pre-fetch clear / flicker). Used by `+N` pagination
-   *  and `Show all` now that backend `PageSize` is uncapped — one round
-   *  trip per click instead of `ceil(N / PAGE_SIZE)` aligned pages. */
+   *  atomically (no pre-fetch clear / flicker). Used by fresh loads and
+   *  `Show all` (backend `PageSize` is uncapped, so one round trip beats
+   *  hundreds of paged appends — each request pays a fixed full-count
+   *  cost). Incremental `+N` grows go through `appendBatch` instead. */
   replaceFromBeginning: (filters: Record<string, Set<string>>, pageSize: number, extraFilters?: FilterProperty[], sortingProperties?: SortProperty[], pageIndex?: number) => Promise<TransactionRow[]>;
   /** Hidden-tag aware variant: ONE query with two `NI` exclusions on the
    *  hidden definition ids (primary + multi-tag columns) — the backend keeps
@@ -411,7 +437,10 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
       currentPageRef.current = pageIndex;
       setHasMore(rows.length >= effectivePageSize);
 
-      if (!append && data.TransactionsCount != null) {
+      // Refresh the scope total on APPENDED pages too — an appended stream
+      // that never updates the count leaves the total stale for its whole
+      // duration (intraday ingestion moves it).
+      if (data.TransactionsCount != null) {
         setTotalTransactionsCount(data.TransactionsCount);
       }
 
@@ -441,71 +470,76 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
 
   /**
    * Append several pages in PARALLEL and commit them as a single state
-   * update. Used by `loadNVisible` / "Show all" to collapse the previous
-   * "fetch page N, await, fetch page N+1, await…" loop into one batched
-   * round of concurrent requests — wall-clock becomes max(latency) instead
-   * of sum(latency).
+   * update. This is the incremental `+N` primitive (via
+   * useVisibleRowsEngine): each click fetches ONLY the pages the buffer
+   * doesn't already hold, at an explicit page size (~500), instead of
+   * re-downloading the whole window from row 0.
    *
    * Why a separate method from `fetchPage`:
    *
    *  - `fetchPage` calls `abortRef.current?.abort()` to enforce
    *    single-flight semantics (filter-change races). Firing several of
-   *    them in parallel would cancel each other. `appendBatch` deliberately
-   *    skips the abort dance because every call here is for a different,
-   *    non-conflicting page of the SAME query.
-   *  - `fetchPage`'s pageIndex math reads `loadedCountRef.current` and
-   *    would compute the same index for every concurrent invocation
-   *    (they all see the pre-batch loadedCount), producing duplicates.
-   *    Callers of `appendBatch` precompute the exact page indices they
-   *    want, so each parallel request targets a distinct slice.
+   *    them in parallel would cancel each other. `appendBatch` instead
+   *    takes a caller-owned `signal`; the visible-rows engine aborts a
+   *    pending append before every superseding fetch.
+   *  - `fetchPage`'s pageIndex math reads `loadedCountRef.current`, which
+   *    is only correct while every prior fetch used the same page size.
+   *    Callers of `appendBatch` pass EXPLICIT page indices from their own
+   *    page cursor, so a preceding Show all / hide-refill / short final
+   *    page can't misalign the fetch.
    *
-   * Results merge in the requested `pageIndices` order so the table stays
-   * consistent with the backend's pagination ordering even if some pages
-   * arrive faster than others. The deduplicated `setTransactions` happens
-   * once at the end — no flicker.
+   * Results merge in the requested `pageIndices` order. The commit dedupes
+   * by row id — the backend pages with skip/limit under a sort key that is
+   * not a total order, and intraday ingestion shifts offsets, so an
+   * appended page can carry a row the buffer already holds (or the planned
+   * first page can deliberately overlap a non-page-aligned buffer) — and
+   * honors `guardFirstRowId` so a superseded append never splices stale
+   * rows onto a rebuilt buffer.
+   *
+   * Deliberately does NOT touch the global `loading` flag: appended grows
+   * are represented by the engine's `refilling` state. `loading` disables
+   * every row checkbox and skeletons the pagination strip — correct for a
+   * buffer replace, hostile for a grow that keeps the current rows valid.
    */
   const appendBatch = useCallback(async (
     filters: Record<string, Set<string>>,
     pageIndices: number[],
-    extraFilters?: FilterProperty[],
-    sortingProperties?: SortProperty[],
-    signal?: AbortSignal,
-  ): Promise<TransactionRow[]> => {
-    if (!isLiveMode) return [];
-    if (pageIndices.length === 0) return [];
+    opts?: AppendBatchOptions,
+  ): Promise<{ rows: TransactionRow[]; totalCount: number | null } | null> => {
+    if (!isLiveMode) return null;
+    if (pageIndices.length === 0) return { rows: [], totalCount: null };
 
     await refreshIfNeeded();
     const authHeaders = getAuthHeaders();
     const token = authHeaders.Authorization?.replace('Bearer ', '') ?? '';
-    if (!token) return [];
+    if (!token) return null;
     const tepHeaders: TepHeaders = {      userId: userId ?? '',
       tenantCode: tepConfig.ttpTenantCode,
       languageCode: tepConfig.languageCode,
       timeZone: tepConfig.timeZone,
       requestId: tepConfig.ttpRequestId,
     };
-    const filteringProperties = [...translateFilters(filters, filterDefinitionsRef.current), ...(extraFilters ?? [])];
+    const filteringProperties = [...translateFilters(filters, filterDefinitionsRef.current), ...(opts?.extraFilters ?? [])];
+    const pageSize = opts?.pageSize ?? PAGE_SIZE;
 
-    setLoading(true);
     try {
       // Fire all page requests in parallel. The browser caps concurrent
-      // requests per origin (~6 for HTTP/1, much higher for HTTP/2); we
-      // don't need to throttle manually. Each request is independent —
-      // no abort signal because cancelling a partial batch would leave
-      // the buffer in an inconsistent state mid-fetch. The standard
-      // filter-change refetch path still owns single-flight semantics.
+      // requests per origin (~6 for HTTP/1, much higher for HTTP/2); the
+      // engine keeps batches small (bulk loads go through
+      // replaceFromBeginning as ONE request precisely so a huge window
+      // never becomes hundreds of parallel counts on the database).
       const results = await Promise.all(
         pageIndices.map((pageIndex) =>
           getTransactions(
             {
               FilteringProperties: filteringProperties,
-              SortingProperties: sortingProperties ?? DEFAULT_SORTING,
-              Pagination: { PageIndex: pageIndex, PageSize: PAGE_SIZE },
+              SortingProperties: opts?.sortingProperties ?? DEFAULT_SORTING,
+              Pagination: { PageIndex: pageIndex, PageSize: pageSize },
               ...anchorPayload(),
             },
             token,
             tepHeaders,
-            signal,
+            opts?.signal,
           ).then((data) => ({ pageIndex, data })),
         ),
       );
@@ -518,8 +552,8 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
 
       const merged: TransactionRow[] = [];
       let lastPageRows = 0;
-      let highestIndex = pageIndices[0];
-      for (const { pageIndex, data } of results) {
+      let totalCount: number | null = null;
+      for (const { data } of results) {
         const raw = data.Transactions ?? [];
         // Same OpsIsDeadEnd / IsDeadEnd mirror that fetchPage applies on
         // ingest. Without it the downstream readers (badge, selection
@@ -533,30 +567,57 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
         });
         merged.push(...rows);
         lastPageRows = rows.length;
-        if (pageIndex > highestIndex) highestIndex = pageIndex;
+        if (data.TransactionsCount != null) totalCount = data.TransactionsCount;
       }
 
-      currentPageRef.current = highestIndex;
       // hasMore mirrors fetchPage's contract: full last page means more
       // is likely available; short last page (or empty) means we've
       // exhausted the dataset.
-      setHasMore(lastPageRows >= PAGE_SIZE);
+      setHasMore(lastPageRows >= pageSize);
+      // Keep the scope total fresh during the appended stream — but only
+      // for plain scope queries (see AppendBatchOptions.updateTotal).
+      if (opts?.updateTotal && totalCount != null) {
+        setTotalTransactionsCount(totalCount);
+      }
       setTransactions((prev) => {
-        const next = [...prev, ...merged];
+        // Commit guard: the append was planned against a buffer starting
+        // with `guardFirstRowId`. If the buffer was replaced meanwhile
+        // (the engine's abort should have prevented this — belt and
+        // braces), drop the append rather than splice stale rows.
+        if (opts?.guardFirstRowId !== undefined) {
+          const prevFirst = prev.length > 0 ? String(prev[0]['Id'] ?? '') : null;
+          if (prevFirst !== opts.guardFirstRowId) return prev;
+        }
+        // Dedupe by row id (wire field is `Id` — do not "clean up" the
+        // fallback). Rows without an id are kept: an empty key would
+        // collapse distinct rows.
+        const seen = new Set<string>();
+        for (const r of prev) {
+          const id = String(r['Id'] ?? '');
+          if (id) seen.add(id);
+        }
+        const fresh: TransactionRow[] = [];
+        for (const r of merged) {
+          const id = String(r['Id'] ?? '');
+          if (id) {
+            if (seen.has(id)) continue;
+            seen.add(id);
+          }
+          fresh.push(r);
+        }
+        const next = [...prev, ...fresh];
         loadedCountRef.current = next.length;
         return next;
       });
-      return merged;
+      return { rows: merged, totalCount };
     } catch (err) {
       // A superseding fetch (filter change / new +N / hide) aborts this
       // batch via `signal` BEFORE `Promise.all` resolves, so no partial
       // rows were committed — swallow the abort quietly. The buffer commit
       // above only runs on the success path.
-      if ((err as Error).name === 'AbortError') return [];
+      if ((err as Error).name === 'AbortError') return null;
       console.error('Failed to batch-fetch transactions:', err);
-      return [];
-    } finally {
-      if (!signal?.aborted) setLoading(false);
+      return null;
     }
   }, [isLiveMode, getAuthHeaders, refreshIfNeeded, userId, tepConfig]);
 
@@ -573,9 +634,9 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
    * loading — that flicker is fine on filter changes but disruptive
    * here where the new rows are a superset of the existing ones).
    *
-   * The previous parallel `appendBatch` path stays available for any
-   * future caller that genuinely needs append semantics, but the
-   * standard +N / Show all flows go through here.
+   * Incremental `+N` grows use `appendBatch` (fetch only the missing
+   * pages); this replace stays the right tool for fresh loads and bulk
+   * windows.
    */
   const replaceFromBeginning = useCallback(async (
     filters: Record<string, Set<string>>,
