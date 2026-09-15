@@ -1979,6 +1979,12 @@ const TableRow = memo(function TableRow({
                                 key={def.Id}
                                 content={
                                   <div className="space-y-1.5 max-w-xs">
+                                    {def.Nickname && (
+                                      <div className="text-[11px]">
+                                        <span className="text-faint">Nickname:</span>{' '}
+                                        <span className="font-semibold">{def.Nickname}</span>
+                                      </div>
+                                    )}
                                     {ttc && (
                                       <div className="text-[11px]">
                                         <span className="text-faint">Transaction type:</span>{' '}
@@ -1994,9 +2000,16 @@ const TableRow = memo(function TableRow({
                                 <button
                                   type="button"
                                   onClick={(e) => { e.stopPropagation(); onCloneMt940Suggestion(def); }}
-                                  className="max-w-full truncate text-[11px] font-medium rounded-md px-2 py-0.5 border border-amber-300/70 bg-amber-50 text-amber-800 hover:bg-amber-100 hover:border-amber-400 dark:border-amber-500/40 dark:bg-amber-900/20 dark:text-amber-300 dark:hover:bg-amber-900/40 cursor-pointer transition-colors"
+                                  className="max-w-full inline-flex items-center gap-1 min-w-0 text-[11px] font-medium rounded-md px-2 py-0.5 border border-amber-300/70 bg-amber-50 text-amber-800 hover:bg-amber-100 hover:border-amber-400 dark:border-amber-500/40 dark:bg-amber-900/20 dark:text-amber-300 dark:hover:bg-amber-900/40 cursor-pointer transition-colors"
                                 >
-                                  {def.Tag}
+                                  <span className="truncate">{def.Tag}</span>
+                                  {/* Rule nickname — same pill treatment as the Tags
+                                      filter dropdown; full text in the tooltip above. */}
+                                  {def.Nickname && (
+                                    <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-1.5 py-px text-[9px] font-medium leading-tight text-primary-dark dark:text-primary max-w-28 shrink-0">
+                                      <span className="truncate">{def.Nickname}</span>
+                                    </span>
+                                  )}
                                 </button>
                               </Tooltip>
                               );

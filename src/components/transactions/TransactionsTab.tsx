@@ -2226,8 +2226,9 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
 
   // Clone a suggested MT940 rule into a NEW intraday tag: open the Rule
   // Builder in create mode (for the current intraday checkout), pre-fill the
-  // MT940 tag name, and clone its rule sets + attributes. The operator reviews
-  // and clicks Create; bank/side/DataSetType come from the checkout at save.
+  // MT940 tag name, nickname, and certainty, and clone its rule sets +
+  // attributes. The operator reviews and clicks Create; bank/side/DataSetType
+  // come from the checkout at save.
   const handleCloneMt940Suggestion = useCallback((def: TagSpecDefinition) => {
     builder.resetForm();
     builder.applyTemplate(def);
@@ -2246,7 +2247,15 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
         }
       }
     }
-    builder.updateBasicInfo({ tag: def.Tag, transactionTypeCode: ttc });
+    builder.updateBasicInfo({
+      tag: def.Tag,
+      // Carry the rule's nickname and certainty over from the MT940 source —
+      // the clone should land in the intraday library reading the same as
+      // its origin (both are still editable before Create).
+      nickname: def.Nickname ?? '',
+      certaintyLevelTag: def.CertaintyLevelTag,
+      transactionTypeCode: ttc,
+    });
     cloneMt940SkipTtcRef.current = true;
     setBuilderOpen(true);
   }, [builder, transactions, getMt940Suggestions]);
