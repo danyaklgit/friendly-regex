@@ -779,7 +779,24 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     );
   }, [filterDefinitions]);
 
+  // Content cache for activeExtraFilters: the memo below depends on the WHOLE
+  // `builder.formState` (buildRulesetFilters reads it), so every keystroke in
+  // ANY builder field — Nickname, tag name, certainty — recomputes it. Most of
+  // those fields never change the produced filters, but a fresh array identity
+  // alone re-fires the live-fetch effect (a GetTEPTransactions per keystroke).
+  // Returning the PREVIOUS array whenever the serialized content is unchanged
+  // keeps the identity stable so only REAL filter changes refetch.
+  const extraFiltersCacheRef = useRef<{ json: string; value: FilterProperty[] } | null>(null);
+
   const activeExtraFilters: FilterProperty[] = useMemo(() => {
+    // Identity-stabilize every return path (see extraFiltersCacheRef above).
+    const stabilize = (filters: FilterProperty[]): FilterProperty[] => {
+      const json = JSON.stringify(filters);
+      const prev = extraFiltersCacheRef.current;
+      if (prev && prev.json === json) return prev.value;
+      extraFiltersCacheRef.current = { json, value: filters };
+      return filters;
+    };
     // Hidden tag specs are intentionally NOT pushed as a server-side `NI`
     // filter anymore. The previous behavior wrapped the hide set in a
     // `NI` predicate against `OpsTagSpecDefinitionId|OpsMultiTags.
@@ -795,7 +812,7 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     // already accounts for the loaded-but-hidden case via
     // `hiddenLoadedCount`, so giving up the NI optimization is the
     // smaller trade-off here.
-    const withHidden = (filters: FilterProperty[]): FilterProperty[] => filters;
+    const withHidden = (filters: FilterProperty[]): FilterProperty[] => stabilize(filters);
 
     // DataSetType scope — the checked-out library's type (MT940 / MT942 /
     // INTERIM_MT940), or MT940 when browsing without a checkout. The grid
