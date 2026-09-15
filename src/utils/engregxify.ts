@@ -367,7 +367,14 @@ function unescapeRegex(str: string): string {
 function hasActiveRegexSyntax(str: string): boolean {
   // Escaped backslash (\\) means the regex matches a literal backslash — clearly complex/imported
   if (/\\\\/.test(str)) return true;
-  // Strip all \X escape sequences, then check for remaining metacharacters
+  // Shorthand classes and boundary/control escapes (\d \w \s \b \n …) are
+  // ACTIVE regex syntax, not escaped literals — `^IMP BILL COMM\b` must NOT
+  // decompose to "Starts with 'IMP BILL COMM\b'": the \b would sit in the
+  // literal value and re-saving would escape the backslash, silently changing
+  // the pattern. Same list looksLikeRegex uses.
+  if (/\\[dDwWsSbBntrfv0]/.test(str)) return true;
+  // Strip the remaining \X escape sequences (escaped literals like \. \ \/),
+  // then check for unescaped metacharacters
   const withoutEscapes = str.replace(/\\./g, '');
   // eslint-disable-next-line no-useless-escape
   return /[.*+?{}()\[\]|]/.test(withoutEscapes);

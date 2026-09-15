@@ -162,6 +162,18 @@ describe('engregxify', () => {
   it('complex ends_with falls to matches pattern', () => {
     expect(engregxify('\\d+$')).toBe("Matches pattern '\\d+$'");
   });
+
+  // Bare shorthand/boundary escapes (no other metacharacters) are still
+  // active regex syntax — describing them as literal "Starts with" text let
+  // the builder round-trip mangle the pattern (the \b became a literal
+  // backslash-b on save).
+  it('word boundary after anchored literal falls to matches pattern', () => {
+    expect(engregxify('^IMP BILL COMM\\b')).toBe("Matches pattern '^IMP BILL COMM\\b'");
+  });
+
+  it('whitespace shorthand in contains falls to matches pattern', () => {
+    expect(engregxify('IMP\\sBILL')).toBe("Matches pattern 'IMP\\sBILL'");
+  });
 });
 
 describe('decomposeRegex', () => {
@@ -231,6 +243,22 @@ describe('decomposeRegex', () => {
   // Match regex (complex)
   it('match_regex for complex pattern', () => {
     expect(decomposeRegex('\\d{3}[A-Z]+')).toEqual({ operation: 'match_regex', value: '\\d{3}[A-Z]+' });
+  });
+
+  // Bare shorthand/boundary escapes must round-trip as match_regex, never as
+  // a literal operation: `^IMP BILL COMM\b` decomposed to begins_with put the
+  // `\b` into the literal value, and re-saving escaped the backslash into a
+  // different pattern (matched literal "\b" text). Same for \s, \d, etc.
+  it('word boundary after anchored literal stays match_regex', () => {
+    expect(decomposeRegex('^IMP BILL COMM\\b')).toEqual({ operation: 'match_regex', value: '^IMP BILL COMM\\b' });
+  });
+
+  it('whitespace shorthand stays match_regex', () => {
+    expect(decomposeRegex('IMP\\sBILL')).toEqual({ operation: 'match_regex', value: 'IMP\\sBILL' });
+  });
+
+  it('bare digit shorthand in ends_with position stays match_regex', () => {
+    expect(decomposeRegex('REF\\d$')).toEqual({ operation: 'match_regex', value: 'REF\\d$' });
   });
 
   // Contains (default)
