@@ -134,6 +134,18 @@ export function TransactionTypePicker({ value, onChange, filterDefinitions, data
     );
   }, [options, search]);
 
+  // Free-text entry: transaction types are not predefined in every workspace
+  // (Interim Transactions List most notably), so any searched text that isn't
+  // already a catalog code (exact, case-insensitive) is offered as a
+  // selectable `Use "<text>"` row after the catalog matches. It participates
+  // in keyboard navigation at index `filtered.length`.
+  const trimmedSearch = search.trim();
+  const customValue = trimmedSearch
+    && !options.some((o) => o.value.toLowerCase() === trimmedSearch.toLowerCase())
+    ? trimmedSearch
+    : null;
+  const navigableCount = filtered.length + (customValue ? 1 : 0);
+
   const selectedOption = options.find((o) => o.value === value);
   const selectedDisplay = selectedOption
     ? (selectedOption.value !== selectedOption.label && selectedOption.label ? `${selectedOption.value} — ${selectedOption.label}` : selectedOption.label)
@@ -167,14 +179,17 @@ export function TransactionTypePicker({ value, onChange, filterDefinitions, data
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setHighlightIndex((i) => (filtered.length === 0 ? 0 : Math.min(i + 1, filtered.length - 1)));
+      setHighlightIndex((i) => (navigableCount === 0 ? 0 : Math.min(i + 1, navigableCount - 1)));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setHighlightIndex((i) => Math.max(i - 1, 0));
     } else if (e.key === 'Enter') {
       e.preventDefault();
+      // Indices 0..filtered.length-1 are catalog options; index
+      // filtered.length is the custom `Use "<text>"` row (when present).
       const opt = filtered[highlightIndex];
       if (opt) handleSelect(opt.value);
+      else if (customValue && highlightIndex === filtered.length) handleSelect(customValue);
     } else if (e.key === 'Escape') {
       e.preventDefault();
       setOpen(false);
@@ -258,7 +273,7 @@ export function TransactionTypePicker({ value, onChange, filterDefinitions, data
             </div>
           </div>
           <div ref={listRef} className="max-h-60 overflow-y-auto custom-scrollbar p-1.5">
-            {filtered.length === 0 ? (
+            {filtered.length === 0 && !customValue ? (
               <div className="px-2 py-3 text-xs text-faint text-center">
                 {options.length === 0 ? 'No transaction types loaded' : 'No matches'}
               </div>
@@ -285,6 +300,30 @@ export function TransactionTypePicker({ value, onChange, filterDefinitions, data
                   </button>
                 );
               })
+            )}
+            {/* Free-typed value: select exactly what the operator typed. */}
+            {customValue && (
+              <>
+                {filtered.length > 0 && <div className="my-1 border-t border-border-subtle" />}
+                <button
+                  type="button"
+                  data-opt-index={filtered.length}
+                  onClick={() => handleSelect(customValue)}
+                  onMouseEnter={() => setHighlightIndex(filtered.length)}
+                  className={`w-full text-left flex items-start gap-2 px-2 py-1.5 text-xs rounded transition-colors ${
+                    highlightIndex === filtered.length ? 'ring-1 ring-inset ring-primary/40' : ''
+                  }`}
+                >
+                  <span className="min-w-0">
+                    <span className="block font-medium truncate text-heading">
+                      Use &quot;<span className="text-primary">{customValue}</span>&quot;
+                    </span>
+                    <span className="block text-[10px] text-faint truncate">
+                      Custom transaction type (not in the catalog)
+                    </span>
+                  </span>
+                </button>
+              </>
             )}
           </div>
         </div>

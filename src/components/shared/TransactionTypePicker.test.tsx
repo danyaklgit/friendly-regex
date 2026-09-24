@@ -77,7 +77,7 @@ describe('TransactionTypePicker', () => {
     expect(screen.getByText('Cheque')).toBeDefined();
   });
 
-  it('shows "No matches" when search yields no results', async () => {
+  it('offers the typed text as a custom value when search matches nothing', async () => {
     const user = userEvent.setup();
     const defs: FilterDefinition[] = [
       {
@@ -93,7 +93,85 @@ describe('TransactionTypePicker', () => {
     render(<TransactionTypePicker value="" onChange={noop} filterDefinitions={defs} />);
     await user.click(screen.getByRole('button'));
     await user.type(screen.getByPlaceholderText(/search swift/i), 'zzzzzz');
-    expect(screen.getByText('No matches')).toBeDefined();
+    // No "No matches" dead end — the typed text is selectable as-is
+    // (Interim Transactions List types are not predefined).
+    expect(screen.queryByText('No matches')).toBeNull();
+    expect(screen.getByText('zzzzzz')).toBeDefined();
+    expect(screen.getByText(/custom transaction type/i)).toBeDefined();
+  });
+
+  it('selects the custom typed value on click', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const defs: FilterDefinition[] = [
+      {
+        Tag: 'TransactionTypeCode',
+        Label: 'Transaction Type',
+        Type: 'LIST',
+        Operand: null,
+        Values: [
+          { Column: 'TTC', Value: 'TRF', Label: 'Transfer', Operand: null, DisabledBy: null },
+        ],
+      },
+    ];
+    render(<TransactionTypePicker value="" onChange={onChange} filterDefinitions={defs} />);
+    await user.click(screen.getByRole('button'));
+    await user.type(screen.getByPlaceholderText(/search swift/i), 'ANYTHING');
+    await user.click(screen.getByText('ANYTHING'));
+    expect(onChange).toHaveBeenCalledWith('ANYTHING');
+    await waitFor(() => {
+      expect(screen.queryByPlaceholderText(/search swift/i)).toBeNull();
+    });
+  });
+
+  it('selects the custom typed value with Enter when nothing matches', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const defs: FilterDefinition[] = [
+      {
+        Tag: 'TransactionTypeCode',
+        Label: 'Transaction Type',
+        Type: 'LIST',
+        Operand: null,
+        Values: [
+          { Column: 'TTC', Value: 'TRF', Label: 'Transfer', Operand: null, DisabledBy: null },
+        ],
+      },
+    ];
+    render(<TransactionTypePicker value="" onChange={onChange} filterDefinitions={defs} />);
+    await user.click(screen.getByRole('button'));
+    await user.type(screen.getByPlaceholderText(/search swift/i), 'INTERIM-X{Enter}');
+    expect(onChange).toHaveBeenCalledWith('INTERIM-X');
+  });
+
+  it('does not offer a custom row when the typed text is an exact catalog code (case-insensitive)', async () => {
+    const user = userEvent.setup();
+    const defs: FilterDefinition[] = [
+      {
+        Tag: 'TransactionTypeCode',
+        Label: 'Transaction Type',
+        Type: 'LIST',
+        Operand: null,
+        Values: [
+          { Column: 'TTC', Value: 'TRF', Label: 'Transfer', Operand: null, DisabledBy: null },
+        ],
+      },
+    ];
+    render(<TransactionTypePicker value="" onChange={noop} filterDefinitions={defs} />);
+    await user.click(screen.getByRole('button'));
+    await user.type(screen.getByPlaceholderText(/search swift/i), 'trf');
+    expect(screen.queryByText(/custom transaction type/i)).toBeNull();
+    expect(screen.getByText('Transfer')).toBeDefined();
+  });
+
+  it('offers the typed text for Ledger even when no catalog is loaded', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<TransactionTypePicker value="" onChange={onChange} dataSetType="Ledger" />);
+    await user.click(screen.getByRole('button'));
+    await user.type(screen.getByPlaceholderText('Search transaction types...'), 'journal');
+    await user.click(screen.getByText('journal'));
+    expect(onChange).toHaveBeenCalledWith('journal');
   });
 
   it('calls onChange and closes dropdown when an option is selected', async () => {
