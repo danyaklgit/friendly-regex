@@ -38,13 +38,18 @@ export function Select({ label, options, className = '', id, error, placeholder,
           focus:ring-1 outline-none transition-colors ${placeholder && !props.value ? 'text-placeholder' : 'text-heading'} ${className}`}
         {...props}
       >
+        {/* The select element carries text-placeholder grey while no value is
+            picked, and Chromium's native option popup INHERITS that color —
+            without an explicit color every option in the open list rendered
+            grey until a first pick. Color the options directly: real options
+            readable, the placeholder row muted. */}
         {placeholder && (
-          <option value="" disabled>
+          <option value="" disabled className="text-placeholder">
             {placeholder}
           </option>
         )}
         {options.map((opt) => (
-          <option key={opt.value} value={opt.value}>
+          <option key={opt.value} value={opt.value} className="text-heading">
             {opt.label}
           </option>
         ))}

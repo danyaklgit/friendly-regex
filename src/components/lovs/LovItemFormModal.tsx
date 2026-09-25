@@ -4,8 +4,12 @@ import { Button } from '../shared/Button';
 import { Input } from '../shared/Input';
 import { Select } from '../shared/Select';
 import type { AttributeDetail, LOVListItem } from '../../types/lov';
-import { TRANSFORMATION_METHODS } from '../../constants/transformations';
+import { TRANSFORMATION_METHODS, TRANSFORMATION_METHOD_MAP } from '../../constants/transformations';
 import { TRANSFORMATIONS_LIST_TAG } from '../../constants/lov';
+
+/** Select sentinel for the free-typed escape hatch. Real engine method keys
+ *  are lowercase snake_case, so the dunder can never collide. */
+const CUSTOM_METHOD = '__custom__';
 
 export interface LovItemFormPayload {
   Id?: number;
@@ -50,6 +54,10 @@ export function LovItemFormModal({ open, onClose, listTag, listName, item, exist
   const [descAr, setDescAr] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Free-typed Value mode for the Transformations list — used when the engine
+  // ships a method before this Portal build's catalog knows it (the reverse
+  // of the usual gotcha #28 rollout order).
+  const [customValue, setCustomValue] = useState(false);
 
   // (Re)seed from the target item on every open. EVERY language is prefilled
   // from `item.Details`: the central update replaces an item's details
@@ -66,6 +74,9 @@ export function LovItemFormModal({ open, onClose, listTag, listName, item, exist
     setDescEn(en?.ShortDescription ?? item?.Description ?? '');
     setNameAr(ar?.Name ?? '');
     setDescAr(ar?.ShortDescription ?? '');
+    // An existing item whose value the local catalog doesn't know can only be
+    // edited through the free-text branch — the Select would render it blank.
+    setCustomValue(item?.Value ? !TRANSFORMATION_METHOD_MAP.has(item.Value) : false);
     setError(null);
     setSaving(false);
   }, [open, item]);
@@ -114,7 +125,10 @@ export function LovItemFormModal({ open, onClose, listTag, listName, item, exist
   };
 
   const methodOptions = useMemo(
-    () => TRANSFORMATION_METHODS.map((m) => ({ value: m.key, label: `${m.label} (${m.key})` })),
+    () => [
+      ...TRANSFORMATION_METHODS.map((m) => ({ value: m.key, label: `${m.label} (${m.key})` })),
+      { value: CUSTOM_METHOD, label: 'Custom value (type it in)…' },
+    ],
     [],
   );
 
@@ -135,13 +149,39 @@ export function LovItemFormModal({ open, onClose, listTag, listName, item, exist
       }
     >
       <div className="flex flex-col gap-4">
-        {isTransformations ? (
+        {isTransformations && customValue ? (
+          <div className="flex flex-col gap-1">
+            <Input
+              label="Value (engine method) *"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder="e.g. math"
+              error={duplicate}
+              autoFocus
+            />
+            <p className="text-[11px] text-muted">
+              For methods the tagging engine implements but this Portal build doesn&apos;t know yet. The wizard will list it under the Name below, but arg inputs and the live preview only work once the Portal catalog ships a matching key.{' '}
+              <button
+                type="button"
+                className="underline hover:text-body"
+                onClick={() => { setCustomValue(false); setValue(''); }}
+              >
+                Choose from the method list instead
+              </button>
+            </p>
+          </div>
+        ) : isTransformations ? (
           <div className="flex flex-col gap-1">
             <Select
               label="Value (engine method) *"
               value={value}
               onChange={(e) => {
                 const key = e.target.value;
+                if (key === CUSTOM_METHOD) {
+                  setCustomValue(true);
+                  setValue('');
+                  return;
+                }
                 setValue(key);
                 // Prefill the display fields from the transformation catalog
                 // (same conventions the existing items follow: label as the
