@@ -200,6 +200,35 @@ export const TRANSFORMATION_METHODS: TransformationMethodDef[] = [
     ],
   },
 
+  {
+    // Backend owns the `ATTRIBUTE_TRANSFORMATON` LOV entry (Value = 'math')
+    // + the server-side apply; this catalog entry + the applyTransformation
+    // mirror exist purely so the wizard preview works (gotcha #28). The
+    // operator arg stores a stable word token ('divide'), never the display
+    // char ('/'), matching the thousandSeparator select contract above.
+    key: 'math',
+    label: 'Math',
+    description: 'Args: operator, operand. Example: "00001234" -> Divide by 100 -> "12.34". Non-numeric values pass through unchanged.',
+    category: 'Formatting',
+    args: [
+      {
+        key: 'operator',
+        label: 'Operator',
+        placeholder: 'Select…',
+        type: 'select',
+        required: true,
+        options: [
+          { value: 'add', label: 'Add (+)' },
+          { value: 'subtract', label: 'Subtract (-)' },
+          { value: 'multiply', label: 'Multiply (*)' },
+          { value: 'divide', label: 'Divide (/)' },
+          { value: 'modulo', label: 'Modulo (%)' },
+        ],
+      },
+      { key: 'operand', label: 'Operand', placeholder: 'e.g., 100', type: 'number', required: true },
+    ],
+  },
+
   // Extraction Refinement
   {
     key: 'substring',

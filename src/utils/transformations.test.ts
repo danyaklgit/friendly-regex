@@ -681,3 +681,47 @@ describe('format_amount', () => {
     expect(applyTransformation('format_amount', { thousandSeparator: 'comma', decimals: '-1' }, '1234')).toBe('1234');
   });
 });
+
+describe('math', () => {
+  const math = (value: string, operator: string, operand: string) =>
+    applyTransformation('math', { operator, operand }, value);
+
+  it('divides a zero-padded value (the canonical amount-in-cents case)', () => {
+    expect(math('00001234', 'divide', '100')).toBe('12.34');
+  });
+
+  it('supports all five operators', () => {
+    expect(math('10', 'add', '5')).toBe('15');
+    expect(math('10', 'subtract', '5')).toBe('5');
+    expect(math('10', 'multiply', '5')).toBe('50');
+    expect(math('10', 'divide', '4')).toBe('2.5');
+    expect(math('10', 'modulo', '3')).toBe('1');
+  });
+
+  it('handles decimals and negatives, trimming binary FP noise', () => {
+    expect(math('0.1', 'add', '0.2')).toBe('0.3');
+    expect(math('-12.5', 'multiply', '2')).toBe('-25');
+    expect(math('10', 'subtract', '12.5')).toBe('-2.5');
+  });
+
+  it('accepts values that carry grouping or padding, same cleaning as format_amount', () => {
+    expect(math('1,234', 'divide', '100')).toBe('12.34');
+    expect(math('  2500  ', 'divide', '100')).toBe('25');
+    expect(math("1'000", 'add', '1')).toBe('1001');
+  });
+
+  it('passes non-numeric input through unchanged', () => {
+    expect(math('N/A', 'divide', '100')).toBe('N/A');
+    expect(math('12.3.4', 'add', '1')).toBe('12.3.4');
+    expect(math('AMT 500', 'divide', '100')).toBe('AMT 500');
+    expect(math('', 'add', '1')).toBe('');
+  });
+
+  it('passes through on divide/modulo by zero, unknown operator, or bad operand', () => {
+    expect(math('10', 'divide', '0')).toBe('10');
+    expect(math('10', 'modulo', '0')).toBe('10');
+    expect(math('10', 'power', '2')).toBe('10');
+    expect(math('10', 'divide', 'abc')).toBe('10');
+    expect(applyTransformation('math', { operator: 'divide' }, '10')).toBe('10');
+  });
+});

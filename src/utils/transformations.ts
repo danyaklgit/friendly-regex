@@ -68,6 +68,50 @@ export function applyTransformation(
       return `${num < 0 ? '-' : ''}${grouped}${fracPart ? `.${fracPart}` : ''}`;
     }
 
+    // Formatting — math
+    case 'math': {
+      // Wire contract (mirror on the backend byte-for-byte, gotcha #28):
+      //   Args: operator = 'add' | 'subtract' | 'multiply' | 'divide' | 'modulo'
+      //         operand  = plain decimal number as string
+      // Behavior:
+      //   1. Strip existing grouping (spaces, commas, apostrophes) from the
+      //      trimmed input — same cleaning as `format_amount`.
+      //   2. If the remainder is not a plain decimal number (optional minus,
+      //      digits, optional fraction), return the input UNCHANGED — a math
+      //      step must never destroy non-numeric text.
+      //   3. Apply <value> <operator> <operand>. Divide/modulo by zero, an
+      //      unknown operator, or a non-numeric operand return the input
+      //      unchanged (no Infinity/NaN ever surfaces).
+      //   4. Emit the plain decimal result. The numeric parse drops leading
+      //      zeros ("00001234" divide 100 -> "12.34"); binary FP noise is
+      //      trimmed to 10 fraction digits so 0.1 + 0.2 reads "0.3".
+      const operandRaw = (args['operand'] ?? '').trim();
+      if (!/^-?\d+(\.\d+)?$/.test(operandRaw)) return value;
+      const operand = Number(operandRaw);
+      const cleaned = value.trim().replace(/[ ,']/g, '');
+      if (!/^-?\d+(\.\d+)?$/.test(cleaned)) return value;
+      const num = Number(cleaned);
+      if (!Number.isFinite(num)) return value;
+      let result: number;
+      switch (args['operator']) {
+        case 'add': result = num + operand; break;
+        case 'subtract': result = num - operand; break;
+        case 'multiply': result = num * operand; break;
+        case 'divide':
+          if (operand === 0) return value;
+          result = num / operand;
+          break;
+        case 'modulo':
+          if (operand === 0) return value;
+          result = num % operand;
+          break;
+        default:
+          return value;
+      }
+      if (!Number.isFinite(result)) return value;
+      return String(Number(result.toFixed(10)));
+    }
+
     // Removal
     case 'remove_alpha':
       return value.replace(/[a-zA-Z]/g, '');
