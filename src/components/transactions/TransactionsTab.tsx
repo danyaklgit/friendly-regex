@@ -2440,14 +2440,26 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
   // page would never converge while pages stream: `analyzedData` would keep
   // shrinking back, `filteredLen` would oscillate (feeding the +N target and
   // footer counts), and TransactionTable's REPLACE detection would wipe the
-  // selection once per page. When the SAME buffer merely GROWS (same first
-  // row id, longer) under UNCHANGED analysis inputs, the pass resumes from
-  // the previous raw count over the retained accumulator instead of
-  // restarting at 0. `deps` snapshots every input other than `transactions`
-  // by identity — any change forces the full restart.
+  // selection once per page. When the SAME buffer merely GROWS under
+  // UNCHANGED analysis inputs, the pass resumes from the previous raw count
+  // over the retained accumulator instead of restarting at 0.
+  //
+  // "Same buffer, grown" is proven by OBJECT IDENTITY, not row ids: appends
+  // spread the previous array (`[...prev, ...fresh]`), so the retained
+  // prefix's first and last row objects must be the very objects sitting at
+  // the same positions of the new array. Every server REPLACE builds fresh
+  // row objects, so a replace that happens to keep the same first row ID and
+  // land a longer result can never masquerade as a grow — an id-based check
+  // did exactly that (rule-builder REGEX buffers often share the scope's
+  // earliest row) and spliced STALE ROWS from the previous result set into
+  // `analyzedData`: ghost rows on screen, duplicate row ids, duplicate React
+  // keys (the prod ghost-rows incident, 2026-09-25). `deps` snapshots every
+  // analysis input other than `transactions` by identity — any change forces
+  // the full restart.
   const analyzeAccRef = useRef<{
     deps: readonly unknown[];
-    firstId: string;
+    firstRow: TransactionRow;
+    lastProcessedRow: TransactionRow;
     rawCount: number;
     acc: AnalyzedTransaction[];
   } | null>(null);
@@ -2472,14 +2484,15 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     const builderActive = builderOpen && builderHasContent;
     const tagClickActive = tagClickState !== null;
     const editingDefId = editingDef?.Id;
-    // Same-buffer-grown detection (append). Row identity via the wire `Id`
-    // field, matching TransactionTable's REPLACE detection.
+    // Same-buffer-grown detection (append). Proven by OBJECT IDENTITY of the
+    // retained prefix's first and last processed rows — see the analyzeAccRef
+    // comment above for why row ids are not enough.
     const deps = [allLibraries, isLiveMode, builderOpen, builderHasContent, tagClickState, editingDef, tempDefinition] as const;
-    const firstId = String(transactions[0]['Id'] ?? '');
     const prev = analyzeAccRef.current;
     const resume = prev != null
-      && prev.firstId === firstId
       && transactions.length > prev.rawCount
+      && transactions[0] === prev.firstRow
+      && transactions[prev.rawCount - 1] === prev.lastProcessedRow
       && prev.deps.length === deps.length
       && prev.deps.every((d, i) => d === deps[i])
       ? prev
@@ -2510,7 +2523,13 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
       }
       // Record resume state BEFORE committing: if an appended page lands
       // between this chunk and the next, the re-run picks up exactly here.
-      analyzeAccRef.current = { deps, firstId, rawCount: end, acc };
+      analyzeAccRef.current = {
+        deps,
+        firstRow: transactions[0],
+        lastProcessedRow: transactions[end - 1],
+        rawCount: end,
+        acc,
+      };
       analyzeProgressRef.current = end;
       // Commit progress. `[...acc]` keeps each render a distinct
       // reference so memoized consumers (filteredData, hiddenTagItems,

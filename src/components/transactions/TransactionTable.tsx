@@ -3356,18 +3356,22 @@ export function TransactionTable({ curatedSuggestions = null, onOpenSuggestion, 
     // Stable per-row key so React can match measured heights across
     // re-renders when the underlying data shifts (filter change,
     // hide / unhide, +N append, group expand/collapse, etc.).
+    // A row without an Id falls back to its index: these keys become the
+    // React keys of the rendered rows, and an empty-string key repeated
+    // across rows is a duplicate React key — undefined reconciliation,
+    // leaked/duplicated row fibers (the ghost-rows failure mode).
     getItemKey: (index) => {
       if (displayList) {
         const entry = displayList[index];
         switch (entry.kind) {
           case 'group': return `grp:${entry.group.key}`;
-          case 'extra': return `x:${getRowId(entry.item.row)}`;
+          case 'extra': return `x:${getRowId(entry.item.row) || index}`;
           case 'note': return `note:${entry.id}`;
           case 'more': return `more:${entry.groupKey}`;
-          default: return getRowId(data[entry.dataIndex].row);
+          default: return getRowId(data[entry.dataIndex].row) || `row:${index}`;
         }
       }
-      return getRowId(data[index].row);
+      return getRowId(data[index].row) || `row:${index}`;
     },
   });
   const virtualRows = rowVirtualizer.getVirtualItems();

@@ -6,6 +6,7 @@ import { getTransactions, getFilters, getUserFilters, markTransactionsAsDeadEnd,
 import { useAuth } from './AuthContext';
 import { useTepConfig } from './TepConfigContext';
 import { loadSampleTransactions } from '../data/loadSampleData';
+import { ingestRows } from '../utils/ingestRows';
 import { DEFAULT_DATA_SET_TYPE } from '../constants/dataSetTypes';
 
 // Default page size for the initial Transactions load + every
@@ -422,20 +423,13 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
       );
 
       const rawRows = data.Transactions ?? [];
-      // Backend returns the dead-end flag under `OpsIsDeadEnd` (with a string
-      // "True" / "False" value), but every row-level read in the app keys off
-      // `IsDeadEnd` as a boolean. Mirror the field on ingest so the badge,
-      // selection-bar state, and sample-mode filter keep working after a
-      // refetch — without forcing every read site to handle both names.
-      const rows = rawRows.map((row) => {
-        if (row['IsDeadEnd'] != null) return row;
-        const ops = row['OpsIsDeadEnd'];
-        if (ops == null) return row;
-        const isDead = typeof ops === 'string' ? ops.toLowerCase() === 'true' : ops === true;
-        return { ...row, IsDeadEnd: isDead };
-      });
+      // Shared ingest normalization: OpsIsDeadEnd → IsDeadEnd mirror + drop
+      // in-response duplicate row ids (blocking-sort fallback tears — see
+      // ingestRows). hasMore reads the RAW length so a deduped short page
+      // isn't misread as the dataset end.
+      const rows = ingestRows(rawRows);
       currentPageRef.current = pageIndex;
-      setHasMore(rows.length >= effectivePageSize);
+      setHasMore(rawRows.length >= effectivePageSize);
 
       // Refresh the scope total on APPENDED pages too — an appended stream
       // that never updates the count leaves the total stale for its whole
@@ -555,18 +549,11 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
       let totalCount: number | null = null;
       for (const { data } of results) {
         const raw = data.Transactions ?? [];
-        // Same OpsIsDeadEnd / IsDeadEnd mirror that fetchPage applies on
-        // ingest. Without it the downstream readers (badge, selection
-        // bar, sample-mode filter) miss the flag for newly-appended rows.
-        const rows = raw.map((row) => {
-          if (row['IsDeadEnd'] != null) return row;
-          const ops = row['OpsIsDeadEnd'];
-          if (ops == null) return row;
-          const isDead = typeof ops === 'string' ? ops.toLowerCase() === 'true' : ops === true;
-          return { ...row, IsDeadEnd: isDead };
-        });
-        merged.push(...rows);
-        lastPageRows = rows.length;
+        // Shared ingest normalization (IsDeadEnd mirror + in-response id
+        // dedupe — see ingestRows). hasMore reads the RAW page length so a
+        // deduped short page isn't misread as the dataset end.
+        merged.push(...ingestRows(raw));
+        lastPageRows = raw.length;
         if (data.TransactionsCount != null) totalCount = data.TransactionsCount;
       }
 
@@ -680,18 +667,13 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
         controller.signal,
       );
       const rawRows = data.Transactions ?? [];
-      // Same OpsIsDeadEnd / IsDeadEnd mirror that fetchPage and
-      // appendBatch apply on ingest, kept consistent across all three
-      // ingest paths so downstream readers don't have to special-case.
-      const rows = rawRows.map((row) => {
-        if (row['IsDeadEnd'] != null) return row;
-        const ops = row['OpsIsDeadEnd'];
-        if (ops == null) return row;
-        const isDead = typeof ops === 'string' ? ops.toLowerCase() === 'true' : ops === true;
-        return { ...row, IsDeadEnd: isDead };
-      });
+      // Shared ingest normalization (IsDeadEnd mirror + in-response id
+      // dedupe — see ingestRows), kept consistent across every ingest path.
+      // hasMore reads the RAW length so a deduped short page isn't misread
+      // as the dataset end.
+      const rows = ingestRows(rawRows);
       currentPageRef.current = pageIndex;
-      setHasMore(rows.length >= pageSize);
+      setHasMore(rawRows.length >= pageSize);
       if (data.TransactionsCount != null) {
         setTotalTransactionsCount(data.TransactionsCount);
       }
@@ -803,18 +785,12 @@ export function TransactionDataProvider({ children }: { children: ReactNode }) {
         ),
       ]);
 
-      // Same OpsIsDeadEnd / IsDeadEnd mirror as the other ingest paths.
-      const mirror = (raw: TransactionRow[]): TransactionRow[] => raw.map((row) => {
-        if (row['IsDeadEnd'] != null) return row;
-        const ops = row['OpsIsDeadEnd'];
-        if (ops == null) return row;
-        const isDead = typeof ops === 'string' ? ops.toLowerCase() === 'true' : ops === true;
-        return { ...row, IsDeadEnd: isDead };
-      });
       // The NI query already returns the visible set in SortingProperties
       // order (untagged rows kept), so its rows ARE the buffer and its
       // TransactionsCount IS the exact visible total — no merge, no sum.
-      const rows = mirror(visible.Transactions ?? []).slice(0, pageSize);
+      // Shared ingest normalization (IsDeadEnd mirror + in-response id
+      // dedupe — see ingestRows).
+      const rows = ingestRows(visible.Transactions ?? []).slice(0, pageSize);
       const visibleTotal = visible.TransactionsCount ?? null;
 
       currentPageRef.current = pageIndex;
