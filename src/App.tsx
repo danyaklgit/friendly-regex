@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, lazy, Suspense } from 'react';
 import { useAuth } from './context/AuthContext';
 import { useTheme } from './context/ThemeContext';
 import { TagSpecProvider } from './context/TagSpecContext';
@@ -20,7 +20,10 @@ import { StatsTab } from './components/stats/StatsTab';
 import { TransactionsTab } from './components/transactions/TransactionsTab';
 import { SettingsTab } from './components/settings/SettingsTab';
 import { IntegrationLogsTab } from './components/integrationLogs/IntegrationLogsTab';
+import { ReportsTabFallback } from './components/reports/ReportsTabFallback';
+import { ReportErrorCard } from './components/reports/ReportErrorCard';
 import { useTransactionData } from './hooks/useTransactionData';
+import { ErrorBoundary } from './components/shared/ErrorBoundary';
 import { SessionWarningModal } from './components/shared/SessionWarningModal';
 import { ConfirmDialog } from './components/shared/ConfirmDialog';
 import { UndoChangesDialog } from './components/shared/UndoChangesDialog';
@@ -36,6 +39,11 @@ import type { CheckoutState } from './types';
 import type { TepHeaders, FilterProperty } from './api/transactions';
 import type { TagSpecCommentTarget } from './types/comments';
 import { isLedger, libraryMatchesCheckout, identityFromContext, identityKeySuffix, libraryContextSummary, type IdentityInput } from './utils/libraryIdentity';
+
+// The Reports tab is the only consumer of recharts; a lazy import keeps it out
+// of the main chunk (first React.lazy in the app). The named-export mapping is
+// deliberate: every component in the codebase is a named export.
+const ReportsTab = lazy(() => import('./components/reports/ReportsTab').then((m) => ({ default: m.ReportsTab })));
 
 export interface BacklogNavigation {
   libraryId: string;
@@ -185,7 +193,7 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
   const [pendingTabChange, setPendingTabChange] = useState<number | null>(null);
 
   const tabLabels = useMemo(
-    () => ['Backlog', 'Transactions', ...(isLiveMode && isDevops ? ['Integration Logs'] : []), 'Settings'],
+    () => ['Backlog', 'Transactions', ...(isLiveMode ? ['Reports'] : []), ...(isLiveMode && isDevops ? ['Integration Logs'] : []), 'Settings'],
     [isLiveMode, isDevops],
   );
   const settingsTabIndex = tabLabels.indexOf('Settings');
@@ -359,6 +367,7 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
           tabs={[
             { label: 'Backlog', content: <StatsTab onViewTransactions={handleViewTransactions} onViewAllTransactions={handleViewAllTransactions} onCheckoutComplete={handleCheckoutComplete} onRelease={handleRelease} authToken={authToken} tepHeaders={tepHeaders} navigation={backlogNavigation} onNavigationConsumed={handleBacklogNavigationConsumed} onNavigateToBacklog={handleNavigateToBacklog} preferredDataSetType={activeCheckout?.dataSetType ?? lastCheckoutDataSetType} pendingStatsAction={pendingStatsAction} /> },
             { label: 'Transactions', content: <TransactionsTab activeCheckout={activeCheckout} onClearPendingDefinition={() => setActiveCheckout(prev => (prev && prev.pendingDefinitionId != null) ? { ...prev, pendingDefinitionId: undefined } : prev)} initialShareFilters={shareFilters} initialShareToggles={shareToggles} operatorName={operatorName} shareDialogOpen={shareDialogOpen} onShareDialogClose={() => setShareDialogOpen(false)} pendingPillFilters={pendingPillFilters} onPendingPillFiltersConsumed={() => setPendingPillFilters(null)} onBuilderOpenChange={setIsRuleBuilderOpen} /> },
+            ...(isLiveMode ? [{ label: 'Reports', content: <ErrorBoundary fallback={<ReportErrorCard message="the Reports module could not be loaded. Reload the page to try again." onRetry={() => window.location.reload()} />}><Suspense fallback={<ReportsTabFallback />}><ReportsTab authToken={authToken} tepHeaders={tepHeaders} /></Suspense></ErrorBoundary> }] : []),
             ...(isLiveMode && isDevops ? [{ label: 'Integration Logs', content: <IntegrationLogsTab /> }] : []),
             { label: 'Settings', content: <SettingsTab /> },
           ]}

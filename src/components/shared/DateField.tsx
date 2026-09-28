@@ -32,6 +32,9 @@ interface DateFieldProps {
   /** Compact sizing for dense surfaces (e.g. the Statement Date filter
    *  popover): smaller padding, text, and icon buttons. */
   compact?: boolean;
+  /** Render the label to the left of the input, vertically centred, for
+   *  single-line filter rows. Default: label above the input. */
+  inlineLabel?: boolean;
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -45,7 +48,7 @@ function isValidIso(s: string): boolean {
   return date.getFullYear() === y && date.getMonth() + 1 === m && date.getDate() === d;
 }
 
-export function DateField({ label, value, onChange, onClear, disabled, min, max, error, compact }: DateFieldProps) {
+export function DateField({ label, value, onChange, onClear, disabled, min, max, error, compact, inlineLabel }: DateFieldProps) {
   const inputSize = compact ? 'px-2 py-1 text-xs' : 'px-3 py-2 text-sm';
   const btnSize = compact ? 'w-6 h-6' : 'w-7 h-7';
   // Local buffer so partial / in-progress typing ("2024-08-1") stays in the
@@ -90,8 +93,12 @@ export function DateField({ label, value, onChange, onClear, disabled, min, max,
   };
 
   return (
-    <div className="flex flex-col gap-1">
-      {label && <label className="text-xs font-medium text-body pl-1">{label}</label>}
+    <div className={inlineLabel ? 'flex items-center gap-1.5' : 'flex flex-col gap-1'}>
+      {label && (
+        <label className={inlineLabel ? 'text-xs font-medium text-body whitespace-nowrap' : 'text-xs font-medium text-body pl-1'}>
+          {label}
+        </label>
+      )}
       <div className={`relative flex items-center rounded-lg border ${borderClass} bg-input-bg transition-colors`}>
         <input
           type="text"

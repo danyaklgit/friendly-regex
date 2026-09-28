@@ -55,6 +55,18 @@
      Deliberately stronger than surface-secondary — the band must be readable
      at a glance, especially in light mode. */
   --color-row-band: var(--th-row-band);
+
+  /* Chart series slots (Reports tab). Validated with the dataviz palette
+     validator against the light (#ffffff) and dark (#0f172a) chart surfaces
+     on 2026-09-28. Re-run the validator before changing any value; never
+     eyeball a chart color. Slot 1 doubles as "Tagged", slot 2 as "Untagged",
+     slot 3 as "Rules added"; feeds map MT940=1, MT942=2, INTERIM_MT940=3,
+     INTERIM_TransactionsList=4, Ledger=5 (src/utils/reports/feedSlots.ts). */
+  --color-chart-1: var(--th-chart-1);
+  --color-chart-2: var(--th-chart-2);
+  --color-chart-3: var(--th-chart-3);
+  --color-chart-4: var(--th-chart-4);
+  --color-chart-5: var(--th-chart-5);
 }
 
 /* ========== LIGHT THEME (default) ========== */
@@ -84,6 +96,12 @@
   --th-credit-accent: #10b981;
 
   --th-row-band: #e9eef5;
+
+  --th-chart-1: #12bdce;
+  --th-chart-2: #eb6834;
+  --th-chart-3: #4a3aa7;
+  --th-chart-4: #eda100;
+  --th-chart-5: #e87ba4;
 }
 
 /* ========== DARK THEME ========== */
@@ -113,6 +131,12 @@
   --th-credit-accent: #6ee7b7;
 
   --th-row-band: #24334d;
+
+  --th-chart-1: #0ea5b5;
+  --th-chart-2: #d95926;
+  --th-chart-3: #9085e9;
+  --th-chart-4: #c98500;
+  --th-chart-5: #d55181;
 }
 
 /* ========== BWATECH BRAND ==========
