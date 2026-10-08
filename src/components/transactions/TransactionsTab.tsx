@@ -34,6 +34,7 @@ import { analyzeRow, buildAnalyzeScratch } from '../../utils/analyzeRow';
 import { matchingMt940Defs } from '../../utils/mt940Suggestions';
 import { evaluateRuleSet } from '../../utils/evaluateRuleSet';
 import { computeDefinitionVersions } from '../../utils/definitionVersions';
+import { resolveMatchingTagEntries } from '../../utils/resolveMatchingTagEntries';
 import { getAllTagNameOptions, getAttributeSuggestionsForTag } from '../../utils/tagNameLookup';
 import { SearchableSelect } from '../shared/SearchableSelect';
 import { regexify, regexifyExtraction, generateExpressionPrompt, generateExtractionPrompt } from '../../utils/regexify';
@@ -3039,33 +3040,20 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
     return () => controller.abort();
   }, [isLiveMode, activeCheckout, refreshIfNeeded, getAuthHeaders, userId, tepConfig, matchingTagReloadKey]);
 
-  // Resolve matching IDs to definitions via the local libraries cache.
-  // Definitions not in the cache stay surfaced by raw Id so the operator
-  // can still scope the table; the modal renders an "(unknown)" badge.
-  // Sorted alphabetically by tag name so long lists stay scannable;
-  // unresolved entries (no def in the local cache) sink to the bottom.
-  const matchingTagEntries = useMemo(() => {
-    if (matchingTagDefIds.length === 0) {
-      return [] as Array<{ id: string; def?: TagSpecDefinition; version?: number }>;
-    }
-    const byId = new Map<string, TagSpecDefinition>();
-    for (const lib of allLibraries) {
-      for (const def of lib.TagSpecDefinitions) byId.set(def.Id, def);
-    }
-    const entries = matchingTagDefIds.map((id) => ({
-      id,
-      def: byId.get(id),
-      version: definitionVersions.get(id)?.version,
-    }));
-    entries.sort((a, b) => {
-      if (!a.def && b.def) return 1;
-      if (a.def && !b.def) return -1;
-      const an = a.def?.Tag ?? a.id;
-      const bn = b.def?.Tag ?? b.id;
-      return an.localeCompare(bn, undefined, { sensitivity: 'base' });
-    });
-    return entries;
-  }, [matchingTagDefIds, allLibraries, definitionVersions]);
+  // Resolve matching IDs to definitions for the Detected Tag Specs dropdown.
+  // Names come from EVERY library copy (`libraries`: the server list, ACTIVE
+  // copy included) with the editing view (`allLibraries`) layered on top, so
+  // a local draft edit wins but an id the browser's draft cache lacks still
+  // resolves through the server copy. Resolving against `allLibraries` alone
+  // showed "(unknown) / Not in current library" for rules the server holds
+  // (BUG_DetectedTagSpecs_Unknown, 2026-10-08): the editing view drops the
+  // ACTIVE copy and overlays the draft cache, which can lag the server.
+  // Ids absent from every copy stay surfaced raw so the operator can still
+  // scope the table. Sorted by tag name; unresolved entries sink to the bottom.
+  const matchingTagEntries = useMemo(
+    () => resolveMatchingTagEntries(matchingTagDefIds, libraries, allLibraries, definitionVersions),
+    [matchingTagDefIds, libraries, allLibraries, definitionVersions],
+  );
 
   // Live snapshot for the +N visible-space top-up loop below. Assigned
   // every render (further down, once filteredData/clientRowFilterActive
