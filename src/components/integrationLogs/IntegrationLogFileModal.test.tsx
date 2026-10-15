@@ -88,6 +88,15 @@ describe('IntegrationLogFileModal', () => {
     expect(await screen.findByText(/"side": "res"/)).not.toBeNull();
   });
 
+  it('opens on the response pane when asked', async () => {
+    mockedGetFile.mockImplementation(async ({ FileType }) => ({
+      Content: FileType === 'REQUEST' ? '{"side":"req"}' : '{"side":"res"}',
+    }));
+    render(<IntegrationLogFileModal log={log} initialPane="response" onClose={() => {}} />);
+    expect(await screen.findByText(/"side": "res"/)).not.toBeNull();
+    expect(screen.queryByText(/"side": "req"/)).toBeNull();
+  });
+
   it('renders an error when file fetch fails', async () => {
     mockedGetFile.mockRejectedValue(new Error('boom'));
     render(<IntegrationLogFileModal log={log} onClose={() => {}} />);

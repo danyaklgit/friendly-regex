@@ -21,6 +21,7 @@ import { TransactionsTab } from './components/transactions/TransactionsTab';
 import { SettingsTab } from './components/settings/SettingsTab';
 import { IntegrationLogsTab } from './components/integrationLogs/IntegrationLogsTab';
 import { ReportsTabFallback } from './components/reports/ReportsTabFallback';
+import { ClientSyncFallback } from './components/clientSync/ClientSyncFallback';
 import { ReportErrorCard } from './components/reports/ReportErrorCard';
 import { useTransactionData } from './hooks/useTransactionData';
 import { ErrorBoundary } from './components/shared/ErrorBoundary';
@@ -44,6 +45,8 @@ import { isLedger, libraryMatchesCheckout, identityFromContext, identityKeySuffi
 // of the main chunk (first React.lazy in the app). The named-export mapping is
 // deliberate: every component in the codebase is a named export.
 const ReportsTab = lazy(() => import('./components/reports/ReportsTab').then((m) => ({ default: m.ReportsTab })));
+// Client Sync is its own lazy chunk too: only live-mode operators open it.
+const ClientSyncTab = lazy(() => import('./components/clientSync/ClientSyncTab').then((m) => ({ default: m.ClientSyncTab })));
 
 export interface BacklogNavigation {
   libraryId: string;
@@ -193,7 +196,7 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
   const [pendingTabChange, setPendingTabChange] = useState<number | null>(null);
 
   const tabLabels = useMemo(
-    () => ['Backlog', 'Transactions', ...(isLiveMode ? ['Reports'] : []), ...(isLiveMode && isDevops ? ['Integration Logs'] : []), 'Settings'],
+    () => ['Backlog', 'Transactions', ...(isLiveMode ? ['Reports'] : []), ...(isLiveMode && isDevops ? ['Integration Logs'] : []), ...(isLiveMode ? ['Client Sync'] : []), 'Settings'],
     [isLiveMode, isDevops],
   );
   const settingsTabIndex = tabLabels.indexOf('Settings');
@@ -369,6 +372,7 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
             { label: 'Transactions', content: <TransactionsTab activeCheckout={activeCheckout} onClearPendingDefinition={() => setActiveCheckout(prev => (prev && prev.pendingDefinitionId != null) ? { ...prev, pendingDefinitionId: undefined } : prev)} initialShareFilters={shareFilters} initialShareToggles={shareToggles} operatorName={operatorName} shareDialogOpen={shareDialogOpen} onShareDialogClose={() => setShareDialogOpen(false)} pendingPillFilters={pendingPillFilters} onPendingPillFiltersConsumed={() => setPendingPillFilters(null)} onBuilderOpenChange={setIsRuleBuilderOpen} /> },
             ...(isLiveMode ? [{ label: 'Reports', content: <ErrorBoundary fallback={<ReportErrorCard message="the Reports module could not be loaded. Reload the page to try again." onRetry={() => window.location.reload()} />}><Suspense fallback={<ReportsTabFallback />}><ReportsTab authToken={authToken} tepHeaders={tepHeaders} /></Suspense></ErrorBoundary> }] : []),
             ...(isLiveMode && isDevops ? [{ label: 'Integration Logs', content: <IntegrationLogsTab /> }] : []),
+            ...(isLiveMode ? [{ label: 'Client Sync', content: <ErrorBoundary fallback={<ReportErrorCard message="the Client Sync module could not be loaded. Reload the page to try again." onRetry={() => window.location.reload()} />}><Suspense fallback={<ClientSyncFallback />}><ClientSyncTab authToken={authToken} tepHeaders={tepHeaders} /></Suspense></ErrorBoundary> }] : []),
             { label: 'Settings', content: <SettingsTab /> },
           ]}
           // The "You're working on" indicator + Release/Check-in actions only

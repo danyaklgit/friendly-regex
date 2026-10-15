@@ -32,13 +32,15 @@ function pretty(raw: string): string {
 interface IntegrationLogFileModalProps {
   log: IntegrationLog;
   onClose: () => void;
+  /** Pane shown first. Default: request. */
+  initialPane?: Pane;
 }
 
-export function IntegrationLogFileModal({ log, onClose }: IntegrationLogFileModalProps) {
+export function IntegrationLogFileModal({ log, onClose, initialPane = 'request' }: IntegrationLogFileModalProps) {
   const { getAuthHeaders, userId, refreshIfNeeded } = useAuth();
   const tepConfig = useTepConfig();
 
-  const [pane, setPane] = useState<Pane>('request');
+  const [pane, setPane] = useState<Pane>(initialPane);
   const [request, setRequest] = useState<FileState>(EMPTY);
   const [response, setResponse] = useState<FileState>(EMPTY);
   const [copied, setCopied] = useState(false);

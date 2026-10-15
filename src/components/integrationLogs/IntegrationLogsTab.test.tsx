@@ -324,4 +324,17 @@ describe('IntegrationLogsTab', () => {
     expect(screen.queryByText(/loaded ·/)).toBeNull();
     expect(screen.queryByRole('button', { name: /^\+\d+$/ })).toBeNull();
   });
+
+  it('never offers Rerun for PerformMemoryBasedPromotion, even on a failure', async () => {
+    mockedGetLogs.mockResolvedValue({
+      Items: [makeLog({ Id: 'kb-1', Endpoint: 'PerformMemoryBasedPromotion', StatementId: 'STMT-KB', StatusType: 'ERROR', StatusCode: '500', StatusDescription: 'Timeout' })],
+      Total: 1,
+      Page: 1,
+      PageSize: 20,
+    });
+    render(<IntegrationLogsTab />);
+    expect(await screen.findByText('STMT-KB')).not.toBeNull();
+    expect(screen.queryByRole('button', { name: /rerun/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /view/i })).not.toBeNull();
+  });
 });

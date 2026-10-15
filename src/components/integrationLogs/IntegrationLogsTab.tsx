@@ -88,12 +88,15 @@ function statusBadgeVariant(
 // Per-endpoint Rerun visibility:
 //   - ProcessTransactionsForTagging: never (the call is asynchronous; the
 //     real outcome lands in a follow-up PushProcessedStatement log).
+//   - PerformMemoryBasedPromotion: never (knowledge-base lookups are not
+//     replayable from the portal; see the Client Sync change request).
 //   - PushProcessedStatement / PatchTransactions: hide on a clean success
 //     (Information · 0 · OK); show otherwise so the operator can retry the
 //     failing call.
 //   - Anything else: show by default (no special handling defined).
 function shouldShowRerun(log: IntegrationLog): boolean {
   if (log.Endpoint === 'ProcessTransactionsForTagging') return false;
+  if (log.Endpoint === 'PerformMemoryBasedPromotion') return false;
   if (log.Endpoint === 'PushProcessedStatement' || log.Endpoint === 'PatchTransactions') {
     const isClean =
       log.StatusType === 'Information'
