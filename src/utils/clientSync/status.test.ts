@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  kbStatusDisplay, certaintyTone, outStatusDisplay, accountStateDisplay, warningTone, feedChipLabel, taggedPercent,
+  kbStatusDisplay, certaintyTone, outStatusDisplay, accountStateDisplay, warningTone, feedChipLabel, feedDisplayName, taggedPercent,
   inHealth, taggingHealth, kbHealth, outHealth, SHOW_LABELS, LAYER_LABELS, showCount, tagCertainty,
 } from './status';
 import { makeSummaryFixture } from './fixtures';
@@ -43,6 +43,12 @@ describe('status vocabularies (spec 7.7)', () => {
     expect(warningTone('INFO')).toBe('info');
     expect(feedChipLabel('INTERIM_TransactionsList')).toBe('INTERIM TL');
     expect(feedChipLabel('MT940')).toBe('MT940');
+  });
+
+  it('names the feed for the trace header with its confirmed, intraday and archived state', () => {
+    expect(feedDisplayName('INTERIM_TransactionsList', false, false)).toBe('Intraday list (INTERIM_TransactionsList) · intraday');
+    expect(feedDisplayName('MT940', true, true)).toBe('MT940 · confirmed · archived');
+    expect(feedDisplayName('', true, false)).toBe('— · confirmed');
   });
 
   it('maps a tag certainty level string to the TagBadge vocabulary, defaulting to HIGH', () => {

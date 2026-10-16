@@ -15,10 +15,13 @@ interface RowContextMenuProps {
   /** Curation Studio (2026-09-08): open the full-screen studio on this row.
    *  Present only in curated-capable workspaces with an editable checkout. */
   onCreateCuration?: () => void;
+  /** Open the Client Sync trace drawer on this row. Present only in live
+   *  mode and when the row has an Id. */
+  onTraceTransaction?: () => void;
   onClose: () => void;
 }
 
-export function RowContextMenu({ x, y, onViewContext, onComment, onAddMatchingRule, matchingRuleHint, onCreateCuration, onClose }: RowContextMenuProps) {
+export function RowContextMenu({ x, y, onViewContext, onComment, onAddMatchingRule, matchingRuleHint, onCreateCuration, onTraceTransaction, onClose }: RowContextMenuProps) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -59,6 +62,17 @@ export function RowContextMenu({ x, y, onViewContext, onComment, onAddMatchingRu
         </svg>
         View Context
       </button>
+      {onTraceTransaction && (
+        <button
+          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-body hover:bg-surface-hover transition-colors cursor-pointer"
+          onClick={onTraceTransaction}
+        >
+          <svg className="w-4 h-4 text-body-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3.75 12h3l2.25-6 4.5 12 2.25-6h4.5" />
+          </svg>
+          Trace transaction
+        </button>
+      )}
       {onComment && (
         <button
           className="w-full flex items-center gap-2 px-3 py-2 text-sm text-body hover:bg-surface-hover transition-colors cursor-pointer"

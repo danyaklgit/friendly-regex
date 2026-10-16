@@ -40,7 +40,18 @@ describe('TraceDrawer', () => {
     const dialog = screen.getByRole('dialog', { name: 'Transaction trace' });
     expect(dialog.getAttribute('aria-hidden')).toBe('false');
     expect(screen.getByText('CR 12,500.00 · AL FARIS CO')).not.toBeNull();
-    expect(screen.getByText('tx-1 · FT26288H51MC')).not.toBeNull();
+    const ids = within(screen.getByLabelText('Transaction identifiers'));
+    expect(ids.getByRole('button', { name: 'Copy id tx-1' })).not.toBeNull();
+    for (const [label, value] of [
+      ['Bank reference', 'FT26288H51MC'],
+      ['Statement ID', 'STMT-1'],
+      ['Feed', 'Intraday list (INTERIM_TransactionsList) · intraday'],
+      ['Account', 'SA0380000000608010167519 · RJHISARI'],
+      ['Business day', '2026-10-15'],
+      ['Received', '2026-10-15 09:55:02'], // 06:55:02Z in Saudi time
+    ]) {
+      expect(ids.getByText(label).nextElementSibling?.textContent).toBe(value);
+    }
     expect(screen.getByRole('region', { name: '1. Received from BwaTech' })).not.toBeNull();
     expect(screen.getByRole('region', { name: '2. Tagged by TEP' })).not.toBeNull();
     expect(screen.getByRole('region', { name: '3. Knowledge base' })).not.toBeNull();

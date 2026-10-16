@@ -28,7 +28,7 @@ export function callToIntegrationLog(call: ClientSyncCall): IntegrationLog {
   return {
     Id: call.LogId,
     Endpoint: call.Endpoint,
-    StatementId: '',
+    StatementId: call.StatementId,
     RequestFilePath: '',
     ResponseFilePath: '',
     CallStartDate: call.CallStartUtc,
@@ -36,6 +36,13 @@ export function callToIntegrationLog(call: ClientSyncCall): IntegrationLog {
     StatusType: call.StatusType,
     StatusCode: call.StatusCode,
     StatusDescription: call.StatusDescription,
+    Operation: call.Operation || null,
+    DataSetType: call.DataSetType,
+    BankSwiftCode: call.BankSwiftCode,
+    IBANs: call.IBANs,
+    BusinessDate: call.BusinessDate,
+    RecordCount: call.RecordCount,
+    RerunOfId: call.RerunOfId,
   };
 }
 

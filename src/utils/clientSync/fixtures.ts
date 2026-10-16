@@ -65,6 +65,8 @@ export function makeCallFixture(partial: Partial<ClientSyncCall> = {}): ClientSy
     LogId: 'log-1', Endpoint: 'ProcessTransactionsForTagging', Operation: '', CallStartUtc: '2026-10-15T06:55:00Z', DurationMs: 420,
     StatusType: 'Information', StatusCode: '0', StatusDescription: 'OK', Succeeded: true, RecordCount: 40,
     HasRequestFile: true, HasResponseFile: true, RerunOfId: null,
+    StatementId: '129915638', DataSetType: 'INTERIM_TransactionsList', BankSwiftCode: 'RJHISARI',
+    IBANs: ['SA0380000000608010167519'], BusinessDate: '2026-10-15',
     ...partial,
   };
 }

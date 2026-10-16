@@ -586,6 +586,16 @@ export interface IntegrationLog {
   StatusType: string | null;
   StatusCode: string | null;
   StatusDescription: string | null;
+  // Carried by GetIntegrationLogs items and by Client Sync trace calls. Older
+  // gateways omit them and backfilled rows may hold null: render a dash.
+  Direction?: string | null;
+  Operation?: string | null;
+  DataSetType?: string | null;
+  BankSwiftCode?: string | null;
+  IBANs?: string[] | null;
+  BusinessDate?: string | null;
+  RecordCount?: number | null;
+  RerunOfId?: string | null;
 }
 
 export interface GetIntegrationLogsRequest {
