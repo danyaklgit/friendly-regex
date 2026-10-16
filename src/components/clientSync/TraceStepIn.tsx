@@ -14,7 +14,7 @@ interface TraceStepInProps {
   onOpenFile: (call: ClientSyncCall, pane: FilePane) => void;
 }
 
-const LATE_ARRIVAL_NOTE = 'Arrived after the confirmed statement: stored archived and not sent to BwaTech (by design).';
+const LATE_ARRIVAL_NOTE = 'Arrived after the confirmed statement: stored archived. A live late arrival is still pushed to BwaTech (see step 4); only a replayed delivery is never sent.';
 
 /** Step 1 of the trace: deliveries oldest first, the item as received, raw-file meta, late-arrival note. */
 export function TraceStepIn({ data, withDate, onOpenFile }: TraceStepInProps) {

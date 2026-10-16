@@ -41,7 +41,7 @@ export function outStatusDisplay(status: OutStatus): StatusDisplay {
     case 'UPDATED': return { label: 'Sent + patched', tone: 'success' };
     case 'FAILED': return { label: 'Failed', tone: 'danger' };
     case 'NOT_SENT': return { label: 'Not sent', tone: 'danger' };
-    case 'NOT_SENT_BY_DESIGN': return { label: 'Not sent (late arrival)', tone: 'gray' };
+    case 'NOT_SENT_BY_DESIGN': return { label: 'Not sent (replayed history)', tone: 'gray' };
     case 'DELETED': return { label: 'Deleted at BwaTech', tone: 'gray' };
     case 'UNTRACKED': return { label: 'No record', tone: 'grayOutline' };
     case 'NEVER': return { label: '', tone: 'dash' };
