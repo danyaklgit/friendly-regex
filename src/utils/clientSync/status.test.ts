@@ -29,7 +29,7 @@ describe('status vocabularies (spec 7.7)', () => {
     expect(outStatusDisplay('UPDATED')).toEqual({ label: 'Sent + patched', tone: 'success' });
     expect(outStatusDisplay('FAILED')).toEqual({ label: 'Failed', tone: 'danger' });
     expect(outStatusDisplay('NOT_SENT')).toEqual({ label: 'Not sent', tone: 'danger' });
-    expect(outStatusDisplay('NOT_SENT_BY_DESIGN')).toEqual({ label: 'Not sent (late arrival)', tone: 'gray' });
+    expect(outStatusDisplay('NOT_SENT_BY_DESIGN')).toEqual({ label: 'Not sent (replayed history)', tone: 'gray' });
     expect(outStatusDisplay('DELETED')).toEqual({ label: 'Deleted at BwaTech', tone: 'gray' });
     expect(outStatusDisplay('UNTRACKED')).toEqual({ label: 'No record', tone: 'grayOutline' });
     expect(outStatusDisplay('NEVER')).toEqual({ label: '', tone: 'dash' });
