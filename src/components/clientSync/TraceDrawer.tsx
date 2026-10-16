@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ClientSyncCall, ClientSyncTrace } from '../../api/clientSync';
+import type { ClientSyncCall, ClientSyncTrace, ClientSyncTransaction } from '../../api/clientSync';
 import type { IntegrationLog } from '../../api/transactions';
 import { callToIntegrationLog } from '../../utils/clientSync/calls';
-import { formatAmount, DASH } from '../../utils/clientSync/format';
+import { formatAmount, formatLocalTime, DASH } from '../../utils/clientSync/format';
+import { feedDisplayName } from '../../utils/clientSync/status';
 import { Button } from '../shared/Button';
+import { CopyableId } from '../shared/CopyableId';
 import { ReportErrorCard } from '../reports/ReportErrorCard';
 import { IntegrationLogFileModal } from '../integrationLogs/IntegrationLogFileModal';
 import type { FilePane } from './CallRow';
@@ -24,6 +26,34 @@ interface TraceDrawerProps {
 }
 
 interface OpenFile { log: IntegrationLog; pane: FilePane }
+
+/** Labelled identifiers under the trace title; two pairs per line on wide screens. */
+function TraceIdentifiers({ tx }: { tx: ClientSyncTransaction }) {
+  const account = [tx.IBAN, tx.BankSwiftCode].filter(Boolean).join(' · ');
+  return (
+    <dl aria-label="Transaction identifiers" className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[11px] text-muted lg:grid-cols-[auto_1fr_auto_1fr]">
+      <dt>Transaction ID</dt>
+      <dd className="min-w-0"><CopyableId id={tx.Id} truncateAt={64} tone="default" /></dd>
+      <dt>Bank reference</dt>
+      <dd className="min-w-0 break-all font-mono text-body-secondary">{tx.BankReference || DASH}</dd>
+      <dt>Statement ID</dt>
+      <dd className="min-w-0 break-all font-mono text-body-secondary">{tx.StatementId || DASH}</dd>
+      <dt>Feed</dt>
+      <dd className="min-w-0 text-body-secondary">{feedDisplayName(tx.DataSetType, tx.IsConfirmed, tx.IsArchived)}</dd>
+      <dt>Account</dt>
+      <dd className="min-w-0 break-all font-mono text-body-secondary">{account || DASH}</dd>
+      <dt>Business day</dt>
+      <dd className="min-w-0 text-body-secondary">{tx.BusinessDate || DASH}</dd>
+      {tx.ReceivedAtUtc && (
+        <>
+          <dt>Received</dt>
+          {/* Saudi time, whatever the browser's zone. */}
+          <dd className="min-w-0 text-body-secondary">{formatLocalTime(tx.ReceivedAtUtc, true, 'Asia/Riyadh')}</dd>
+        </>
+      )}
+    </dl>
+  );
+}
 
 /**
  * Right-side trace drawer (spec 7.6), shell per TagDetailPanel: overlay,
@@ -89,7 +119,7 @@ export function TraceDrawer({ transactionId, trace, loading, error, onRetry, onC
               {tx ? (
                 <>
                   <h2 className="truncate text-base font-semibold text-heading" dir="auto">{`${formatAmount(tx.Amount, tx.Side)} · ${tx.Sender || DASH}`}</h2>
-                  <div className="truncate font-mono text-[11px] text-muted">{[tx.Id, tx.BankReference].filter(Boolean).join(' · ')}</div>
+                  <TraceIdentifiers tx={tx} />
                 </>
               ) : (
                 <h2 className="truncate font-mono text-base font-semibold text-heading">{transactionId ?? ''}</h2>

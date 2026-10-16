@@ -206,4 +206,13 @@ describe('normalizeTrace', () => {
     expect(t.Out).toEqual({ Calls: [], CurrentTag: null, CurrentAttributes: [], DeletedAtBwatech: false });
     expect(normalizeTrace({ In: { ItemFormat: 'xml' } }).In.ItemFormat).toBeNull();
   });
+
+  it('reads what each call was about, stringifying a numeric StatementId and defaulting absent fields', () => {
+    const t = normalizeTrace({
+      In: { Deliveries: [{ LogId: 'log-1', StatementId: 129915638, DataSetType: 'INTERIM_TransactionsList', BankSwiftCode: 'ARNBSARI', IBANs: ['SA31'], BusinessDate: '2026-10-16' }] },
+      Kb: { Calls: [{ LogId: 'log-2' }] },
+    });
+    expect(t.In.Deliveries[0]).toMatchObject({ StatementId: '129915638', DataSetType: 'INTERIM_TransactionsList', BankSwiftCode: 'ARNBSARI', IBANs: ['SA31'], BusinessDate: '2026-10-16' });
+    expect(t.Kb.Calls[0]).toMatchObject({ StatementId: '', DataSetType: null, BankSwiftCode: null, IBANs: [], BusinessDate: null });
+  });
 });

@@ -64,6 +64,12 @@ export function feedChipLabel(dataSetType: string): string {
   return dataSetType === 'INTERIM_TransactionsList' ? 'INTERIM TL' : dataSetType;
 }
 
+/** Trace header feed: display name, then confirmed or intraday, then archived when it is. */
+export function feedDisplayName(dataSetType: string, isConfirmed: boolean, isArchived: boolean): string {
+  const name = dataSetType === 'INTERIM_TransactionsList' ? 'Intraday list (INTERIM_TransactionsList)' : dataSetType || '—';
+  return [name, isConfirmed ? 'confirmed' : 'intraday', ...(isArchived ? ['archived'] : [])].join(' · ');
+}
+
 /** TagBadge only knows HIGH / MEDIUM / LOW; anything else reads as HIGH. */
 export function tagCertainty(level: string | null): CertaintyLevelTag {
   const upper = (level ?? '').toUpperCase();

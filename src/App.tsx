@@ -47,6 +47,8 @@ import { isLedger, libraryMatchesCheckout, identityFromContext, identityKeySuffi
 const ReportsTab = lazy(() => import('./components/reports/ReportsTab').then((m) => ({ default: m.ReportsTab })));
 // Client Sync is its own lazy chunk too: only live-mode operators open it.
 const ClientSyncTab = lazy(() => import('./components/clientSync/ClientSyncTab').then((m) => ({ default: m.ClientSyncTab })));
+// The Transactions grid's "Trace transaction" drawer: lazy so the grid's bundle doesn't grow.
+const TransactionTraceOverlay = lazy(() => import('./components/clientSync/TransactionTraceOverlay').then((m) => ({ default: m.TransactionTraceOverlay })));
 
 export interface BacklogNavigation {
   libraryId: string;
@@ -138,6 +140,9 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
   const [shareFilters, setShareFilters] = useState<Record<string, Set<string>> | undefined>();
   const [shareToggles, setShareToggles] = useState<ShareParams['toggles'] | undefined>();
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  // Row traced from the Transactions grid's right-click menu (live mode only).
+  const [traceTransactionId, setTraceTransactionId] = useState<string | null>(null);
+  const closeTrace = useCallback(() => setTraceTransactionId(null), []);
   const [backlogNavigation, setBacklogNavigation] = useState<BacklogNavigation | null>(null);
 
   const handleNavigateToBacklog = useCallback((target: TagSpecCommentTarget) => {
@@ -369,7 +374,7 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
           onTabChange={handleTabChange}
           tabs={[
             { label: 'Backlog', content: <StatsTab onViewTransactions={handleViewTransactions} onViewAllTransactions={handleViewAllTransactions} onCheckoutComplete={handleCheckoutComplete} onRelease={handleRelease} authToken={authToken} tepHeaders={tepHeaders} navigation={backlogNavigation} onNavigationConsumed={handleBacklogNavigationConsumed} onNavigateToBacklog={handleNavigateToBacklog} preferredDataSetType={activeCheckout?.dataSetType ?? lastCheckoutDataSetType} pendingStatsAction={pendingStatsAction} /> },
-            { label: 'Transactions', content: <TransactionsTab activeCheckout={activeCheckout} onClearPendingDefinition={() => setActiveCheckout(prev => (prev && prev.pendingDefinitionId != null) ? { ...prev, pendingDefinitionId: undefined } : prev)} initialShareFilters={shareFilters} initialShareToggles={shareToggles} operatorName={operatorName} shareDialogOpen={shareDialogOpen} onShareDialogClose={() => setShareDialogOpen(false)} pendingPillFilters={pendingPillFilters} onPendingPillFiltersConsumed={() => setPendingPillFilters(null)} onBuilderOpenChange={setIsRuleBuilderOpen} /> },
+            { label: 'Transactions', content: <TransactionsTab activeCheckout={activeCheckout} onClearPendingDefinition={() => setActiveCheckout(prev => (prev && prev.pendingDefinitionId != null) ? { ...prev, pendingDefinitionId: undefined } : prev)} initialShareFilters={shareFilters} initialShareToggles={shareToggles} operatorName={operatorName} shareDialogOpen={shareDialogOpen} onShareDialogClose={() => setShareDialogOpen(false)} pendingPillFilters={pendingPillFilters} onPendingPillFiltersConsumed={() => setPendingPillFilters(null)} onBuilderOpenChange={setIsRuleBuilderOpen} onTraceTransaction={isLiveMode ? setTraceTransactionId : undefined} /> },
             ...(isLiveMode ? [{ label: 'Reports', content: <ErrorBoundary fallback={<ReportErrorCard message="the Reports module could not be loaded. Reload the page to try again." onRetry={() => window.location.reload()} />}><Suspense fallback={<ReportsTabFallback />}><ReportsTab authToken={authToken} tepHeaders={tepHeaders} /></Suspense></ErrorBoundary> }] : []),
             ...(isLiveMode && isDevops ? [{ label: 'Integration Logs', content: <IntegrationLogsTab /> }] : []),
             ...(isLiveMode ? [{ label: 'Client Sync', content: <ErrorBoundary fallback={<ReportErrorCard message="the Client Sync module could not be loaded. Reload the page to try again." onRetry={() => window.location.reload()} />}><Suspense fallback={<ClientSyncFallback />}><ClientSyncTab authToken={authToken} tepHeaders={tepHeaders} /></Suspense></ErrorBoundary> }] : []),
@@ -437,7 +442,14 @@ function OperatorAppShell({ authToken, tepHeaders, operatorName, userId }: AppSh
         variant="primary"
       />
       {shareData && <SharedLinkBanner share={shareData} onDismiss={() => setShareData(null)} />}
-      {toast && <Toast message={toast.message} type={toast.type} duration={toast.duration} onClose={() => setToast(null)} />}
+      {traceTransactionId !== null && (
+        <ErrorBoundary fallback={<Toast message="The trace could not be loaded. Reload the page to try again." type="error" onClose={closeTrace} />}>
+          <Suspense fallback={null}>
+            <TransactionTraceOverlay transactionId={traceTransactionId} authToken={authToken} tepHeaders={tepHeaders} onClose={closeTrace} />
+          </Suspense>
+        </ErrorBoundary>
+      )}
+      {toast &&<Toast message={toast.message} type={toast.type} duration={toast.duration} onClose={() => setToast(null)} />}
     </RerunJobProvider>
   );
 }

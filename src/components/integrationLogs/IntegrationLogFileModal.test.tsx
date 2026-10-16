@@ -97,6 +97,32 @@ describe('IntegrationLogFileModal', () => {
     expect(screen.queryByText(/"side": "req"/)).toBeNull();
   });
 
+  it('shows feed, account, business day and operation, and the raw feed spelling when it differs', async () => {
+    mockedGetFile.mockImplementation(async ({ FileType }) => ({
+      Content: FileType === 'REQUEST' ? '{"DataSetType": "INTERIM_TransactionList", "StatementId": "129915638"}' : '{}',
+    }));
+    render(
+      <IntegrationLogFileModal
+        log={{ ...log, StatementId: '129915638', Operation: 'Ingest', DataSetType: 'INTERIM_TransactionsList', BankSwiftCode: 'ARNBSARI', IBANs: ['SA3130400108095455560019'], BusinessDate: '2026-10-16' }}
+        onClose={() => {}}
+      />,
+    );
+    expect(screen.getByText('129915638')).not.toBeNull();
+    expect(screen.getByText('Ingest')).not.toBeNull();
+    expect(screen.getByText('INTERIM_TransactionsList')).not.toBeNull();
+    expect(screen.getByText('SA3130400108095455560019 · ARNBSARI')).not.toBeNull();
+    expect(screen.getByText('2026-10-16')).not.toBeNull();
+    expect(await screen.findByText('(sent as INTERIM_TransactionList)')).not.toBeNull();
+  });
+
+  it('shows dashes for meta the log does not carry and no spelling hint when the feed matches', async () => {
+    mockedGetFile.mockResolvedValue({ Content: '{"DataSetType": "MT940"}' });
+    render(<IntegrationLogFileModal log={{ ...log, StatementId: '', DataSetType: 'MT940' }} onClose={() => {}} />);
+    await screen.findByText(/"DataSetType": "MT940"/);
+    expect(screen.getAllByText('—')).toHaveLength(4); // Statement ID, Operation, Account, Business day
+    expect(screen.queryByText(/sent as/)).toBeNull();
+  });
+
   it('renders an error when file fetch fails', async () => {
     mockedGetFile.mockRejectedValue(new Error('boom'));
     render(<IntegrationLogFileModal log={log} onClose={() => {}} />);

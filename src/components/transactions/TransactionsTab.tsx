@@ -138,6 +138,9 @@ interface TransactionsTabProps {
    *  Without this signal the parent has no view into builder state — it
    *  lives entirely inside this tab. */
   onBuilderOpenChange?: (open: boolean) => void;
+  /** Opens the Client Sync trace drawer for a row (right-click "Trace
+   *  transaction"). Passed only in live mode; absent hides the menu item. */
+  onTraceTransaction?: (transactionId: string) => void;
 }
 
 function formStateToTempDefinition(formState: WizardFormState): TagSpecDefinition | null {
@@ -332,7 +335,7 @@ function curationParamValue(source: CurationStudioSource): string | null {
 }
 
 
-export function TransactionsTab({ activeCheckout, onClearPendingDefinition, initialShareFilters, initialShareToggles, operatorName, shareDialogOpen: shareDialogOpenProp, onShareDialogClose, pendingPillFilters, onPendingPillFiltersConsumed, onBuilderOpenChange }: TransactionsTabProps) {
+export function TransactionsTab({ activeCheckout, onClearPendingDefinition, initialShareFilters, initialShareToggles, operatorName, shareDialogOpen: shareDialogOpenProp, onShareDialogClose, pendingPillFilters, onPendingPillFiltersConsumed, onBuilderOpenChange, onTraceTransaction }: TransactionsTabProps) {
   const { libraries, tagDefinitions, originalDefinitionIds, dispatch, isPairBeingTagged, rawHierarchyNodes, refetchLibraries } = useTagSpecs();
   const { userId, usersMap, getAuthHeaders, refreshIfNeeded, isAudit } = useAuth();
   const { extractionMethods } = useLovAttributes();
@@ -5130,6 +5133,14 @@ export function TransactionsTab({ activeCheckout, onClearPendingDefinition, init
             curatedAvailable && activeCheckout && !isReadOnly && contextMenu.row['Id'] != null
               ? () => {
                   setStudioSource({ transactionId: String(contextMenu.row['Id']) });
+                  setContextMenu(null);
+                }
+              : undefined
+          }
+          onTraceTransaction={
+            onTraceTransaction && contextMenu.row['Id'] != null
+              ? () => {
+                  onTraceTransaction(String(contextMenu.row['Id']));
                   setContextMenu(null);
                 }
               : undefined

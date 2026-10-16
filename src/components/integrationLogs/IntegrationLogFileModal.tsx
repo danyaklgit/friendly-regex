@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useTepConfig } from '../../context/TepConfigContext';
 import {
@@ -27,6 +27,20 @@ function pretty(raw: string): string {
   } catch {
     return raw;
   }
+}
+
+/** The DataSetType spelled in a raw request body, or null when absent. */
+function requestDataSetType(content: string): string | null {
+  return /"DataSetType"\s*:\s*"([^"]*)"/.exec(content)?.[1] ?? null;
+}
+
+function MetaField({ label, mono = false, children }: { label: string; mono?: boolean; children: ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <div className="text-[10px] uppercase tracking-wider text-muted">{label}</div>
+      <div className={`text-body break-words ${mono ? 'font-mono' : ''}`}>{children}</div>
+    </div>
+  );
 }
 
 interface IntegrationLogFileModalProps {
@@ -142,6 +156,13 @@ export function IntegrationLogFileModal({ log, onClose, initialPane = 'request' 
   // scroll frame, and re-running `pretty` over a multi-MB payload each time
   // would reintroduce the freeze this change is meant to remove.
   const display = useMemo(() => pretty(active.content), [active.content]);
+  // BwaTech's spelling can differ from the canonical one TEP stores (e.g.
+  // INTERIM_TransactionList vs INTERIM_TransactionsList); that is expected.
+  const sentAs = useMemo(() => {
+    const raw = requestDataSetType(request.content);
+    return raw && log.DataSetType && raw !== log.DataSetType ? raw : null;
+  }, [request.content, log.DataSetType]);
+  const account = [log.IBANs?.length ? log.IBANs.join(', ') : '', log.BankSwiftCode ?? ''].filter(Boolean).join(' · ');
 
   const handleCopy = async () => {
     try {
@@ -161,18 +182,19 @@ export function IntegrationLogFileModal({ log, onClose, initialPane = 'request' 
       fullHeight
     >
       <div className="flex flex-col gap-3 h-full">
-        <div className="grid grid-cols-2 gap-3 text-xs">
-          <div>
-            <div className="text-[10px] uppercase tracking-wider text-muted">Statement Id</div>
-            <div className="text-body font-mono">{log.StatementId || '—'}</div>
-          </div>
-          <div>
-            <div className="text-[10px] uppercase tracking-wider text-muted">Status</div>
-            <div className="text-body">
-              {log.StatusType}
-              {log.StatusCode ? ` · ${log.StatusCode}` : ''}
-            </div>
-          </div>
+        <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-3">
+          <MetaField label="Statement ID" mono>{log.StatementId || '—'}</MetaField>
+          <MetaField label="Status">
+            {log.StatusType}
+            {log.StatusCode ? ` · ${log.StatusCode}` : ''}
+          </MetaField>
+          <MetaField label="Operation">{log.Operation || '—'}</MetaField>
+          <MetaField label="Feed">
+            <span className="font-mono">{log.DataSetType || '—'}</span>
+            {sentAs && <span className="ml-1 text-muted">{`(sent as ${sentAs})`}</span>}
+          </MetaField>
+          <MetaField label="Account" mono>{account || '—'}</MetaField>
+          <MetaField label="Business day">{log.BusinessDate || '—'}</MetaField>
         </div>
 
         <div className="flex items-center justify-between border-b border-border">

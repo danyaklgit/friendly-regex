@@ -116,6 +116,12 @@ export interface ClientSyncCall {
   LogId: string; Endpoint: string; Operation: string; CallStartUtc: string; DurationMs: number | null;
   StatusType: string | null; StatusCode: string | null; StatusDescription: string | null; Succeeded: boolean;
   RecordCount: number | null; HasRequestFile: boolean; HasResponseFile: boolean; RerunOfId: string | null;
+  /** Empty when the call has none (knowledge-base calls, patches). */
+  StatementId: string;
+  /** Canonical feed spelling (TEP normalises on arrival; the raw request may differ). */
+  DataSetType: string | null; BankSwiftCode: string | null; IBANs: string[];
+  /** Saudi business day, yyyy-MM-dd; null when the call spans several days. */
+  BusinessDate: string | null;
 }
 export interface ClientSyncKbCall extends ClientSyncCall {
   RecordIds: string[]; RequestRecordJson: string | null;
@@ -352,6 +358,11 @@ function normalizeCall(raw: Record<string, unknown>): ClientSyncCall {
     HasRequestFile: boolOrFalse(raw.HasRequestFile),
     HasResponseFile: boolOrFalse(raw.HasResponseFile),
     RerunOfId: scalarStringOrNull(raw.RerunOfId),
+    StatementId: scalarString(raw.StatementId),
+    DataSetType: stringOrNull(raw.DataSetType),
+    BankSwiftCode: stringOrNull(raw.BankSwiftCode),
+    IBANs: stringArray(raw.IBANs),
+    BusinessDate: stringOrNull(raw.BusinessDate),
   };
 }
 function normalizeKbCall(raw: Record<string, unknown>): ClientSyncKbCall {

@@ -29,8 +29,14 @@ describe('call helpers', () => {
   });
 
   it('builds the IntegrationLog the file viewer needs from a call', () => {
-    expect(callToIntegrationLog(makeCallFixture({ LogId: 'log-9', Endpoint: 'PushProcessedStatement', CallStartUtc: '2026-10-15T06:55:35Z', StatusType: 'Information', StatusCode: '0', StatusDescription: 'OK' })))
-      .toEqual({ Id: 'log-9', Endpoint: 'PushProcessedStatement', StatementId: '', RequestFilePath: '', ResponseFilePath: '', CallStartDate: '2026-10-15T06:55:35Z', CallEndDate: '', StatusType: 'Information', StatusCode: '0', StatusDescription: 'OK' });
+    expect(callToIntegrationLog(makeCallFixture({ LogId: 'log-9', Endpoint: 'PushProcessedStatement', Operation: 'Insert', CallStartUtc: '2026-10-15T06:55:35Z', StatusType: 'Information', StatusCode: '0', StatusDescription: 'OK', RecordCount: 1 })))
+      .toEqual({
+        Id: 'log-9', Endpoint: 'PushProcessedStatement', StatementId: '129915638', RequestFilePath: '', ResponseFilePath: '', CallStartDate: '2026-10-15T06:55:35Z', CallEndDate: '',
+        StatusType: 'Information', StatusCode: '0', StatusDescription: 'OK',
+        Operation: 'Insert', DataSetType: 'INTERIM_TransactionsList', BankSwiftCode: 'RJHISARI', IBANs: ['SA0380000000608010167519'], BusinessDate: '2026-10-15', RecordCount: 1, RerunOfId: null,
+      });
+    // A call with no statement (knowledge base, patch) keeps the empty id; the viewer shows a dash.
+    expect(callToIntegrationLog(makeCallFixture({ StatementId: '', Operation: '' }))).toMatchObject({ StatementId: '', Operation: null });
   });
 
   it('finds the first accepted delivery in time order, or null', () => {
