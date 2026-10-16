@@ -80,7 +80,7 @@ export function TraceDrawer({ transactionId, trace, loading, error, onRetry, onC
         aria-label="Transaction trace"
         aria-hidden={!open}
         inert={!open}
-        className={`fixed inset-y-0 right-0 z-40 flex w-full flex-col border-l border-border bg-surface-elevated shadow-[-24px_0_48px_-12px_rgba(15,23,42,0.45)] transition-transform duration-300 ease-out md:w-[min(52vw,640px)] ${open ? 'translate-x-0' : 'translate-x-[calc(100%+80px)]'}`}
+        className={`fixed inset-0 z-40 flex w-full flex-col bg-surface-elevated transition-transform duration-300 ease-out ${open ? 'translate-x-0' : 'translate-x-[calc(100%+80px)]'}`}
       >
         <header className="sticky top-0 z-10 border-b border-border bg-surface-elevated px-5 pb-3 pt-4">
           <div className="flex items-start gap-3">
