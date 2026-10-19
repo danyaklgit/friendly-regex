@@ -5,6 +5,14 @@ import { TraceStepKb } from './TraceStepKb';
 import { makeTraceFixture, makeKbCallFixture, makeKbStateFixture } from '../../utils/clientSync/fixtures';
 
 describe('TraceStepKb', () => {
+  it('shows kb_customer_type on the customer card when set, and nothing when it is null', () => {
+    const data = makeTraceFixture().Kb;
+    const { rerender } = render(<TraceStepKb data={{ ...data, Published: makeKbStateFixture({ KbCustomerType: 'CC' }) }} withDate={false} onOpenFile={() => {}} />);
+    expect(within(screen.getByLabelText('Customer')).getByTitle('Knowledge-base customer type (kb_customer_type)').textContent).toBe('CC');
+    rerender(<TraceStepKb data={data} withDate={false} onOpenFile={() => {}} />);
+    expect(within(screen.getByLabelText('Customer')).queryByTitle('Knowledge-base customer type (kb_customer_type)')).toBeNull();
+  });
+
   it('shows status, certainty, the customer card, collapsible published attributes and per-call Request | Response tabs with Whole call', async () => {
     const user = userEvent.setup();
     const onOpenFile = vi.fn();

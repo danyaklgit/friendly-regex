@@ -12,6 +12,14 @@ const TAG_OPTIONS = [
   { value: 'UNTAGGED', label: 'Untagged', count: '15' },
   { value: 'IncomingTransfer', label: 'IncomingTransfer', count: '120' },
 ];
+const CUSTOMER_TYPE_OPTIONS = [
+  { value: 'TC', label: 'TC', count: '812' },
+  { value: 'CC', label: 'CC', count: '95' },
+];
+const CERTAINTY_OPTIONS = [
+  { value: '5', label: 'VERY STRONG', count: '30', title: 'Received as VERY STRONG', node: <span>VERY STRONG pill</span> },
+  { value: '3', label: 'MODERATE', count: '18', title: 'Received as MEDIUM, MODERATE' },
+];
 
 function baseProps(overrides: Partial<ListProps> = {}) {
   return {
@@ -28,6 +36,12 @@ function baseProps(overrides: Partial<ListProps> = {}) {
     tags: [] as string[],
     onTagsChange: vi.fn(),
     tagOptions: TAG_OPTIONS,
+    customerTypes: [] as string[],
+    onCustomerTypesChange: vi.fn(),
+    customerTypeOptions: CUSTOMER_TYPE_OPTIONS,
+    certainties: [] as string[],
+    onCertaintiesChange: vi.fn(),
+    certaintyOptions: CERTAINTY_OPTIONS,
     canLoadMore: false,
     onLoadMore: vi.fn(),
     selectedId: null as string | null,
@@ -101,7 +115,7 @@ describe('TransactionsList', () => {
     const user = userEvent.setup();
     renderList({
       page: makePageFixture([
-        makeTransactionFixture({ Id: 'u', BankReference: 'REF-U', IsUntagged: true, Tag: '', AttributeCount: 0, ReceivedAtUtc: null, Kb: { Status: 'NotEligible', Certainty: '', CertaintyRank: 0, CustomerCode: null, CustomerNameEn: null }, Out: { Status: 'NEVER', LastCallUtc: null, LastError: null, ReceiptToPushMs: null } }),
+        makeTransactionFixture({ Id: 'u', BankReference: 'REF-U', IsUntagged: true, Tag: '', AttributeCount: 0, ReceivedAtUtc: null, Kb: { Status: 'NotEligible', Certainty: '', CertaintyRank: 0, CustomerCode: null, CustomerNameEn: null, KbCustomerType: null }, Out: { Status: 'NEVER', LastCallUtc: null, LastError: null, ReceiptToPushMs: null } }),
         makeTransactionFixture({ Id: 'l', BankReference: 'REF-L', LayersDiffer: true, OpsTag: 'BillPayment', Out: { Status: 'FAILED', LastCallUtc: '2026-10-15T07:00:00Z', LastError: 'HTTP 502 from BwaTech', ReceiptToPushMs: null } }),
       ]),
     });
@@ -183,6 +197,44 @@ describe('TransactionsList', () => {
     unmount();
     render(<TransactionsList {...baseProps({ tagOptions: [] })} />);
     expect((screen.getByRole('button', { name: /^Tag: All/ }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('offers the Customer type and Certainty pickers; certainty rows render their pill and explain how the value was received', async () => {
+    const user = userEvent.setup();
+    const props = renderList();
+    await user.click(screen.getByRole('button', { name: /^Customer type: All/ }));
+    const types = within(await screen.findByRole('dialog', { name: 'Customer type' }));
+    await user.click(types.getByRole('checkbox', { name: /TC/ }));
+    expect(props.onCustomerTypesChange).toHaveBeenCalledWith(['TC']);
+    await user.keyboard('{Escape}');
+
+    await user.click(screen.getByRole('button', { name: /^Certainty: All/ }));
+    const certainty = within(await screen.findByRole('dialog', { name: 'Certainty' }));
+    expect(certainty.getByText('VERY STRONG pill')).not.toBeNull();
+    expect(certainty.getByText('MODERATE').closest('label')?.getAttribute('title')).toBe('Received as MEDIUM, MODERATE');
+    await user.click(certainty.getByRole('checkbox', { name: /VERY STRONG/ }));
+    expect(props.onCertaintiesChange).toHaveBeenCalledWith(['5']);
+  });
+
+  it('hides the Customer type picker when the summary lists no types, and disables Certainty until it has choices', () => {
+    renderList({ customerTypeOptions: [], certaintyOptions: [] });
+    expect(screen.queryByRole('button', { name: /^Customer type/ })).toBeNull();
+    expect((screen.getByRole('button', { name: /^Certainty: All/ }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('shows the KB customer type as a chip after the certainty, and nothing when it is null', () => {
+    renderList({
+      page: makePageFixture([
+        makeTransactionFixture({ Id: 'a', BankReference: 'REF-A', Kb: { Status: 'Promoted', Certainty: 'VERY STRONG', CertaintyRank: 5, CustomerCode: '17600310125', CustomerNameEn: null, KbCustomerType: 'TC' } }),
+        makeTransactionFixture({ Id: 'b', BankReference: 'REF-B' }),
+      ]),
+    });
+    const withType = within(screen.getByRole('row', { name: 'Transaction REF-A' }));
+    const chip = withType.getByText('TC');
+    const pill = withType.getByText('VERY STRONG');
+    expect(pill.compareDocumentPosition(chip) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(chip.compareDocumentPosition(withType.getByText('17600310125')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(screen.getByRole('row', { name: 'Transaction REF-B' })).queryByTitle('Knowledge-base customer type (kb_customer_type)')).toBeNull();
   });
 
   it('shows Sender and Bank reference as two columns', () => {

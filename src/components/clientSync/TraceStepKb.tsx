@@ -9,7 +9,7 @@ import { VirtualizedCodeBlock } from '../shared/VirtualizedCodeBlock';
 import { TraceStep } from './TraceStep';
 import { CallRow, type FilePane } from './CallRow';
 import { KvList } from './KvList';
-import { KbStatusBadge, CertaintyPill } from './StatusBadges';
+import { KbStatusBadge, CertaintyPill, KbCustomerTypeChip } from './StatusBadges';
 
 interface TraceStepKbProps {
   data: ClientSyncTraceKb;
@@ -71,7 +71,8 @@ export function TraceStepKb({ data, withDate, onOpenFile }: TraceStepKbProps) {
         <div aria-label="Customer" className="rounded-lg border border-border bg-surface-secondary/60 px-3 py-2 text-xs">
           <div className="font-medium text-heading">{pub.CustomerNameEn ?? pub.CustomerCode}</div>
           {pub.CustomerNameAr && <div dir="rtl" className="text-body-secondary">{pub.CustomerNameAr}</div>}
-          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted">
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted">
+            <KbCustomerTypeChip type={pub.KbCustomerType} />
             {pub.CustomerLevel && <span>{pub.CustomerLevel}</span>}
             {pub.CustomerCode && <span className="font-mono">{pub.CustomerCode}</span>}
             {pub.CustomerType && <span>{pub.CustomerType}</span>}

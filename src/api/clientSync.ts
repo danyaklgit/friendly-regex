@@ -60,6 +60,10 @@ export interface ClientSyncTransactionsRequest extends ClientSyncScope {
   Side?: 'CR' | 'DR';
   /** Published tag names, matching ANY; UNTAGGED_TAG_FILTER keeps untagged rows. Omitted from the body when empty. */
   Tags?: string[];
+  /** kb_customer_type values to keep (any, case-insensitive). Omitted from the body when empty. */
+  KbCustomerTypes?: string[];
+  /** Certainty ranks to keep (any); folds both KB vocabularies. Omitted from the body when empty. */
+  KbCertaintyRanks?: number[];
   /** 1-based. */
   PageIndex: number;
   /** Default 100, maximum 2000. */
@@ -81,7 +85,10 @@ export interface ClientSyncTaggingSummary {
 }
 export interface ClientSyncKbSummaryStats {
   Active: boolean; Eligible: number; Promoted: number; NotKnown: number; Pending: number;
-  ByCertainty: CertaintyCount[]; Calls: number; FailedCalls: number; MedianCallMs: number | null; LastCallUtc: string | null;
+  ByCertainty: CertaintyCount[];
+  /** kb_customer_type values present, most frequent first. */
+  ByCustomerType: KeyCount[];
+  Calls: number; FailedCalls: number; MedianCallMs: number | null; LastCallUtc: string | null;
 }
 export interface ClientSyncOutSummaryStats {
   Calls: number; Pushes: number; PushesFailed: number; Patches: number; PatchesFailed: number;
@@ -105,6 +112,8 @@ export interface ClientSyncSummary {
 
 export interface ClientSyncKbSummary {
   Status: KbStatus; Certainty: string; CertaintyRank: number; CustomerCode: string | null; CustomerNameEn: string | null;
+  /** kb_customer_type as received (TC / CC); null for an unrecorded customer or no answer. Not CustomerType (kb_displayed_customer_type). */
+  KbCustomerType: string | null;
 }
 export interface ClientSyncOutSummary {
   Status: OutStatus; LastCallUtc: string | null; LastError: string | null; ReceiptToPushMs: number | null;
@@ -121,9 +130,13 @@ export interface ClientSyncTransaction {
   Attributes: TraceAttribute[];
   /** The knowledge base's answer as received (kb_* keys); empty when the row was never promoted. */
   KbAttributes: KeyValue[];
+  /** The row's attributes exactly as TEP sends them to BwaTech now ("What BwaTech holds now"); the export reads these. */
+  WireAttributes: KeyValue[];
 }
 export interface ClientSyncTransactionsPage {
   Transactions: ClientSyncTransaction[]; TotalCount: number; ShowCounts: KeyCount[]; PageIndex: number; PageSize: number;
+  /** Export attribute column keys in BwaTech's order, computed over the whole filtered list (same on every page). */
+  AttributeColumns: string[];
 }
 
 export interface ClientSyncCall {
@@ -154,6 +167,8 @@ export interface ClientSyncTagState {
 export interface ClientSyncKbState {
   Status: KbStatus; Certainty: string; CertaintyRank: number; CustomerCode: string | null; CustomerNameEn: string | null;
   CustomerNameAr: string | null; CustomerLevel: string | null; CustomerType: string | null; Alternatives: number;
+  /** kb_customer_type as received (TC / CC); null for an unrecorded customer or no answer. */
+  KbCustomerType: string | null;
 }
 export interface ClientSyncTraceIn {
   Deliveries: ClientSyncCall[]; ItemText: string | null; ItemFormat: ItemFormat | null;
@@ -178,6 +193,10 @@ function oneOf<T extends string>(value: unknown, allowed: readonly T[], fallback
 }
 function stringOrNull(value: unknown): string | null {
   return typeof value === 'string' ? value : null;
+}
+/** A blank string reads as absent, so a chip never renders empty. */
+function nonBlankOrNull(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() !== '' ? value : null;
 }
 /** Ids and codes may arrive as numbers; keep them as strings. */
 function scalarString(value: unknown): string {
@@ -234,6 +253,7 @@ function normalizeKbSummary(raw: unknown): ClientSyncKbSummary {
     CertaintyRank: numberOrZero(r.CertaintyRank),
     CustomerCode: scalarStringOrNull(r.CustomerCode),
     CustomerNameEn: stringOrNull(r.CustomerNameEn),
+    KbCustomerType: nonBlankOrNull(r.KbCustomerType),
   };
 }
 function normalizeOutSummary(raw: unknown): ClientSyncOutSummary {
@@ -276,6 +296,7 @@ export function normalizeTransaction(raw: unknown): ClientSyncTransaction {
     Out: normalizeOutSummary(r.Out),
     Attributes: traceAttributes(r.Attributes),
     KbAttributes: keyValues(r.KbAttributes),
+    WireAttributes: keyValues(r.WireAttributes),
   };
 }
 
@@ -339,6 +360,7 @@ export function normalizeSummary(raw: unknown): ClientSyncSummary {
       ByCertainty: recordArray(k.ByCertainty).map((c) => ({
         Rank: numberOrZero(c.Rank), Label: stringOrEmpty(c.Label), Count: numberOrZero(c.Count), ReceivedAs: stringArray(c.ReceivedAs),
       })),
+      ByCustomerType: keyCounts(k.ByCustomerType).filter((c) => c.Key !== ''),
       Calls: numberOrZero(k.Calls), FailedCalls: numberOrZero(k.FailedCalls),
       MedianCallMs: numberOrNull(k.MedianCallMs), LastCallUtc: stringOrNull(k.LastCallUtc),
     },
@@ -365,6 +387,7 @@ export function normalizeTransactionsPage(raw: unknown, request: ClientSyncTrans
     ShowCounts: keyCounts(r.ShowCounts),
     PageIndex: r.PageIndex === undefined ? request.PageIndex : numberOrZero(r.PageIndex),
     PageSize: r.PageSize === undefined ? request.PageSize : numberOrZero(r.PageSize),
+    AttributeColumns: stringArray(r.AttributeColumns).filter((k) => k !== ''),
   };
 }
 
@@ -433,6 +456,7 @@ function normalizeKbState(raw: unknown): ClientSyncKbState {
     CustomerLevel: stringOrNull(r.CustomerLevel),
     CustomerType: stringOrNull(r.CustomerType),
     Alternatives: numberOrZero(r.Alternatives),
+    KbCustomerType: nonBlankOrNull(r.KbCustomerType),
   };
 }
 
@@ -494,6 +518,8 @@ export function toTransactionsBody(request: ClientSyncTransactionsRequest): Reco
     ...(search ? { Search: search } : {}),
     ...(request.Side ? { Side: request.Side } : {}),
     ...(request.Tags && request.Tags.length > 0 ? { Tags: [...request.Tags] } : {}),
+    ...(request.KbCustomerTypes && request.KbCustomerTypes.length > 0 ? { KbCustomerTypes: [...request.KbCustomerTypes] } : {}),
+    ...(request.KbCertaintyRanks && request.KbCertaintyRanks.length > 0 ? { KbCertaintyRanks: [...request.KbCertaintyRanks] } : {}),
     PageIndex: request.PageIndex,
     PageSize: request.PageSize,
   };
@@ -538,18 +564,24 @@ export async function getClientSyncTransactions(
 /** Largest page the backend serves; the full-export walk uses it. */
 export const CLIENT_SYNC_EXPORT_PAGE_SIZE = 2000;
 
+export interface ClientSyncExportRows {
+  rows: ClientSyncTransaction[];
+  /** From the first page; the backend computes it over the whole filtered list, so every page carries the same one. */
+  attributeColumns: string[];
+}
+
 /**
- * Every row of the list query (scope, Show, Search, Side, Tags), walking the
- * pages at the maximum size. Paging is skip/limit under a sort that is not a
- * total order, so a row can come back on two pages; repeats are dropped by Id
- * (first wins; rows without an Id are always kept).
+ * Every row of the list query (scope, Show, Search and the list filters),
+ * walking the pages at the maximum size. Paging is skip/limit under a sort
+ * that is not a total order, so a row can come back on two pages; repeats are
+ * dropped by Id (first wins; rows without an Id are always kept).
  */
 export async function getAllClientSyncTransactions(
   request: ClientSyncTransactionsRequest,
   authToken: string,
   tepHeaders: TepHeaders,
   signal?: AbortSignal,
-): Promise<ClientSyncTransaction[]> {
+): Promise<ClientSyncExportRows> {
   const pageSize = CLIENT_SYNC_EXPORT_PAGE_SIZE;
   const rows: ClientSyncTransaction[] = [];
   const seen = new Set<string>();
@@ -571,7 +603,7 @@ export async function getAllClientSyncTransactions(
     if (page.Transactions.length === 0) break;
     ingest(page);
   }
-  return rows;
+  return { rows, attributeColumns: first.AttributeColumns };
 }
 
 export async function getClientSyncTrace(

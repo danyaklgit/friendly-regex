@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TepHeaders } from '../../api/transactions';
 import {
   getAllClientSyncTransactions, UNTAGGED_TAG_FILTER,
-  type ClientSyncShow, type ClientSyncSide, type ClientSyncTransaction,
+  type CertaintyCount, type ClientSyncShow, type ClientSyncSide, type ClientSyncTransaction,
 } from '../../api/clientSync';
 import { useVipClients } from '../../hooks/useVipClients';
 import { useClientSyncSummary, useClientSyncTransactions, useClientSyncTrace } from '../../hooks/useClientSync';
@@ -24,6 +24,7 @@ import { StageCards } from './StageCards';
 import { AccountsTable } from './AccountsTable';
 import { TransactionsList } from './TransactionsList';
 import { TraceDrawer } from './TraceDrawer';
+import { CertaintyPill } from './StatusBadges';
 import { ClientSyncFallback } from './ClientSyncFallback';
 
 interface ClientSyncTabProps {
@@ -32,6 +33,22 @@ interface ClientSyncTabProps {
 }
 
 const SEARCH_DEBOUNCE_MS = 400;
+
+/**
+ * The filter sends ranks, so entries sharing a rank are one choice. Several
+ * rank-0 entries (raw text outside both KB vocabularies) would otherwise be
+ * duplicate checkboxes that select each other; merge them, keeping order.
+ */
+function mergeCertaintiesByRank(list: readonly CertaintyCount[]): CertaintyCount[] {
+  const byRank = new Map<number, CertaintyCount>();
+  for (const c of list) {
+    const prev = byRank.get(c.Rank);
+    byRank.set(c.Rank, prev
+      ? { Rank: c.Rank, Label: `${prev.Label} / ${c.Label}`, Count: prev.Count + c.Count, ReceivedAs: [...new Set([...prev.ReceivedAs, ...c.ReceivedAs])] }
+      : c);
+  }
+  return [...byRank.values()];
+}
 
 function localStore(): Storage | null {
   return typeof localStorage === 'undefined' ? null : localStorage;
@@ -75,6 +92,8 @@ export function ClientSyncTab({ authToken, tepHeaders }: ClientSyncTabProps) {
   const [search, setSearch] = useState('');
   const [side, setSide] = useState<ClientSyncSide>('ALL');
   const [tags, setTags] = useState<string[]>([]);
+  const [customerTypes, setCustomerTypes] = useState<string[]>([]);
+  const [certaintyRanks, setCertaintyRanks] = useState<number[]>([]);
   const [limit, setLimit] = useState(PAGE_SIZE_INITIAL);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -89,6 +108,8 @@ export function ClientSyncTab({ authToken, tepHeaders }: ClientSyncTabProps) {
     setSearch('');
     setSide('ALL');
     setTags([]);
+    setCustomerTypes([]);
+    setCertaintyRanks([]);
     setLimit(PAGE_SIZE_INITIAL);
     setSelectedId(null);
     setExportError(null);
@@ -98,8 +119,8 @@ export function ClientSyncTab({ authToken, tepHeaders }: ClientSyncTabProps) {
   // Clearing (scope reset or manual) must reach the request immediately; only typing is debounced.
   const effectiveSearch = search === '' ? '' : debouncedSearch;
   const listRequest = useMemo(
-    () => buildTransactionsRequest(scope, show, effectiveSearch, limit, { side, tags }),
-    [scope, show, effectiveSearch, limit, side, tags],
+    () => buildTransactionsRequest(scope, show, effectiveSearch, limit, { side, tags, customerTypes, certaintyRanks }),
+    [scope, show, effectiveSearch, limit, side, tags, customerTypes, certaintyRanks],
   );
 
   const summary = useClientSyncSummary(scope, authToken, tepHeaders, enabled);
@@ -136,6 +157,15 @@ export function ClientSyncTab({ authToken, tepHeaders }: ClientSyncTabProps) {
     setTags(next);
     setLimit(PAGE_SIZE_INITIAL);
   }, []);
+  const handleCustomerTypesChange = useCallback((next: string[]) => {
+    setCustomerTypes(next);
+    setLimit(PAGE_SIZE_INITIAL);
+  }, []);
+  const handleCertaintiesChange = useCallback((next: string[]) => {
+    setCertaintyRanks(next.map(Number).filter(Number.isFinite));
+    setLimit(PAGE_SIZE_INITIAL);
+  }, []);
+  const certaintyValues = useMemo(() => certaintyRanks.map(String), [certaintyRanks]);
   const handleLoadMore = useCallback((step: number) => setLimit((l) => nextLimit(l, step)), []);
   // A row without an Id has no trace to open; selecting it would leave the drawer loading forever.
   const handleSelect = useCallback((t: ClientSyncTransaction) => { if (t.Id !== '') setSelectedId(t.Id); }, []);
@@ -154,10 +184,11 @@ export function ClientSyncTab({ authToken, tepHeaders }: ClientSyncTabProps) {
   const exportAbortRef = useRef<AbortController | null>(null);
   useEffect(() => () => exportAbortRef.current?.abort(), []);
   const totalCount = page?.TotalCount ?? 0;
+  const attributeColumns = page?.AttributeColumns;
   const handleExport = useCallback(async () => {
     setExportError(null);
     if (rows.length >= totalCount || !authToken || !tepHeaders) {
-      downloadClientSyncCsv(rows, controls.orgId, range.from, range.to);
+      downloadClientSyncCsv(rows, attributeColumns ?? [], controls.orgId, range.from, range.to);
       return;
     }
     exportAbortRef.current?.abort();
@@ -166,7 +197,7 @@ export function ClientSyncTab({ authToken, tepHeaders }: ClientSyncTabProps) {
     setExporting(true);
     try {
       const all = await getAllClientSyncTransactions(listRequest, authToken, tepHeaders, controller.signal);
-      if (!controller.signal.aborted) downloadClientSyncCsv(all, controls.orgId, range.from, range.to);
+      if (!controller.signal.aborted) downloadClientSyncCsv(all.rows, all.attributeColumns, controls.orgId, range.from, range.to);
     } catch (err) {
       if (!controller.signal.aborted) setExportError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
@@ -175,7 +206,7 @@ export function ClientSyncTab({ authToken, tepHeaders }: ClientSyncTabProps) {
         setExporting(false);
       }
     }
-  }, [rows, totalCount, authToken, tepHeaders, listRequest, controls.orgId, range.from, range.to]);
+  }, [rows, totalCount, attributeColumns, authToken, tepHeaders, listRequest, controls.orgId, range.from, range.to]);
 
   const summaryReport = enabled ? summary.report : null;
   const tagging = summaryReport?.Tagging ?? null;
@@ -186,6 +217,21 @@ export function ClientSyncTab({ authToken, tepHeaders }: ClientSyncTabProps) {
       ...tagging.ByTag.filter((t) => t.Key !== '').map((t) => ({ value: t.Key, label: t.Key, count: formatCount(t.Count) })),
     ];
   }, [tagging]);
+  const knowledgeBase = summaryReport?.KnowledgeBase ?? null;
+  const customerTypeOptions = useMemo<ChecklistOption[]>(
+    () => (knowledgeBase?.ByCustomerType ?? []).map((c) => ({ value: c.Key, label: c.Key, count: formatCount(c.Count) })),
+    [knowledgeBase],
+  );
+  const certaintyOptions = useMemo<ChecklistOption[]>(
+    () => mergeCertaintiesByRank(knowledgeBase?.ByCertainty ?? []).map((c) => ({
+      value: String(c.Rank),
+      label: c.Label,
+      count: formatCount(c.Count),
+      title: c.ReceivedAs.length > 0 ? `Received as ${c.ReceivedAs.join(', ')}` : undefined,
+      node: <CertaintyPill certainty={c.Label} rank={c.Rank} />,
+    })),
+    [knowledgeBase],
+  );
 
   return (
     <div className="space-y-3">
@@ -232,6 +278,12 @@ export function ClientSyncTab({ authToken, tepHeaders }: ClientSyncTabProps) {
             tags={tags}
             onTagsChange={handleTagsChange}
             tagOptions={tagOptions}
+            customerTypes={customerTypes}
+            onCustomerTypesChange={handleCustomerTypesChange}
+            customerTypeOptions={customerTypeOptions}
+            certainties={certaintyValues}
+            onCertaintiesChange={handleCertaintiesChange}
+            certaintyOptions={certaintyOptions}
             canLoadMore={canLoadMore}
             onLoadMore={handleLoadMore}
             selectedId={selectedId}

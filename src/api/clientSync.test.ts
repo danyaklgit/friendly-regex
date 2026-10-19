@@ -77,12 +77,14 @@ describe('request bodies', () => {
     expect(toTransactionsBody({ ...LIST_REQUEST, Show: 'UNTAGGED', Search: ' FT26 ' })).toMatchObject({ Show: 'UNTAGGED', Search: 'FT26' });
   });
 
-  it('sends Side and Tags only when set', () => {
-    const plain = toTransactionsBody({ ...LIST_REQUEST, Tags: [] });
+  it('sends Side, Tags, KbCustomerTypes and KbCertaintyRanks only when set', () => {
+    const plain = toTransactionsBody({ ...LIST_REQUEST, Tags: [], KbCustomerTypes: [], KbCertaintyRanks: [] });
     expect(plain).not.toHaveProperty('Side');
     expect(plain).not.toHaveProperty('Tags');
-    expect(toTransactionsBody({ ...LIST_REQUEST, Side: 'DR', Tags: ['UNTAGGED', 'IncomingTransfer'] }))
-      .toMatchObject({ Side: 'DR', Tags: ['UNTAGGED', 'IncomingTransfer'], PageIndex: 1, PageSize: 100 });
+    expect(plain).not.toHaveProperty('KbCustomerTypes');
+    expect(plain).not.toHaveProperty('KbCertaintyRanks');
+    expect(toTransactionsBody({ ...LIST_REQUEST, Side: 'DR', Tags: ['UNTAGGED', 'IncomingTransfer'], KbCustomerTypes: ['TC'], KbCertaintyRanks: [5, 4] }))
+      .toMatchObject({ Side: 'DR', Tags: ['UNTAGGED', 'IncomingTransfer'], KbCustomerTypes: ['TC'], KbCertaintyRanks: [5, 4], PageIndex: 1, PageSize: 100 });
   });
 });
 
@@ -121,28 +123,30 @@ describe('fetchers', () => {
 
   it('walks every page of the same query at PageSize 2000 for the export, dropping rows repeated across pages', async () => {
     const row = (Id: string) => ({ ...RAW_ROW, Id, BankReference: `REF-${Id}` });
+    const columns = ['SenderBank', 'kb_outlet_customer_code'];
     fetchSpy
-      .mockResolvedValueOnce(jsonResponse({ Transactions: [row('a'), row('b')], TotalCount: 4001 }))
-      .mockResolvedValueOnce(jsonResponse({ Transactions: [row('b'), row('c')], TotalCount: 4001 }))
-      .mockResolvedValueOnce(jsonResponse({ Transactions: [row('d'), { ...RAW_ROW, Id: '' }, { ...RAW_ROW, Id: '' }], TotalCount: 4001 }));
-    const rows = await getAllClientSyncTransactions({ ...LIST_REQUEST, Side: 'CR', Tags: ['IncomingTransfer'], PageSize: 150 }, TOKEN, tepHeaders);
+      .mockResolvedValueOnce(jsonResponse({ Transactions: [row('a'), row('b')], TotalCount: 4001, AttributeColumns: columns }))
+      .mockResolvedValueOnce(jsonResponse({ Transactions: [row('b'), row('c')], TotalCount: 4001, AttributeColumns: columns }))
+      .mockResolvedValueOnce(jsonResponse({ Transactions: [row('d'), { ...RAW_ROW, Id: '' }, { ...RAW_ROW, Id: '' }], TotalCount: 4001, AttributeColumns: columns }));
+    const result = await getAllClientSyncTransactions({ ...LIST_REQUEST, Side: 'CR', Tags: ['IncomingTransfer'], KbCertaintyRanks: [5, 4], PageSize: 150 }, TOKEN, tepHeaders);
     expect(fetchSpy).toHaveBeenCalledTimes(3);
     const bodies = fetchSpy.mock.calls.map((c) => JSON.parse((c as [string, RequestInit])[1].body as string));
     expect(bodies.map((b) => [b.PageIndex, b.PageSize])).toEqual([[1, 2000], [2, 2000], [3, 2000]]);
-    expect(bodies[2]).toMatchObject({ Side: 'CR', Tags: ['IncomingTransfer'], Show: 'ALL' });
-    expect(rows.map((r) => r.Id)).toEqual(['a', 'b', 'c', 'd', '', '']);
+    expect(bodies[2]).toMatchObject({ Side: 'CR', Tags: ['IncomingTransfer'], KbCertaintyRanks: [5, 4], Show: 'ALL' });
+    expect(result.rows.map((r) => r.Id)).toEqual(['a', 'b', 'c', 'd', '', '']);
+    expect(result.attributeColumns).toEqual(columns);
   });
 
   it('stops the export walk at an empty page and needs one request when everything fits', async () => {
     fetchSpy
       .mockResolvedValueOnce(jsonResponse({ Transactions: [RAW_ROW], TotalCount: 6000 }))
       .mockResolvedValueOnce(jsonResponse({ Transactions: [], TotalCount: 1 }));
-    expect(await getAllClientSyncTransactions(LIST_REQUEST, TOKEN, tepHeaders)).toHaveLength(1);
+    expect((await getAllClientSyncTransactions(LIST_REQUEST, TOKEN, tepHeaders)).rows).toHaveLength(1);
     expect(fetchSpy).toHaveBeenCalledTimes(2);
 
     fetchSpy.mockClear();
     fetchSpy.mockResolvedValueOnce(jsonResponse({ Transactions: [RAW_ROW], TotalCount: 1 }));
-    expect(await getAllClientSyncTransactions(LIST_REQUEST, TOKEN, tepHeaders)).toHaveLength(1);
+    expect(await getAllClientSyncTransactions(LIST_REQUEST, TOKEN, tepHeaders)).toEqual({ rows: [expect.objectContaining({ Id: 'tx-1' })], attributeColumns: [] });
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
@@ -183,6 +187,9 @@ describe('normalizeSummary', () => {
     expect(s.Warnings).toEqual([]);
     expect(s.Layer).toBe('ALL');
     expect(normalizeSummary({ KnowledgeBase: { Active: false } }).KnowledgeBase.Active).toBe(false);
+    expect(s.KnowledgeBase.ByCustomerType).toEqual([]);
+    expect(normalizeSummary({ KnowledgeBase: { ByCustomerType: [{ Key: 'TC', Count: 812 }, { Key: '', Count: 3 }, { Key: 'CC', Count: '95' }] } }).KnowledgeBase.ByCustomerType)
+      .toEqual([{ Key: 'TC', Count: 812 }, { Key: 'CC', Count: 95 }]);
     expect(normalizeSummary(null).OrgId).toBe('');
   });
 });
@@ -192,7 +199,7 @@ describe('normalizeTransactionsPage', () => {
     const fromRoot = normalizeTransactionsPage({ Transactions: [RAW_ROW], TotalCount: 212, ShowCounts: [{ Key: 'UNTAGGED', Count: 15 }], PageIndex: 1, PageSize: 100 }, LIST_REQUEST);
     expect(fromRoot.TotalCount).toBe(212);
     expect(fromRoot.ShowCounts).toEqual([{ Key: 'UNTAGGED', Count: 15 }]);
-    expect(fromRoot.Transactions[0].Kb).toEqual({ Status: 'Promoted', Certainty: 'Confirmed', CertaintyRank: 5, CustomerCode: 'C-100', CustomerNameEn: 'Al Faris Co' });
+    expect(fromRoot.Transactions[0].Kb).toEqual({ Status: 'Promoted', Certainty: 'Confirmed', CertaintyRank: 5, CustomerCode: 'C-100', CustomerNameEn: 'Al Faris Co', KbCustomerType: null });
     expect(fromRoot.Transactions[0].Out).toEqual({ Status: 'SENT', LastCallUtc: '2026-10-15T06:55:35Z', LastError: null, ReceiptToPushMs: 33000 });
     const wrapped = normalizeTransactionsPage({ Page: { Transactions: [RAW_ROW], TotalCount: 1 } }, LIST_REQUEST);
     expect(wrapped.Transactions).toHaveLength(1);
@@ -207,9 +214,10 @@ describe('normalizeTransactionsPage', () => {
     expect(page.Transactions[0].Out.Status).toBe('UNTRACKED');
     expect(page.Transactions[1].Id).toBe('');
     expect(page.Transactions[2]).toMatchObject({ Id: 'y', Amount: 0, Side: '', IsUntagged: false, AttributeCount: 0, ReceivedAtUtc: null, Sequence: null });
-    expect(page.Transactions[2].Kb).toEqual({ Status: 'NotEligible', Certainty: '', CertaintyRank: 0, CustomerCode: null, CustomerNameEn: null });
+    expect(page.Transactions[2].Kb).toEqual({ Status: 'NotEligible', Certainty: '', CertaintyRank: 0, CustomerCode: null, CustomerNameEn: null, KbCustomerType: null });
     expect(page.Transactions[2].Out).toEqual({ Status: 'UNTRACKED', LastCallUtc: null, LastError: null, ReceiptToPushMs: null });
-    expect(normalizeTransactionsPage(undefined, LIST_REQUEST)).toEqual({ Transactions: [], TotalCount: 0, ShowCounts: [], PageIndex: 1, PageSize: 100 });
+    expect(page.Transactions[2].WireAttributes).toEqual([]);
+    expect(normalizeTransactionsPage(undefined, LIST_REQUEST)).toEqual({ Transactions: [], TotalCount: 0, ShowCounts: [], PageIndex: 1, PageSize: 100, AttributeColumns: [] });
   });
 
   it('reads each row\'s tag attributes and knowledge-base attributes, defaulting both to empty', () => {
@@ -233,6 +241,20 @@ describe('normalizeTransactionsPage', () => {
     ]);
     expect(page.Transactions[1].Attributes).toEqual([]);
     expect(page.Transactions[1].KbAttributes).toEqual([]);
+  });
+
+  it('reads the export column order, each row\'s wire attributes and its KB customer type (blank reads as absent)', () => {
+    const page = normalizeTransactionsPage({
+      AttributeColumns: ['SenderBank', '', 'kb_outlet_customer_code', 42],
+      Transactions: [
+        { ...RAW_ROW, Kb: { ...RAW_ROW.Kb, KbCustomerType: 'TC' }, WireAttributes: [{ Key: 'SenderBank', Value: 'RJHI' }, { Key: 'kb_outlet_customer_code', Value: null }] },
+        { ...RAW_ROW, Kb: { ...RAW_ROW.Kb, KbCustomerType: '  ' } },
+      ],
+    }, LIST_REQUEST);
+    expect(page.AttributeColumns).toEqual(['SenderBank', 'kb_outlet_customer_code']);
+    expect(page.Transactions[0].Kb.KbCustomerType).toBe('TC');
+    expect(page.Transactions[0].WireAttributes).toEqual([{ Key: 'SenderBank', Value: 'RJHI' }, { Key: 'kb_outlet_customer_code', Value: null }]);
+    expect(page.Transactions[1].Kb.KbCustomerType).toBeNull();
   });
 });
 
