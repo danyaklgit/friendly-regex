@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi, type MockInstance } from 'vitest';
 import {
-  getClientSyncSummary, getClientSyncTransactions, getClientSyncTrace,
+  getClientSyncSummary, getClientSyncTransactions, getClientSyncTrace, getAllClientSyncTransactions,
   normalizeSummary, normalizeTransactionsPage, normalizeTrace, toSummaryBody, toTransactionsBody,
   type ClientSyncScope, type ClientSyncTransactionsRequest,
 } from './clientSync';
@@ -76,6 +76,14 @@ describe('request bodies', () => {
     expect(toTransactionsBody({ ...LIST_REQUEST, Search: '   ' })).toEqual({ OrgId: 'ORG-1', FromDate: '2026-10-15', ToDate: '2026-10-15', Layer: 'ALL', Show: 'ALL', PageIndex: 1, PageSize: 100 });
     expect(toTransactionsBody({ ...LIST_REQUEST, Show: 'UNTAGGED', Search: ' FT26 ' })).toMatchObject({ Show: 'UNTAGGED', Search: 'FT26' });
   });
+
+  it('sends Side and Tags only when set', () => {
+    const plain = toTransactionsBody({ ...LIST_REQUEST, Tags: [] });
+    expect(plain).not.toHaveProperty('Side');
+    expect(plain).not.toHaveProperty('Tags');
+    expect(toTransactionsBody({ ...LIST_REQUEST, Side: 'DR', Tags: ['UNTAGGED', 'IncomingTransfer'] }))
+      .toMatchObject({ Side: 'DR', Tags: ['UNTAGGED', 'IncomingTransfer'], PageIndex: 1, PageSize: 100 });
+  });
 });
 
 describe('fetchers', () => {
@@ -109,6 +117,33 @@ describe('fetchers', () => {
     expect(url).toBe(`${BASE}/GetClientSyncTrace`);
     expect(JSON.parse(init.body as string)).toEqual({ TransactionId: 'tx-1' });
     expect(trace.Transaction.Id).toBe('tx-1');
+  });
+
+  it('walks every page of the same query at PageSize 2000 for the export, dropping rows repeated across pages', async () => {
+    const row = (Id: string) => ({ ...RAW_ROW, Id, BankReference: `REF-${Id}` });
+    fetchSpy
+      .mockResolvedValueOnce(jsonResponse({ Transactions: [row('a'), row('b')], TotalCount: 4001 }))
+      .mockResolvedValueOnce(jsonResponse({ Transactions: [row('b'), row('c')], TotalCount: 4001 }))
+      .mockResolvedValueOnce(jsonResponse({ Transactions: [row('d'), { ...RAW_ROW, Id: '' }, { ...RAW_ROW, Id: '' }], TotalCount: 4001 }));
+    const rows = await getAllClientSyncTransactions({ ...LIST_REQUEST, Side: 'CR', Tags: ['IncomingTransfer'], PageSize: 150 }, TOKEN, tepHeaders);
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+    const bodies = fetchSpy.mock.calls.map((c) => JSON.parse((c as [string, RequestInit])[1].body as string));
+    expect(bodies.map((b) => [b.PageIndex, b.PageSize])).toEqual([[1, 2000], [2, 2000], [3, 2000]]);
+    expect(bodies[2]).toMatchObject({ Side: 'CR', Tags: ['IncomingTransfer'], Show: 'ALL' });
+    expect(rows.map((r) => r.Id)).toEqual(['a', 'b', 'c', 'd', '', '']);
+  });
+
+  it('stops the export walk at an empty page and needs one request when everything fits', async () => {
+    fetchSpy
+      .mockResolvedValueOnce(jsonResponse({ Transactions: [RAW_ROW], TotalCount: 6000 }))
+      .mockResolvedValueOnce(jsonResponse({ Transactions: [], TotalCount: 1 }));
+    expect(await getAllClientSyncTransactions(LIST_REQUEST, TOKEN, tepHeaders)).toHaveLength(1);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+
+    fetchSpy.mockClear();
+    fetchSpy.mockResolvedValueOnce(jsonResponse({ Transactions: [RAW_ROW], TotalCount: 1 }));
+    expect(await getAllClientSyncTransactions(LIST_REQUEST, TOKEN, tepHeaders)).toHaveLength(1);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
   it('throws ApiError with the SFM short description on a non-OK status', async () => {
@@ -175,6 +210,29 @@ describe('normalizeTransactionsPage', () => {
     expect(page.Transactions[2].Kb).toEqual({ Status: 'NotEligible', Certainty: '', CertaintyRank: 0, CustomerCode: null, CustomerNameEn: null });
     expect(page.Transactions[2].Out).toEqual({ Status: 'UNTRACKED', LastCallUtc: null, LastError: null, ReceiptToPushMs: null });
     expect(normalizeTransactionsPage(undefined, LIST_REQUEST)).toEqual({ Transactions: [], TotalCount: 0, ShowCounts: [], PageIndex: 1, PageSize: 100 });
+  });
+
+  it('reads each row\'s tag attributes and knowledge-base attributes, defaulting both to empty', () => {
+    const page = normalizeTransactionsPage({
+      Transactions: [
+        {
+          ...RAW_ROW,
+          Attributes: [{ Key: 'SenderName', Value: 'AL FARIS CO', IsMandatory: true, IsValid: false }, { Key: 'Invoice', Value: null }],
+          KbAttributes: [{ Key: 'kb_displayed_customer_name_ar', Value: 'شركة الفارس' }, { Key: 'kb_outlet_customer_code', Value: null }],
+        },
+        RAW_ROW,
+      ],
+    }, LIST_REQUEST);
+    expect(page.Transactions[0].Attributes).toEqual([
+      { Key: 'SenderName', Value: 'AL FARIS CO', IsMandatory: true, IsValid: false },
+      { Key: 'Invoice', Value: null, IsMandatory: false, IsValid: true },
+    ]);
+    expect(page.Transactions[0].KbAttributes).toEqual([
+      { Key: 'kb_displayed_customer_name_ar', Value: 'شركة الفارس' },
+      { Key: 'kb_outlet_customer_code', Value: null },
+    ]);
+    expect(page.Transactions[1].Attributes).toEqual([]);
+    expect(page.Transactions[1].KbAttributes).toEqual([]);
   });
 });
 

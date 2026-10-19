@@ -1,5 +1,8 @@
 import { memo, type Ref } from 'react';
-import { CLIENT_SYNC_SHOWS, type ClientSyncShow, type ClientSyncTransaction, type ClientSyncTransactionsPage } from '../../api/clientSync';
+import {
+  CLIENT_SYNC_SHOWS, CLIENT_SYNC_SIDES,
+  type ClientSyncShow, type ClientSyncSide, type ClientSyncTransaction, type ClientSyncTransactionsPage,
+} from '../../api/clientSync';
 import { SHOW_LABELS, showCount } from '../../utils/clientSync/status';
 import { formatLocalTime, formatAmount, formatDurationMs, DASH } from '../../utils/clientSync/format';
 import { formatCount } from '../../utils/reports/format';
@@ -10,6 +13,7 @@ import { Tooltip } from '../shared/Tooltip';
 import { EmptyState } from '../shared/EmptyState';
 import { TagBadge } from '../transactions/TagBadge';
 import { ReportErrorCard } from '../reports/ReportErrorCard';
+import { FilterChecklistPopover, type ChecklistOption } from '../reports/FilterChecklistPopover';
 import { FeedChip, KbStatusBadge, CertaintyPill, OutStatusBadge } from './StatusBadges';
 
 interface TransactionsListProps {
@@ -24,6 +28,13 @@ interface TransactionsListProps {
   /** The draft search text; the tab debounces it before it reaches the request. */
   search: string;
   onSearchChange: (text: string) => void;
+  side: ClientSyncSide;
+  onSideChange: (side: ClientSyncSide) => void;
+  /** Selected tag values; [] = every tag. */
+  tags: string[];
+  onTagsChange: (tags: string[]) => void;
+  /** From the summary's ByTag plus Untagged; [] until the summary has loaded. */
+  tagOptions: ChecklistOption[];
   canLoadMore: boolean;
   onLoadMore: (step: number) => void;
   selectedId: string | null;
@@ -32,9 +43,14 @@ interface TransactionsListProps {
   showIban: boolean;
   withDate: boolean;
   onExport: () => void;
+  /** True while the export fetches every matching row. */
+  exporting?: boolean;
+  exportError?: string | null;
 }
 
 const TH = 'text-left px-3 py-2 whitespace-nowrap';
+const SIDE_LABELS: Record<ClientSyncSide, string> = { ALL: 'All', CR: 'CR', DR: 'DR' };
+const SIDE_OPTIONS: SegmentedOption<ClientSyncSide>[] = CLIENT_SYNC_SIDES.map((value) => ({ value, label: SIDE_LABELS[value] }));
 const TD = 'px-3 py-2 align-top';
 
 function ListSkeleton() {
@@ -45,10 +61,16 @@ function ListSkeleton() {
   );
 }
 
-/** The transactions list of spec 7.5: segments with server counts, search, rows, load-more, export. */
+/**
+ * The transactions list of spec 7.5: segments with server counts, search,
+ * side and tag filters, rows, load-more, export. Side and tag narrow the list,
+ * its total and the Show counts only; the cards and accounts above keep
+ * describing the whole client and range.
+ */
 export const TransactionsList = memo(function TransactionsList({
-  ref, page, loading, error, onRetry, show, onShowChange, search, onSearchChange, canLoadMore, onLoadMore,
-  selectedId, onSelect, showIban, withDate, onExport,
+  ref, page, loading, error, onRetry, show, onShowChange, search, onSearchChange,
+  side, onSideChange, tags, onTagsChange, tagOptions, canLoadMore, onLoadMore,
+  selectedId, onSelect, showIban, withDate, onExport, exporting = false, exportError = null,
 }: TransactionsListProps) {
   const rows = page?.Transactions ?? [];
   const total = page?.TotalCount ?? 0;
@@ -72,10 +94,24 @@ export const TransactionsList = memo(function TransactionsList({
           onChange={(e) => onSearchChange(e.target.value)}
           className="ml-auto w-56 rounded-lg border border-input-border bg-input-bg px-3 py-1.5 text-xs text-heading placeholder:text-placeholder focus:outline-none focus:ring-2 focus:ring-primary/30"
         />
-        <Button variant="secondary" size="xs" onClick={onExport} disabled={rows.length === 0}>Export CSV</Button>
+        <Button
+          variant="secondary"
+          size="xs"
+          onClick={onExport}
+          disabled={rows.length === 0 || exporting}
+          title="Exports every row that matches the filters and search"
+        >
+          {exporting ? 'Exporting…' : 'Export CSV'}
+        </Button>
+        {exportError && <p role="alert" className="basis-full text-right text-[11px] text-red-600 dark:text-rose-400">{`Export failed: ${exportError}`}</p>}
       </div>
-      <div className="px-4 py-2 border-b border-border overflow-x-auto">
-        <SegmentedControl label="Show" options={options} value={show} onChange={onShowChange} />
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2 border-b border-border">
+        <div className="max-w-full overflow-x-auto">
+          <SegmentedControl label="Show" options={options} value={show} onChange={onShowChange} />
+        </div>
+        <SegmentedControl label="Side" options={SIDE_OPTIONS} value={side} onChange={onSideChange} />
+        <FilterChecklistPopover label="Tag" options={tagOptions} selected={tags} onChange={onTagsChange} disabled={tagOptions.length === 0} />
+        <span className="text-[11px] text-muted">Filters apply to the list.</span>
       </div>
 
       {!page ? (
@@ -94,7 +130,8 @@ export const TransactionsList = memo(function TransactionsList({
                       <th className={TH}>Received</th>
                       <th className={TH}>Feed</th>
                       <th className={`${TH} text-right`}>Amount</th>
-                      <th className={TH}>Sender / reference</th>
+                      <th className={TH}>Sender</th>
+                      <th className={TH}>Bank reference</th>
                       <th className={TH}>Tag</th>
                       <th className={TH}>Knowledge base</th>
                       <th className={TH}>Out</th>
@@ -121,8 +158,10 @@ export const TransactionsList = memo(function TransactionsList({
                             {formatAmount(t.Amount, t.Side)}
                             <div className="text-[10px] text-muted">{t.CurrencyCode}</div>
                           </td>
-                          <td className={`${TD} min-w-48`}>
+                          <td className={`${TD} min-w-40`}>
                             <div className="text-heading truncate max-w-64" dir="auto">{t.Sender || DASH}</div>
+                          </td>
+                          <td className={`${TD} whitespace-nowrap`}>
                             <Tooltip content={t.Narrative || DASH}>
                               <span className="font-mono text-[11px] text-body-secondary">{t.BankReference || DASH}</span>
                             </Tooltip>

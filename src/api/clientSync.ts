@@ -27,6 +27,12 @@ export const WARNING_LEVELS: readonly WarningLevel[] = ['WARNING', 'INFO'];
 export type ItemFormat = 'json' | 'swift';
 const ITEM_FORMATS: readonly ItemFormat[] = ['json', 'swift'];
 
+/** The list's side filter; 'ALL' sends no Side. */
+export type ClientSyncSide = 'ALL' | 'CR' | 'DR';
+export const CLIENT_SYNC_SIDES: readonly ClientSyncSide[] = ['ALL', 'CR', 'DR'];
+/** The Tags value that keeps rows with no tag (backend contract). */
+export const UNTAGGED_TAG_FILTER = 'UNTAGGED';
+
 export function isClientSyncLayer(value: unknown): value is ClientSyncLayer {
   return typeof value === 'string' && (CLIENT_SYNC_LAYERS as readonly string[]).includes(value);
 }
@@ -50,6 +56,10 @@ export interface ClientSyncTransactionsRequest extends ClientSyncScope {
   Show: ClientSyncShow;
   /** Omitted from the body when blank. */
   Search?: string;
+  /** 'CR' or 'DR'; omitted from the body for both sides. Matched ignoring case. */
+  Side?: 'CR' | 'DR';
+  /** Published tag names, matching ANY; UNTAGGED_TAG_FILTER keeps untagged rows. Omitted from the body when empty. */
+  Tags?: string[];
   /** 1-based. */
   PageIndex: number;
   /** Default 100, maximum 2000. */
@@ -107,6 +117,10 @@ export interface ClientSyncTransaction {
   Tag: string; OpsTag: string; IsUntagged: boolean; IsDeadEnd: boolean; LayersDiffer: boolean;
   AttributeCount: number; MissingMandatoryAttributes: number;
   Kb: ClientSyncKbSummary; Out: ClientSyncOutSummary;
+  /** The published tag's attributes as extracted, in the rule's order; empty values included. */
+  Attributes: TraceAttribute[];
+  /** The knowledge base's answer as received (kb_* keys); empty when the row was never promoted. */
+  KbAttributes: KeyValue[];
 }
 export interface ClientSyncTransactionsPage {
   Transactions: ClientSyncTransaction[]; TotalCount: number; ShowCounts: KeyCount[]; PageIndex: number; PageSize: number;
@@ -195,6 +209,15 @@ function keyCounts(value: unknown): KeyCount[] {
 function keyValues(value: unknown): KeyValue[] {
   return recordArray(value).map((r) => ({ Key: stringOrEmpty(r.Key), Value: stringOrNull(r.Value) }));
 }
+function traceAttributes(value: unknown): TraceAttribute[] {
+  return recordArray(value).map((a) => ({
+    Key: stringOrEmpty(a.Key),
+    Value: stringOrNull(a.Value),
+    IsMandatory: boolOrFalse(a.IsMandatory),
+    // An attribute is valid unless the backend flags it.
+    IsValid: a.IsValid !== false,
+  }));
+}
 function itemFormat(value: unknown): ItemFormat | null {
   if (typeof value !== 'string') return null;
   const lower = value.toLowerCase();
@@ -251,6 +274,8 @@ export function normalizeTransaction(raw: unknown): ClientSyncTransaction {
     MissingMandatoryAttributes: numberOrZero(r.MissingMandatoryAttributes),
     Kb: normalizeKbSummary(r.Kb),
     Out: normalizeOutSummary(r.Out),
+    Attributes: traceAttributes(r.Attributes),
+    KbAttributes: keyValues(r.KbAttributes),
   };
 }
 
@@ -393,13 +418,7 @@ function normalizeTagState(raw: unknown): ClientSyncTagState {
     IsDeadEnd: boolOrFalse(r.IsDeadEnd),
     IsMultiTag: boolOrFalse(r.IsMultiTag),
     OtherTags: stringArray(r.OtherTags),
-    Attributes: recordArray(r.Attributes).map((a) => ({
-      Key: stringOrEmpty(a.Key),
-      Value: stringOrNull(a.Value),
-      IsMandatory: boolOrFalse(a.IsMandatory),
-      // An attribute is valid unless the backend flags it.
-      IsValid: a.IsValid !== false,
-    })),
+    Attributes: traceAttributes(r.Attributes),
   };
 }
 function normalizeKbState(raw: unknown): ClientSyncKbState {
@@ -473,6 +492,8 @@ export function toTransactionsBody(request: ClientSyncTransactionsRequest): Reco
     ...toSummaryBody(request),
     Show: request.Show,
     ...(search ? { Search: search } : {}),
+    ...(request.Side ? { Side: request.Side } : {}),
+    ...(request.Tags && request.Tags.length > 0 ? { Tags: [...request.Tags] } : {}),
     PageIndex: request.PageIndex,
     PageSize: request.PageSize,
   };
@@ -512,6 +533,45 @@ export async function getClientSyncTransactions(
   await throwIfNotOk(res, 'Failed to load the client sync transactions');
   const json: unknown = await res.json();
   return normalizeTransactionsPage(json, request);
+}
+
+/** Largest page the backend serves; the full-export walk uses it. */
+export const CLIENT_SYNC_EXPORT_PAGE_SIZE = 2000;
+
+/**
+ * Every row of the list query (scope, Show, Search, Side, Tags), walking the
+ * pages at the maximum size. Paging is skip/limit under a sort that is not a
+ * total order, so a row can come back on two pages; repeats are dropped by Id
+ * (first wins; rows without an Id are always kept).
+ */
+export async function getAllClientSyncTransactions(
+  request: ClientSyncTransactionsRequest,
+  authToken: string,
+  tepHeaders: TepHeaders,
+  signal?: AbortSignal,
+): Promise<ClientSyncTransaction[]> {
+  const pageSize = CLIENT_SYNC_EXPORT_PAGE_SIZE;
+  const rows: ClientSyncTransaction[] = [];
+  const seen = new Set<string>();
+  const ingest = (page: ClientSyncTransactionsPage) => {
+    for (const t of page.Transactions) {
+      if (t.Id) {
+        if (seen.has(t.Id)) continue;
+        seen.add(t.Id);
+      }
+      rows.push(t);
+    }
+  };
+  const first = await getClientSyncTransactions({ ...request, PageIndex: 1, PageSize: pageSize }, authToken, tepHeaders, signal);
+  ingest(first);
+  const pages = Math.ceil(first.TotalCount / pageSize);
+  for (let index = 2; index <= pages; index++) {
+    const page = await getClientSyncTransactions({ ...request, PageIndex: index, PageSize: pageSize }, authToken, tepHeaders, signal);
+    // An empty page means the set shrank since the count; stop rather than walk empty pages.
+    if (page.Transactions.length === 0) break;
+    ingest(page);
+  }
+  return rows;
 }
 
 export async function getClientSyncTrace(

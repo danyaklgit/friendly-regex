@@ -45,6 +45,7 @@ export function makeTransactionFixture(partial: Partial<ClientSyncTransaction> =
     Tag: 'IncomingTransfer', OpsTag: 'IncomingTransfer', IsUntagged: false, IsDeadEnd: false, LayersDiffer: false, AttributeCount: 3, MissingMandatoryAttributes: 0,
     Kb: { Status: 'Promoted', Certainty: 'Confirmed', CertaintyRank: 5, CustomerCode: 'C-100', CustomerNameEn: 'Al Faris Co' },
     Out: { Status: 'SENT', LastCallUtc: '2026-10-15T06:55:35Z', LastError: null, ReceiptToPushMs: 33000 },
+    Attributes: [], KbAttributes: [],
     ...partial,
   };
 }

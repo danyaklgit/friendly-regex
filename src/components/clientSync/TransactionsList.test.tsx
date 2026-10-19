@@ -6,8 +6,15 @@ import { TransactionsList } from './TransactionsList';
 import { makePageFixture, makeTransactionFixture } from '../../utils/clientSync/fixtures';
 import type { ClientSyncTransactionsPage } from '../../api/clientSync';
 
-function renderList(overrides: Partial<ComponentProps<typeof TransactionsList>> = {}) {
-  const props = {
+type ListProps = ComponentProps<typeof TransactionsList>;
+
+const TAG_OPTIONS = [
+  { value: 'UNTAGGED', label: 'Untagged', count: '15' },
+  { value: 'IncomingTransfer', label: 'IncomingTransfer', count: '120' },
+];
+
+function baseProps(overrides: Partial<ListProps> = {}) {
+  return {
     page: makePageFixture() as ClientSyncTransactionsPage | null,
     loading: false,
     error: null as string | null,
@@ -16,6 +23,11 @@ function renderList(overrides: Partial<ComponentProps<typeof TransactionsList>> 
     onShowChange: vi.fn(),
     search: '',
     onSearchChange: vi.fn(),
+    side: 'ALL' as const,
+    onSideChange: vi.fn(),
+    tags: [] as string[],
+    onTagsChange: vi.fn(),
+    tagOptions: TAG_OPTIONS,
     canLoadMore: false,
     onLoadMore: vi.fn(),
     selectedId: null as string | null,
@@ -24,7 +36,11 @@ function renderList(overrides: Partial<ComponentProps<typeof TransactionsList>> 
     withDate: false,
     onExport: vi.fn(),
     ...overrides,
-  };
+  } satisfies ListProps;
+}
+
+function renderList(overrides: Partial<ListProps> = {}) {
+  const props = baseProps(overrides);
   render(<TransactionsList {...props} />);
   return props;
 }
@@ -129,19 +145,62 @@ describe('TransactionsList', () => {
   });
 
   it('shows the empty state for zero rows, a skeleton before the first page, the error card above stale rows, and dims while loading', () => {
-    const { unmount } = render(<TransactionsList page={makePageFixture([])} loading={false} error={null} onRetry={() => {}} show="ALL" onShowChange={() => {}} search="" onSearchChange={() => {}} canLoadMore={false} onLoadMore={() => {}} selectedId={null} onSelect={() => {}} showIban={false} withDate={false} onExport={() => {}} />);
+    const { unmount } = render(<TransactionsList {...baseProps({ page: makePageFixture([]) })} />);
     expect(screen.getByText('Nothing received for these accounts on these days.')).not.toBeNull();
     expect((screen.getByRole('button', { name: 'Export CSV' }) as HTMLButtonElement).disabled).toBe(true);
     unmount();
 
-    const second = render(<TransactionsList page={null} loading error={null} onRetry={() => {}} show="ALL" onShowChange={() => {}} search="" onSearchChange={() => {}} canLoadMore={false} onLoadMore={() => {}} selectedId={null} onSelect={() => {}} showIban={false} withDate={false} onExport={() => {}} />);
+    const second = render(<TransactionsList {...baseProps({ page: null, loading: true })} />);
     expect(screen.getByRole('status', { name: 'Loading transactions' })).not.toBeNull();
     second.unmount();
 
-    const onRetry = vi.fn();
-    render(<TransactionsList page={makePageFixture()} loading error="SFM_INVALID_INPUT_PARAMETERS" onRetry={onRetry} show="ALL" onShowChange={() => {}} search="" onSearchChange={() => {}} canLoadMore={false} onLoadMore={() => {}} selectedId={null} onSelect={() => {}} showIban={false} withDate={false} onExport={() => {}} />);
+    render(<TransactionsList {...baseProps({ loading: true, error: 'SFM_INVALID_INPUT_PARAMETERS' })} />);
     expect(screen.getByRole('alert').textContent).toContain('SFM_INVALID_INPUT_PARAMETERS');
     expect(screen.getByRole('row', { name: 'Transaction FT26288H51MC' })).not.toBeNull();
     expect(screen.getByTestId('transactions-frame').className).toContain('opacity-60');
+  });
+
+  it('shows the Side segments and the Tag picker with their counts, captioned as list-only filters', async () => {
+    const user = userEvent.setup();
+    const props = renderList();
+    expect(screen.getByText('Filters apply to the list.')).not.toBeNull();
+    const sideGroup = within(screen.getByRole('radiogroup', { name: 'Side' }));
+    expect(sideGroup.getAllByRole('radio').map((r) => r.textContent)).toEqual(['All', 'CR', 'DR']);
+    expect(sideGroup.getByRole('radio', { name: 'All' }).getAttribute('aria-checked')).toBe('true');
+    await user.click(sideGroup.getByRole('radio', { name: 'DR' }));
+    expect(props.onSideChange).toHaveBeenCalledWith('DR');
+
+    await user.click(screen.getByRole('button', { name: /^Tag: All/ }));
+    const picker = within(await screen.findByRole('dialog', { name: 'Tag' }));
+    expect(picker.getByText('120')).not.toBeNull();
+    await user.click(picker.getByRole('checkbox', { name: /IncomingTransfer/ }));
+    expect(props.onTagsChange).toHaveBeenCalledWith(['IncomingTransfer']);
+  });
+
+  it('names the selected tag on the trigger without its count, and disables the picker until the summary supplies choices', () => {
+    const { unmount } = render(<TransactionsList {...baseProps({ tags: ['IncomingTransfer'] })} />);
+    expect(screen.getByRole('button', { name: /^Tag: IncomingTransfer$/ })).not.toBeNull();
+    unmount();
+    render(<TransactionsList {...baseProps({ tagOptions: [] })} />);
+    expect((screen.getByRole('button', { name: /^Tag: All/ }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('shows Sender and Bank reference as two columns', () => {
+    renderList();
+    expect(screen.getByRole('columnheader', { name: 'Sender' })).not.toBeNull();
+    expect(screen.getByRole('columnheader', { name: 'Bank reference' })).not.toBeNull();
+    expect(screen.queryByRole('columnheader', { name: 'Sender / reference' })).toBeNull();
+    const cells = within(screen.getByRole('row', { name: 'Transaction FT26288H51MC' })).getAllByRole('cell');
+    const senderIndex = cells.findIndex((c) => c.textContent === 'AL FARIS CO');
+    expect(senderIndex).toBeGreaterThan(-1);
+    expect(cells[senderIndex + 1].textContent).toBe('FT26288H51MC');
+  });
+
+  it('disables the export button while exporting and reports an export failure', () => {
+    const { unmount } = render(<TransactionsList {...baseProps({ exporting: true })} />);
+    expect((screen.getByRole('button', { name: 'Exporting…' }) as HTMLButtonElement).disabled).toBe(true);
+    unmount();
+    render(<TransactionsList {...baseProps({ exportError: 'HTTP 500' })} />);
+    expect(screen.getByRole('alert').textContent).toBe('Export failed: HTTP 500');
   });
 });

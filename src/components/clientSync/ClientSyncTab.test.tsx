@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
+import { render, screen, act, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { TepHeaders } from '../../api/transactions';
 import { CLIENT_SYNC_CONTROLS_STORAGE_KEY, DEFAULT_CLIENT_SYNC_CONTROLS } from '../../utils/clientSync/scope';
@@ -7,7 +7,11 @@ import { makeSummaryFixture, makePageFixture, makeTransactionFixture, makeTraceF
 
 const hooks = vi.hoisted(() => ({
   useVipClients: vi.fn(), useClientSyncSummary: vi.fn(), useClientSyncTransactions: vi.fn(), useClientSyncTrace: vi.fn(),
-  useAutoRefresh: vi.fn(), downloadClientSyncCsv: vi.fn(),
+  useAutoRefresh: vi.fn(), downloadClientSyncCsv: vi.fn(), getAllClientSyncTransactions: vi.fn(),
+}));
+vi.mock('../../api/clientSync', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../api/clientSync')>()),
+  getAllClientSyncTransactions: hooks.getAllClientSyncTransactions,
 }));
 vi.mock('../../hooks/useVipClients', () => ({ useVipClients: hooks.useVipClients }));
 vi.mock('../../hooks/useClientSync', () => ({
@@ -49,6 +53,7 @@ describe('ClientSyncTab', () => {
     hooks.useClientSyncTrace.mockReset().mockReturnValue({ report: null, loading: false, error: null, refetch: vi.fn() });
     hooks.useAutoRefresh.mockReset();
     hooks.downloadClientSyncCsv.mockReset();
+    hooks.getAllClientSyncTransactions.mockReset();
     summaryState.refetch.mockClear();
     listState.refetch.mockClear();
     Element.prototype.scrollIntoView = vi.fn();
@@ -212,12 +217,76 @@ describe('ClientSyncTab', () => {
     expect(JSON.parse(localStorage.getItem(CLIENT_SYNC_CONTROLS_STORAGE_KEY) ?? '{}')).toMatchObject({ orgId: 'ORG-1', ibans: ['SA4420000001234567891234'] });
   });
 
-  it('exports the loaded rows for the client and range', async () => {
+  it('exports the loaded rows directly when every matching row is already loaded', async () => {
     const user = userEvent.setup();
     storeControls({ orgId: 'ORG-1', mode: 'range', from: '2026-10-01', to: '2026-10-10' });
+    const loaded = makePageFixture([makeTransactionFixture()], { TotalCount: 1 });
+    hooks.useClientSyncTransactions.mockReturnValue({ ...listState, report: loaded });
     render(<ClientSyncTab authToken="tok" tepHeaders={HEADERS} />);
     await user.click(screen.getByRole('button', { name: 'Export CSV' }));
-    expect(hooks.downloadClientSyncCsv).toHaveBeenCalledWith(listState.report.Transactions, 'ORG-1', '2026-10-01', '2026-10-10');
+    expect(hooks.getAllClientSyncTransactions).not.toHaveBeenCalled();
+    expect(hooks.downloadClientSyncCsv).toHaveBeenCalledWith(loaded.Transactions, 'ORG-1', '2026-10-01', '2026-10-10');
+  });
+
+  it('fetches every page of the same filtered query before exporting when more rows match than are loaded', async () => {
+    const user = userEvent.setup();
+    storeControls({ orgId: 'ORG-1', mode: 'range', from: '2026-10-01', to: '2026-10-10' });
+    const all = [makeTransactionFixture(), makeTransactionFixture({ Id: 'tx-2', BankReference: 'REF-2' })];
+    hooks.getAllClientSyncTransactions.mockResolvedValue(all);
+    render(<ClientSyncTab authToken="tok" tepHeaders={HEADERS} />);
+    await user.click(within(screen.getByRole('radiogroup', { name: 'Side' })).getByRole('radio', { name: 'CR' }));
+    await user.click(screen.getByRole('button', { name: 'Export CSV' }));
+    expect(hooks.getAllClientSyncTransactions).toHaveBeenCalledTimes(1);
+    expect(hooks.getAllClientSyncTransactions.mock.lastCall?.[0]).toMatchObject({ OrgId: 'ORG-1', Side: 'CR', Show: 'ALL' });
+    expect(hooks.getAllClientSyncTransactions.mock.lastCall?.[1]).toBe('tok');
+    await waitFor(() => expect(hooks.downloadClientSyncCsv).toHaveBeenCalledWith(all, 'ORG-1', '2026-10-01', '2026-10-10'));
+  });
+
+  it('reports a failed full export and keeps the button usable', async () => {
+    const user = userEvent.setup();
+    storeControls({ orgId: 'ORG-1' });
+    hooks.getAllClientSyncTransactions.mockRejectedValue(new Error('Failed to load the client sync transactions'));
+    render(<ClientSyncTab authToken="tok" tepHeaders={HEADERS} />);
+    await user.click(screen.getByRole('button', { name: 'Export CSV' }));
+    expect(await screen.findByText('Export failed: Failed to load the client sync transactions')).not.toBeNull();
+    expect(hooks.downloadClientSyncCsv).not.toHaveBeenCalled();
+    expect((screen.getByRole('button', { name: 'Export CSV' }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('side and tag filters reach the request and reset the window; a scope change clears them', async () => {
+    const user = userEvent.setup();
+    storeControls({ orgId: 'ORG-1' });
+    render(<ClientSyncTab authToken="tok" tepHeaders={HEADERS} />);
+    await user.click(screen.getByRole('button', { name: '+50' }));
+    expect(lastListRequest()).toMatchObject({ PageSize: 150 });
+    await user.click(within(screen.getByRole('radiogroup', { name: 'Side' })).getByRole('radio', { name: 'DR' }));
+    expect(lastListRequest()).toMatchObject({ Side: 'DR', PageSize: 100 });
+
+    await user.click(screen.getByRole('button', { name: '+50' }));
+    await user.click(screen.getByRole('button', { name: /^Tag: All/ }));
+    const picker = within(await screen.findByRole('dialog', { name: 'Tag' }));
+    await user.click(picker.getByRole('checkbox', { name: /Untagged/ }));
+    await user.click(picker.getByRole('checkbox', { name: /IncomingTransfer/ }));
+    expect(lastListRequest()).toMatchObject({ Side: 'DR', Tags: ['UNTAGGED', 'IncomingTransfer'], PageSize: 100 });
+    await user.keyboard('{Escape}');
+
+    await user.click(screen.getByRole('radio', { name: 'Intraday' }));
+    expect(lastListRequest()).toMatchObject({ Layer: 'INTRADAY' });
+    expect(lastListRequest()?.Side).toBeUndefined();
+    expect(lastListRequest()?.Tags).toBeUndefined();
+  });
+
+  it('offers Untagged plus every published tag from the summary as tag choices, with their counts', async () => {
+    const user = userEvent.setup();
+    storeControls({ orgId: 'ORG-1' });
+    hooks.useClientSyncSummary.mockReturnValue({
+      ...summaryState,
+      report: makeSummaryFixture({ Tagging: { ...makeSummaryFixture().Tagging, Untagged: 15, ByTag: [{ Key: 'IncomingTransfer', Count: 1200 }, { Key: 'BillPayment', Count: 40 }] } }),
+    });
+    render(<ClientSyncTab authToken="tok" tepHeaders={HEADERS} />);
+    await user.click(screen.getByRole('button', { name: /^Tag: All/ }));
+    const boxes = within(await screen.findByRole('dialog', { name: 'Tag' })).getAllByRole('checkbox');
+    expect(boxes.map((b) => b.closest('label')?.textContent)).toEqual(['Untagged15', 'IncomingTransfer1,200', 'BillPayment40']);
   });
 
   it('shows the summary error card above stale content', async () => {
