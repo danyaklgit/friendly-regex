@@ -220,26 +220,26 @@ describe('ClientSyncTab', () => {
   it('exports the loaded rows directly when every matching row is already loaded', async () => {
     const user = userEvent.setup();
     storeControls({ orgId: 'ORG-1', mode: 'range', from: '2026-10-01', to: '2026-10-10' });
-    const loaded = makePageFixture([makeTransactionFixture()], { TotalCount: 1 });
+    const loaded = makePageFixture([makeTransactionFixture()], { TotalCount: 1, AttributeColumns: ['SenderBank', 'kb_outlet_customer_code'] });
     hooks.useClientSyncTransactions.mockReturnValue({ ...listState, report: loaded });
     render(<ClientSyncTab authToken="tok" tepHeaders={HEADERS} />);
     await user.click(screen.getByRole('button', { name: 'Export CSV' }));
     expect(hooks.getAllClientSyncTransactions).not.toHaveBeenCalled();
-    expect(hooks.downloadClientSyncCsv).toHaveBeenCalledWith(loaded.Transactions, 'ORG-1', '2026-10-01', '2026-10-10');
+    expect(hooks.downloadClientSyncCsv).toHaveBeenCalledWith(loaded.Transactions, ['SenderBank', 'kb_outlet_customer_code'], 'ORG-1', '2026-10-01', '2026-10-10');
   });
 
   it('fetches every page of the same filtered query before exporting when more rows match than are loaded', async () => {
     const user = userEvent.setup();
     storeControls({ orgId: 'ORG-1', mode: 'range', from: '2026-10-01', to: '2026-10-10' });
     const all = [makeTransactionFixture(), makeTransactionFixture({ Id: 'tx-2', BankReference: 'REF-2' })];
-    hooks.getAllClientSyncTransactions.mockResolvedValue(all);
+    hooks.getAllClientSyncTransactions.mockResolvedValue({ rows: all, attributeColumns: ['SenderBank'] });
     render(<ClientSyncTab authToken="tok" tepHeaders={HEADERS} />);
     await user.click(within(screen.getByRole('radiogroup', { name: 'Side' })).getByRole('radio', { name: 'CR' }));
     await user.click(screen.getByRole('button', { name: 'Export CSV' }));
     expect(hooks.getAllClientSyncTransactions).toHaveBeenCalledTimes(1);
     expect(hooks.getAllClientSyncTransactions.mock.lastCall?.[0]).toMatchObject({ OrgId: 'ORG-1', Side: 'CR', Show: 'ALL' });
     expect(hooks.getAllClientSyncTransactions.mock.lastCall?.[1]).toBe('tok');
-    await waitFor(() => expect(hooks.downloadClientSyncCsv).toHaveBeenCalledWith(all, 'ORG-1', '2026-10-01', '2026-10-10'));
+    await waitFor(() => expect(hooks.downloadClientSyncCsv).toHaveBeenCalledWith(all, ['SenderBank'], 'ORG-1', '2026-10-01', '2026-10-10'));
   });
 
   it('reports a failed full export and keeps the button usable', async () => {
@@ -274,6 +274,55 @@ describe('ClientSyncTab', () => {
     expect(lastListRequest()).toMatchObject({ Layer: 'INTRADAY' });
     expect(lastListRequest()?.Side).toBeUndefined();
     expect(lastListRequest()?.Tags).toBeUndefined();
+  });
+
+  it('customer type and certainty filters send KbCustomerTypes and KbCertaintyRanks, reset the window, and clear on a scope change', async () => {
+    const user = userEvent.setup();
+    storeControls({ orgId: 'ORG-1' });
+    const base = makeSummaryFixture();
+    hooks.useClientSyncSummary.mockReturnValue({
+      ...summaryState,
+      report: makeSummaryFixture({ KnowledgeBase: { ...base.KnowledgeBase, ByCustomerType: [{ Key: 'TC', Count: 812 }, { Key: 'CC', Count: 95 }] } }),
+    });
+    render(<ClientSyncTab authToken="tok" tepHeaders={HEADERS} />);
+    await user.click(screen.getByRole('button', { name: '+50' }));
+    await user.click(screen.getByRole('button', { name: /^Customer type: All/ }));
+    await user.click(within(await screen.findByRole('dialog', { name: 'Customer type' })).getByRole('checkbox', { name: /TC/ }));
+    await user.keyboard('{Escape}');
+    expect(lastListRequest()).toMatchObject({ KbCustomerTypes: ['TC'], PageSize: 100 });
+
+    await user.click(screen.getByRole('button', { name: '+50' }));
+    await user.click(screen.getByRole('button', { name: /^Certainty: All/ }));
+    const certainty = within(await screen.findByRole('dialog', { name: 'Certainty' }));
+    // The fixture lists Likely (rank 3) before Confirmed (rank 5); the request carries ranks as numbers.
+    await user.click(certainty.getByRole('checkbox', { name: /Confirmed/ }));
+    await user.click(certainty.getByRole('checkbox', { name: /Likely/ }));
+    await user.keyboard('{Escape}');
+    expect(lastListRequest()).toMatchObject({ KbCustomerTypes: ['TC'], KbCertaintyRanks: [3, 5], PageSize: 100 });
+
+    await user.click(screen.getByRole('radio', { name: 'Intraday' }));
+    expect(lastListRequest()?.KbCustomerTypes).toBeUndefined();
+    expect(lastListRequest()?.KbCertaintyRanks).toBeUndefined();
+  });
+
+  it('hides the Customer type filter when the summary lists no types, and merges certainty entries that share a rank', async () => {
+    const user = userEvent.setup();
+    storeControls({ orgId: 'ORG-1' });
+    const base = makeSummaryFixture();
+    hooks.useClientSyncSummary.mockReturnValue({
+      ...summaryState,
+      report: makeSummaryFixture({ KnowledgeBase: { ...base.KnowledgeBase, ByCustomerType: [], ByCertainty: [
+        { Rank: 5, Label: 'VERY STRONG', Count: 30, ReceivedAs: ['VERY STRONG'] },
+        { Rank: 0, Label: 'ODD', Count: 2, ReceivedAs: ['ODD'] },
+        { Rank: 0, Label: 'WEIRD', Count: 1, ReceivedAs: ['WEIRD'] },
+      ] } }),
+    });
+    render(<ClientSyncTab authToken="tok" tepHeaders={HEADERS} />);
+    expect(screen.queryByRole('button', { name: /^Customer type/ })).toBeNull();
+    await user.click(screen.getByRole('button', { name: /^Certainty: All/ }));
+    const boxes = within(await screen.findByRole('dialog', { name: 'Certainty' })).getAllByRole('checkbox');
+    expect(boxes.map((b) => b.closest('label')?.textContent)).toEqual(['VERY STRONG30', 'ODD / WEIRD3']);
+    expect(boxes[1].closest('label')?.getAttribute('title')).toBe('Received as ODD, WEIRD');
   });
 
   it('offers Untagged plus every published tag from the summary as tag choices, with their counts', async () => {

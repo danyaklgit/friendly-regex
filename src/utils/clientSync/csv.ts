@@ -3,14 +3,16 @@ import { toCsv, downloadCsv } from '../exportCsv';
 import { formatLocalTime } from './format';
 
 /**
- * Client Sync list export (spec 7.5, attribute columns per
- * UI_ClientSync_FiltersAndExport section 3). Times carry their date so the
- * file is unambiguous. After the fixed columns come one column per attribute
- * key seen across the exported rows: the published tag's attributes, then the
- * knowledge base's kb_* keys, each group sorted with localeCompare. A key
- * equal to a fixed header (case-insensitively) is suffixed " (attribute)"; a
- * knowledge-base key equal to a tag-attribute key is suffixed
- * " (knowledge base)" so no two columns share a header.
+ * Client Sync list export (spec 7.5; UI_ClientSync_CertaintyAndExportOrder
+ * sections 2 and 3). Times carry their date so the file is unambiguous.
+ *
+ * After the fixed columns come the attribute columns in BwaTech's order: the
+ * page's AttributeColumns (tag attributes, then kb_* of the best customer,
+ * then every _2 key, every _3 key, ...), each cell read from the row's
+ * WireAttributes, so a row's non-empty cells follow "What BwaTech holds now".
+ * A key equal to a fixed header (case-insensitively) is suffixed
+ * " (attribute)". Finally every column, fixed ones included, whose cells are
+ * blank on every exported row is dropped, header and all.
  */
 
 export const CLIENT_SYNC_CSV_FIXED_HEADERS = [
@@ -20,24 +22,13 @@ export const CLIENT_SYNC_CSV_FIXED_HEADERS = [
 
 type Cell = string | number | null;
 
-interface KeyedValue { Key: string; Value: string | null }
-
 export interface ClientSyncCsvTable {
   headers: string[];
   rows: Cell[][];
 }
 
-function sortedKeys(rows: readonly ClientSyncTransaction[], pick: (t: ClientSyncTransaction) => readonly KeyedValue[]): string[] {
-  const keys = new Set<string>();
-  for (const t of rows) for (const a of pick(t)) if (a.Key) keys.add(a.Key);
-  return [...keys].sort((a, b) => a.localeCompare(b));
-}
-
-/** First occurrence of each key wins; a null value reads as blank. */
-function valuesByKey(list: readonly KeyedValue[]): Map<string, string> {
-  const map = new Map<string, string>();
-  for (const a of list) if (a.Key && !map.has(a.Key)) map.set(a.Key, a.Value ?? '');
-  return map;
+function isBlank(cell: Cell): boolean {
+  return cell === null || String(cell).trim() === '';
 }
 
 function fixedCells(t: ClientSyncTransaction, timeZone?: string): Cell[] {
@@ -60,32 +51,55 @@ function fixedCells(t: ClientSyncTransaction, timeZone?: string): Cell[] {
   ];
 }
 
-export function buildClientSyncCsvTable(rows: readonly ClientSyncTransaction[], timeZone?: string): ClientSyncCsvTable {
-  const tagKeys = sortedKeys(rows, (t) => t.Attributes);
-  const kbKeys = sortedKeys(rows, (t) => t.KbAttributes);
-  const fixed = new Set(CLIENT_SYNC_CSV_FIXED_HEADERS.map((h) => h.toLowerCase()));
-  const tagSet = new Set(tagKeys.map((k) => k.toLowerCase()));
-  const headers = [
-    ...CLIENT_SYNC_CSV_FIXED_HEADERS,
-    ...tagKeys.map((k) => (fixed.has(k.toLowerCase()) ? `${k} (attribute)` : k)),
-    ...kbKeys.map((k) => (fixed.has(k.toLowerCase()) ? `${k} (attribute)` : tagSet.has(k.toLowerCase()) ? `${k} (knowledge base)` : k)),
-  ];
+/** The given column order, de-duplicated; without one (older backend), the keys' first-seen order on the wire. */
+function attributeKeys(rows: readonly ClientSyncTransaction[], attributeColumns: readonly string[]): string[] {
+  const keys = new Set<string>();
+  if (attributeColumns.length > 0) {
+    for (const k of attributeColumns) if (k) keys.add(k);
+  } else {
+    for (const t of rows) for (const a of t.WireAttributes) if (a.Key) keys.add(a.Key);
+  }
+  return [...keys];
+}
+
+/** First occurrence of each key wins; a null value reads as blank. */
+function wireValues(t: ClientSyncTransaction): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const a of t.WireAttributes) if (a.Key && !map.has(a.Key)) map.set(a.Key, a.Value ?? '');
+  return map;
+}
+
+/** Drops every column whose cells are all blank. With no rows there is nothing to judge, so the headers stay. */
+function dropEmptyColumns(table: ClientSyncCsvTable): ClientSyncCsvTable {
+  if (table.rows.length === 0) return table;
+  const keep = table.headers.map((_, i) => table.rows.some((row) => !isBlank(row[i])));
   return {
-    headers,
-    rows: rows.map((t) => {
-      const tagValues = valuesByKey(t.Attributes);
-      const kbValues = valuesByKey(t.KbAttributes);
-      return [
-        ...fixedCells(t, timeZone),
-        ...tagKeys.map((k) => tagValues.get(k) ?? ''),
-        ...kbKeys.map((k) => kbValues.get(k) ?? ''),
-      ];
-    }),
+    headers: table.headers.filter((_, i) => keep[i]),
+    rows: table.rows.map((row) => row.filter((_, i) => keep[i])),
   };
 }
 
-export function buildClientSyncCsv(rows: readonly ClientSyncTransaction[], timeZone?: string): string {
-  const table = buildClientSyncCsvTable(rows, timeZone);
+export function buildClientSyncCsvTable(
+  rows: readonly ClientSyncTransaction[],
+  attributeColumns: readonly string[],
+  timeZone?: string,
+): ClientSyncCsvTable {
+  const keys = attributeKeys(rows, attributeColumns);
+  const fixed = new Set(CLIENT_SYNC_CSV_FIXED_HEADERS.map((h) => h.toLowerCase()));
+  return dropEmptyColumns({
+    headers: [
+      ...CLIENT_SYNC_CSV_FIXED_HEADERS,
+      ...keys.map((k) => (fixed.has(k.toLowerCase()) ? `${k} (attribute)` : k)),
+    ],
+    rows: rows.map((t) => {
+      const values = wireValues(t);
+      return [...fixedCells(t, timeZone), ...keys.map((k) => values.get(k) ?? '')];
+    }),
+  });
+}
+
+export function buildClientSyncCsv(rows: readonly ClientSyncTransaction[], attributeColumns: readonly string[], timeZone?: string): string {
+  const table = buildClientSyncCsvTable(rows, attributeColumns, timeZone);
   return toCsv(table.headers, table.rows);
 }
 
@@ -95,7 +109,13 @@ export function clientSyncCsvFileName(orgId: string, from: string, to: string): 
 }
 
 /** Downloads with a UTF-8 BOM (downloadCsv) so Excel opens Arabic values correctly. */
-export function downloadClientSyncCsv(rows: readonly ClientSyncTransaction[], orgId: string, from: string, to: string): void {
-  const table = buildClientSyncCsvTable(rows);
+export function downloadClientSyncCsv(
+  rows: readonly ClientSyncTransaction[],
+  attributeColumns: readonly string[],
+  orgId: string,
+  from: string,
+  to: string,
+): void {
+  const table = buildClientSyncCsvTable(rows, attributeColumns);
   downloadCsv(clientSyncCsvFileName(orgId, from, to), table.headers, table.rows);
 }

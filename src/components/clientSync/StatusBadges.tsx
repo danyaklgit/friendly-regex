@@ -51,6 +51,16 @@ export function CertaintyPill({ certainty, rank }: { certainty: string; rank: nu
   return <ToneBadge tone={certaintyTone(rank)} label={certainty} />;
 }
 
+/** kb_customer_type (TC / CC). Nothing when null: an unrecorded customer's type lives in another key. */
+export function KbCustomerTypeChip({ type }: { type: string | null }) {
+  if (!type) return null;
+  return (
+    <Badge variant="gray" size="xs">
+      <span title="Knowledge-base customer type (kb_customer_type)">{type}</span>
+    </Badge>
+  );
+}
+
 export function AccountStateBadge({ state }: { state: AccountState }) {
   const d = accountStateDisplay(state);
   return <ToneBadge tone={d.tone} label={d.label} />;

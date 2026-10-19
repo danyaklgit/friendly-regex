@@ -3,64 +3,80 @@ import { CLIENT_SYNC_CSV_FIXED_HEADERS, buildClientSyncCsv, buildClientSyncCsvTa
 import { makeTransactionFixture } from './fixtures';
 
 const FIXED_ROW = ['2026-10-15 06:55:02', 'INTERIM_TransactionsList', 'CR', '12500.00', 'SAR', 'AL FARIS CO', 'FT26288H51MC', 'IncomingTransfer', 'Promoted', 'Confirmed', 'C-100', 'SENT', '2026-10-15 06:55:35', 'SA0380000000608010167519', 'STMT-1'];
-const attr = (Key: string, Value: string | null) => ({ Key, Value, IsMandatory: false, IsValid: true });
+const kv = (Key: string, Value: string | null) => ({ Key, Value });
+const NO_KB = { Status: 'NotEligible' as const, Certainty: '', CertaintyRank: 0, CustomerCode: null, CustomerNameEn: null, KbCustomerType: null };
+const NO_OUT = { Status: 'NEVER' as const, LastCallUtc: null, LastError: null, ReceiptToPushMs: null };
 
 describe('client sync CSV', () => {
-  it('writes the fifteen fixed columns in order, with no attribute-count column', () => {
+  it('writes the fifteen fixed columns in order when each has data', () => {
     expect(CLIENT_SYNC_CSV_FIXED_HEADERS).toEqual(['Received', 'Feed', 'Side', 'Amount', 'Currency', 'Sender', 'Bank reference', 'Tag', 'KB status', 'KB certainty', 'KB customer', 'Out status', 'Out last call', 'IBAN', 'Statement']);
-    const table = buildClientSyncCsvTable([makeTransactionFixture()], 'UTC');
+    const table = buildClientSyncCsvTable([makeTransactionFixture()], [], 'UTC');
     expect(table.headers).toEqual(CLIENT_SYNC_CSV_FIXED_HEADERS);
     expect(table.rows).toEqual([FIXED_ROW]);
   });
 
-  it('adds one column per key seen across rows: tag attributes then kb_* keys, each sorted with localeCompare, blanks where a row lacks the key', () => {
+  it('follows AttributeColumns exactly (tag attributes, then kb_* by alternative) and reads every cell from WireAttributes', () => {
+    const columns = ['SenderAccountNumber', 'SenderBank', 'kb_outlet_customer_code', 'kb_allocation_certainty', 'kb_outlet_customer_code_2', 'kb_allocation_certainty_2'];
     const table = buildClientSyncCsvTable([
       makeTransactionFixture({
-        Attributes: [attr('SenderName', 'AL FARIS CO'), attr('FXRate', '3.75'), attr('SenderAccountNumber', null)],
-        KbAttributes: [{ Key: 'kb_outlet_customer_code', Value: 'C-100' }, { Key: 'kb_allocation_certainty', Value: 'CONFIRMED' }],
+        // Attributes / KbAttributes are deliberately different: the export must ignore them.
+        Attributes: [{ Key: 'SenderBank', Value: 'IGNORED', IsMandatory: false, IsValid: true }],
+        KbAttributes: [kv('kb_outlet_customer_code', 'IGNORED')],
+        WireAttributes: [kv('SenderAccountNumber', '6080101'), kv('SenderBank', 'RJHI'), kv('kb_outlet_customer_code', '17600310125'), kv('kb_allocation_certainty', 'VERY STRONG'), kv('kb_outlet_customer_code_2', '17600310999'), kv('kb_allocation_certainty_2', 'WEAK')],
       }),
-      makeTransactionFixture({
-        Id: 'tx-2',
-        Attributes: [attr('FinanceInstrument', 'SARIE')],
-        KbAttributes: [{ Key: 'kb_displayed_customer_name_ar', Value: 'شركة الفارس' }],
-      }),
-    ], 'UTC');
-    expect(table.headers.slice(CLIENT_SYNC_CSV_FIXED_HEADERS.length)).toEqual([
-      'FinanceInstrument', 'FXRate', 'SenderAccountNumber', 'SenderName',
-      'kb_allocation_certainty', 'kb_displayed_customer_name_ar', 'kb_outlet_customer_code',
-    ]);
-    expect(table.rows[0].slice(FIXED_ROW.length)).toEqual(['', '3.75', '', 'AL FARIS CO', 'CONFIRMED', '', 'C-100']);
-    expect(table.rows[1].slice(FIXED_ROW.length)).toEqual(['SARIE', '', '', '', '', 'شركة الفارس', '']);
+      makeTransactionFixture({ Id: 'tx-2', WireAttributes: [kv('SenderBank', 'SNB'), kv('kb_allocation_certainty', 'MODERATE')] }),
+    ], columns, 'UTC');
+    expect(table.headers.slice(CLIENT_SYNC_CSV_FIXED_HEADERS.length)).toEqual(columns);
+    expect(table.rows[0].slice(FIXED_ROW.length)).toEqual(['6080101', 'RJHI', '17600310125', 'VERY STRONG', '17600310999', 'WEAK']);
+    expect(table.rows[1].slice(FIXED_ROW.length)).toEqual(['', 'SNB', '', 'MODERATE', '', '']);
   });
 
-  it('suffixes keys that clash with a fixed header or with a tag-attribute key, so headers stay unique', () => {
+  it('drops every column, fixed or attribute, that is blank on every exported row', () => {
     const table = buildClientSyncCsvTable([
-      makeTransactionFixture({
-        Attributes: [attr('side', 'X'), attr('Shared', 'from tag')],
-        KbAttributes: [{ Key: 'Tag', Value: 'Y' }, { Key: 'Shared', Value: 'from kb' }],
-      }),
-    ], 'UTC');
-    const extra = table.headers.slice(CLIENT_SYNC_CSV_FIXED_HEADERS.length);
-    expect(extra).toEqual(['Shared', 'side (attribute)', 'Shared (knowledge base)', 'Tag (attribute)']);
-    expect(new Set(table.headers).size).toBe(table.headers.length);
-    expect(table.rows[0].slice(FIXED_ROW.length)).toEqual(['from tag', 'X', 'from kb', 'Y']);
+      makeTransactionFixture({ IBAN: '', Kb: { ...NO_KB, Status: 'Pending' }, Out: NO_OUT, WireAttributes: [kv('SenderName', 'AL FARIS CO'), kv('Invoice', '   ')] }),
+      makeTransactionFixture({ Id: 'tx-2', IBAN: '  ', Kb: NO_KB, Out: NO_OUT, WireAttributes: [kv('Invoice', null)] }),
+    ], ['SenderName', 'Invoice', 'kb_customer_type'], 'UTC');
+    expect(table.headers).toEqual(['Received', 'Feed', 'Side', 'Amount', 'Currency', 'Sender', 'Bank reference', 'Tag', 'KB status', 'Out status', 'Statement', 'SenderName']);
+    expect(table.rows[0]).toEqual(['2026-10-15 06:55:02', 'INTERIM_TransactionsList', 'CR', '12500.00', 'SAR', 'AL FARIS CO', 'FT26288H51MC', 'IncomingTransfer', 'Pending', 'NEVER', 'STMT-1', 'AL FARIS CO']);
+    expect(table.rows[1][table.rows[1].length - 1]).toBe('');
   });
 
-  it('takes the first value when a row repeats a key, and ignores attributes without a key', () => {
+  it('keeps a column when only one row has data in it', () => {
     const table = buildClientSyncCsvTable([
-      makeTransactionFixture({ Attributes: [attr('SenderName', 'FIRST'), attr('SenderName', 'SECOND'), attr('', 'orphan')] }),
-    ], 'UTC');
-    expect(table.headers.slice(CLIENT_SYNC_CSV_FIXED_HEADERS.length)).toEqual(['SenderName']);
-    expect(table.rows[0].slice(FIXED_ROW.length)).toEqual(['FIRST']);
+      makeTransactionFixture({ Kb: NO_KB }),
+      makeTransactionFixture({ Id: 'tx-2' }),
+    ], [], 'UTC');
+    expect(table.headers).toContain('KB customer');
+    expect(table.rows.map((r) => r[table.headers.indexOf('KB customer')])).toEqual(['', 'C-100']);
   });
 
-  it('quotes commas and doubles quotes, writes Untagged for untagged rows, and empties for null times and customers', () => {
+  it('falls back to the first-seen wire order when the response carries no AttributeColumns', () => {
+    const table = buildClientSyncCsvTable([
+      makeTransactionFixture({ WireAttributes: [kv('SenderBank', 'RJHI'), kv('kb_outlet_customer_code', 'C-1')] }),
+      makeTransactionFixture({ Id: 'tx-2', WireAttributes: [kv('SenderAccountNumber', '608'), kv('SenderBank', 'SNB')] }),
+    ], [], 'UTC');
+    expect(table.headers.slice(CLIENT_SYNC_CSV_FIXED_HEADERS.length)).toEqual(['SenderBank', 'kb_outlet_customer_code', 'SenderAccountNumber']);
+  });
+
+  it('suffixes an attribute key that clashes with a fixed header, and takes the first value of a repeated key', () => {
+    const table = buildClientSyncCsvTable([
+      makeTransactionFixture({ WireAttributes: [kv('side', 'X'), kv('side', 'Y')] }),
+    ], ['side', 'side'], 'UTC');
+    expect(table.headers.slice(CLIENT_SYNC_CSV_FIXED_HEADERS.length)).toEqual(['side (attribute)']);
+    expect(table.rows[0][table.rows[0].length - 1]).toBe('X');
+  });
+
+  it('keeps the headers for an export with no rows', () => {
+    expect(buildClientSyncCsvTable([], ['SenderName'], 'UTC').headers).toEqual([...CLIENT_SYNC_CSV_FIXED_HEADERS, 'SenderName']);
+  });
+
+  it('quotes commas and doubles quotes, and writes Untagged for untagged rows', () => {
     const csv = buildClientSyncCsv([
-      makeTransactionFixture({ Sender: 'ACME, "THE" CO', IsUntagged: true, Tag: '', ReceivedAtUtc: null, Kb: { Status: 'NotEligible', Certainty: '', CertaintyRank: 0, CustomerCode: null, CustomerNameEn: null }, Out: { Status: 'NEVER', LastCallUtc: null, LastError: null, ReceiptToPushMs: null } }),
-    ], 'UTC');
+      makeTransactionFixture({ Sender: 'ACME, "THE" CO', IsUntagged: true, Tag: '', ReceivedAtUtc: null, Kb: NO_KB, Out: NO_OUT }),
+    ], [], 'UTC');
     const lines = csv.split('\r\n');
-    expect(lines[0]).toBe(CLIENT_SYNC_CSV_FIXED_HEADERS.join(','));
-    expect(lines[1]).toBe(',INTERIM_TransactionsList,CR,12500.00,SAR,"ACME, ""THE"" CO",FT26288H51MC,Untagged,NotEligible,,,NEVER,,SA0380000000608010167519,STMT-1');
+    expect(lines[0]).toBe('Feed,Side,Amount,Currency,Sender,Bank reference,Tag,KB status,Out status,IBAN,Statement');
+    expect(lines[1]).toBe('INTERIM_TransactionsList,CR,12500.00,SAR,"ACME, ""THE"" CO",FT26288H51MC,Untagged,NotEligible,NEVER,SA0380000000608010167519,STMT-1');
   });
 
   it('names the file after the client and range, sanitizing the id', () => {

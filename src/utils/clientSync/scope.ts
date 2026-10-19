@@ -138,8 +138,12 @@ export interface ClientSyncListFilters {
   side: ClientSyncSide;
   /** [] = every tag. */
   tags: string[];
+  /** kb_customer_type values; [] = every type. */
+  customerTypes: string[];
+  /** KB certainty ranks; [] = every certainty. */
+  certaintyRanks: number[];
 }
-export const NO_LIST_FILTERS: ClientSyncListFilters = { side: 'ALL', tags: [] };
+export const NO_LIST_FILTERS: ClientSyncListFilters = { side: 'ALL', tags: [], customerTypes: [], certaintyRanks: [] };
 
 /** Always page 1 with PageSize = the loaded window; load-more grows the window and re-keys the request. */
 export function buildTransactionsRequest(
@@ -156,6 +160,8 @@ export function buildTransactionsRequest(
     ...(trimmed ? { Search: trimmed } : {}),
     ...(filters.side !== 'ALL' ? { Side: filters.side } : {}),
     ...(filters.tags.length > 0 ? { Tags: [...filters.tags] } : {}),
+    ...(filters.customerTypes.length > 0 ? { KbCustomerTypes: [...filters.customerTypes] } : {}),
+    ...(filters.certaintyRanks.length > 0 ? { KbCertaintyRanks: [...filters.certaintyRanks] } : {}),
     PageIndex: 1,
     PageSize: limit,
   };

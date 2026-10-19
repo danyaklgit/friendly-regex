@@ -23,7 +23,7 @@ export function makeSummaryFixture(partial: Partial<ClientSyncSummary> = {}): Cl
     OrgId: 'ORG-1', ClientName: 'Acme Trading', FromDate: '2026-10-15', ToDate: '2026-10-15', Layer: 'ALL', GeneratedAtUtc: '2026-10-15T08:00:00Z',
     In: { Deliveries: 14, Accepted: 14, Duplicates: 0, Rejected: 0, TransactionsRead: 212, ByDataSetType: [{ Key: 'INTERIM_TransactionsList', Count: 180 }, { Key: 'MT940', Count: 32 }], LastDeliveryUtc: '2026-10-15T07:55:02Z' },
     Tagging: { Transactions: 212, Tagged: 197, Untagged: 15, DeadEnds: 3, LayersDiffer: 2, MissingMandatoryAttributes: 4, ByTag: [{ Key: 'IncomingTransfer', Count: 120 }] },
-    KnowledgeBase: { Active: true, Eligible: 61, Promoted: 48, NotKnown: 9, Pending: 4, ByCertainty: [{ Rank: 3, Label: 'Likely', Count: 18, ReceivedAs: ['LIKELY'] }, { Rank: 5, Label: 'Confirmed', Count: 30, ReceivedAs: ['CONFIRMED'] }], Calls: 61, FailedCalls: 0, MedianCallMs: 412, LastCallUtc: '2026-10-15T07:50:00Z' },
+    KnowledgeBase: { Active: true, Eligible: 61, Promoted: 48, NotKnown: 9, Pending: 4, ByCertainty: [{ Rank: 3, Label: 'Likely', Count: 18, ReceivedAs: ['LIKELY'] }, { Rank: 5, Label: 'Confirmed', Count: 30, ReceivedAs: ['CONFIRMED'] }], ByCustomerType: [], Calls: 61, FailedCalls: 0, MedianCallMs: 412, LastCallUtc: '2026-10-15T07:50:00Z' },
     Out: { Calls: 17, Pushes: 14, PushesFailed: 1, Patches: 3, PatchesFailed: 0, RowsSent: 205, RowsNotSent: 7, RowsNotSentByDesign: 2, RowsLastCallFailed: 5, MedianReceiptToPushMs: 1800, LastCallUtc: '2026-10-15T07:56:00Z' },
     Accounts: [
       makeAccountFixture(),
@@ -43,9 +43,9 @@ export function makeTransactionFixture(partial: Partial<ClientSyncTransaction> =
     BusinessDate: '2026-10-15', IBAN: 'SA0380000000608010167519', BankSwiftCode: 'RJHISARI', StatementId: 'STMT-1', Sequence: 12,
     Side: 'CR', Amount: 12500, CurrencyCode: 'SAR', Sender: 'AL FARIS CO', Narrative: 'INV 2231 AL FARIS CO', BankReference: 'FT26288H51MC',
     Tag: 'IncomingTransfer', OpsTag: 'IncomingTransfer', IsUntagged: false, IsDeadEnd: false, LayersDiffer: false, AttributeCount: 3, MissingMandatoryAttributes: 0,
-    Kb: { Status: 'Promoted', Certainty: 'Confirmed', CertaintyRank: 5, CustomerCode: 'C-100', CustomerNameEn: 'Al Faris Co' },
+    Kb: { Status: 'Promoted', Certainty: 'Confirmed', CertaintyRank: 5, CustomerCode: 'C-100', CustomerNameEn: 'Al Faris Co', KbCustomerType: null },
     Out: { Status: 'SENT', LastCallUtc: '2026-10-15T06:55:35Z', LastError: null, ReceiptToPushMs: 33000 },
-    Attributes: [], KbAttributes: [],
+    Attributes: [], KbAttributes: [], WireAttributes: [],
     ...partial,
   };
 }
@@ -57,6 +57,7 @@ export function makePageFixture(rows: ClientSyncTransaction[] = [makeTransaction
     ShowCounts: [{ Key: 'ALL', Count: rows.length }, { Key: 'UNTAGGED', Count: 0 }],
     PageIndex: 1,
     PageSize: 100,
+    AttributeColumns: [],
     ...partial,
   };
 }
@@ -103,7 +104,7 @@ export function makeTagStateFixture(partial: Partial<ClientSyncTagState> = {}): 
 export function makeKbStateFixture(partial: Partial<ClientSyncKbState> = {}): ClientSyncKbState {
   return {
     Status: 'Promoted', Certainty: 'Confirmed', CertaintyRank: 5, CustomerCode: 'C-100', CustomerNameEn: 'Al Faris Co',
-    CustomerNameAr: 'شركة الفارس', CustomerLevel: 'Gold', CustomerType: 'Corporate', Alternatives: 1,
+    CustomerNameAr: 'شركة الفارس', CustomerLevel: 'Gold', CustomerType: 'Corporate', Alternatives: 1, KbCustomerType: null,
     ...partial,
   };
 }

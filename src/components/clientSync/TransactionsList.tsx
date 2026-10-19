@@ -14,7 +14,7 @@ import { EmptyState } from '../shared/EmptyState';
 import { TagBadge } from '../transactions/TagBadge';
 import { ReportErrorCard } from '../reports/ReportErrorCard';
 import { FilterChecklistPopover, type ChecklistOption } from '../reports/FilterChecklistPopover';
-import { FeedChip, KbStatusBadge, CertaintyPill, OutStatusBadge } from './StatusBadges';
+import { FeedChip, KbStatusBadge, CertaintyPill, KbCustomerTypeChip, OutStatusBadge } from './StatusBadges';
 
 interface TransactionsListProps {
   /** The section element, so the tab can scroll it into view from a warning click. */
@@ -35,6 +35,16 @@ interface TransactionsListProps {
   onTagsChange: (tags: string[]) => void;
   /** From the summary's ByTag plus Untagged; [] until the summary has loaded. */
   tagOptions: ChecklistOption[];
+  /** Selected kb_customer_type values; [] = every type. */
+  customerTypes: string[];
+  onCustomerTypesChange: (types: string[]) => void;
+  /** From the summary's ByCustomerType; the control is hidden while it is empty. */
+  customerTypeOptions: ChecklistOption[];
+  /** Selected certainty ranks, as option values (rank strings); [] = every certainty. */
+  certainties: string[];
+  onCertaintiesChange: (ranks: string[]) => void;
+  /** From the summary's ByCertainty, strongest first; [] until the summary has loaded. */
+  certaintyOptions: ChecklistOption[];
   canLoadMore: boolean;
   onLoadMore: (step: number) => void;
   selectedId: string | null;
@@ -63,13 +73,15 @@ function ListSkeleton() {
 
 /**
  * The transactions list of spec 7.5: segments with server counts, search,
- * side and tag filters, rows, load-more, export. Side and tag narrow the list,
- * its total and the Show counts only; the cards and accounts above keep
- * describing the whole client and range.
+ * side / tag / customer-type / certainty filters, rows, load-more, export.
+ * The filters narrow the list, its total and the Show counts only; the cards
+ * and accounts above keep describing the whole client and range.
  */
 export const TransactionsList = memo(function TransactionsList({
   ref, page, loading, error, onRetry, show, onShowChange, search, onSearchChange,
-  side, onSideChange, tags, onTagsChange, tagOptions, canLoadMore, onLoadMore,
+  side, onSideChange, tags, onTagsChange, tagOptions,
+  customerTypes, onCustomerTypesChange, customerTypeOptions, certainties, onCertaintiesChange, certaintyOptions,
+  canLoadMore, onLoadMore,
   selectedId, onSelect, showIban, withDate, onExport, exporting = false, exportError = null,
 }: TransactionsListProps) {
   const rows = page?.Transactions ?? [];
@@ -111,6 +123,10 @@ export const TransactionsList = memo(function TransactionsList({
         </div>
         <SegmentedControl label="Side" options={SIDE_OPTIONS} value={side} onChange={onSideChange} />
         <FilterChecklistPopover label="Tag" options={tagOptions} selected={tags} onChange={onTagsChange} disabled={tagOptions.length === 0} />
+        {customerTypeOptions.length > 0 && (
+          <FilterChecklistPopover label="Customer type" options={customerTypeOptions} selected={customerTypes} onChange={onCustomerTypesChange} />
+        )}
+        <FilterChecklistPopover label="Certainty" options={certaintyOptions} selected={certainties} onChange={onCertaintiesChange} disabled={certaintyOptions.length === 0} />
         <span className="text-[11px] text-muted">Filters apply to the list.</span>
       </div>
 
@@ -186,6 +202,7 @@ export const TransactionsList = memo(function TransactionsList({
                             {t.Kb.Status !== 'NotEligible' && (
                               <div className="mt-0.5 flex items-center gap-1 text-[10px] text-muted">
                                 <CertaintyPill certainty={t.Kb.Certainty} rank={t.Kb.CertaintyRank} />
+                                <KbCustomerTypeChip type={t.Kb.KbCustomerType} />
                                 {t.Kb.CustomerCode && <span className="font-mono">{t.Kb.CustomerCode}</span>}
                               </div>
                             )}
