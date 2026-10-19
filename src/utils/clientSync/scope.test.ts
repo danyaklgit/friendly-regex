@@ -98,6 +98,13 @@ describe('list request and paging', () => {
     expect(buildTransactionsRequest(scope, 'UNTAGGED', ' FT26 ', 150)).toEqual({ ...scope, Show: 'UNTAGGED', Search: 'FT26', PageIndex: 1, PageSize: 150 });
   });
 
+  it('adds Side only for CR or DR, and Tags only when some are picked', () => {
+    const scope = buildScope(RANGE, TODAY);
+    expect(buildTransactionsRequest(scope, 'ALL', '', 100, { side: 'ALL', tags: [] })).toEqual({ ...scope, Show: 'ALL', PageIndex: 1, PageSize: 100 });
+    expect(buildTransactionsRequest(scope, 'ALL', '', 100, { side: 'CR', tags: ['UNTAGGED', 'IncomingTransfer'] }))
+      .toEqual({ ...scope, Show: 'ALL', Side: 'CR', Tags: ['UNTAGGED', 'IncomingTransfer'], PageIndex: 1, PageSize: 100 });
+  });
+
   it('grows the limit by the step and caps at 2000', () => {
     expect(nextLimit(100, 50)).toBe(150);
     expect(nextLimit(1900, 200)).toBe(PAGE_SIZE_MAX);

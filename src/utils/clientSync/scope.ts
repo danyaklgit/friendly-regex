@@ -1,5 +1,5 @@
 import {
-  isClientSyncLayer, type ClientSyncLayer, type ClientSyncScope, type ClientSyncShow, type ClientSyncTransactionsRequest,
+  isClientSyncLayer, type ClientSyncLayer, type ClientSyncScope, type ClientSyncShow, type ClientSyncSide, type ClientSyncTransactionsRequest,
 } from '../../api/clientSync';
 import { parseIsoDateUtc } from '../reports/periods';
 
@@ -133,10 +133,32 @@ export function buildScope(controls: ClientSyncControls, today: string): ClientS
   };
 }
 
+/** The list-only filters: they narrow the list, its total and the Show counts, never the cards or accounts. */
+export interface ClientSyncListFilters {
+  side: ClientSyncSide;
+  /** [] = every tag. */
+  tags: string[];
+}
+export const NO_LIST_FILTERS: ClientSyncListFilters = { side: 'ALL', tags: [] };
+
 /** Always page 1 with PageSize = the loaded window; load-more grows the window and re-keys the request. */
-export function buildTransactionsRequest(scope: ClientSyncScope, show: ClientSyncShow, search: string, limit: number): ClientSyncTransactionsRequest {
+export function buildTransactionsRequest(
+  scope: ClientSyncScope,
+  show: ClientSyncShow,
+  search: string,
+  limit: number,
+  filters: ClientSyncListFilters = NO_LIST_FILTERS,
+): ClientSyncTransactionsRequest {
   const trimmed = search.trim();
-  return { ...scope, Show: show, ...(trimmed ? { Search: trimmed } : {}), PageIndex: 1, PageSize: limit };
+  return {
+    ...scope,
+    Show: show,
+    ...(trimmed ? { Search: trimmed } : {}),
+    ...(filters.side !== 'ALL' ? { Side: filters.side } : {}),
+    ...(filters.tags.length > 0 ? { Tags: [...filters.tags] } : {}),
+    PageIndex: 1,
+    PageSize: limit,
+  };
 }
 
 export function nextLimit(limit: number, step: number): number {

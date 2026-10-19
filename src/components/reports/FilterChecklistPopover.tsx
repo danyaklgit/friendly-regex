@@ -18,6 +18,8 @@ export interface ChecklistOption {
   label: string;
   /** Raw code for the hover title when the label is a friendly name. */
   title?: string;
+  /** Pre-formatted row count, shown muted after the label (never in the trigger). */
+  count?: string;
 }
 
 interface FilterChecklistPopoverProps {
@@ -110,6 +112,7 @@ export function FilterChecklistPopover({ label, options, selected, onChange, dis
                   <label key={option.value} title={option.title} className="flex items-center gap-2 px-3 py-1.5 text-xs text-body hover:bg-surface-active cursor-pointer">
                     <input type="checkbox" checked={selected.includes(option.value)} onChange={() => toggle(option.value)} className="accent-primary" />
                     <span className="truncate">{option.label}</span>
+                    {option.count !== undefined && <span className="ml-auto pl-3 text-[11px] text-muted tabular-nums">{option.count}</span>}
                   </label>
                 ))
               )}
