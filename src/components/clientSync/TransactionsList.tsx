@@ -52,10 +52,8 @@ interface TransactionsListProps {
   /** Only when the scope holds more than one account. */
   showIban: boolean;
   withDate: boolean;
+  /** Exports exactly the loaded rows. */
   onExport: () => void;
-  /** True while the export fetches every matching row. */
-  exporting?: boolean;
-  exportError?: string | null;
 }
 
 const TH = 'text-left px-3 py-2 whitespace-nowrap';
@@ -82,10 +80,11 @@ export const TransactionsList = memo(function TransactionsList({
   side, onSideChange, tags, onTagsChange, tagOptions,
   customerTypes, onCustomerTypesChange, customerTypeOptions, certainties, onCertaintiesChange, certaintyOptions,
   canLoadMore, onLoadMore,
-  selectedId, onSelect, showIban, withDate, onExport, exporting = false, exportError = null,
+  selectedId, onSelect, showIban, withDate, onExport,
 }: TransactionsListProps) {
   const rows = page?.Transactions ?? [];
   const total = page?.TotalCount ?? 0;
+  const partialExport = rows.length > 0 && rows.length < total;
   const options: SegmentedOption<ClientSyncShow>[] = CLIENT_SYNC_SHOWS.map((value) => {
     const count = page ? showCount(page.ShowCounts, value) : null;
     return { value, label: count === null ? SHOW_LABELS[value] : `${SHOW_LABELS[value]} ${formatCount(count)}` };
@@ -110,12 +109,14 @@ export const TransactionsList = memo(function TransactionsList({
           variant="secondary"
           size="xs"
           onClick={onExport}
-          disabled={rows.length === 0 || exporting}
-          title="Exports every row that matches the filters and search"
+          disabled={rows.length === 0}
+          title="Exports the rows loaded in the list"
         >
-          {exporting ? 'Exporting…' : 'Export CSV'}
+          {`Export CSV (${formatCount(rows.length)} row${rows.length === 1 ? '' : 's'})`}
         </Button>
-        {exportError && <p role="alert" className="basis-full text-right text-[11px] text-red-600 dark:text-rose-400">{`Export failed: ${exportError}`}</p>}
+        {partialExport && (
+          <p className="basis-full text-right text-[11px] text-muted">{`Exports the ${formatCount(rows.length)} loaded row${rows.length === 1 ? '' : 's'}; load more to include more.`}</p>
+        )}
       </div>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2 border-b border-border">
         <div className="max-w-full overflow-x-auto">
