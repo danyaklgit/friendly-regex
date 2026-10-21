@@ -179,8 +179,40 @@ export interface ClientSyncTraceTagging { Published: ClientSyncTagState; Operato
 export interface ClientSyncTraceKb {
   Published: ClientSyncKbState; Operator: ClientSyncKbState; PublishedAttributes: KeyValue[]; Calls: ClientSyncKbCall[];
 }
+/** A held attribute with the layout's label for its key; Label is null for a key the layout does not know. */
+export interface LabeledKeyValue { Key: string; Value: string | null; Label: string | null }
+/** The customer the knowledge base displays (the kb_displayed_* keys). */
+export interface ClientSyncDisplayedCustomer {
+  Code: string | null; NameEn: string | null; NameAr: string | null; HierarchyLevel: string | null; CustomerType: string | null;
+  /** Which match and party carries the displayed customer's code; null when none does. */
+  MatchNumber: number | null; MatchLevel: string | null;
+  Attributes: LabeledKeyValue[];
+}
+/** One party of a knowledge-base match (franchise, head office, outlet, unrecorded customer, or a new level). */
+export interface ClientSyncMatchParty {
+  Level: string; Title: string; Code: string | null; NameEn: string | null; NameAr: string | null;
+  /** Unrecorded customers only. */
+  CustomerType: string | null;
+  IsDisplayed: boolean; Attributes: LabeledKeyValue[];
+}
+/** One knowledge-base match: the keys without a suffix are match 0, the _2 keys match 2, and so on. */
+export interface ClientSyncKbMatch {
+  Number: number; Suffix: string; CustomerType: string | null; Certainty: string; CertaintyRank: number;
+  /** Ordered top-down by the backend: FRANCHISE, HO, OUTLET, any new level, UNRECORDED. */
+  Parties: ClientSyncMatchParty[];
+  /** The match's keys no party owns (kb_customer_type, kb_allocation_certainty, unknown keys). */
+  Fields: LabeledKeyValue[];
+}
+/** "What BwaTech holds now" grouped by meaning; every CurrentAttributes entry lands in exactly one list. */
+export interface ClientSyncCurrentView {
+  Tep: KeyValue[];
+  Displayed: ClientSyncDisplayedCustomer | null;
+  Matches: ClientSyncKbMatch[];
+}
 export interface ClientSyncTraceOut {
   Calls: ClientSyncOutCall[]; CurrentTag: string | null; CurrentAttributes: KeyValue[]; DeletedAtBwatech: boolean;
+  /** null when the backend predates the grouped view: the UI then shows the flat list only. */
+  CurrentView: ClientSyncCurrentView | null;
 }
 export interface ClientSyncTrace {
   Transaction: ClientSyncTransaction; In: ClientSyncTraceIn; Tagging: ClientSyncTraceTagging; Kb: ClientSyncTraceKb; Out: ClientSyncTraceOut;
@@ -460,6 +492,55 @@ function normalizeKbState(raw: unknown): ClientSyncKbState {
   };
 }
 
+function labeledKeyValues(value: unknown): LabeledKeyValue[] {
+  return recordArray(value).map((r) => ({ Key: stringOrEmpty(r.Key), Value: stringOrNull(r.Value), Label: nonBlankOrNull(r.Label) }));
+}
+function normalizeMatchParty(raw: Record<string, unknown>): ClientSyncMatchParty {
+  const level = stringOrEmpty(raw.Level);
+  return {
+    Level: level,
+    Title: nonBlankOrNull(raw.Title) ?? level,
+    Code: scalarStringOrNull(raw.Code),
+    NameEn: stringOrNull(raw.NameEn),
+    NameAr: stringOrNull(raw.NameAr),
+    CustomerType: nonBlankOrNull(raw.CustomerType),
+    IsDisplayed: boolOrFalse(raw.IsDisplayed),
+    Attributes: labeledKeyValues(raw.Attributes),
+  };
+}
+function normalizeKbMatch(raw: Record<string, unknown>): ClientSyncKbMatch {
+  return {
+    Number: numberOrZero(raw.Number),
+    Suffix: stringOrEmpty(raw.Suffix),
+    CustomerType: nonBlankOrNull(raw.CustomerType),
+    Certainty: stringOrEmpty(raw.Certainty),
+    CertaintyRank: numberOrZero(raw.CertaintyRank),
+    Parties: recordArray(raw.Parties).map(normalizeMatchParty),
+    Fields: labeledKeyValues(raw.Fields),
+  };
+}
+/** Absent or not an object reads as null (older backend); the UI then offers the flat list only. */
+function normalizeCurrentView(raw: unknown): ClientSyncCurrentView | null {
+  if (raw === null || typeof raw !== 'object') return null;
+  const r = asRecord(raw);
+  const d = r.Displayed !== null && typeof r.Displayed === 'object' ? asRecord(r.Displayed) : null;
+  return {
+    Tep: keyValues(r.Tep),
+    Displayed: d && {
+      Code: scalarStringOrNull(d.Code),
+      NameEn: stringOrNull(d.NameEn),
+      NameAr: stringOrNull(d.NameAr),
+      HierarchyLevel: nonBlankOrNull(d.HierarchyLevel),
+      CustomerType: nonBlankOrNull(d.CustomerType),
+      MatchNumber: numberOrNull(d.MatchNumber),
+      MatchLevel: nonBlankOrNull(d.MatchLevel),
+      Attributes: labeledKeyValues(d.Attributes),
+    },
+    // The backend sorts by Number; sorting again is cheap insurance for the match-0-first rule.
+    Matches: recordArray(r.Matches).map(normalizeKbMatch).sort((a, b) => a.Number - b.Number),
+  };
+}
+
 export function normalizeTrace(raw: unknown): ClientSyncTrace {
   const r = asRecord(raw);
   const i = asRecord(r.In);
@@ -494,6 +575,7 @@ export function normalizeTrace(raw: unknown): ClientSyncTrace {
       CurrentTag: stringOrNull(o.CurrentTag),
       CurrentAttributes: keyValues(o.CurrentAttributes),
       DeletedAtBwatech: boolOrFalse(o.DeletedAtBwatech),
+      CurrentView: normalizeCurrentView(o.CurrentView),
     },
   };
 }
@@ -559,51 +641,6 @@ export async function getClientSyncTransactions(
   await throwIfNotOk(res, 'Failed to load the client sync transactions');
   const json: unknown = await res.json();
   return normalizeTransactionsPage(json, request);
-}
-
-/** Largest page the backend serves; the full-export walk uses it. */
-export const CLIENT_SYNC_EXPORT_PAGE_SIZE = 2000;
-
-export interface ClientSyncExportRows {
-  rows: ClientSyncTransaction[];
-  /** From the first page; the backend computes it over the whole filtered list, so every page carries the same one. */
-  attributeColumns: string[];
-}
-
-/**
- * Every row of the list query (scope, Show, Search and the list filters),
- * walking the pages at the maximum size. Paging is skip/limit under a sort
- * that is not a total order, so a row can come back on two pages; repeats are
- * dropped by Id (first wins; rows without an Id are always kept).
- */
-export async function getAllClientSyncTransactions(
-  request: ClientSyncTransactionsRequest,
-  authToken: string,
-  tepHeaders: TepHeaders,
-  signal?: AbortSignal,
-): Promise<ClientSyncExportRows> {
-  const pageSize = CLIENT_SYNC_EXPORT_PAGE_SIZE;
-  const rows: ClientSyncTransaction[] = [];
-  const seen = new Set<string>();
-  const ingest = (page: ClientSyncTransactionsPage) => {
-    for (const t of page.Transactions) {
-      if (t.Id) {
-        if (seen.has(t.Id)) continue;
-        seen.add(t.Id);
-      }
-      rows.push(t);
-    }
-  };
-  const first = await getClientSyncTransactions({ ...request, PageIndex: 1, PageSize: pageSize }, authToken, tepHeaders, signal);
-  ingest(first);
-  const pages = Math.ceil(first.TotalCount / pageSize);
-  for (let index = 2; index <= pages; index++) {
-    const page = await getClientSyncTransactions({ ...request, PageIndex: index, PageSize: pageSize }, authToken, tepHeaders, signal);
-    // An empty page means the set shrank since the count; stop rather than walk empty pages.
-    if (page.Transactions.length === 0) break;
-    ingest(page);
-  }
-  return { rows, attributeColumns: first.AttributeColumns };
 }
 
 export async function getClientSyncTrace(

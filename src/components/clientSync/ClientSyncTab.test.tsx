@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, act, within, waitFor } from '@testing-library/react';
+import { render, screen, act, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { TepHeaders } from '../../api/transactions';
 import { CLIENT_SYNC_CONTROLS_STORAGE_KEY, DEFAULT_CLIENT_SYNC_CONTROLS } from '../../utils/clientSync/scope';
@@ -7,11 +7,7 @@ import { makeSummaryFixture, makePageFixture, makeTransactionFixture, makeTraceF
 
 const hooks = vi.hoisted(() => ({
   useVipClients: vi.fn(), useClientSyncSummary: vi.fn(), useClientSyncTransactions: vi.fn(), useClientSyncTrace: vi.fn(),
-  useAutoRefresh: vi.fn(), downloadClientSyncCsv: vi.fn(), getAllClientSyncTransactions: vi.fn(),
-}));
-vi.mock('../../api/clientSync', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../api/clientSync')>()),
-  getAllClientSyncTransactions: hooks.getAllClientSyncTransactions,
+  useAutoRefresh: vi.fn(), downloadClientSyncCsv: vi.fn(),
 }));
 vi.mock('../../hooks/useVipClients', () => ({ useVipClients: hooks.useVipClients }));
 vi.mock('../../hooks/useClientSync', () => ({
@@ -53,7 +49,6 @@ describe('ClientSyncTab', () => {
     hooks.useClientSyncTrace.mockReset().mockReturnValue({ report: null, loading: false, error: null, refetch: vi.fn() });
     hooks.useAutoRefresh.mockReset();
     hooks.downloadClientSyncCsv.mockReset();
-    hooks.getAllClientSyncTransactions.mockReset();
     summaryState.refetch.mockClear();
     listState.refetch.mockClear();
     Element.prototype.scrollIntoView = vi.fn();
@@ -179,7 +174,7 @@ describe('ClientSyncTab', () => {
     expect(screen.getByRole('status', { name: 'Loading transactions' })).not.toBeNull();
     expect(screen.queryByRole('row', { name: 'Transaction FT26288H51MC' })).toBeNull();
     expect(screen.queryByRole('region', { name: 'In from BwaTech' })).toBeNull();
-    expect((screen.getByRole('button', { name: 'Export CSV' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'Export CSV (0 rows)' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('ignores a click on a row without an Id', async () => {
@@ -217,40 +212,27 @@ describe('ClientSyncTab', () => {
     expect(JSON.parse(localStorage.getItem(CLIENT_SYNC_CONTROLS_STORAGE_KEY) ?? '{}')).toMatchObject({ orgId: 'ORG-1', ibans: ['SA4420000001234567891234'] });
   });
 
-  it('exports the loaded rows directly when every matching row is already loaded', async () => {
+  it('exports exactly the loaded rows with the page attribute columns, even when more rows match than are loaded', async () => {
     const user = userEvent.setup();
     storeControls({ orgId: 'ORG-1', mode: 'range', from: '2026-10-01', to: '2026-10-10' });
-    const loaded = makePageFixture([makeTransactionFixture()], { TotalCount: 1, AttributeColumns: ['SenderBank', 'kb_outlet_customer_code'] });
+    const loaded = makePageFixture([makeTransactionFixture()], { TotalCount: 212, AttributeColumns: ['SenderBank', 'kb_outlet_customer_code'] });
     hooks.useClientSyncTransactions.mockReturnValue({ ...listState, report: loaded });
     render(<ClientSyncTab authToken="tok" tepHeaders={HEADERS} />);
-    await user.click(screen.getByRole('button', { name: 'Export CSV' }));
-    expect(hooks.getAllClientSyncTransactions).not.toHaveBeenCalled();
+    expect(screen.getByText('Exports the 1 loaded row; load more to include more.')).not.toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Export CSV (1 row)' }));
+    expect(hooks.downloadClientSyncCsv).toHaveBeenCalledTimes(1);
     expect(hooks.downloadClientSyncCsv).toHaveBeenCalledWith(loaded.Transactions, ['SenderBank', 'kb_outlet_customer_code'], 'ORG-1', '2026-10-01', '2026-10-10');
   });
 
-  it('fetches every page of the same filtered query before exporting when more rows match than are loaded', async () => {
+  it('exports with no attribute columns from an older backend that sends none, and drops the hint once everything is loaded', async () => {
     const user = userEvent.setup();
     storeControls({ orgId: 'ORG-1', mode: 'range', from: '2026-10-01', to: '2026-10-10' });
-    const all = [makeTransactionFixture(), makeTransactionFixture({ Id: 'tx-2', BankReference: 'REF-2' })];
-    hooks.getAllClientSyncTransactions.mockResolvedValue({ rows: all, attributeColumns: ['SenderBank'] });
+    const loaded = makePageFixture([makeTransactionFixture(), makeTransactionFixture({ Id: 'tx-2', BankReference: 'REF-2' })], { TotalCount: 2 });
+    hooks.useClientSyncTransactions.mockReturnValue({ ...listState, report: loaded });
     render(<ClientSyncTab authToken="tok" tepHeaders={HEADERS} />);
-    await user.click(within(screen.getByRole('radiogroup', { name: 'Side' })).getByRole('radio', { name: 'CR' }));
-    await user.click(screen.getByRole('button', { name: 'Export CSV' }));
-    expect(hooks.getAllClientSyncTransactions).toHaveBeenCalledTimes(1);
-    expect(hooks.getAllClientSyncTransactions.mock.lastCall?.[0]).toMatchObject({ OrgId: 'ORG-1', Side: 'CR', Show: 'ALL' });
-    expect(hooks.getAllClientSyncTransactions.mock.lastCall?.[1]).toBe('tok');
-    await waitFor(() => expect(hooks.downloadClientSyncCsv).toHaveBeenCalledWith(all, ['SenderBank'], 'ORG-1', '2026-10-01', '2026-10-10'));
-  });
-
-  it('reports a failed full export and keeps the button usable', async () => {
-    const user = userEvent.setup();
-    storeControls({ orgId: 'ORG-1' });
-    hooks.getAllClientSyncTransactions.mockRejectedValue(new Error('Failed to load the client sync transactions'));
-    render(<ClientSyncTab authToken="tok" tepHeaders={HEADERS} />);
-    await user.click(screen.getByRole('button', { name: 'Export CSV' }));
-    expect(await screen.findByText('Export failed: Failed to load the client sync transactions')).not.toBeNull();
-    expect(hooks.downloadClientSyncCsv).not.toHaveBeenCalled();
-    expect((screen.getByRole('button', { name: 'Export CSV' }) as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.queryByText(/load more to include more/)).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Export CSV (2 rows)' }));
+    expect(hooks.downloadClientSyncCsv).toHaveBeenCalledWith(loaded.Transactions, [], 'ORG-1', '2026-10-01', '2026-10-10');
   });
 
   it('side and tag filters reach the request and reset the window; a scope change clears them', async () => {

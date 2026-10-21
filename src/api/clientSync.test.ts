@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi, type MockInstance } from 'vitest';
 import {
-  getClientSyncSummary, getClientSyncTransactions, getClientSyncTrace, getAllClientSyncTransactions,
+  getClientSyncSummary, getClientSyncTransactions, getClientSyncTrace,
   normalizeSummary, normalizeTransactionsPage, normalizeTrace, toSummaryBody, toTransactionsBody,
   type ClientSyncScope, type ClientSyncTransactionsRequest,
 } from './clientSync';
@@ -119,35 +119,6 @@ describe('fetchers', () => {
     expect(url).toBe(`${BASE}/GetClientSyncTrace`);
     expect(JSON.parse(init.body as string)).toEqual({ TransactionId: 'tx-1' });
     expect(trace.Transaction.Id).toBe('tx-1');
-  });
-
-  it('walks every page of the same query at PageSize 2000 for the export, dropping rows repeated across pages', async () => {
-    const row = (Id: string) => ({ ...RAW_ROW, Id, BankReference: `REF-${Id}` });
-    const columns = ['SenderBank', 'kb_outlet_customer_code'];
-    fetchSpy
-      .mockResolvedValueOnce(jsonResponse({ Transactions: [row('a'), row('b')], TotalCount: 4001, AttributeColumns: columns }))
-      .mockResolvedValueOnce(jsonResponse({ Transactions: [row('b'), row('c')], TotalCount: 4001, AttributeColumns: columns }))
-      .mockResolvedValueOnce(jsonResponse({ Transactions: [row('d'), { ...RAW_ROW, Id: '' }, { ...RAW_ROW, Id: '' }], TotalCount: 4001, AttributeColumns: columns }));
-    const result = await getAllClientSyncTransactions({ ...LIST_REQUEST, Side: 'CR', Tags: ['IncomingTransfer'], KbCertaintyRanks: [5, 4], PageSize: 150 }, TOKEN, tepHeaders);
-    expect(fetchSpy).toHaveBeenCalledTimes(3);
-    const bodies = fetchSpy.mock.calls.map((c) => JSON.parse((c as [string, RequestInit])[1].body as string));
-    expect(bodies.map((b) => [b.PageIndex, b.PageSize])).toEqual([[1, 2000], [2, 2000], [3, 2000]]);
-    expect(bodies[2]).toMatchObject({ Side: 'CR', Tags: ['IncomingTransfer'], KbCertaintyRanks: [5, 4], Show: 'ALL' });
-    expect(result.rows.map((r) => r.Id)).toEqual(['a', 'b', 'c', 'd', '', '']);
-    expect(result.attributeColumns).toEqual(columns);
-  });
-
-  it('stops the export walk at an empty page and needs one request when everything fits', async () => {
-    fetchSpy
-      .mockResolvedValueOnce(jsonResponse({ Transactions: [RAW_ROW], TotalCount: 6000 }))
-      .mockResolvedValueOnce(jsonResponse({ Transactions: [], TotalCount: 1 }));
-    expect((await getAllClientSyncTransactions(LIST_REQUEST, TOKEN, tepHeaders)).rows).toHaveLength(1);
-    expect(fetchSpy).toHaveBeenCalledTimes(2);
-
-    fetchSpy.mockClear();
-    fetchSpy.mockResolvedValueOnce(jsonResponse({ Transactions: [RAW_ROW], TotalCount: 1 }));
-    expect(await getAllClientSyncTransactions(LIST_REQUEST, TOKEN, tepHeaders)).toEqual({ rows: [expect.objectContaining({ Id: 'tx-1' })], attributeColumns: [] });
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
   it('throws ApiError with the SFM short description on a non-OK status', async () => {
@@ -276,6 +247,31 @@ describe('normalizeTrace', () => {
     expect(t.Out.CurrentAttributes).toHaveLength(2);
   });
 
+  it('reads the grouped current view: codes stringified, blank labels and types as absent, matches sorted by number; null when the backend sends none', () => {
+    const view = normalizeTrace({ Out: { CurrentView: {
+      Tep: [{ Key: 'SenderBank', Value: '80' }],
+      Displayed: {
+        Code: 11223344556, NameEn: 'Al Noor', NameAr: null, HierarchyLevel: 'HO', CustomerType: '', MatchNumber: '0', MatchLevel: 'HO',
+        Attributes: [{ Key: 'kb_displayed_customer_code', Value: '11223344556', Label: 'Code' }, { Key: 'kb_new_signal', Value: 'x7', Label: ' ' }],
+      },
+      Matches: [
+        { Number: 2, Suffix: '_2', CustomerType: null, Certainty: 'WEAK', CertaintyRank: 2, Parties: [{ Level: 'HO', Code: 3400112233, NameEn: 'Grocery', IsDisplayed: 'yes' }], Fields: [] },
+        { Number: 0, Suffix: '', CustomerType: 'TC', Certainty: 'STRONG', CertaintyRank: 4, Parties: [{ Level: 'HO', Title: 'Head office', Code: '1', IsDisplayed: true, Attributes: [{ Key: 'kb_ho_customer_code', Value: '1', Label: 'Code' }] }], Fields: [{ Key: 'kb_customer_type', Value: 'TC', Label: 'Customer type' }] },
+      ],
+    } } }).Out.CurrentView;
+    expect(view?.Tep).toEqual([{ Key: 'SenderBank', Value: '80' }]);
+    expect(view?.Displayed).toEqual({
+      Code: '11223344556', NameEn: 'Al Noor', NameAr: null, HierarchyLevel: 'HO', CustomerType: null, MatchNumber: 0, MatchLevel: 'HO',
+      Attributes: [{ Key: 'kb_displayed_customer_code', Value: '11223344556', Label: 'Code' }, { Key: 'kb_new_signal', Value: 'x7', Label: null }],
+    });
+    expect(view?.Matches.map((m) => m.Number)).toEqual([0, 2]);
+    expect(view?.Matches[0]).toMatchObject({ Suffix: '', CustomerType: 'TC', Certainty: 'STRONG', CertaintyRank: 4, Fields: [{ Key: 'kb_customer_type', Value: 'TC', Label: 'Customer type' }] });
+    expect(view?.Matches[0].Parties[0]).toMatchObject({ Title: 'Head office', Code: '1', IsDisplayed: true, Attributes: [{ Key: 'kb_ho_customer_code', Value: '1', Label: 'Code' }] });
+    expect(view?.Matches[1].Parties[0]).toEqual({ Level: 'HO', Title: 'HO', Code: '3400112233', NameEn: 'Grocery', NameAr: null, CustomerType: null, IsDisplayed: false, Attributes: [] });
+    expect(normalizeTrace({ Out: { CurrentView: 'nope' } }).Out.CurrentView).toBeNull();
+    expect(normalizeTrace({ Out: { CurrentView: { Displayed: 'x' } } }).Out.CurrentView).toEqual({ Tep: [], Displayed: null, Matches: [] });
+  });
+
   it('normalizes a sparse trace', () => {
     const t = normalizeTrace({});
     expect(t.In).toEqual({ Deliveries: [], ItemText: null, ItemFormat: null, RawFileName: null, RawCreatedUtc: null, RawProcessedUtc: null, RawStoredTransactionCount: null, LateArrival: false });
@@ -283,7 +279,7 @@ describe('normalizeTrace', () => {
     expect(t.Tagging.Published).toEqual({ Tag: '', Nickname: null, CertaintyLevel: null, DefinitionId: null, LibraryStatus: null, LibraryVersion: null, IsUntagged: false, IsDeadEnd: false, IsMultiTag: false, OtherTags: [], Attributes: [] });
     expect(t.Kb.Published.Status).toBe('NotEligible');
     expect(t.Kb.Published.Alternatives).toBe(0);
-    expect(t.Out).toEqual({ Calls: [], CurrentTag: null, CurrentAttributes: [], DeletedAtBwatech: false });
+    expect(t.Out).toEqual({ Calls: [], CurrentTag: null, CurrentAttributes: [], DeletedAtBwatech: false, CurrentView: null });
     expect(normalizeTrace({ In: { ItemFormat: 'xml' } }).In.ItemFormat).toBeNull();
   });
 

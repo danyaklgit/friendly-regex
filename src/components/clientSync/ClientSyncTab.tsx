@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TepHeaders } from '../../api/transactions';
 import {
-  getAllClientSyncTransactions, UNTAGGED_TAG_FILTER,
+  UNTAGGED_TAG_FILTER,
   type CertaintyCount, type ClientSyncShow, type ClientSyncSide, type ClientSyncTransaction,
 } from '../../api/clientSync';
 import { useVipClients } from '../../hooks/useVipClients';
@@ -96,8 +96,6 @@ export function ClientSyncTab({ authToken, tepHeaders }: ClientSyncTabProps) {
   const [certaintyRanks, setCertaintyRanks] = useState<number[]>([]);
   const [limit, setLimit] = useState(PAGE_SIZE_INITIAL);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [exporting, setExporting] = useState(false);
-  const [exportError, setExportError] = useState<string | null>(null);
 
   // Reset the list state when the scope changes (render-time adjustment, no extra effect pass).
   const scopeKey = JSON.stringify(scope);
@@ -112,7 +110,6 @@ export function ClientSyncTab({ authToken, tepHeaders }: ClientSyncTabProps) {
     setCertaintyRanks([]);
     setLimit(PAGE_SIZE_INITIAL);
     setSelectedId(null);
-    setExportError(null);
   }
 
   const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS);
@@ -179,34 +176,12 @@ export function ClientSyncTab({ authToken, tepHeaders }: ClientSyncTabProps) {
   const accountCount = controls.ibans.length > 0 ? controls.ibans.length : client?.accounts.length ?? 0;
   const withDate = spansDays(range.from, range.to);
 
-  // The file must match the filter, not what was scrolled into view: when more rows match than
-  // are loaded, walk every page of the same query first. Unmount aborts an export in flight.
-  const exportAbortRef = useRef<AbortController | null>(null);
-  useEffect(() => () => exportAbortRef.current?.abort(), []);
-  const totalCount = page?.TotalCount ?? 0;
+  // The file holds exactly the rows the list shows: the filters decide them and Load more widens
+  // them. AttributeColumns spans the whole filtered list; a column no loaded row fills is dropped by the CSV builder.
   const attributeColumns = page?.AttributeColumns;
-  const handleExport = useCallback(async () => {
-    setExportError(null);
-    if (rows.length >= totalCount || !authToken || !tepHeaders) {
-      downloadClientSyncCsv(rows, attributeColumns ?? [], controls.orgId, range.from, range.to);
-      return;
-    }
-    exportAbortRef.current?.abort();
-    const controller = new AbortController();
-    exportAbortRef.current = controller;
-    setExporting(true);
-    try {
-      const all = await getAllClientSyncTransactions(listRequest, authToken, tepHeaders, controller.signal);
-      if (!controller.signal.aborted) downloadClientSyncCsv(all.rows, all.attributeColumns, controls.orgId, range.from, range.to);
-    } catch (err) {
-      if (!controller.signal.aborted) setExportError(err instanceof Error ? err.message : 'Unknown error');
-    } finally {
-      if (exportAbortRef.current === controller) {
-        exportAbortRef.current = null;
-        setExporting(false);
-      }
-    }
-  }, [rows, totalCount, attributeColumns, authToken, tepHeaders, listRequest, controls.orgId, range.from, range.to]);
+  const handleExport = useCallback(() => {
+    downloadClientSyncCsv(rows, attributeColumns ?? [], controls.orgId, range.from, range.to);
+  }, [rows, attributeColumns, controls.orgId, range.from, range.to]);
 
   const summaryReport = enabled ? summary.report : null;
   const tagging = summaryReport?.Tagging ?? null;
@@ -291,8 +266,6 @@ export function ClientSyncTab({ authToken, tepHeaders }: ClientSyncTabProps) {
             showIban={accountCount > 1}
             withDate={withDate}
             onExport={handleExport}
-            exporting={exporting}
-            exportError={exportError}
           />
         </>
       )}

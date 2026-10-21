@@ -72,7 +72,7 @@ describe('TransactionsList', () => {
     expect(props.onShowChange).toHaveBeenCalledWith('UNTAGGED');
     await user.type(screen.getByPlaceholderText('Search transactions'), 'F');
     expect(props.onSearchChange).toHaveBeenCalledWith('F');
-    await user.click(screen.getByRole('button', { name: 'Export CSV' }));
+    await user.click(screen.getByRole('button', { name: 'Export CSV (1 row)' }));
     expect(props.onExport).toHaveBeenCalledTimes(1);
   });
 
@@ -161,7 +161,7 @@ describe('TransactionsList', () => {
   it('shows the empty state for zero rows, a skeleton before the first page, the error card above stale rows, and dims while loading', () => {
     const { unmount } = render(<TransactionsList {...baseProps({ page: makePageFixture([]) })} />);
     expect(screen.getByText('Nothing received for these accounts on these days.')).not.toBeNull();
-    expect((screen.getByRole('button', { name: 'Export CSV' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'Export CSV (0 rows)' }) as HTMLButtonElement).disabled).toBe(true);
     unmount();
 
     const second = render(<TransactionsList {...baseProps({ page: null, loading: true })} />);
@@ -248,11 +248,14 @@ describe('TransactionsList', () => {
     expect(cells[senderIndex + 1].textContent).toBe('FT26288H51MC');
   });
 
-  it('disables the export button while exporting and reports an export failure', () => {
-    const { unmount } = render(<TransactionsList {...baseProps({ exporting: true })} />);
-    expect((screen.getByRole('button', { name: 'Exporting…' }) as HTMLButtonElement).disabled).toBe(true);
+  it('labels the export button with the loaded row count and hints to load more only while more rows match', () => {
+    const rows = [makeTransactionFixture(), makeTransactionFixture({ Id: 'tx-2', BankReference: 'REF-2' })];
+    const { unmount } = render(<TransactionsList {...baseProps({ page: makePageFixture(rows, { TotalCount: 212 }) })} />);
+    expect(screen.getByRole('button', { name: 'Export CSV (2 rows)' }).getAttribute('title')).toBe('Exports the rows loaded in the list');
+    expect(screen.getByText('Exports the 2 loaded rows; load more to include more.')).not.toBeNull();
     unmount();
-    render(<TransactionsList {...baseProps({ exportError: 'HTTP 500' })} />);
-    expect(screen.getByRole('alert').textContent).toBe('Export failed: HTTP 500');
+    render(<TransactionsList {...baseProps({ page: makePageFixture(rows, { TotalCount: 2 }) })} />);
+    expect(screen.getByRole('button', { name: 'Export CSV (2 rows)' })).not.toBeNull();
+    expect(screen.queryByText(/load more to include more/)).toBeNull();
   });
 });

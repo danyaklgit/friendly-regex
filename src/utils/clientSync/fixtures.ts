@@ -1,6 +1,7 @@
 import type {
-  ClientSyncAccount, ClientSyncCall, ClientSyncKbCall, ClientSyncKbState, ClientSyncOutCall, ClientSyncSummary,
-  ClientSyncTagState, ClientSyncTrace, ClientSyncTransaction, ClientSyncTransactionsPage, ClientSyncWarning,
+  ClientSyncAccount, ClientSyncCall, ClientSyncCurrentView, ClientSyncKbCall, ClientSyncKbMatch, ClientSyncKbState,
+  ClientSyncMatchParty, ClientSyncOutCall, ClientSyncSummary, ClientSyncTagState, ClientSyncTrace, ClientSyncTransaction,
+  ClientSyncTransactionsPage, ClientSyncWarning, LabeledKeyValue,
 } from '../../api/clientSync';
 
 /** Test-only builders. Imported by *.test files only; never by app code. */
@@ -109,6 +110,84 @@ export function makeKbStateFixture(partial: Partial<ClientSyncKbState> = {}): Cl
   };
 }
 
+const labeled = (Key: string, Value: string | null, Label: string | null): LabeledKeyValue => ({ Key, Value, Label });
+
+/** A head-office party of match 0, with the three rows the layout labels. */
+export function makeMatchPartyFixture(partial: Partial<ClientSyncMatchParty> = {}): ClientSyncMatchParty {
+  return {
+    Level: 'HO', Title: 'Head office', Code: '11223344556', NameEn: 'Al Noor International Company', NameAr: 'شركة النور العالمية للتجارة',
+    CustomerType: null, IsDisplayed: true,
+    Attributes: [
+      labeled('kb_ho_customer_code', '11223344556', 'Code'),
+      labeled('kb_ho_customer_name_en', 'Al Noor International Company', 'Name (EN)'),
+      labeled('kb_ho_customer_name_ar', 'شركة النور العالمية للتجارة', 'Name (AR)'),
+    ],
+    ...partial,
+  };
+}
+
+/** Match 0: a franchise with its displayed head office, plus the two fields no party owns. */
+export function makeKbMatchFixture(partial: Partial<ClientSyncKbMatch> = {}): ClientSyncKbMatch {
+  return {
+    Number: 0, Suffix: '', CustomerType: 'TC', Certainty: 'STRONG', CertaintyRank: 4,
+    Parties: [
+      makeMatchPartyFixture({
+        Level: 'FRANCHISE', Title: 'Franchise', Code: '11223', NameEn: 'Al Noor International Company Grocery', IsDisplayed: false,
+        Attributes: [
+          labeled('kb_franchise_customer_code', '11223', 'Code'),
+          labeled('kb_franchise_customer_name_en', 'Al Noor International Company Grocery', 'Name (EN)'),
+          labeled('kb_franchise_customer_name_ar', 'شركة النور العالمية للتجارة', 'Name (AR)'),
+        ],
+      }),
+      makeMatchPartyFixture(),
+    ],
+    Fields: [labeled('kb_customer_type', 'TC', 'Customer type'), labeled('kb_allocation_certainty', 'STRONG', 'Allocation certainty')],
+    ...partial,
+  };
+}
+
+/** The mockup, reduced: three TEP attributes, the displayed customer (match 0's head office), match 0 and a weaker match 2 with a key the layout does not know. */
+export function makeCurrentViewFixture(partial: Partial<ClientSyncCurrentView> = {}): ClientSyncCurrentView {
+  return {
+    Tep: [
+      { Key: 'SenderAccountNumber', Value: 'SA4180000123456789012345' },
+      { Key: 'SenderBank', Value: '80' },
+      { Key: 'SenderName', Value: 'AL NOOR INTERNATIONAL CO' },
+    ],
+    Displayed: {
+      Code: '11223344556', NameEn: 'Al Noor International Company', NameAr: 'شركة النور العالمية للتجارة', HierarchyLevel: 'HO', CustomerType: 'TC',
+      MatchNumber: 0, MatchLevel: 'HO',
+      Attributes: [
+        labeled('kb_displayed_customer_code', '11223344556', 'Code'),
+        labeled('kb_displayed_customer_name_en', 'Al Noor International Company', 'Name (EN)'),
+        labeled('kb_displayed_customer_name_ar', 'شركة النور العالمية للتجارة', 'Name (AR)'),
+        labeled('kb_displayed_customer_hierarchy_level', 'HO', 'Hierarchy level'),
+        labeled('kb_displayed_customer_type', 'TC', 'Customer type'),
+      ],
+    },
+    Matches: [
+      makeKbMatchFixture(),
+      makeKbMatchFixture({
+        Number: 2, Suffix: '_2', Certainty: 'WEAK', CertaintyRank: 2,
+        Parties: [makeMatchPartyFixture({
+          Code: '3400112233', NameEn: 'Al Noor Grocery', NameAr: 'مركز النور للتسوق', IsDisplayed: false,
+          Attributes: [
+            labeled('kb_ho_customer_code_2', '3400112233', 'Code'),
+            labeled('kb_ho_customer_name_en_2', 'Al Noor Grocery', 'Name (EN)'),
+            labeled('kb_ho_customer_name_ar_2', 'مركز النور للتسوق', 'Name (AR)'),
+          ],
+        })],
+        Fields: [
+          labeled('kb_customer_type_2', 'TC', 'Customer type'),
+          labeled('kb_allocation_certainty_2', 'WEAK', 'Allocation certainty'),
+          labeled('kb_new_signal_2', 'x7', null),
+        ],
+      }),
+    ],
+    ...partial,
+  };
+}
+
 export function makeTraceFixture(partial: Partial<ClientSyncTrace> = {}): ClientSyncTrace {
   return {
     Transaction: makeTransactionFixture(),
@@ -127,6 +206,7 @@ export function makeTraceFixture(partial: Partial<ClientSyncTrace> = {}): Client
       Calls: [makeOutCallFixture()], CurrentTag: 'IncomingTransfer',
       CurrentAttributes: [{ Key: 'kb_customer_code', Value: 'C-100' }, { Key: 'payer_name', Value: 'AL FARIS CO' }],
       DeletedAtBwatech: false,
+      CurrentView: makeCurrentViewFixture(),
     },
     ...partial,
   };
