@@ -3,17 +3,22 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { TraceStepOut } from './TraceStepOut';
 import { makeTraceFixture, makeOutCallFixture, makeCurrentViewFixture, makeKbMatchFixture, makeMatchPartyFixture } from '../../utils/clientSync/fixtures';
+import { HOLDS_NOW_CSV_HEADERS } from '../../utils/clientSync/holdsNowCsv';
+import { downloadCsv } from '../../utils/exportCsv';
+
+vi.mock('../../utils/exportCsv', () => ({ downloadCsv: vi.fn() }));
 
 describe('TraceStepOut', () => {
   beforeEach(() => {
     Element.prototype.scrollIntoView = vi.fn();
+    vi.mocked(downloadCsv).mockClear();
   });
 
   it('lists calls oldest first with operation labels and counts, tabs This row | Response, and what BwaTech holds now grouped by default', async () => {
     const user = userEvent.setup();
     const data = makeTraceFixture().Out;
     const patch = makeOutCallFixture({ LogId: 'log-4', Endpoint: 'PatchTransactions', Operation: 'Delete', CallStartUtc: '2026-10-15T07:10:00Z', RecordCount: 1, ElementJson: '{"action":2}', ResponseText: null, HasResponseFile: false });
-    render(<TraceStepOut data={{ ...data, Calls: [patch, ...data.Calls] }} outStatus="UPDATED" withDate={false} onOpenFile={() => {}} />);
+    render(<TraceStepOut transactionId="tx-1" data={{ ...data, Calls: [patch, ...data.Calls] }} outStatus="UPDATED" withDate={false} onOpenFile={() => {}} />);
     const step = screen.getByRole('region', { name: '4. Sent to BwaTech' });
     expect(within(step).getByText('Sent + patched')).not.toBeNull();
     const groups = within(step).getAllByRole('group');
@@ -105,7 +110,7 @@ describe('TraceStepOut', () => {
     const user = userEvent.setup();
     const onOpenFile = vi.fn();
     const call = makeOutCallFixture({ ElementJson: null, ResponseText: null });
-    render(<TraceStepOut data={{ Calls: [call], CurrentTag: null, CurrentAttributes: [], DeletedAtBwatech: true, CurrentView: null }} outStatus="DELETED" withDate={false} onOpenFile={onOpenFile} />);
+    render(<TraceStepOut transactionId="tx-1" data={{ Calls: [call], CurrentTag: null, CurrentAttributes: [], DeletedAtBwatech: true, CurrentView: null }} outStatus="DELETED" withDate={false} onOpenFile={onOpenFile} />);
     await user.click(screen.getByRole('button', { name: 'Open the full request' }));
     expect(onOpenFile).toHaveBeenLastCalledWith(call, 'request');
     await user.click(screen.getByRole('radio', { name: 'Response' }));
@@ -120,13 +125,13 @@ describe('TraceStepOut', () => {
 
   it('shows an empty grouped view for a row without a knowledge-base answer, and no matches section when only TEP keys are held', () => {
     const data = makeTraceFixture().Out;
-    const { unmount } = render(<TraceStepOut data={{ ...data, CurrentView: { Tep: [], Displayed: null, Matches: [] } }} outStatus="SENT" withDate={false} onOpenFile={() => {}} />);
+    const { unmount } = render(<TraceStepOut transactionId="tx-1" data={{ ...data, CurrentView: { Tep: [], Displayed: null, Matches: [] } }} outStatus="SENT" withDate={false} onOpenFile={() => {}} />);
     const holds = screen.getByLabelText('What BwaTech holds now');
     expect(within(holds).getByRole('radio', { name: 'As sent' })).not.toBeNull();
     expect(within(holds).getByText('No attributes held')).not.toBeNull();
     unmount();
 
-    render(<TraceStepOut data={{ ...data, CurrentView: makeCurrentViewFixture({ Displayed: null, Matches: [] }) }} outStatus="SENT" withDate={false} onOpenFile={() => {}} />);
+    render(<TraceStepOut transactionId="tx-1" data={{ ...data, CurrentView: makeCurrentViewFixture({ Displayed: null, Matches: [] }) }} outStatus="SENT" withDate={false} onOpenFile={() => {}} />);
     const only = screen.getByLabelText('What BwaTech holds now');
     expect(within(only).getByRole('region', { name: 'TEP attributes' })).not.toBeNull();
     expect(within(only).queryByRole('region', { name: 'Displayed customer' })).toBeNull();
@@ -146,7 +151,7 @@ describe('TraceStepOut', () => {
         ],
       })],
     });
-    render(<TraceStepOut data={{ ...data, CurrentView: view }} outStatus="SENT" withDate={false} onOpenFile={() => {}} />);
+    render(<TraceStepOut transactionId="tx-1" data={{ ...data, CurrentView: view }} outStatus="SENT" withDate={false} onOpenFile={() => {}} />);
     const holds = screen.getByLabelText('What BwaTech holds now');
     const displayed = within(holds).getByRole('region', { name: 'Displayed customer' });
     expect(within(displayed).queryByRole('button')).toBeNull();
@@ -157,5 +162,35 @@ describe('TraceStepOut', () => {
     expect(region.className).not.toContain('ml-');
     expect(within(region).getByText('Region code')).not.toBeNull();
     expect(within(region).getByText('—')).not.toBeNull();
+  });
+
+  it('exports what BwaTech holds for the transaction from the section header, the same file whichever view is showing', async () => {
+    const user = userEvent.setup();
+    const data = makeTraceFixture().Out;
+    render(<TraceStepOut transactionId="6ad1cc48da7c9b23f5ced317" data={data} outStatus="SENT" withDate={false} onOpenFile={() => {}} />);
+    const holds = screen.getByLabelText('What BwaTech holds now');
+    await user.click(within(holds).getByRole('button', { name: 'Export CSV' }));
+    expect(downloadCsv).toHaveBeenCalledTimes(1);
+    const [name, headers, rows] = vi.mocked(downloadCsv).mock.calls[0];
+    expect(name).toBe('bwatech-holds-6ad1cc48da7c9b23f5ced317.csv');
+    expect(headers).toEqual(HOLDS_NOW_CSV_HEADERS);
+    expect(rows[0]).toEqual(['Transaction', null, null, null, 'Transaction id', 'TransactionId', '6ad1cc48da7c9b23f5ced317', null]);
+    expect(rows[1]).toEqual(['Transaction', null, null, null, 'Tag', 'tag', 'IncomingTransfer', null]);
+    expect(rows.slice(3, 6).map((r) => r[0])).toEqual(['TEP', 'TEP', 'TEP']);
+    await user.click(within(holds).getByRole('radio', { name: 'As sent' }));
+    await user.click(within(holds).getByRole('button', { name: 'Export CSV' }));
+    expect(vi.mocked(downloadCsv).mock.calls[1]).toEqual(vi.mocked(downloadCsv).mock.calls[0]);
+  });
+
+  it('offers the export without a grouped view, and disables it when no tag and no attribute is held', async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(<TraceStepOut transactionId="tx-1" data={{ Calls: [], CurrentTag: 'IncomingTransfer', CurrentAttributes: [{ Key: 'payer_name', Value: 'AL FARIS CO' }], DeletedAtBwatech: false, CurrentView: null }} outStatus="SENT" withDate={false} onOpenFile={() => {}} />);
+    await user.click(screen.getByRole('button', { name: 'Export CSV' }));
+    const rows = vi.mocked(downloadCsv).mock.calls[0][2];
+    expect(rows).toHaveLength(4);
+    expect(rows[3]).toEqual(['', null, null, null, '', 'payer_name', 'AL FARIS CO', 1]);
+    unmount();
+    render(<TraceStepOut transactionId="tx-1" data={{ Calls: [], CurrentTag: null, CurrentAttributes: [], DeletedAtBwatech: false, CurrentView: null }} outStatus="UNTRACKED" withDate={false} onOpenFile={() => {}} />);
+    expect((screen.getByRole('button', { name: 'Export CSV' }) as HTMLButtonElement).disabled).toBe(true);
   });
 });

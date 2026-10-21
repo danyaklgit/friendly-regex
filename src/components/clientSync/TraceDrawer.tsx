@@ -155,7 +155,7 @@ export function TraceDrawer({ transactionId, trace, loading, error, onRetry, onC
               <TraceStepIn data={trace.In} withDate={withDate} onOpenFile={openFile} />
               <TraceStepTagging data={trace.Tagging} />
               <TraceStepKb data={trace.Kb} withDate={withDate} onOpenFile={openFile} />
-              <TraceStepOut data={trace.Out} outStatus={trace.Transaction.Out.Status} withDate={withDate} onOpenFile={openFile} />
+              <TraceStepOut transactionId={trace.Transaction.Id} data={trace.Out} outStatus={trace.Transaction.Out.Status} withDate={withDate} onOpenFile={openFile} />
             </div>
           )}
         </div>
